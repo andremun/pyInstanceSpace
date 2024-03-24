@@ -1,4 +1,5 @@
 **Weekly Report: Kushagra Khare - Week 3**
+
 **Accomplishments:**
 1. Reviewed the LMS Overview of the project (0.5 hrs)
 2. Reviewed the Client Meeting as well as Repository to understand the requirements from the client (2hrs)
