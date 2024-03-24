@@ -11,6 +11,7 @@
 ## What I plan to do next week
 - maintaining the kanban, notice the progress, and make sure all the required tasks will come through
 - watch the video that posted on the MATILDA website thoroughly
+- write the agenda for the sprint review meeting for the next Friday
 - fill up all the tasks on the kanban with their A.C.
 - get the kick off understanding 
 - begin to code for stubs with Dong
