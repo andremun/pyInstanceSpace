@@ -24,3 +24,22 @@ Better integration with existing platforms, such as FigShare and GitHub.
 
 # Development Environment Setup Guide
 
+REQUIREMENTS: Python 3.12 installed
+
+### Step 1: Install poetry
+
+*Linux, Mac, WSL*
+
+`curl -sSL https://install.python-poetry.org | python3 -`
+
+*Windows*
+
+`(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -`
+
+### Step 2: Setup virtual environment
+`poetry config virtualenvs.in-project true`
+
+`poetry shell`
+
+### Step 3: Install python dependencies into virtual environment
+`poetry install`
