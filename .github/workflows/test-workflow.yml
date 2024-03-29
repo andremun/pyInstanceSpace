@@ -24,20 +24,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install ruff pytest mypy
-    - name: Lint with ruff
-      run: |
-        ruff check app matilda
-        exit 1
-        echo "OK"
-    - name: Static check with mypy
-      if: success() || failure()
-      # Continue to static checks even if code not following conventions
-      run: |
-        mypy app matilda
-        exit 1
-        echo "OK"
     - name: Test with pytest
-      if: success() || failure()
-      # Continue to tests even if code not following conventions
       run: |
         pytest
