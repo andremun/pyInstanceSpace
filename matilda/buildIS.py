@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 
 from matilda import PRELIM
-from matilda.model import *
+from matilda.model import Model
 
-def buildIS(rootdir: str) -> Dict[str, Any]:
+def buildIS(rootdir: str) -> Model:
     # TODO: Rewrite buildIS logic in Python
     raise NotImplementedError
