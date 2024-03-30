@@ -2,9 +2,9 @@ name: Application Testing
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "Staging" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "Staging" ]
 
 permissions:
   contents: read
