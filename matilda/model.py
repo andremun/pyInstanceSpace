@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Set
+
+from numpy import double
 from numpy.typing import NDArray
 import numpy as np
 import pandas as pd
@@ -7,8 +9,8 @@ import pandas as pd
 @dataclass
 class Data:
     instlabels: pd.Series
-    featlabels: List[str]
-    algolabels: List[str]
+    featlabels: List[str] # could be 1-row Datagram(corresponding to cell in Matlab) comment by Chen
+    algolabels: List[str] # could be 1-row Datagram, comment by Chen
     S: Set[str] = None
     X: NDArray[np.double]
     Y: NDArray[np.double]
@@ -43,9 +45,34 @@ class PrelimOut:
 class SiftedOut:
     pass
 
+
+
+
 @dataclass
 class PilotOut:
-    pass
+    """By Chen"""
+    X0: NDArray[np.double] # not sure about the dimensions
+    """
+    size has two version:
+        [2*m+2*n, opts.ntries]
+        row       column
+        Note: Xbar = [X Y];
+            m = size(Xbar, 2);
+            n = size(X, 2); % Number of features
+    or
+    ...
+    """
+
+    alpha: NDArray[np.double]
+    eoptim: NDArray[np.double]
+    perf: NDArray[np.double]
+    A: NDArray[np.double]
+    Z: NDArray[np.double]
+    C: NDArray[np.double]
+    B: NDArray[np.double]
+    error: NDArray[np.double] #or just the double
+    R2: NDArray[np.double]
+    summary: pd.DataFrame
 
 @dataclass
 class CloistOut:
@@ -59,9 +86,43 @@ class PythiaOut:
 class TraceOut:
     pass
 
+
+@dataclass
+class Selvars:
+    """By Chen """
+    smallscaleflag: bool
+    smallscale: double
+    fileidxflag: bool
+    fileidx: str
+    """fileidx length is not sure, char or str"""
+    feats: pd.DataFrame
+    algos: pd.DataFrame
+
+    #based on the usage of FILTER in buildIS, following type could have:
+    type: str # Value is one of: Ftr,Ftr&AP,Ftr&Good,Ftr&AP&Good
+    mindistance: double
+    densityflag: bool
+
+
+
 @dataclass
 class Opts:
-    pass
+    perf:
+    general:
+    auto:
+    bound:
+    norm:
+    selvars: Selvars
+    sifted:
+    pilot:
+    cloister:
+    pythia:
+    trace:
+    outputs:
+
+class Featsel:
+    idx: NDArray[double]
+
 
 @dataclass
 class Model:
