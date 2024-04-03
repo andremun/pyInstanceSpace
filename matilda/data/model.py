@@ -2,11 +2,13 @@ import numpy as np
 import pandas as pd
 
 from dataclasses import dataclass, field
+
 from typing import List, Set
 
-from numpy import double
 from numpy.typing import NDArray
+
 from matilda.data.option import Opts
+
 
 @dataclass
 class Data:
@@ -45,7 +47,13 @@ class PrelimOut:
 
 @dataclass
 class SiftedOut:
-    pass
+    flag: np.int #not sure datatype, confirm it later
+    rho: np.double
+    K: np.int
+    NTREES: np.int
+    Maxlter: np.int
+    Replicates: np.int
+
 
 @dataclass
 class PilotOut:
@@ -58,9 +66,10 @@ class PilotOut:
         Note: Xbar = [X Y];
             m = size(Xbar, 2);
             n = size(X, 2); % Number of features
-    or..
+    or
     ...
     """
+
     alpha: NDArray[np.double]
     eoptim: NDArray[np.double]
     perf: NDArray[np.double]
@@ -96,7 +105,6 @@ class PythiaOut:
     selection1
     summary
 
-
 @dataclass
 class polyshape:
     # polyshape is the builtin Matlab Data structure,
@@ -131,6 +139,7 @@ class Featsel:
     idx: NDArray[double]
 
 
+>>>>>>> 7d09c2b8b15af6a6311afad4c4804c47aa5975b7
 @dataclass
 class Model:
     data: Data
