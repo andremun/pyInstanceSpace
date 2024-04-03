@@ -1,9 +1,6 @@
-import numpy as np
 import pandas as pd
 
 from dataclasses import dataclass, field
-from typing import List, Set
-from numpy.typing import NDArray
 
 @dataclass
 class ParallelOptions:
@@ -83,7 +80,7 @@ class OutputOptions:
     png: bool
 
 @dataclass
-class Options:
+class Opts:
     parallel: ParallelOptions
     perf: PerformanceOptions
     auto: AutoOptions
