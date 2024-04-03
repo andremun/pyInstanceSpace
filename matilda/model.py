@@ -59,10 +59,9 @@ class PilotOut:
         Note: Xbar = [X Y];
             m = size(Xbar, 2);
             n = size(X, 2); % Number of features
-    or
+    or..
     ...
     """
-
     alpha: NDArray[np.double]
     eoptim: NDArray[np.double]
     perf: NDArray[np.double]
@@ -82,13 +81,33 @@ class CloistOut:
 class PythiaOut:
     pass
 
+
+@dataclass
+class Footprint: #从TRACEbuild func 找的
+    """By Chen """
+    polygon: polyshape # polyshape is the builtin Matlab Data structure,
+                        # may find a similar one in python
+    area: double;
+    elements: double;
+    goodElements: double;
+    density: double;
+    purity: double;
+
+
 @dataclass
 class TraceOut:
-    pass
+    """By Chen """
+    space: Footprint
+    good: NDArray(Footprint)
+    best: NDArray(Footprint)
+    hard: Footprint
+    summary: pd.DataFrame # for the dataform that looks like the
+                          # excel spreadsheet(rownames and column names are mixed with data),
+                          # I decide to use DataFrame
 
 
 @dataclass
-class Selvars:
+class SelvarsOpt:
     """By Chen """
     smallscaleflag: bool
     smallscale: double
@@ -104,6 +123,13 @@ class Selvars:
     densityflag: bool
 
 
+@dataclass
+class TraceOpt:
+    """By Chen """
+    PI: double
+    usesim: bool
+
+
 
 @dataclass
 class Opts:
@@ -112,12 +138,12 @@ class Opts:
     auto:
     bound:
     norm:
-    selvars: Selvars
+    selvars: SelvarsOpt
     sifted:
     pilot:
     cloister:
     pythia:
-    trace:
+    trace: TraceOpt
     outputs:
 
 class Featsel:
