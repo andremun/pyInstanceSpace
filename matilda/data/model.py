@@ -80,8 +80,52 @@ class PythiaOut:
     pass
 
 @dataclass
+class Footprint: #从TRACEbuild func 找的
+    """By Chen """
+    polygon: polyshape # polyshape is the builtin Matlab Data structure,
+                        # may find a similar one in python
+    area: double;
+    elements: double;
+    goodElements: double;
+    density: double;
+    purity: double;
+
+
+@dataclass
 class TraceOut:
-    pass
+    """By Chen """
+    space: Footprint
+    good: NDArray(Footprint)
+    best: NDArray(Footprint)
+    hard: Footprint
+    summary: pd.DataFrame # for the dataform that looks like the
+                          # excel spreadsheet(rownames and column names are mixed with data),
+                          # I decide to use DataFrame
+
+
+
+@dataclass
+class SelvarsOpt:
+    """By Chen """
+    smallscaleflag: bool
+    smallscale: double
+    fileidxflag: bool
+    fileidx: str
+    """fileidx length is not sure, char or str"""
+    feats: pd.DataFrame
+    algos: pd.DataFrame
+
+    #based on the usage of FILTER in buildIS, following type could have:
+    type: str # Value is one of: Ftr,Ftr&AP,Ftr&Good,Ftr&AP&Good
+    mindistance: double
+    densityflag: bool
+
+
+@dataclass
+class TraceOpt:
+    """By Chen """
+    PI: double
+    usesim: bool
 
 @dataclass
 class Model:
