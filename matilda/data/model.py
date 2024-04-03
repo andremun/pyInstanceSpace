@@ -1,10 +1,10 @@
-from dataclasses import dataclass, field
-from typing import List, Set
-
-from numpy import double
-from numpy.typing import NDArray
 import numpy as np
 import pandas as pd
+
+from dataclasses import dataclass, field
+from typing import List, Set
+from numpy.typing import NDArray
+from matilda.data.option import Opts
 
 @dataclass
 class Data:
@@ -45,9 +45,6 @@ class PrelimOut:
 class SiftedOut:
     pass
 
-
-
-
 @dataclass
 class PilotOut:
     """By Chen"""
@@ -85,44 +82,6 @@ class PythiaOut:
 @dataclass
 class TraceOut:
     pass
-
-
-@dataclass
-class Selvars:
-    """By Chen """
-    smallscaleflag: bool
-    smallscale: double
-    fileidxflag: bool
-    fileidx: str
-    """fileidx length is not sure, char or str"""
-    feats: pd.DataFrame
-    algos: pd.DataFrame
-
-    #based on the usage of FILTER in buildIS, following type could have:
-    type: str # Value is one of: Ftr,Ftr&AP,Ftr&Good,Ftr&AP&Good
-    mindistance: double
-    densityflag: bool
-
-
-
-@dataclass
-class Opts:
-    perf:
-    general:
-    auto:
-    bound:
-    norm:
-    selvars: Selvars
-    sifted:
-    pilot:
-    cloister:
-    pythia:
-    trace:
-    outputs:
-
-class Featsel:
-    idx: NDArray[double]
-
 
 @dataclass
 class Model:
