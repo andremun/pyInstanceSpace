@@ -9,7 +9,7 @@ def test_assertions():
     print("this is as test case")
     assert True, "Something is wrong with the Github Workflow - please contact kharek@student.unimelb.edu.au"
 
-def import_matlab():
+def test_import_matlab():
     matlab_script = str(path_root) + '/InstanceSpace/example.m'
     process = subprocess.Popen(["matlab", "-nodisplay", "-nosplash", "-nodesktop", "-r", f"run('{matlab_script}');exit;"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
