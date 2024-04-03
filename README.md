@@ -1,8 +1,8 @@
 # 2. Updating the MATILDA [code:MT]
 ### (Masters Advanced Software Project SWEN90017)
-## Client: Dr. Mario Andres Munoz Acosta 
+## Client: Dr. Mario Andres Munoz Acosta
 
-(Research fellow at ARC Centre in Optimisation Technologies, Integrated Methodologies and Applications (OPTIMA)) 
+(Research fellow at ARC Centre in Optimisation Technologies, Integrated Methodologies and Applications (OPTIMA))
 
 Project Mentor: Ben Golding
 
@@ -20,3 +20,26 @@ To change the back-end codebase from MATLAB to Python.
 To convert the job management system to independent VM, following industry best practice.
 Implement better user and data management systems, including password recovery, two-factor authentication and other industry best practices.
 Better integration with existing platforms, such as FigShare and GitHub.
+
+
+# Development Environment Setup Guide
+
+REQUIREMENTS: Python 3.12 installed
+
+### Step 1: Install poetry
+
+*Linux, Mac, WSL*
+
+`curl -sSL https://install.python-poetry.org | python3 -`
+
+*Windows*
+
+`(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -`
+
+### Step 2: Setup virtual environment
+`poetry config virtualenvs.in-project true`
+
+`poetry shell`
+
+### Step 3: Install python dependencies into virtual environment
+`poetry install`
