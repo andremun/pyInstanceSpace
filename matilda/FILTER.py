@@ -3,7 +3,8 @@ from typing import List
 import numpy as np
 from numpy._typing import NDArray
 
-from matilda.model import Opts, Model
+from matilda.data.model import Model
+from matilda.data.option import Opts
 
 """
 By Chen

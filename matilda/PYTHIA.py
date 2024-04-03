@@ -2,7 +2,7 @@ import numpy as np
 from numpy.typing import NDArray
 from sklearn.svm import SVC
 
-from model import Opts
+from matilda.data.option import Opts
 from typing import List, Optional
 
 @dataclass
