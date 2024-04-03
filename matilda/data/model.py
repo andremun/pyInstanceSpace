@@ -78,14 +78,35 @@ class CloistOut:
 
 @dataclass
 class PythiaOut:
-    pass
+    mu:
+    sigma:
+    cp:
+    svm:
+    cvcmat:
+    Ysub
+    Yhat: NDArray(bool)
+    Pr0sub
+    Pr0hat
+    boxconsnt
+    kscale
+    prcision
+    recall
+    accuracy
+    selection0:NDArray(double)
+    selection1
+    summary
 
 
 @dataclass
-class Footprint: #从TRACEbuild func 找的
+class polyshape:
+    # polyshape is the builtin Matlab Data structure,
+    # may find a similar one in python
+    pass
+
+@dataclass
+class Footprint:
     """By Chen """
-    polygon: polyshape # polyshape is the builtin Matlab Data structure,
-                        # may find a similar one in python
+    polygon: polyshape
     area: double;
     elements: double;
     goodElements: double;
@@ -101,50 +122,10 @@ class TraceOut:
     best: NDArray(Footprint)
     hard: Footprint
     summary: pd.DataFrame # for the dataform that looks like the
-                          # excel spreadsheet(rownames and column names are mixed with data),
+                          # Excel spreadsheet(rownames and column names are mixed with data),
                           # I decide to use DataFrame
 
 
-
-@dataclass
-class SelvarsOpt:
-    """By Chen """
-    smallscaleflag: bool
-    smallscale: double
-    fileidxflag: bool
-    fileidx: str
-    """fileidx length is not sure, char or str"""
-    feats: pd.DataFrame
-    algos: pd.DataFrame
-
-    #based on the usage of FILTER in buildIS, following type could have:
-    type: str # Value is one of: Ftr,Ftr&AP,Ftr&Good,Ftr&AP&Good
-    mindistance: double
-    densityflag: bool
-
-
-@dataclass
-class TraceOpt:
-    """By Chen """
-    PI: double
-    usesim: bool
-
-
-
-@dataclass
-class Opts:
-    perf:
-    general:
-    auto:
-    bound:
-    norm:
-    selvars: SelvarsOpt
-    sifted:
-    pilot:
-    cloister:
-    pythia:
-    trace: TraceOpt
-    outputs:
 
 class Featsel:
     idx: NDArray[double]
