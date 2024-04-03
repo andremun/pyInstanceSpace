@@ -43,7 +43,13 @@ class PrelimOut:
 
 @dataclass
 class SiftedOut:
-    pass
+    flag: np.int #not sure datatype, confirm it later
+    rho: np.double
+    K: np.int
+    NTREES: np.int
+    Maxlter: np.int
+    Replicates: np.int
+
 
 @dataclass
 class PilotOut:
