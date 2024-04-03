@@ -1,10 +1,12 @@
+import numpy as np
+import pandas as pd
+
 from dataclasses import dataclass, field
 from typing import List, Set
 
 from numpy import double
 from numpy.typing import NDArray
-import numpy as np
-import pandas as pd
+from matilda.data.option import Opts
 
 @dataclass
 class Data:
@@ -44,9 +46,6 @@ class PrelimOut:
 @dataclass
 class SiftedOut:
     pass
-
-
-
 
 @dataclass
 class PilotOut:
@@ -104,6 +103,7 @@ class TraceOut:
     summary: pd.DataFrame # for the dataform that looks like the
                           # excel spreadsheet(rownames and column names are mixed with data),
                           # I decide to use DataFrame
+
 
 
 @dataclass
