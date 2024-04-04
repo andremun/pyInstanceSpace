@@ -15,22 +15,22 @@ def sifted(
 
 
 def cost_fcn(
-    comb,
+    comb: NDArray[np.double], #not sure about the type
     x: NDArray[np.double],
     y_bin: NDArray[np.bool_],
-    n_trees,
-    n_wrokers,
+    n_trees: int,
+    n_wrokers: int,
 ) -> NDArray[np.double]:
     # TODO: rewrite SIFTED logic in python
     raise NotImplementedError
 
 
 def fcn_forga(
-    idx, 
-    x, 
+    idx: NDArray[np.intc],
+    x: NDArray[np.double], 
     y_bin: NDArray[np.bool_], 
-    n_trees, 
-    clust, 
-    n_workers,
+    n_trees: int, 
+    clust: NDArray[np.bool_], 
+    n_workers: int,
 ) -> NDArray[np.double]:
     raise NotImplementedError
