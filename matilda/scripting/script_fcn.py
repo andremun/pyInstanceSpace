@@ -86,7 +86,9 @@ def draw_sources(z: NDArray[np.double], s: set[str]) -> None:
 
 
 def draw_scatter(
-    z: NDArray[np.double], x: NDArray[np.double], title_label: str,
+    z: NDArray[np.double], 
+    x: NDArray[np.double], 
+    title_label: str,
 ) -> None:
     """
     Create a scatter plot of the given data.
