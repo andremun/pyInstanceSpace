@@ -104,6 +104,10 @@ extend-select = [
 ignore = [
     "D203",
     "D212",
+
+    # Don't care about too many arguments
+    "PLR0913",
+
     # Temporary, while we are doing stubs
     "ARG001",
 ]
