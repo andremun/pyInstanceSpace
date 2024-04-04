@@ -1,14 +1,20 @@
-from matilda.data.model import Model
-
 """
+Generate eb-compatible output files.
+
+As the part of the Matilda package and is responsible for generating and
+saving web-compatible output files from a Model object.
+
 By Chen
 """
-def script_web(contianer: Model, rootdir: str) -> None:
-    """
-    Generate and save web-compatible output files representing the data in the Model
-    object to the specified directory.
 
-    :param contianer: The Model object containing the data to be visualized and saved 
+from matilda.data.model import Model
+
+
+def script_web(container: Model, rootdir: str) -> None:
+    """
+    Generate and save web-compatible output files to the specified directory.
+
+    :param container: The Model object containing the data to be visualized and saved
                       as web-compatible files.
     :param rootdir: The root directory where the web output files will be saved.
     """
