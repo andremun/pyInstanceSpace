@@ -9,7 +9,7 @@ def sifted(
     y: NDArray[np.double],
     y_bin: NDArray[np.bool_],
     opts: Opts.sifted,
-) -> list[NDArray[np.double], SiftedOut]:
+) -> tuple[NDArray[np.double], SiftedOut]:
     # TODO: rewrite SIFTED logic in python
     raise NotImplementedError
 

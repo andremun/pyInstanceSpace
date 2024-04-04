@@ -47,7 +47,7 @@ def trace_contra(
     y_base: NDArray[np.bool_],
     y_test: NDArray[np.bool_],
     opts: TraceOptions,
-) -> list[Footprint, Footprint]:
+) -> tuple[Footprint, Footprint]:
     # TODO: Rewrite TRACEcontra logic in python
     raise NotImplementedError
 
@@ -57,7 +57,7 @@ def trace_tight(
     z: NDArray[np.double],
     y_bin: NDArray[np.bool_],
     opts: TraceOptions,
-) -> polyshape:
+) -> PolyShape:
     # TODO: Rewrite TRACEtight logic in python
     raise NotImplementedError
 
@@ -68,7 +68,7 @@ def trace_fitpoly(
     z: NDArray[np.double],
     y_bin: NDArray[np.bool_],
     opts: TraceOptions,
-) -> polyshape:
+) -> PolyShape:
     # TODO: Rewrite TRACEfitpoly logic in python
     raise NotImplementedError
 
@@ -88,7 +88,7 @@ def trace_throw() -> Footprint:
 
 def dbscan(
     x: NDArray[np.double], k: int, eps: double,
-) -> list[NDArray[np.intc], NDArray[np.intc]]:
+) -> tuple[NDArray[np.intc], NDArray[np.intc]]:
     # TODO: Rewrite dbscan logic in python
     # note that parameter:Eps could be dropped.
     raise NotImplementedError

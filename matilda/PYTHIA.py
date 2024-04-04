@@ -75,7 +75,7 @@ def fitmatsvm(
     cp,
     k: str,
     params: NDArray[np.double],
-) -> svmRes:
+) -> SvmRes:
     """
     Train a SVM model using MATLAB's 'fitcsvm' function.
 

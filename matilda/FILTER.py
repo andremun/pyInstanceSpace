@@ -15,7 +15,7 @@ By Chen
 
 def filter(
     x: NDArray[np.double], y: NDArray[np.double], opts: Opts.selvars,
-) -> list[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]]:
+) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]]:
     """
     
     """
