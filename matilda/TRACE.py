@@ -50,6 +50,7 @@ def trace_contra(
     y_test: NDArray[np.bool_],
     opts: TraceOptions,
 ) -> tuple[Footprint, Footprint]:
+    # not sure whether the returned value is tuple or list, needs further decision
     # TODO: Rewrite TRACEcontra logic in python
     raise NotImplementedError
 
@@ -95,6 +96,7 @@ def dbscan(
     k: int, eps: double,
 ) -> tuple[NDArray[np.intc], NDArray[np.intc]]:
     # TODO: Rewrite dbscan logic in python
+    # not sure whether the returned value is tuple or list, needs further decision
     # note that parameter:Eps could be dropped.
     raise NotImplementedError
 

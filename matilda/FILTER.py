@@ -19,7 +19,8 @@ def filter(
     opts: Opts.selvars,
 ) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]]:
     """
-    
+    Note that the return value, based on the original Matlab code, that is the List(or cell?)
+    needs further justification about what datatypes will be adopted.
     """
     # TODO: Rewrite FILTER logic in python
     raise NotImplementedError
