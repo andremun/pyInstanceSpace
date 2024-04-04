@@ -113,6 +113,9 @@ class PilotOut:
 class CloistOut:
     """Output from the cloistering."""
 
+    Zedge: NDArray[np.double]
+    Zecorr:NDArray[np.double]
+
     pass
 
 
