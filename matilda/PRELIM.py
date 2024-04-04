@@ -6,8 +6,8 @@ from matilda.data.option import Opts
 
 
 def prelim(
-    x: NDArray[np.double], 
-    y: NDArray[np.double], 
+    x: NDArray[np.double],
+    y: NDArray[np.double],
     opts: Opts,
 ) -> tuple[Data, PrelimOut]:
     """
@@ -23,6 +23,5 @@ def prelim(
     :return: A tuple containing the processed data (as 'Data' object) and preliminary
              output information (as 'PrelimOut' object).
     """
-    
     # TODO: Rewrite PRELIM logic in python
     raise NotImplementedError

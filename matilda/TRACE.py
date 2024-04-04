@@ -34,8 +34,8 @@ def trace(
 
 
 def trace_build(
-    z: NDArray[np.double], 
-    y_bin: NDArray[np.bool_], 
+    z: NDArray[np.double],
+    y_bin: NDArray[np.bool_],
     opts: TraceOptions,
 ) -> Footprint:
     # TODO: Rewrite TRACEbuild logic in python
@@ -77,8 +77,8 @@ def trace_fitpoly(
 
 
 def trace_summary(
-    footprint: Footprint, 
-    space_area: double, 
+    footprint: Footprint,
+    space_area: double,
     space_density: double,
 ) -> list[float]:
     # TODO: Rewrite TRACEsummary logic in python
@@ -92,7 +92,7 @@ def trace_throw() -> Footprint:
 
 
 def dbscan(
-    x: NDArray[np.double], 
+    x: NDArray[np.double],
     k: int, eps: double,
 ) -> tuple[NDArray[np.intc], NDArray[np.intc]]:
     # TODO: Rewrite dbscan logic in python

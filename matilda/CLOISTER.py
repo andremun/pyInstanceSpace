@@ -5,8 +5,8 @@ from matilda.data.model import Model, Opts
 
 
 def cloister(
-    x: NDArray[np.double], 
-    a: NDArray[np.double], 
+    x: NDArray[np.double],
+    a: NDArray[np.double],
     opts: Opts.cloister,
 ) -> Model.cloist:
     """

@@ -27,10 +27,10 @@ def cost_fcn(
 
 def fcn_forga(
     idx: NDArray[np.intc],
-    x: NDArray[np.double], 
-    y_bin: NDArray[np.bool_], 
-    n_trees: int, 
-    clust: NDArray[np.bool_], 
+    x: NDArray[np.double],
+    y_bin: NDArray[np.bool_],
+    n_trees: int,
+    clust: NDArray[np.bool_],
     n_workers: int,
 ) -> NDArray[np.double]:
     raise NotImplementedError
