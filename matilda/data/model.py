@@ -18,7 +18,7 @@ from matilda.data.option import Opts
 
 @dataclass
 class Data:
-    """Represent core dataset."""
+    """Holds initial dataset from metadata and processed data after operations."""
 
     inst_labels: pd.Series
     feat_labels: list[str]
