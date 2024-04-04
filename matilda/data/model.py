@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 
 from typing import List, Set
 
+from numpy import double
 from numpy.typing import NDArray
 
 from matilda.data.option import Opts
@@ -138,8 +139,6 @@ class TraceOut:
 class Featsel:
     idx: NDArray[double]
 
-
->>>>>>> 7d09c2b8b15af6a6311afad4c4804c47aa5975b7
 @dataclass
 class Model:
     data: Data
