@@ -6,7 +6,9 @@ from matilda.data.option import Opts
 
 
 def prelim(
-    x: NDArray[np.double], y: NDArray.np.double, opts: Opts,
+    x: NDArray[np.double], 
+    y: NDArray.np.double, 
+    opts: Opts,
 ) -> tuple[Data, PrelimOut]:
     """
     Perform preliminary processing on the input data 'x' and 'y'.
