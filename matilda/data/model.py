@@ -1,10 +1,8 @@
+from dataclasses import dataclass
+from typing import Any
+
 import numpy as np
 import pandas as pd
-
-from dataclasses import dataclass, field
-
-from typing import List, Set
-
 from numpy.typing import NDArray
 
 from matilda.data.option import Opts
@@ -12,53 +10,82 @@ from matilda.data.option import Opts
 
 @dataclass
 class Data:
-    instlabels: pd.Series
-    featlabels: List[str] # could be 1-row Datagram(corresponding to cell in Matlab) comment by Chen
-    algolabels: List[str] # could be 1-row Datagram, comment by Chen
-    S: Set[str] = None
-    X: NDArray[np.double]
-    Y: NDArray[np.double]
-    Xraw: NDArray[np.double]
-    Yraw: NDArray[np.double]
-    Ybin: NDArray[np.bool_]
-    Ybest: NDArray[np.double]
-    P: NDArray[np.double]
-    numGoodAlgos: NDArray[np.double]
+    """Represent core dataset."""
+
+    inst_labels: pd.Series
+    feat_labels: list[str]
+    algo_labels: list[str]
+    s: set[str] = None
+    x: NDArray[np.double]
+    y: NDArray[np.double]
+    x_raw: NDArray[np.double]
+    y_raw: NDArray[np.double]
+    y_bin: NDArray[np.bool_]
+    y_best: NDArray[np.double]
+    p: NDArray[np.double]
+    num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
 
+
 @dataclass
-class Featsel:
+class FeatSel:
+    """Holds indices for feature selection."""
+
     idx: NDArray[np.intc]
+
+
+@dataclass
+class AlgorithmSummary:
+    """Provides a summary of an algorithm's performance across different metrics."""
+
+    name: str
+    avg_perf_all_instances: float | None
+    std_perf_all_instances: float | None
+    probability_of_good: float | None
+    avg_perf_selected_instances: float | None
+    std_perf_selected_instances: float | None
+    cv_model_accuracy: float | None
+    cv_model_precision: float | None
+    cv_model_recall: float | None
+    box_constraint: float | None
+    kernel_scale: float | None
+
 
 @dataclass
 class PrelimOut:
-    medval: NDArray[np.double] 
-    iqrange: NDArray[np.double]
-    hibound: NDArray[np.double]
-    lobound: NDArray[np.double]
-    minX: NDArray[np.double]
-    lambdaX: NDArray[np.double]
-    muX: NDArray[np.double]
-    sigmaX: NDArray[np.double] 
-    minY: NDArray[np.double]
-    lambdaY: NDArray[np.double]
-    muY: np.double = 0.0
-    sigmaY: NDArray[np.double] 
+    """Contains preliminary output metrics calculated from the data."""
+
+    med_val: NDArray[np.double]
+    iq_range: NDArray[np.double]
+    hi_bound: NDArray[np.double]
+    lo_bound: NDArray[np.double]
+    min_x: NDArray[np.double]
+    lambda_x: NDArray[np.double]
+    mu_x: NDArray[np.double]
+    sigma_x: NDArray[np.double]
+    min_y: NDArray[np.double]
+    lambda_y: NDArray[np.double]
+    mu_y: np.double = 0.0
+    sigma_y: NDArray[np.double]
+
 
 @dataclass
 class SiftedOut:
-    flag: np.int #not sure datatype, confirm it later
+    """Results of the sifting process in the data analysis pipeline."""
+
+    flag: int  # not sure datatype, confirm it later
     rho: np.double
-    K: np.int
-    NTREES: np.int
-    Maxlter: np.int
-    Replicates: np.int
+    k: int
+    n_trees: int
+    max_lter: int
+    replicates: int
 
 
 @dataclass
 class PilotOut:
-    """By Chen"""
-    X0: NDArray[np.double] # not sure about the dimensions
+    """By Chen."""
+
+    X0: NDArray[np.double]  # not sure about the dimensions
     """
     size has two version:
         [2*m+2*n, opts.ntries]
@@ -73,78 +100,89 @@ class PilotOut:
     alpha: NDArray[np.double]
     eoptim: NDArray[np.double]
     perf: NDArray[np.double]
-    A: NDArray[np.double]
-    Z: NDArray[np.double]
-    C: NDArray[np.double]
-    B: NDArray[np.double]
-    error: NDArray[np.double] #or just the double
-    R2: NDArray[np.double]
+    a: NDArray[np.double]
+    z: NDArray[np.double]
+    c: NDArray[np.double]
+    b: NDArray[np.double]
+    error: NDArray[np.double]  # or just the double
+    r2: NDArray[np.double]
     summary: pd.DataFrame
+
 
 @dataclass
 class CloistOut:
+    """Output from the cloistering."""
+
     pass
+
 
 @dataclass
 class PythiaOut:
-    mu:
-    sigma:
-    cp:
-    svm:
-    cvcmat:
-    Ysub
-    Yhat: NDArray(bool)
-    Pr0sub
-    Pr0hat
-    boxconsnt
-    kscale
-    prcision
-    recall
-    accuracy
-    selection0:NDArray(double)
-    selection1
-    summary
+    """Output from the Pythia."""
+
+    mu: list[float]
+    sigma: list[float]
+    cp: Any  # Change it to proper type
+    svm: Any  # Change it to proper type
+    cvcmat: NDArray[np.double]
+    y_sub: NDArray[np.bool_]
+    y_hat: NDArray[np.bool_]
+    pr0_sub: NDArray[np.double]
+    pr0_hat: NDArray[np.double]
+    box_consnt: list[float]
+    k_scale: list[float]
+    precision: list[float]
+    recall: list[float]
+    accuracy: list[float]
+    selection0: NDArray[np.double]
+    selection1: Any  # Change it to proper type
+    summary: pd.DataFrame
+
 
 @dataclass
-class polyshape:
+class PolyShape:
+    """Placeholder for a polygon shape."""
+
     # polyshape is the builtin Matlab Data structure,
     # may find a similar one in python
     pass
 
+
 @dataclass
 class Footprint:
-    """By Chen """
-    polygon: polyshape
-    area: double;
-    elements: double;
-    goodElements: double;
-    density: double;
-    purity: double;
+    """By Chen."""
+
+    polygon: PolyShape
+    area: float
+    elements: float
+    good_elements: float
+    density: float
+    purity: float
 
 
 @dataclass
 class TraceOut:
-    """By Chen """
+    """By Chen."""
+
     space: Footprint
-    good: NDArray(Footprint)
-    best: NDArray(Footprint)
+    good: list[Footprint]
+    best: list[Footprint]
     hard: Footprint
-    summary: pd.DataFrame # for the dataform that looks like the
-                          # Excel spreadsheet(rownames and column names are mixed with data),
-                          # I decide to use DataFrame
+    summary: pd.DataFrame  # for the dataform that looks like the
+    # Excel spreadsheet(rownames and column names are mixed with data),
+    # I decide to use DataFrame
 
 
-
-class Featsel:
-    idx: NDArray[double]
-
-
->>>>>>> 7d09c2b8b15af6a6311afad4c4804c47aa5975b7
 @dataclass
 class Model:
+    """
+    Combines all components into a full model representation, including data and 
+    analysis results.
+    """
+
     data: Data
-    data_dense: Data 
-    featsel: Featsel 
+    data_dense: Data
+    feat_sel: FeatSel
     prelim: PrelimOut
     sifted: SiftedOut
     pilot: PilotOut

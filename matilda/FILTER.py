@@ -1,9 +1,6 @@
-from typing import List
-
 import numpy as np
 from numpy._typing import NDArray
 
-from matilda.data.model import Model
 from matilda.data.option import Opts
 
 """
@@ -15,8 +12,12 @@ By Chen
 
 """
 
-def FILTER(x: NDArray[np.double], y: NDArray[np.double], opts: Opts.selvars) -> \
-        List[NDArray[bool], NDArray[bool], NDArray[bool]]:
 
+def filter(
+    x: NDArray[np.double], y: NDArray[np.double], opts: Opts.selvars,
+) -> list[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]]:
+    """
+    
+    """
     # TODO: Rewrite FILTER logic in python
     raise NotImplementedError

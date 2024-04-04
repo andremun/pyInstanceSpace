@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 from numpy._typing import NDArray
 
 from matilda.data.model import Model, PilotOut
@@ -11,7 +10,14 @@ By Chen
 """
 
 
-def PILOT(x: NDArray[np.double], y: NDArray[np.double],
-          featlabels: Model.data.featlabels, opts: Opts.pilot) -> PilotOut:
+def pilot(
+    x: NDArray[np.double],
+    y: NDArray[np.double],
+    feat_labels: Model.data.feat_labels,
+    opts: Opts.pilot,
+) -> PilotOut:
+    """
+    
+    """
     # TODO: Rewrite PILOT logic in python
     raise NotImplementedError
