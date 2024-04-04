@@ -7,7 +7,7 @@ from matilda.data.option import Opts
 
 def prelim(
     x: NDArray[np.double], 
-    y: NDArray.np.double, 
+    y: NDArray[np.double], 
     opts: Opts,
 ) -> tuple[Data, PrelimOut]:
     """
