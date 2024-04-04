@@ -1,3 +1,11 @@
+"""
+Defines a comprehensive set of data classes used in the instance space analysis.
+
+These classes are designed to encapsulate various aspects of the data and the results
+of different analytical processes, facilitating a structured and organized approach
+to data analysis and model building.
+"""
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -179,7 +187,9 @@ class TraceOut:
 @dataclass
 class Model:
     """
-    Combines all components into a full model representation, including data and 
+    Contain data and output.
+
+    Combines all components into a full model representation, including data and
     analysis results.
     """
 

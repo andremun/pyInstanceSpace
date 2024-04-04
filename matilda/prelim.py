@@ -1,3 +1,15 @@
+"""
+Performing preliminary data processing.
+
+The main focus is on the `prelim` function, which prepares the input data for further
+analysis and modeling.
+
+The `prelim` function takes feature and performance data matrices along with a set of
+processing options, and performs various preprocessing tasks such as normalization,
+outlier detection and removal, and binary performance classification. These tasks are
+guided by the options specified in the `Opts` object.
+"""
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -12,10 +24,6 @@ def prelim(
 ) -> tuple[Data, PrelimOut]:
     """
     Perform preliminary processing on the input data 'x' and 'y'.
-      
-    The function preprocess the data by applying operations such as normalization,
-    outlier handling, and binary performance classification based on the specified
-    options in 'opts'.
 
     :param x: The feature matrix (instances x features) to process.
     :param y: The performance matrix (instances x algorithms) to process.

@@ -1,3 +1,10 @@
+"""
+Defines a collection of data classes that represent configuration options.
+
+These classes provide a structured way to specify and manage settings for different
+aspects of the model's execution and behavior.
+"""
+
 from dataclasses import dataclass
 
 import pandas as pd
@@ -5,9 +12,7 @@ import pandas as pd
 
 @dataclass
 class ParallelOptions:
-    """
-    Configuration options for parallel computing, including flag and number of cores.
-    """
+    """Configuration options for parallel computing."""
 
     flag: bool
     n_cores: int
@@ -61,10 +66,7 @@ class SelvarsOptions:
 
 @dataclass
 class SiftedOptions:
-    """
-    Options specific to the sifting process in data analysis, including algorithm
-    parameters.
-    """
+    """Options specific to the sifting process in data analysis."""
 
     flag: bool
     rho: float
@@ -76,10 +78,7 @@ class SiftedOptions:
 
 @dataclass
 class PilotOptions:
-    """
-    Options for pilot studies or preliminary analysis phases, including
-    analytical choices.
-    """
+    """Options for pilot studies or preliminary analysis phases."""
 
     analytic: bool
     n_tries: int
@@ -87,9 +86,7 @@ class PilotOptions:
 
 @dataclass
 class CloisterOptions:
-    """
-    Options for cloistering in the model, potentially for clustering or segmentation.
-    """
+    """Options for cloistering in the model."""
 
     p_val: float
     c_thres: float
@@ -97,10 +94,7 @@ class CloisterOptions:
 
 @dataclass
 class PythiaOptions:
-    """
-    Configuration for the Pythia component of the model, affecting prediction and
-    analysis.
-    """
+    """Configuration for the Pythia component of the model."""
 
     cv_folds: int
     is_poly_krnl: bool
@@ -110,9 +104,7 @@ class PythiaOptions:
 
 @dataclass
 class TraceOptions:
-    """
-    Options for trace analysis in the model, including simulation and performance index.
-    """
+    """Options for trace analysis in the model."""
 
     use_sim: bool
     PI: float
@@ -120,10 +112,7 @@ class TraceOptions:
 
 @dataclass
 class OutputOptions:
-    """
-    Options for controlling the output format of the model's results, including
-    CSV and PNG.
-    """
+    """Options for controlling the output format."""
 
     csv: bool
     web: bool

@@ -1,3 +1,11 @@
+"""
+Provides a suite of helper functions for data processing and visualization.
+
+It includes functionalities for writing arrays and data frames to CSV files,
+generating labels, applying color transformations, and creating various types of
+plots to visualize the data and analysis results.
+"""
+
 from typing import Any
 
 import numpy as np
