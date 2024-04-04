@@ -1,3 +1,6 @@
+"""
+PYTHIA function for algorithm selection and performance evaluation using SVM.
+"""
 
 import numpy as np
 from numpy.typing import NDArray
@@ -19,8 +22,8 @@ def pythia(
     PYTHIA function for algorithm selection and performance evaluation using SVM.
 
     :param Z: Feature matrix (instances x features).
-    :param Y: Target variable vector (not used directly in this function, but part of 
-              the interface).
+    :param Y: Target variable vector (not used directly in this function, but part
+    of the interface).
     :param Ybin: Binary matrix indicating success/failure of algorithms.
     :param Ybest: Vector containing the best performance of each instance.
     :param algolabels: List of algorithm labels.
@@ -72,7 +75,7 @@ def fitmatsvm(
     z: NDArray[np.double],
     y_bin: NDArray[np.double],
     w: NDArray[np.double],
-    cp,
+    cp: NDArray[np.double], # Actually its an array and the type is dynamic
     k: str,
     params: NDArray[np.double],
 ) -> SvmRes:
