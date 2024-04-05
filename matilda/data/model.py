@@ -91,8 +91,6 @@ class SiftedOut:
 
 @dataclass
 class PilotOut:
-    """By Chen."""
-
     X0: NDArray[np.double]  # not sure about the dimensions
     """
     size has two version:
@@ -161,7 +159,6 @@ class PolyShape:
 
 @dataclass
 class Footprint:
-    """By Chen."""
 
     polygon: PolyShape
     area: float
@@ -173,7 +170,6 @@ class Footprint:
 
 @dataclass
 class TraceOut:
-    """By Chen."""
 
     space: Footprint
     good: list[Footprint]

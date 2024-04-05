@@ -4,7 +4,6 @@ Generate eb-compatible output files.
 As the part of the Matilda package and is responsible for generating and
 saving web-compatible output files from a Model object.
 
-By Chen
 """
 
 from matilda.data.model import Model

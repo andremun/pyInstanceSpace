@@ -6,7 +6,6 @@ is an algorithm used to estimate the area of good performance of an
 algorithm within the space.
 For more details, please read the original Matlab code and liveDemo.
 
-By Chen
 """
 
 import numpy as np
