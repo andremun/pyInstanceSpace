@@ -12,6 +12,7 @@ readme = "README.md"
 python = "^3.12"
 numpy = "^1.26.4"
 pandas = "^2.2.1"
+pandas-stubs = "^2.2.1.240316"
 
 [tool.poetry.group.backend]
 optional = true
