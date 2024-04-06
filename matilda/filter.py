@@ -8,13 +8,13 @@ so I treat x type as NDArray[np.double], rather than Model.data.X.
 import numpy as np
 from numpy._typing import NDArray
 
-from matilda.data.option import Opts
+from matilda.data.option import SelvarsOptions
 
 
 def filter_by_us(
         x: NDArray[np.double],
         y: NDArray[np.double],
-        opts: Opts.selvars,
+        opts: SelvarsOptions,
 ) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]]:
     """
     NOT quite sure where this function was used.

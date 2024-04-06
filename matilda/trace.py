@@ -9,7 +9,7 @@ For more details, please read the original Matlab code and liveDemo.
 """
 
 import numpy as np
-from numpy import NDArray, double
+from numpy.typing import NDArray
 
 from matilda.data.model import Footprint, PolyShape, TraceOut
 from matilda.data.option import TraceOptions
@@ -185,8 +185,8 @@ def trace_fitpoly(
 
 def trace_summary(
     footprint: Footprint,
-    space_area: double,
-    space_density: double,
+    space_area: float,
+    space_density: float,
 ) -> list[float]:
     """
     Generate a summary of a footprint's characteristics relative to the overall space.
@@ -228,7 +228,8 @@ def trace_throw() -> Footprint:
 
 def dbscan(
     x: NDArray[np.double],
-    k: int, eps: double,
+    k: int,
+    eps: float,
 ) -> tuple[NDArray[np.intc], NDArray[np.intc]]:
     """
     Perform DBSCAN clustering on the given data set.
@@ -257,7 +258,7 @@ def dbscan(
     raise NotImplementedError
 
 
-def epsilon(x: NDArray[np.double], k: int) -> double:
+def epsilon(x: NDArray[np.double], k: int) -> float:
     """
     Estimates the optimal epsilon value for DBSCAN based on the data.
 

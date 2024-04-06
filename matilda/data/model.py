@@ -23,7 +23,6 @@ class Data:
     inst_labels: pd.Series
     feat_labels: list[str]
     algo_labels: list[str]
-    s: set[str] = None
     x: NDArray[np.double]
     y: NDArray[np.double]
     x_raw: NDArray[np.double]
@@ -33,6 +32,7 @@ class Data:
     p: NDArray[np.double]
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
+    s: set[str] | None
 
 
 @dataclass
@@ -73,8 +73,8 @@ class PrelimOut:
     sigma_x: NDArray[np.double]
     min_y: NDArray[np.double]
     lambda_y: NDArray[np.double]
-    mu_y: np.double = 0.0
     sigma_y: NDArray[np.double]
+    mu_y: float = 0.0
 
 
 @dataclass
@@ -116,7 +116,7 @@ class PilotOut:
 
 
 @dataclass
-class CloistOut:
+class CloisterOut:
     """Output from the cloistering."""
 
     Zedge: NDArray[np.double]
@@ -195,7 +195,7 @@ class Model:
     prelim: PrelimOut
     sifted: SiftedOut
     pilot: PilotOut
-    cloist: CloistOut
+    cloist: CloisterOut
     pythia: PythiaOut
     trace: TraceOut
     opts: Opts

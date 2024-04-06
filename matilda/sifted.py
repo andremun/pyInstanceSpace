@@ -1,14 +1,15 @@
 import numpy as np
 from numpy.typing import NDArray
 
-from matilda.data.model import Opts, SiftedOut
+from matilda.data.model import SiftedOut
+from matilda.data.option import SiftedOptions
 
 
 def sifted(
     x: NDArray[np.double],
     y: NDArray[np.double],
     y_bin: NDArray[np.bool_],
-    opts: Opts.sifted,
+    opts: SiftedOptions,
 ) -> tuple[NDArray[np.double], SiftedOut]:
     # TODO: rewrite SIFTED logic in python
     raise NotImplementedError

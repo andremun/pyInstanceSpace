@@ -11,7 +11,7 @@ from matilda.data.option import Opts
 
 
 def pythia(
-    z: np.NDArray[np.double],
+    z: NDArray[np.double],
     y: NDArray[np.double],
     y_bin: NDArray[np.double],
     y_best: NDArray[np.double],

@@ -10,17 +10,17 @@ from one edge of the space to the opposite.
 """
 
 import numpy as np
-from numpy import NDArray
+from numpy.typing import NDArray
 
-from matilda.data.model import Model, PilotOut
-from matilda.data.option import Opts
+from matilda.data.model import PilotOut
+from matilda.data.option import PilotOptions
 
 
 def pilot(
     x: NDArray[np.double],
     y: NDArray[np.double],
-    feat_labels: Model.data.feat_labels,
-    opts: Opts.pilot,
+    feat_labels: list[str],
+    opts: PilotOptions,
 ) -> PilotOut:
     """
     Produce the final subset of features.
