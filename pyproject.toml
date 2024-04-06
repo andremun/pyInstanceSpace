@@ -32,9 +32,10 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poe.tasks]
 check_ruff = "ruff check --fix"
-check_mpyp = "mypy -m matilda"
+check_mypy = "mypy ."
 
-check = ["check_ruff", "check_mpyp"]
+check.sequence = ["check_ruff", "check_mypy"]
+check.ignore_fail = "return_non_zero"
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
