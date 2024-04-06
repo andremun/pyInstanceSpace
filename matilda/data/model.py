@@ -91,18 +91,9 @@ class SiftedOut:
 
 @dataclass
 class PilotOut:
-    X0: NDArray[np.double]  # not sure about the dimensions
-    """
-    size has two version:
-        [2*m+2*n, opts.ntries]
-        row       column
-        Note: Xbar = [X Y];
-            m = size(Xbar, 2);
-            n = size(X, 2); % Number of features
-    or
-    ...
-    """
+    """Results of the Pilot process in the data analysis pipeline."""
 
+    X0: NDArray[np.double]  # not sure about the dimensions
     alpha: NDArray[np.double]
     eoptim: NDArray[np.double]
     perf: NDArray[np.double]
@@ -117,7 +108,7 @@ class PilotOut:
 
 @dataclass
 class CloisterOut:
-    """Output from the cloistering."""
+    """Results of the Cloister process in the data analysis pipeline."""
 
     Zedge: NDArray[np.double]
     Zecorr:NDArray[np.double]
@@ -125,9 +116,10 @@ class CloisterOut:
     pass
 
 
+
 @dataclass
 class PythiaOut:
-    """Output from the Pythia."""
+    """Results of the Pythia process in the data analysis pipeline."""
 
     mu: list[float]
     sigma: list[float]
@@ -150,7 +142,7 @@ class PythiaOut:
 
 @dataclass
 class PolyShape:
-    """Placeholder for a polygon shape."""
+    """Represent Polygon shape for footprint."""
 
     # polyshape is the builtin Matlab Data structure,
     # may find a similar one in python
@@ -159,6 +151,7 @@ class PolyShape:
 
 @dataclass
 class Footprint:
+    """Represent the geometric and quality attributes of a spatial footprint."""
 
     polygon: PolyShape
     area: float
@@ -170,6 +163,7 @@ class Footprint:
 
 @dataclass
 class TraceOut:
+    """Results of the Trace process in the data analysis pipeline."""
 
     space: Footprint
     good: list[Footprint]

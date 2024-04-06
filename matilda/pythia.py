@@ -1,6 +1,4 @@
-"""
-PYTHIA function for algorithm selection and performance evaluation using SVM.
-"""
+"""PYTHIA function for algorithm selection and performance evaluation using SVM."""
 
 import numpy as np
 from numpy.typing import NDArray
@@ -51,6 +49,8 @@ def pythia(
 
 
 class SvmRes:
+    """Resent data resulting from SVM."""
+
     svm: SVC
     Ysub: NDArray[np.double]
     Psub: NDArray[np.double]

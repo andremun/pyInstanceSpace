@@ -16,6 +16,7 @@ from numpy.typing import NDArray
 from matilda.data.model import Data, PrelimOut
 from matilda.data.option import Opts
 
+
 def prelim(
     x: NDArray[np.double],
     y: NDArray[np.double],

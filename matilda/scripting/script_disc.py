@@ -1,5 +1,4 @@
 """
-
 Display software disclaimer and citation information for a given software or file.
 
 The `script_disc` function within this module is used to print out standardized
@@ -8,20 +7,6 @@ copyright, and how to cite the software in academic or professional contexts. Th
 function is designed to be used as part of software distribution, ensuring that
 users are aware of the terms under which the software is provided and how to
 properly acknowledge its use.
-
-Functions:
-    script_disc(filename: str) -> None:
-        Display the software disclaimer and citation information for the specified
-        software or file.
-
-The output includes the copyright notice, contact information, a citation guide,
-and a standard disclaimer about the warranty of the software.
-
-Example usage:
-    script_disc('YourSoftwareName')
-
-This helps maintain transparency and proper attribution for software development and
-distribution, facilitating academic and professional use of the software.
 """
 
 def script_disc(filename: str) -> None:
