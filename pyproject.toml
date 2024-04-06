@@ -114,3 +114,10 @@ ignore = [
     # Temporary, while we are doing stubs
     "ARG001",
 ]
+
+[tool.mypy]
+disallow_untyped_defs = 'True'
+
+[[tool.mypy.overrides]]
+module = 'sklearn.svm'
+ignore_missing_imports = 'True'
