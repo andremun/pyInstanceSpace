@@ -2,7 +2,7 @@
 Defines a collection of data classes that represent configuration options.
 
 These classes provide a structured way to specify and manage settings for different
-aspects of the model's execution and behavior.
+aspects of the model's execution and behaviour.
 """
 
 from dataclasses import dataclass
@@ -120,7 +120,7 @@ class OutputOptions:
 
 
 @dataclass
-class Opts:
+class Options:
     """Aggregates all options into a single configuration object for the model."""
 
     parallel: ParallelOptions
