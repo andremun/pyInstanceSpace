@@ -1,2 +1,1 @@
-This meeting was held during the workshop and if you want to see the meeting minutes, please refer to the team meeting on 15th March:
-https://github.com/2024-SWN90017-18/MT-Updating-Matilda/blob/e88276ece7a25589bbe09d66cece27ba0b8f640d/Meetings/Team%20Meetings/Team_Meeting_3_15.md
+This meeting was held during the workshop and if you want to see the meeting minutes, please refer to the team meeting on 15th March (https://github.com/mzahedi/MT-SWN17-2024/blob/main/Meetings/Team%20Meetings/Team_Meeting_3_15.md).
