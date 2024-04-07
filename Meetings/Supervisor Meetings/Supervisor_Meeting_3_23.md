@@ -1,2 +1,0 @@
-This meeting was held during the workshop and if you want to see the meeting minutes, please refer to the Sprint1 planning meeting on 23rd March:
-https://github.com/2024-SWN90017-18/MT-Updating-Matilda/blob/e88276ece7a25589bbe09d66cece27ba0b8f640d/Meetings/Agile%20Ceremonies/Sprint%201/Planning.md
