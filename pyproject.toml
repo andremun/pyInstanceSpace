@@ -119,5 +119,5 @@ ignore = [
 disallow_untyped_defs = 'True'
 
 [[tool.mypy.overrides]]
-module = 'sklearn.svm'
+module = 'sklearn'
 ignore_missing_imports = 'True'
