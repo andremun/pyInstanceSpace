@@ -2,6 +2,7 @@
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.stats import zscore
 from sklearn import SVC
 
 from matilda.data.model import AlgorithmSummary
@@ -31,12 +32,49 @@ def pythia(
     """
     print("  -> Initializing PYTHIA.")
 
-    # TODO Section 1: Initialize and standardize the dataset.
+    # Test case Required: Same result from MATLAB
+    z_norm = zscore(z, axis = 0, ddof = 1)
+    mu, sigma = np.mean(z, axis=0), np.std(z, axis=0, ddof=1) 
 
-    # TODO Section 2: Configure the SVM training process.
+    ninst, nalgos = y_bin.shape
+
+    cp, svm = [None] * nalgos, [None] * nalgos
+
+    cvcmat = np.zeros((nalgos, 4))
+
+    y_sub, y_hat = np.zeros_like(y_bin, dtype=bool), np.zeros_like(y_bin, dtype=bool)
+
+    pro_sub, pro_hat = np.zeros_like(y_bin, dtype=float), np.zeros_like(y_bin, dtype=float)
+
+    box_const, k_scale = np.zeros(nalgos), np.zeros(nalgos)
+
+    """ 
+    Section 2: Configure the SVM training process.
     # (Including kernel function selection, library usage, hyperparameter strategy,
     # and cost-sensitive classification.)
+    """
 
+    print("-------------------------------------------------------------------------")
+    # No params in opt?
+    precalcparams = (
+        hasattr(opts, 'params') and
+        isinstance(opts.params, (list, np.ndarray)) and # only np.ndarrays
+        np.array(opts.params).shape == (nalgos, 2)
+    )
+    params = np.full((nalgos, 2), np.nan)
+
+    if opts.pythia.is_poly_krnl:
+        kernel_fcn = "polynomial"
+    else:
+        if ninst > 1000:
+           print("  -> For datasets larger than 1K Instances, PYTHIA works better with a Polynomial kernel.")
+           print("  -> Consider changing the kernel if the results are unsatisfactory.")
+           print("-------------------------------------------------------------------------")
+        kernel_fcn = "gaussian"
+    
+    print(f"  -> PYTHIA is using a {kernel_fcn} kernel ")
+    print("-------------------------------------------------------------------------")
+    
     # TODO Section 3: Train SVM model for each algorithm & Evaluate performance.
 
     # TODO Section 4: SVM model selection.
