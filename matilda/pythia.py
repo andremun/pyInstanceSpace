@@ -4,7 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 from sklearn import SVC
 
-from matilda.data.model import AlgorithmSummary
+from matilda.data.model import AlgorithmSummar
 from matilda.data.option import Options
 
 
