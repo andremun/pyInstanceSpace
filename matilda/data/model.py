@@ -25,8 +25,8 @@ class Data:
     algo_labels: list[str]
     x: NDArray[np.double]
     y: NDArray[np.double]
-    x_raw: NDArray[np.double]
-    y_raw: NDArray[np.double]
+    x_raw: NDArray[np.double]  # only the contents of features(doubles), no feature names
+    y_raw: NDArray[np.double]  # only the contents of algorithms(doubles), no algorithms names
     y_bin: NDArray[np.bool_]
     y_best: NDArray[np.double]
     p: NDArray[np.double]
@@ -111,10 +111,9 @@ class CloisterOut:
     """Results of the Cloister process in the data analysis pipeline."""
 
     Zedge: NDArray[np.double]
-    Zecorr:NDArray[np.double]
+    Zecorr: NDArray[np.double]
 
     pass
-
 
 
 @dataclass

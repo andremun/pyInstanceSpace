@@ -57,8 +57,8 @@ class SelvarsOptions:
     small_scale: float
     file_idx_flag: bool
     file_idx: str
-    feats: pd.DataFrame
-    algos: pd.DataFrame
+    feats: pd.DataFrame # should be list of string
+    algos: pd.DataFrame # should be list of string
     type: str
     min_distance: float
     density_flag: bool
