@@ -21,7 +21,7 @@ def sifted(
     y: NDArray[np.double],
     y_bin: NDArray[np.bool_],
     opts: SiftedOptions,
-) -> tuple[NDArray[np.double], SiftedOut]:
+) -> list[NDArray[np.double], SiftedOut]:
     """
     Process data matrices and options to produce a sifted dataset.
 
@@ -36,7 +36,7 @@ def sifted(
 
 
 def cost_fcn(
-    comb: NDArray[np.double], #not sure about the type
+    comb: NDArray[np.double],  # not sure about the type
     x: NDArray[np.double],
     y_bin: NDArray[np.bool_],
     n_trees: int,
