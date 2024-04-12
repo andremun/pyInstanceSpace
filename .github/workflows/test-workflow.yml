@@ -10,12 +10,13 @@ permissions:
   contents: read
 
 jobs:
-  Tests:
+  Build-Run-Test:
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
     - name: Set up Python 3.12
       uses: actions/setup-python@v3
       with:
@@ -27,3 +28,31 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
+
+    - name: Build Docker image
+      run: docker build -t my-python-app .
+
+    - name: Run Pytest in Docker using Poetry
+      run: docker run --name my-test-container my-python-app poetry run pytest
+
+    - name: Clean up Docker Container
+      if: always()
+      run: docker rm my-test-container
+    - name: Setup Git Config
+      if: github.event.pull_request.merged == true
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Merge Staging into Main
+      run: |
+        git fetch origin Staging:Staging
+        git merge --no-ff --no-edit --allow-unrelated-histories Staging
+        git push origin HEAD:main
+
+    - name: Clean up Pull Request
+      if: failure()
+      run: |
+        git push origin --delete temp-merge-branch
+        echo "Failed to merge Staging into Main."
+    
