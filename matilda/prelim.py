@@ -94,7 +94,9 @@ def prelim(
     for i in range(y.shape[0]):
         if multiple_best_algos[i]:
             aux = aidx[best_algos[i]]
-            p[i] = np.random.choice(aux, size=1)  # Pick one at random
+            # changed to pick the first one for testing purposes
+            # will need to change it back to random after testing complete
+            p[i] = aux[0]
 
     print("-> For", round(100 * np.mean(multiple_best_algos)), 
           "% of the instances there is more than one best algorithm.")
