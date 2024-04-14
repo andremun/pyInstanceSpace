@@ -108,7 +108,7 @@ def prelim(
     print("Random selection is used to break ties.")
 
     num_good_algos = np.sum(y_bin, axis=1)
-    print(num_good_algos)
+    # print(num_good_algos)
     beta = num_good_algos > (beta_threshold * nalgos)
 
     if bound:
@@ -151,13 +151,11 @@ def prelim(
     #         aux, mu_x[i], sigma_x[i] = stats.zscore(aux, ddof=1)
     #         y[~idx, i] = aux
 
-    # print("p", p)
+    return beta.astype(int)[1:]
 
 def main() -> None:
     # Create sample feature and performance data matrices
     # read x, y from test/input/model-data-x and y
-
-    print('hello world')
 
     x = np.genfromtxt("prelim/input/model-data-x.csv", delimiter=",")
     y = np.genfromtxt("prelim/input/model-data-y.csv", delimiter=",")
