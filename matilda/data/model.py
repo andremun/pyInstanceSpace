@@ -6,8 +6,9 @@ of different analytical processes, facilitating a structured and organized appro
 to data analysis and model building.
 """
 
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Iterator
+from typing import Any
 
 import numpy as np
 import pandas as pd
