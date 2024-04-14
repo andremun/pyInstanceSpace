@@ -10,7 +10,6 @@ outlier detection and removal, and binary performance classification. These task
 guided by the options specified in the `Opts` object.
 """
 
-import csv
 from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
@@ -89,17 +88,16 @@ def prelim(
             )
 
     print(msg)
+    
+    y_best = y_best[:, np.newaxis]
 
-
-    # best_algos = np.equal(y_raw, y_best)
-    best_algos = y_raw == y_best[:, np.newaxis]
+    best_algos = np.equal(y_raw, y_best)
     multiple_best_algos = np.sum(best_algos, axis=1) > 1
     aidx = np.arange(1, nalgos + 1)
-
     p = np.zeros(y.shape[0], dtype=int)
 
     for i in range(y.shape[0]):
-        if multiple_best_algos[i]:
+        if multiple_best_algos[i].any():
             aux = aidx[best_algos[i]]
             # changed to pick the first one for testing purposes
             # will need to change it back to random after testing complete
@@ -110,6 +108,7 @@ def prelim(
     print("Random selection is used to break ties.")
 
     num_good_algos = np.sum(y_bin, axis=1)
+    print(num_good_algos)
     beta = num_good_algos > (beta_threshold * nalgos)
 
     if bound:
@@ -152,7 +151,7 @@ def prelim(
     #         aux, mu_x[i], sigma_x[i] = stats.zscore(aux, ddof=1)
     #         y[~idx, i] = aux
 
-    print("p", p)
+    # print("p", p)
 
 def main() -> None:
     # Create sample feature and performance data matrices
