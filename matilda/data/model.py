@@ -7,7 +7,7 @@ to data analysis and model building.
 """
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Iterator
 
 import numpy as np
 import pandas as pd
@@ -107,14 +107,22 @@ class PilotOut:
 
 
 @dataclass
+class BoundaryResult:
+    """Results of generating boundaries from Cloister process."""
+
+    x_edge: NDArray[np.double]
+    remove: NDArray[np.double]
+
+    def __iter__(self: "BoundaryResult") -> Iterator[NDArray[np.double]]:
+        """Allow unpacking directly."""
+        return iter((self.x_edge, self.remove))
+
+@dataclass
 class CloisterOut:
     """Results of the Cloister process in the data analysis pipeline."""
 
-    Zedge: NDArray[np.double]
-    Zecorr:NDArray[np.double]
-
-    pass
-
+    z_edge: NDArray[np.double]
+    z_ecorr:NDArray[np.double]
 
 
 @dataclass
