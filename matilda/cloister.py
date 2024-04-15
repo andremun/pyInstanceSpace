@@ -19,7 +19,7 @@ from scipy.stats import pearsonr
 from matilda.data.model import BoundaryResult, CloisterOut
 from matilda.data.option import CloisterOptions
 
-filepath = "matilda/trials/regression/" # TODO: remove after completion
+filepath = "matilda/trials/timetable/" # TODO: remove after completion
 
 class Cloister:
     """
@@ -96,6 +96,8 @@ class Cloister:
                 else:
                     rho[i, j] = 0
                     pval[i, j] = 1
+
+        rho[pval > self.options.p_val] = 0
 
         np.savetxt(filepath + "rho_python.csv", rho, delimiter=",") #TODO: remove later
         np.savetxt(filepath + "pval_python.csv", pval, delimiter=",") #TODO: remove
