@@ -19,7 +19,7 @@ from scipy.stats import pearsonr
 from matilda.data.model import BoundaryResult, CloisterOut
 from matilda.data.option import CloisterOptions
 
-filepath = "matilda/trials/timetable/" # TODO: remove after completion
+filepath = "matilda/trials/regression/" # TODO: remove after completion
 
 class Cloister:
     """
@@ -58,7 +58,7 @@ class Cloister:
         options: CloisterOptions,
     ) -> None:
         """
-        Initialize the Cloister object with dataset, auxiliary data, and options.
+        Initialize the Cloister object with datasets and options.
 
         Arguments:
         ---------
@@ -77,7 +77,7 @@ class Cloister:
 
     def compute_correlation(self: "Cloister") -> NDArray[np.double]:
         """
-        Calculate the Pearson correlation coefficient matrix for the dataset.
+        Calculate the Pearson correlation coefficient for the dataset.
 
         Returns
         -------
@@ -202,8 +202,47 @@ class Cloister:
         return BoundaryResult(x_edge=x_edge, remove=remove)
 
     def run(self: "Cloister") -> CloisterOut:
-        """Run analysis to estimate the boundary of given dataset."""
-        raise NotImplementedError
+        """
+        Run boundary estimation analysis on the dataset.
+
+        Steps:
+        1. Compute the correlation matrix for the dataset.
+        2. Use the correlation matrix to establish preliminary boundaries.
+        3. Transform these points using a specified matrix and calculate their
+           convex hull to determine the boundary 'z_edge'.
+        4. Refine this boundary by filtering out points based on predefined criteria
+           related to their correlation, creating a more selective boundary 'z_ecorr'.
+
+        Returns
+        -------
+        CloisterOut:
+            An instance containing two attributes:
+            - `z_edge` : Numpy array representing the complete boundary
+            - `z_ecorr`: Numpy array representing the refined boundary after filtering
+                         out less relevant points.
+
+        """
+        print(
+            "  -> CLOISTER is using correlation to estimate a boundary for the space.",
+        )
+        rho = self.compute_correlation()
+        x_edge, remove = self.generate_boundaries(rho)
+        z_edge = self.calculate_convex_hull(np.dot(x_edge, self.a.T))
+        z_ecorr = self.calculate_convex_hull(np.dot(x_edge[~remove, :], self.a.T))
+
+        if z_ecorr.size == 0:
+            print("  -> The acceptable correlation threshold was too strict.")
+            print("  -> The features are weakely correlated.")
+            print("  -> Please consider increasing it.")
+            z_ecorr = z_edge
+
+        np.savetxt(filepath + "Zedge_out_python.csv", z_edge, delimiter=",") #TODO: r
+        np.savetxt(filepath + "Zecorr_out_python.csv", z_ecorr, delimiter=",") #TODO: r
+
+        print("-----------------------------------------------------------------------")
+        print("  -> CLOISTER has completed.")
+
+        return CloisterOut(z_edge=z_edge, z_ecorr=z_edge)
 
 
 
@@ -226,5 +265,6 @@ if __name__ == "__main__":
     y = load_csv_to_numpy("input_A.csv")
     option = CloisterOptions(p_val=0.05, c_thres=0.7)
     cloister = Cloister(x, y, option)
-    rho = cloister.compute_correlation()
-    x_edge, remove = cloister.generate_boundaries(rho)
+    # rho = cloister.compute_correlation()
+    # x_edge, remove = cloister.generate_boundaries(rho)
+    out = cloister.run()
