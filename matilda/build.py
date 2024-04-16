@@ -71,7 +71,7 @@ def select_features_and_algorithms(model: Model, opts: Opts):
             model.data.y = model.data.y[:, is_selected_algo]
             model.data.algo_labels = selected_algorithms
         else:
-            print("No features were specified in opts.selvars.feats or it was an empty list.")
+            print("No algorithms were specified in opts.selvars.feats or it was an empty list.")
 
 
 
