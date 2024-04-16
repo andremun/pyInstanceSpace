@@ -22,7 +22,6 @@ Example usage:
 
 import sys
 
-
 from matilda.data.model import Model
 from matilda.data.option import Opts
 
@@ -38,42 +37,53 @@ def build_instance_space(rootdir: str) -> Model:
     raise NotImplementedError
 
 
-def select_features_and_algorithms(model: Model, opts: Opts):
+def select_features_and_algorithms(model: Model, opts: Opts) -> None:
     """
     Select features and algorithms based on options provided in opts.
+
     Remove instances with too many missing values.
     """
-    print("-------------------------------------------------------------------------")
-    if (getattr(opts, 'selvars', None) is not None) and (getattr(opts.selvars, 'feats', None) is not None):
+    print("---------------------------------------------------")
+    if (getattr(opts, "selvars", None) is not None) and \
+            (getattr(opts.selvars, "feats", None) is not None):
 
-        # assume that model.data.feat_labels and opts.selvars.feats are list of string
-        selected_features = [feat for feat in model.data.feat_labels if feat in opts.selvars.feats]
+        # assume that model.data.feat_labels and
+        # opts.selvars.feats are list of string
+        selected_features = [feat for feat in model.data.feat_labels
+                             if feat in opts.selvars.feats]
 
-        # if something were chosen, based on the logic index, rather than the name string
+        # if something were chosen, based on the logic index,
+        # rather than the name string
         if selected_features:
-            print(f"-> Using the following features: {' '.join(selected_features)}")
+            print(f"-> Using the following features: "
+                  f"{' '.join(selected_features)}")
 
             # based on manually selected feature to update the data.x
-            is_selected_feature = [model.data.feat_labels.index(feat) for feat in selected_features]
+            is_selected_feature = [model.data.feat_labels.index(feat)
+                                   for feat in selected_features]
             model.data.x = model.data.x[:, is_selected_feature]
             model.data.feat_labels = selected_features
         else:
-            print("No features were specified in opts.selvars.feats or it was an empty list.")
+            print("No features were specified in opts.selvars."
+                  "feats or it was an empty list.")
 
-    print("-------------------------------------------------------------------------")
-    if (getattr(opts, 'selvars', None) is not None) and (getattr(opts.selvars, 'algos', None) is not None):
-        selected_algorithms = [algo for algo in model.data.algo_labels if algo in opts.selvars.algos]
+    print("---------------------------------------------------")
+    if (getattr(opts, "selvars", None) is not None) and \
+            (getattr(opts.selvars, "algos", None) is not None):
+        selected_algorithms = [algo for algo in model.data.algo_labels
+                               if algo in opts.selvars.algos]
 
         if selected_algorithms:
-            print(f"-> Using the following algorithms: {' '.join(selected_algorithms)}")
+            print(f"-> Using the following algorithms: "
+                  f"{' '.join(selected_algorithms)}")
 
-            is_selected_algo = [model.data.algo_labels.index(algo) for algo in selected_algorithms]
+            is_selected_algo = [model.data.algo_labels.index(algo)
+                                for algo in selected_algorithms]
             model.data.y = model.data.y[:, is_selected_algo]
             model.data.algo_labels = selected_algorithms
         else:
-            print("No algorithms were specified in opts.selvars.feats or it was an empty list.")
-
-
+            print("No algorithms were specified in opts.selvars."
+                  "algos or it was an empty list.")
 
 
 if __name__ == "__main__":

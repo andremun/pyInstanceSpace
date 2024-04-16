@@ -8,9 +8,6 @@ aspects of the model's execution and behavior.
 from dataclasses import dataclass
 
 
-import pandas as pd
-
-
 @dataclass
 class ParallelOptions:
     """Configuration options for parallel computing."""
@@ -58,8 +55,8 @@ class SelvarsOptions:
     small_scale: float
     file_idx_flag: bool
     file_idx: str
-    feats: [str]  # should be list of string
-    algos: [str]  # should be list of string
+    feats: list[str]  # should be list of string
+    algos: list[str]  # should be  list of string
     type: str
     min_distance: float
     density_flag: bool
