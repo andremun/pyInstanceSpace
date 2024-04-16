@@ -1,10 +1,10 @@
 """
-CLOISTER is using correlation to estimate a boundary for the space.
+Define Cloister class which generate boundaries in multidimensional data spaces.
 
-The function uses the correlation between the features and the performance of the
-algorithms to estimate a boundary for the space. It constructs edges based on the
-correlation between the features. The function then uses these edges to construct
-a convex hull, providing a boundary estimate for the dataset.
+The class analyse the correlation between the features and use the projection matrix
+computed from Pythia to estimate a boundary for the space. It constructs edges based on
+the correlation between the features. The class then uses these edges to construct
+a convex hull, providing a boundary for the dataset.
 """
 
 import numpy as np
@@ -18,7 +18,11 @@ from matilda.data.option import CloisterOptions
 
 class Cloister:
     """
-    Estimate a boundary for the space using correlation.
+    Estimating boundaries within a dataset based on the correlation among features.
+
+    This class uses Pearson's correlation coefficients to construct a correlation
+    matrix, which guides the determination of spatial boundaries through the
+    construction of a convex hull.
 
     Attributes
     ----------
