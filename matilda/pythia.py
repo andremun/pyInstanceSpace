@@ -6,7 +6,7 @@ from scipy.stats import zscore
 from pytictoc import TicToc
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import confusion_matrix
-from sklearn import SVC
+# from sklearn import SVC
 
 from matilda.data.model import AlgorithmSummary
 from matilda.data.option import Opts
@@ -222,7 +222,7 @@ def pythia(
 class SvmRes:
     """Resent data resulting from SVM."""
 
-    svm: SVC
+    svm: NDArray[np.double] # svm: SVC
     Ysub: NDArray[np.double]
     Psub: NDArray[np.double]
     Yhat: NDArray[np.double]

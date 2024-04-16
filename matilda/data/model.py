@@ -8,6 +8,7 @@ to data analysis and model building.
 
 from dataclasses import dataclass
 from typing import Any
+from typing import Union, Set
 
 import numpy as np
 import pandas as pd
@@ -32,7 +33,8 @@ class Data:
     p: NDArray[np.double]
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
-    s: set[str] | None
+    # s: set[str] | None
+    s: Union[Set[str], None]
 
 
 @dataclass
@@ -47,16 +49,16 @@ class AlgorithmSummary:
     """Provides a summary of an algorithm's performance across different metrics."""
 
     name: str
-    avg_perf_all_instances: float | None
-    std_perf_all_instances: float | None
-    probability_of_good: float | None
-    avg_perf_selected_instances: float | None
-    std_perf_selected_instances: float | None
-    cv_model_accuracy: float | None
-    cv_model_precision: float | None
-    cv_model_recall: float | None
-    box_constraint: float | None
-    kernel_scale: float | None
+    avg_perf_all_instances: Union[float, None]
+    std_perf_all_instances: Union[float, None]
+    probability_of_good: Union[float, None]
+    avg_perf_selected_instances: Union[float, None]
+    std_perf_selected_instances: Union[float, None]
+    cv_model_accuracy: Union[float, None]
+    cv_model_precision: Union[float, None]
+    cv_model_recall: Union[float, None]
+    box_constraint: Union[float, None]
+    kernel_scale: Union[float, None]
 
 
 @dataclass
