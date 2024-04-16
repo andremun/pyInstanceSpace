@@ -22,7 +22,6 @@ Example usage:
 
 import sys
 
-import numpy as np
 
 from matilda.data.model import Model
 
@@ -53,7 +52,7 @@ def select_features_and_algorithms(model: Model, opts: Model.opts):
         if selected_features:
             print(f"-> Using the following features: {' '.join(selected_features)}")
 
-            # 根据选中的特征更新数据
+            # based on manually selected feature to update the data.x
             is_selected_feature = [model.data.feat_labels.index(feat) for feat in selected_features]
             model.data.x = model.data.x[:, is_selected_feature]
             model.data.feat_labels = selected_features
@@ -62,15 +61,17 @@ def select_features_and_algorithms(model: Model, opts: Model.opts):
             print("No features were specified in opts.selvars.feats or it was an empty list.")
 
     print("-------------------------------------------------------------------------")
-    # 选择特定的算法
     if (getattr(opts, 'selvars', None) is not None) and (getattr(opts.selvars, 'algos', None) is not None):
         selected_algorithms = [algo for algo in model.data.algo_labels if algo in opts.selvars.algos]
-        print(f"-> Using the following algorithms: {' '.join(selected_algorithms)}")
 
-        # 更新模型数据
-        is_selected_algo = [model.data.algo_labels.index(algo) for algo in selected_algorithms]
-        model.data.y = model.data.y[:, is_selected_algo]
-        model.data.algo_labels = selected_algorithms
+        if selected_algorithms:
+            print(f"-> Using the following algorithms: {' '.join(selected_algorithms)}")
+            
+            is_selected_algo = [model.data.algo_labels.index(algo) for algo in selected_algorithms]
+            model.data.y = model.data.y[:, is_selected_algo]
+            model.data.algo_labels = selected_algorithms
+        else:
+            print("No features were specified in opts.selvars.feats or it was an empty list.")
 
 
 
