@@ -24,6 +24,7 @@ import sys
 
 
 from matilda.data.model import Model
+from matilda.data.option import Opts
 
 
 def build_instance_space(rootdir: str) -> Model:
@@ -37,7 +38,7 @@ def build_instance_space(rootdir: str) -> Model:
     raise NotImplementedError
 
 
-def select_features_and_algorithms(model: Model, opts: Model.opts):
+def select_features_and_algorithms(model: Model, opts: Opts):
     """
     Select features and algorithms based on options provided in opts.
     Remove instances with too many missing values.
@@ -57,7 +58,6 @@ def select_features_and_algorithms(model: Model, opts: Model.opts):
             model.data.x = model.data.x[:, is_selected_feature]
             model.data.feat_labels = selected_features
         else:
-
             print("No features were specified in opts.selvars.feats or it was an empty list.")
 
     print("-------------------------------------------------------------------------")
@@ -66,7 +66,7 @@ def select_features_and_algorithms(model: Model, opts: Model.opts):
 
         if selected_algorithms:
             print(f"-> Using the following algorithms: {' '.join(selected_algorithms)}")
-            
+
             is_selected_algo = [model.data.algo_labels.index(algo) for algo in selected_algorithms]
             model.data.y = model.data.y[:, is_selected_algo]
             model.data.algo_labels = selected_algorithms
