@@ -1,6 +1,7 @@
 """PYTHIA function for algorithm selection and performance evaluation using SVM."""
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
 from scipy.stats import zscore
 from pytictoc import TicToc
@@ -64,6 +65,7 @@ def pythia(
         isinstance(opts.params, (list, np.ndarray)) and # only np.ndarrays
         np.array(opts.params).shape == (nalgos, 2)
     )
+
     params = np.full((nalgos, 2), np.nan)
 
     if opts.pythia.is_poly_krnl:
@@ -117,6 +119,7 @@ def pythia(
 
     t = TicToc()
     t.tic()
+    # print("       " + str(nalgos))
 
     for i in range(nalgos):
         t_inner = TicToc()
@@ -127,96 +130,105 @@ def pythia(
 
         # REQUIRE: Test case for validation the result
         y_b = y_bin[:, i]
-        cv = StratifiedKFold(n_splits = opts.pythia.cv_folds, shuffle = True, random_state = 0)
+ 
+        skf = StratifiedKFold(n_splits = opts.pythia.cv_folds, shuffle = True, random_state = 0)
+        cp[i] = skf
+
+        fold = 0
+        for train_index, test_index in skf.split(np.zeros(len(y_bin[:, i])), y_bin[:, i]):
+            # Saving train and test indices to CSV files
+            pd.DataFrame(train_index).to_csv(f'train_indices_algo_{i}_fold_{fold}.csv', index=False, header=False)
+            pd.DataFrame(test_index).to_csv(f'test_indices_algo_{i}_fold_{fold}.csv', index=False, header=False)
+            fold += 1
         #  c.split(np.zeros(group.shape), group)
 
-        if opts.pythia.use_lib_svm:
-            svm_res = fit_libsvm(z_norm, y_b, cv, kernel_fcn, params[i])
-        else:
-            svm_res = fit_mat_svm(z_norm, y_b, w[:, i], cv, kernel_fcn, params[i])
+    #     if opts.pythia.use_lib_svm:
+    #         svm_res = fit_libsvm(z_norm, y_b, cv, kernel_fcn, params[i])
+    #     else:
+    #         svm_res = fit_mat_svm(z_norm, y_b, w[:, i], cv, kernel_fcn, params[i])
 
-        np.random.set_state(state)
+    #     np.random.set_state(state)
 
-        # REQUIRE: Test case for validation the result
-        aux = confusion_matrix(y_b, y_sub[:, i])
+    #     # REQUIRE: Test case for validation the result
+    #     aux = confusion_matrix(y_b, y_sub[:, i])
 
-        if np.prod(aux.shape) != 4:
-            caux = aux
-            aux = np.zeros((2, 2))
+    #     if np.prod(aux.shape) != 4:
+    #         caux = aux
+    #         aux = np.zeros((2, 2))
     
-            if np.all(y_b == 0):
-                if np.all(y_sub[:, i] == 0):
-                    aux[0, 0] = caux
-                elif np.all(y_sub[:, i] == 1):
-                    aux[1, 0] = caux
+    #         if np.all(y_b == 0):
+    #             if np.all(y_sub[:, i] == 0):
+    #                 aux[0, 0] = caux
+    #             elif np.all(y_sub[:, i] == 1):
+    #                 aux[1, 0] = caux
 
-            elif np.all(y_b == 1):
-                if np.all(y_sub[:, i] == 0):
-                    aux[0, 1] = caux
-                elif np.all(y_sub[:, i] == 1):
-                    aux[1, 1] = caux
+    #         elif np.all(y_b == 1):
+    #             if np.all(y_sub[:, i] == 0):
+    #                 aux[0, 1] = caux
+    #             elif np.all(y_sub[:, i] == 1):
+    #                 aux[1, 1] = caux
 
-        cvcmat[:, i] = aux.flatten()
+    #     cvcmat[:, i] = aux.flatten()
             
-        models_left = nalgos - (i + 1)
-        if models_left == 0:
-            print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are no models left to train.")
-        elif models_left == 1:
-            print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there is 1 model left to train.")
-        else:
-             print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are {models_left} models left to train.")
+    #     models_left = nalgos - (i + 1)
+    #     if models_left == 0:
+    #         print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are no models left to train.")
+    #     elif models_left == 1:
+    #         print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there is 1 model left to train.")
+    #     else:
+    #          print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are {models_left} models left to train.")
 
-        print(f"      -> Elapsed time: {t_inner.tocvalue():.2f}s")
+    #     print(f"      -> Elapsed time: {t_inner.tocvalue():.2f}s")
     
-    tn, fp, fn, tp = cvcmat[:, 0], cvcmat[:, 1], cvcmat[:, 2], cvcmat[:, 3]
-    precision = tp / (tp + fp)
-    recall = tp / (tp + fn)
-    accuracy = (tp + tn) / ninst
+    # tn, fp, fn, tp = cvcmat[:, 0], cvcmat[:, 1], cvcmat[:, 2], cvcmat[:, 3]
+    # precision = tp / (tp + fp)
+    # recall = tp / (tp + fn)
+    # accuracy = (tp + tn) / ninst
 
-    print(f"Total elapsed time: {t.tocvalue():.2f}s")
-    print("-------------------------------------------------------------------------")
-    print("  -> PYTHIA has completed training the models.")
-    print(f"  -> The average cross validated precision is: {np.round(100 * np.mean(precision), 1)}%")
-    print(f"  -> The average cross validated accuracy is: {np.round(100 * np.mean(accuracy), 1)}%")
-    print(f"      -> Elapsed time: {t.tocvalue():.2f}s")
-    print("-------------------------------------------------------------------------")
+    # print(f"Total elapsed time: {t.tocvalue():.2f}s")
+    # print("-------------------------------------------------------------------------")
+    # print("  -> PYTHIA has completed training the models.")
+    # print(f"  -> The average cross validated precision is: {np.round(100 * np.mean(precision), 1)}%")
+    # print(f"  -> The average cross validated accuracy is: {np.round(100 * np.mean(accuracy), 1)}%")
+    # print(f"      -> Elapsed time: {t.tocvalue():.2f}s")
+    # print("-------------------------------------------------------------------------")
 
-    """We assume that the most precise SVM (as per CV-Precision) is the most reliable."""
-    best, selection_0
-    if nalgos > 1:
-        best, selection_0 = np.max(y_hat * precision.T, axis=1), np.argmax(y_hat * precision.T, axis=1)
-    else:
-        best, selection_0 = y_hat, y_hat
+    # """We assume that the most precise SVM (as per CV-Precision) is the most reliable."""
+    # best, selection_0
+    # if nalgos > 1:
+    #     best, selection_0 = np.max(y_hat * precision.T, axis=1), np.argmax(y_hat * precision.T, axis=1)
+    # else:
+    #     best, selection_0 = y_hat, y_hat
 
-    default = np.argmax(np.mean(y_bin, axis=0))
-    selection_1 = selection_0.copy()
-    selection_0[best <= 0] = 0
-    selection_1[best <= 0] = default
+    # default = np.argmax(np.mean(y_bin, axis=0))
+    # selection_1 = selection_0.copy()
+    # selection_0[best <= 0] = 0
+    # selection_1[best <= 0] = default
 
-    sel0 = selection_0[:, None] == np.arange(1, nalgos + 1)
-    sel1 = selection_1[:, None] == np.arange(1, nalgos + 1)
+    # sel0 = selection_0[:, None] == np.arange(1, nalgos + 1)
+    # sel1 = selection_1[:, None] == np.arange(1, nalgos + 1)
 
-    avgperf = np.nanmean(y)
-    stdperf = np.nanstd(y)
+    # avgperf = np.nanmean(y)
+    # stdperf = np.nanstd(y)
 
-    y_full = y.copy()
-    y_svms = y.copy()
+    # y_full = y.copy()
+    # y_svms = y.copy()
 
-    y[~ sel0] = np.NaN
-    y_full[~ sel1] = np.NaN
-    y_svms[~ y_hat] = np.NaN
+    # y[~ sel0] = np.NaN
+    # y_full[~ sel1] = np.NaN
+    # y_svms[~ y_hat] = np.NaN
 
-    pgood = np.mean(np.any(y_bin & sel1, axis=1))
-    fb = np.sum(np.any(y_bin & ~sel0, axis=1))
-    fg = np.sum(np.any(~ y_bin & sel0, axis=1))
-    tg = np.sum(np.any(y_bin & sel0, axis=1))
+    # pgood = np.mean(np.any(y_bin & sel1, axis=1))
+    # fb = np.sum(np.any(y_bin & ~sel0, axis=1))
+    # fg = np.sum(np.any(~ y_bin & sel0, axis=1))
+    # tg = np.sum(np.any(y_bin & sel0, axis=1))
 
-    precisionsel = tg / (tg + fg)
-    recallsel = tg / (tg + fb)
+    # precisionsel = tg / (tg + fg)
+    # recallsel = tg / (tg + fb)
 
     # TODO Section 6: Generate output
 
-    raise NotImplementedError
+    # raise NotImplementedError
 
 
 class SvmRes:

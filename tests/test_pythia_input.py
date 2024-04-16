@@ -2,7 +2,7 @@
 import pytest
 import csv
 import numpy as np
-import matilda.pythia as pythia_function
+from matilda.pythia import pythia
 from  matilda.data.option import *
 
 pythia_opts = PythiaOptions(
@@ -58,3 +58,24 @@ def test_input():
     # expected_first_row = np.array([0.78943, 1.9664])
     # np.testing.assert_array_almost_equal(Z[0], expected_first_row, decimal=5, err_msg="First row does not match expected values.")
     # print(algolabels)
+
+def test_cv_indices():
+    nalgos = y_bin.shape[1]
+    cv_folds = opts.pythia.cv_folds
+
+    res =  pythia(z, y, y_bin, y_best, algolabels, opts)
+    i = 0
+    # for i in 0:
+    for fold in range(cv_folds):
+        # Load indices from Python-generated CSV files
+        train_py = pd.read_csv(f'train_indices_algo_{i}_fold_{fold}.csv', header=None).values.flatten()
+        test_py = pd.read_csv(f'test_indices_algo_{i}_fold_{fold}.csv', header=None).values.flatten()
+
+        # Load indices from MATLAB-generated CSV files
+        train_matlab = np.loadtxt(f'tests/testData_pythia/al_{i+1}_cv_train_fold_{fold+1}.csv', dtype=int)
+        test_matlab = np.loadtxt(f'tests/testData_pythia/al_{i+1}_cv_test_fold_{fold+1}.csv', dtype=int)
+        print(train_py)
+        print(train_matlab)
+        # Assert that the indices are the same
+        assert np.array_equal(train_py, train_matlab), f"Train indices do not match for algorithm {i}, fold {fold}"
+        assert np.array_equal(test_py, test_matlab), f"Test indices do not match for algorithm {i}, fold {fold}"
