@@ -7,11 +7,7 @@ correlation between the features. The function then uses these edges to construc
 a convex hull, providing a boundary estimate for the dataset.
 """
 
-import json
-from pathlib import Path
-
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 from scipy.spatial import ConvexHull, QhullError
 from scipy.stats import pearsonr
@@ -19,7 +15,6 @@ from scipy.stats import pearsonr
 from matilda.data.model import BoundaryResult, CloisterOut
 from matilda.data.option import CloisterOptions
 
-filepath = "matilda/trials/timetable/" # TODO: remove after completion
 
 class Cloister:
     """
@@ -99,9 +94,6 @@ class Cloister:
 
         rho[pval > self.options.p_val] = 0
 
-        np.savetxt(filepath + "rho_python.csv", rho, delimiter=",") #TODO: remove later
-        np.savetxt(filepath + "pval_python.csv", pval, delimiter=",") #TODO: remove
-
         return rho
 
     def decimal_to_binary_matrix(self: "Cloister") -> NDArray[np.intc]:
@@ -174,9 +166,6 @@ class Cloister:
         x_edge = np.zeros((ncomb, self.nfeats))
         remove = np.zeros(ncomb, dtype=bool)
 
-        np.savetxt(filepath + "Xbnd_python.csv", x_bnds, delimiter=",") #TODO: remove
-        np.savetxt(filepath + "pre_idx_python.csv", idx, delimiter=",") #TODO: remove
-
         for i in range(ncomb):
             ind = np.ravel_multi_index(
                 (idx[i], np.arange(self.nfeats)),
@@ -197,9 +186,6 @@ class Cloister:
                         break
                 if remove[i]:
                     break
-
-        np.savetxt(filepath + "post_Xedge_python.csv", x_edge, delimiter=",") #TODO: r
-        np.savetxt(filepath + "post_remove_python.csv", remove, delimiter=",") #TODO: r
 
         return BoundaryResult(x_edge=x_edge, remove=remove)
 
@@ -238,35 +224,7 @@ class Cloister:
             print("  -> Please consider increasing it.")
             z_ecorr = z_edge
 
-        np.savetxt(filepath + "Zedge_out_python.csv", z_edge, delimiter=",") #TODO: r
-        np.savetxt(filepath + "Zecorr_out_python.csv", z_ecorr, delimiter=",") #TODO: r
-
         print("-----------------------------------------------------------------------")
         print("  -> CLOISTER has completed.")
 
-        return CloisterOut(z_edge=z_edge, z_ecorr=z_edge)
-
-
-
-# TODO: Remove below functions after completion
-def load_csv_to_numpy(filename: str) -> NDArray[np.double]:
-    """Load csv to numpy."""
-    df = pd.read_csv(filepath + filename, header=None)
-    return df.to_numpy(dtype=np.double)
-
-
-def load_json(filepath: str) -> dict:
-    """Load JSON file."""
-    path = Path(filepath)
-    with path.open("r") as file:
-        return json.load(file)
-
-
-if __name__ == "__main__":
-    x = load_csv_to_numpy("input_X.csv")
-    y = load_csv_to_numpy("input_A.csv")
-    option = CloisterOptions(p_val=0.05, c_thres=0.7)
-    cloister = Cloister(x, y, option)
-    # rho = cloister.compute_correlation()
-    # x_edge, remove = cloister.generate_boundaries(rho)
-    out = cloister.run()
+        return CloisterOut(z_edge=z_edge, z_ecorr=z_ecorr)
