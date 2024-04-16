@@ -125,6 +125,10 @@ class CloisterOut:
     z_edge: NDArray[np.double]
     z_ecorr:NDArray[np.double]
 
+    def __iter__(self: "CloisterOut") -> Iterator[NDArray[np.double]]:
+        """Allow unpacking directly."""
+        return iter((self.z_edge, self.z_ecorr))
+
 
 @dataclass
 class PythiaOut:
