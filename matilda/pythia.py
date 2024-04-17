@@ -153,115 +153,115 @@ def pythia(
         #  c.split(np.zeros(group.shape), group)
 
         if opts.pythia.use_lib_svm:
-            svm_res = fit_libsvm(z_norm, y_b, cv, kernel_fcn, params[i])
+            svm_res = None #fit_libsvm(z_norm, y_b, cp[i], kernel_fcn, params[i])
         else:
-            svm_res = fit_mat_svm(z_norm, y_b, w[:, i], cv, kernel_fcn, params[i])
+            svm_res = None #fit_mat_svm(z_norm, y_b, w[:, i], cp[i], kernel_fcn, params[i])
 
         np.random.set_state(state)
 
         # REQUIRE: Test case for validation the result
-        aux = confusion_matrix(y_b, y_sub[:, i])
+        # aux = confusion_matrix(y_b, y_sub[:, i])
 
-        if np.prod(aux.shape) != 4:
-            caux = aux
-            aux = np.zeros((2, 2))
+    #     if np.prod(aux.shape) != 4:
+    #         caux = aux
+    #         aux = np.zeros((2, 2))
     
-            if np.all(y_b == 0):
-                if np.all(y_sub[:, i] == 0):
-                    aux[0, 0] = caux
-                elif np.all(y_sub[:, i] == 1):
-                    aux[1, 0] = caux
+    #         if np.all(y_b == 0):
+    #             if np.all(y_sub[:, i] == 0):
+    #                 aux[0, 0] = caux
+    #             elif np.all(y_sub[:, i] == 1):
+    #                 aux[1, 0] = caux
 
-            elif np.all(y_b == 1):
-                if np.all(y_sub[:, i] == 0):
-                    aux[0, 1] = caux
-                elif np.all(y_sub[:, i] == 1):
-                    aux[1, 1] = caux
+    #         elif np.all(y_b == 1):
+    #             if np.all(y_sub[:, i] == 0):
+    #                 aux[0, 1] = caux
+    #             elif np.all(y_sub[:, i] == 1):
+    #                 aux[1, 1] = caux
 
-        cvcmat[:, i] = aux.flatten()
+    #     cvcmat[:, i] = aux.flatten()
             
-        models_left = nalgos - (i + 1)
-        if models_left == 0:
-            print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are no models left to train.")
-        elif models_left == 1:
-            print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there is 1 model left to train.")
-        else:
-             print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are {models_left} models left to train.")
+    #     models_left = nalgos - (i + 1)
+    #     if models_left == 0:
+    #         print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are no models left to train.")
+    #     elif models_left == 1:
+    #         print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there is 1 model left to train.")
+    #     else:
+    #          print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are {models_left} models left to train.")
 
-        print(f"      -> Elapsed time: {t_inner.tocvalue():.2f}s")
+    #     print(f"      -> Elapsed time: {t_inner.tocvalue():.2f}s")
     
-    tn, fp, fn, tp = cvcmat[:, 0], cvcmat[:, 1], cvcmat[:, 2], cvcmat[:, 3]
-    precision = tp / (tp + fp)
-    recall = tp / (tp + fn)
-    accuracy = (tp + tn) / ninst
+    # tn, fp, fn, tp = cvcmat[:, 0], cvcmat[:, 1], cvcmat[:, 2], cvcmat[:, 3]
+    # precision = tp / (tp + fp)
+    # recall = tp / (tp + fn)
+    # accuracy = (tp + tn) / ninst
 
-    print(f"Total elapsed time: {t.tocvalue():.2f}s")
-    print("-------------------------------------------------------------------------")
-    print("  -> PYTHIA has completed training the models.")
-    print(f"  -> The average cross validated precision is: {np.round(100 * np.mean(precision), 1)}%")
-    print(f"  -> The average cross validated accuracy is: {np.round(100 * np.mean(accuracy), 1)}%")
-    print(f"      -> Elapsed time: {t.tocvalue():.2f}s")
-    print("-------------------------------------------------------------------------")
+    # print(f"Total elapsed time: {t.tocvalue():.2f}s")
+    # print("-------------------------------------------------------------------------")
+    # print("  -> PYTHIA has completed training the models.")
+    # print(f"  -> The average cross validated precision is: {np.round(100 * np.mean(precision), 1)}%")
+    # print(f"  -> The average cross validated accuracy is: {np.round(100 * np.mean(accuracy), 1)}%")
+    # print(f"      -> Elapsed time: {t.tocvalue():.2f}s")
+    # print("-------------------------------------------------------------------------")
 
-    """We assume that the most precise SVM (as per CV-Precision) is the most reliable."""
-    best, selection_0
-    if nalgos > 1:
-        best, selection_0 = np.max(y_hat * precision.T, axis=1), np.argmax(y_hat * precision.T, axis=1)
-    else:
-        best, selection_0 = y_hat, y_hat
+    # """We assume that the most precise SVM (as per CV-Precision) is the most reliable."""
+    # best, selection_0
+    # if nalgos > 1:
+    #     best, selection_0 = np.max(y_hat * precision.T, axis=1), np.argmax(y_hat * precision.T, axis=1)
+    # else:
+    #     best, selection_0 = y_hat, y_hat
 
-    default = np.argmax(np.mean(y_bin, axis=0))
-    selection_1 = selection_0.copy()
-    selection_0[best <= 0] = 0
-    selection_1[best <= 0] = default
+    # default = np.argmax(np.mean(y_bin, axis=0))
+    # selection_1 = selection_0.copy()
+    # selection_0[best <= 0] = 0
+    # selection_1[best <= 0] = default
 
-    sel0 = selection_0[:, None] == np.arange(1, nalgos + 1)
-    sel1 = selection_1[:, None] == np.arange(1, nalgos + 1)
+    # sel0 = selection_0[:, None] == np.arange(1, nalgos + 1)
+    # sel1 = selection_1[:, None] == np.arange(1, nalgos + 1)
 
-    avgperf = np.nanmean(y)
-    stdperf = np.nanstd(y)
+    # avgperf = np.nanmean(y)
+    # stdperf = np.nanstd(y)
 
-    y_full = y.copy()
-    y_svms = y.copy()
+    # y_full = y.copy()
+    # y_svms = y.copy()
 
-    y[~ sel0] = np.NaN
-    y_full[~ sel1] = np.NaN
-    y_svms[~ y_hat] = np.NaN
+    # y[~ sel0] = np.NaN
+    # y_full[~ sel1] = np.NaN
+    # y_svms[~ y_hat] = np.NaN
 
-    pgood = np.mean(np.any(y_bin & sel1, axis=1))
-    fb = np.sum(np.any(y_bin & ~sel0, axis=1))
-    fg = np.sum(np.any(~ y_bin & sel0, axis=1))
-    tg = np.sum(np.any(y_bin & sel0, axis=1))
+    # pgood = np.mean(np.any(y_bin & sel1, axis=1))
+    # fb = np.sum(np.any(y_bin & ~sel0, axis=1))
+    # fg = np.sum(np.any(~ y_bin & sel0, axis=1))
+    # tg = np.sum(np.any(y_bin & sel0, axis=1))
 
-    precisionsel = tg / (tg + fg)
-    recallsel = tg / (tg + fb)
+    # precisionsel = tg / (tg + fg)
+    # recallsel = tg / (tg + fb)
 
-    # Section 6: Generate output
-    print("  -> PYTHIA is preparing the summary table.")
-    summaries: list[AlgorithmSummary] = []
+    # # Section 6: Generate output
+    # print("  -> PYTHIA is preparing the summary table.")
+    # summaries: list[AlgorithmSummary] = []
 
-    for i, label in enumerate(algo_labels + ['Oracle', 'Selector']):
+    # for i, label in enumerate(algo_labels + ['Oracle', 'Selector']):
         
-        summary = AlgorithmSummary(
-            label,
-            np.round(np.append(avgperf, [np.nanmean(y_best), np.nanmean(y_full)]), 3),
-            np.round(np.append(stdperf, [np.nanstd(y_best), np.nanstd(y_full)]), 3),
-            np.round(np.append(np.mean(y_bin, axis=0), [1, pgood]), 3),
-            np.round(np.append(np.nanmean(y_svms), [np.nan, np.nanmean(y)]), 3),
-            np.round(np.append(np.nanstd(y_svms), [np.nan, np.nanstd(y)]), 3),
-            np.round(np.append(100 * accuracy, [np.nan, np.nan]), 1),
-            np.round(np.append(100 * precision, [np.nan, precisionsel]), 1),
-            np.round(100 * np.append(recall, [np.nan, recallsel]), 1),
-            np.round(box_const, 3),
-            np.round(k_scale, 3)
-        )
+    #     summary = AlgorithmSummary(
+    #         label,
+    #         np.round(np.append(avgperf, [np.nanmean(y_best), np.nanmean(y_full)]), 3),
+    #         np.round(np.append(stdperf, [np.nanstd(y_best), np.nanstd(y_full)]), 3),
+    #         np.round(np.append(np.mean(y_bin, axis=0), [1, pgood]), 3),
+    #         np.round(np.append(np.nanmean(y_svms), [np.nan, np.nanmean(y)]), 3),
+    #         np.round(np.append(np.nanstd(y_svms), [np.nan, np.nanstd(y)]), 3),
+    #         np.round(np.append(100 * accuracy, [np.nan, np.nan]), 1),
+    #         np.round(np.append(100 * precision, [np.nan, precisionsel]), 1),
+    #         np.round(100 * np.append(recall, [np.nan, recallsel]), 1),
+    #         np.round(box_const, 3),
+    #         np.round(k_scale, 3)
+    #     )
 
-        summaries.append(summary)
-    print("  -> PYTHIA has completed! Performance of the models:")
-    print(" ")
+    #     summaries.append(summary)
+    # print("  -> PYTHIA has completed! Performance of the models:")
+    # print(" ")
 
-    for result in summaries:
-        print(result)
+    # for result in summaries:
+    #     print(result)
 
 class SvmRes:
     """Resent data resulting from SVM."""

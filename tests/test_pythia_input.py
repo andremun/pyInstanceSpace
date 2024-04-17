@@ -65,11 +65,11 @@ def test_cv_indices():
 
     res =  pythia(z, y, y_bin, y_best, algolabels, opts)
     i = 0
-    # for i in 0:
-    for fold in range(cv_folds):
+    
+    for fold in range(nalgos):
         # Load indices from Python-generated CSV files
         python_data = pd.read_csv(f'python_cv_indices_{i}.csv')
-        matlab_data = pd.read_csv(f'matlab_cv_indices_{i}.csv')
+        matlab_data = pd.read_csv(f'tests/testData_pythia/matlab_cv_indices_{i + 1}.csv')
 
         # Convert DataFrame rows to sets for unordered comparison
         python_sets = [set(row.dropna().astype(int)) for _, row in python_data.iterrows()]

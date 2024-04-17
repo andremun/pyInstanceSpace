@@ -74,17 +74,17 @@ class AlgorithmSummary:
         self.kernel_scale = kernel_scale
 
     def __str__(self):
-        return (f"Algorithm: {self.name},
-                Avg Performance: {self.avg_perf_all_instances}, 
-                Std: {self.std_perf_all_instances}, 
-                Prob Good: {self.probability_of_good}, 
-                Avg Selected: {self.avg_perf_selected_instances},
-                Std Selected: {self.std_perf_selected_instances}, 
-                Accuracy: {self.cv_model_accuracy},
-                Precision: {self.cv_model_precision}, 
-                Recall: {self.cv_model_recall},
-                Box Constraint: {self.box_constraint}, 
-                Kernel Scale: {self.kernel_scale}")
+        return (f"Algorithm: {self.name}, "\
+                f"Avg Performance: {self.avg_perf_all_instances}, "\
+                f"Std: {self.std_perf_all_instances}, "\
+                f"Prob Good: {self.probability_of_good}, "\
+                f"Avg Selected: {self.avg_perf_selected_instances}, "\
+                f"Std Selected: {self.std_perf_selected_instances}, "\
+                f"Accuracy: {self.cv_model_accuracy}, "\
+                f"Precision: {self.cv_model_precision}, "\
+                f"Recall: {self.cv_model_recall}, "\
+                f"Box Constraint: {self.box_constraint}, "\
+                f"Kernel Scale: {self.kernel_scale}")
     
     def __repr__(self):
         return self.__str__()
