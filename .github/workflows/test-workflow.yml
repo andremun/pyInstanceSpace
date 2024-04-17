@@ -10,12 +10,13 @@ permissions:
   contents: read
 
 jobs:
-  Tests:
+  Build-Test:
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
     - name: Set up Python 3.12
       uses: actions/setup-python@v3
       with:
@@ -27,3 +28,4 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
+    
