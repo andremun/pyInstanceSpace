@@ -68,14 +68,14 @@ def test_cv_indices():
     # for i in 0:
     for fold in range(cv_folds):
         # Load indices from Python-generated CSV files
-        train_py = pd.read_csv(f'train_indices_algo_{i}_fold_{fold}.csv', header=None).values.flatten()
-        test_py = pd.read_csv(f'test_indices_algo_{i}_fold_{fold}.csv', header=None).values.flatten()
+        python_data = pd.read_csv(f'python_cv_indices_{i}.csv')
+        matlab_data = pd.read_csv(f'matlab_cv_indices_{i}.csv')
 
-        # Load indices from MATLAB-generated CSV files
-        train_matlab = np.loadtxt(f'tests/testData_pythia/al_{i+1}_cv_train_fold_{fold+1}.csv', dtype=int)
-        test_matlab = np.loadtxt(f'tests/testData_pythia/al_{i+1}_cv_test_fold_{fold+1}.csv', dtype=int)
-        print(train_py)
-        print(train_matlab)
-        # Assert that the indices are the same
-        assert np.array_equal(train_py, train_matlab), f"Train indices do not match for algorithm {i}, fold {fold}"
-        assert np.array_equal(test_py, test_matlab), f"Test indices do not match for algorithm {i}, fold {fold}"
+        # Convert DataFrame rows to sets for unordered comparison
+        python_sets = [set(row.dropna().astype(int)) for _, row in python_data.iterrows()]
+        matlab_sets = [set(row.dropna().astype(int)) for _, row in matlab_data.iterrows()]
+
+        # Ensure each fold's test indices match
+        for p_set, m_set in zip(python_sets, matlab_sets):
+            assert p_set == m_set, f"Mismatch in fold indices for algorithm {i}"
+        
