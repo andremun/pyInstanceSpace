@@ -26,6 +26,7 @@ from matilda.data.metadata import Metadata
 from matilda.data.model import Data, Model
 from matilda.data.option import Options
 
+
 def build_instance_space(metadata: Metadata, options: Options) -> Model:
     """
     Construct and return a Model object after instance space analysis.
@@ -34,8 +35,8 @@ def build_instance_space(metadata: Metadata, options: Options) -> Model:
     :return: A Model object representing the built instance space.
     """
     # TODO: Rewrite buildIS logic in Python
-    
-    
+
+
     raise NotImplementedError
 
 def metadata_from_file(filepath: str) -> Metadata:
