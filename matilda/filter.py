@@ -11,17 +11,21 @@ from numpy._typing import NDArray
 from matilda.data.option import SelvarsOptions
 
 
-def filter_by_us(
+class Filter:
+    """See file docstring."""
+
+    @staticmethod
+    def run(
         x: NDArray[np.double],
         y: NDArray[np.double],
         opts: SelvarsOptions,
-) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]]:
-    """
-    NOT quite sure where this function was used.
+    ) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]]:
+        """
+        NOT quite sure where this function was used.
 
-    Note that the return value, based on the original Matlab code,
-    that is the List (or cell?) needs further justification about what
-    data types will be adopted.
-    """
-    # TODO: Rewrite FILTER logic in python
-    raise NotImplementedError
+        Note that the return value, based on the original Matlab code,
+        that is the List (or cell?) needs further justification about what
+        data types will be adopted.
+        """
+        # TODO: Rewrite FILTER logic in python
+        raise NotImplementedError
