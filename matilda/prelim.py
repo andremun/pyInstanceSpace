@@ -163,7 +163,11 @@ def prelim(
     #             y[:, i] = aux
 
 
-    return beta.astype(int)[1:]
+    # return beta.astype(int)[1:] # this passes
+    # return np.ravel(y_best)[1:] # this passes
+    # return num_good_algos[1:].reshape(-1, 1) # this passes
+    # return p[1:] # this passes
+    # return y_bin[1:] # this passes
 
 def main() -> None:
     # Create sample feature and performance data matrices
