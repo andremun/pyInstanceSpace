@@ -5,8 +5,12 @@ from pathlib import Path
 
 from tests.manual_selection import test_manual_selection
 
+import numpy as np
+import pandas as pd
+
 path_root = Path(__file__).parents[0]
 sys.path.append(str(path_root))
+
 
 def test_assertions() -> None:
     """
@@ -18,6 +22,6 @@ def test_assertions() -> None:
 
     """
     test_manual_selection()
-    #string = True
+    # string = True
     assert True, "Something is wrong with the Github Workflow - " \
                  "please contact kharek@student.unimelb.edu.au"

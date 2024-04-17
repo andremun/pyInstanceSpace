@@ -22,6 +22,8 @@ Example usage:
 
 import sys
 
+import numpy as np
+
 from matilda.data.model import Model
 from matilda.data.option import Opts
 
@@ -84,6 +86,22 @@ def select_features_and_algorithms(model: Model, opts: Opts) -> None:
         else:
             print("No algorithms were specified in opts.selvars."
                   "algos or it was an empty list.")
+
+
+def remove_instances_with_many_missing_values(model):
+    # Identify rows where all elements are NaN in X or Y
+    idx = np.all(np.isnan(model.data.X), axis=1) | np.all(np.isnan(model.data.Y), axis=1)
+    if np.any(idx):
+        print("-> There are instances with too many missing values. They are being removed to increase speed.")
+        # Remove instances (rows) where all values are NaN
+        model.data.X = model.data.X[~idx]
+        model.data.Y = model.data.Y[~idx]
+        model.data.instlabels = model.data.instlabels[~idx]
+        if hasattr(model.data, 'S'):
+            model.data.S = model.data.S[~idx]
+
+    # Check for features with more than 20% missing values
+    idx = np.mean(np.isnan(model.data.X), axis=0) >= 0.20
 
 
 if __name__ == "__main__":
