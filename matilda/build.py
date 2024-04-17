@@ -22,7 +22,6 @@ Example usage:
 
 import sys
 
-import numpy as np
 
 from matilda.data.model import Model
 from matilda.data.option import Opts
