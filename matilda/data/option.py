@@ -65,6 +65,16 @@ class SelvarsOptions:
 
 
 @dataclass
+class PrelimOptions:
+    """Options for preliminary analysis steps in the model."""
+    bound: bool
+    norm: bool
+    max_perf: bool
+    abs_perf: bool
+    epsilon: float
+    beta_threshold: float
+
+@dataclass
 class SiftedOptions:
     """Options specific to the sifting process in data analysis."""
 
@@ -134,4 +144,5 @@ class Opts:
     cloister: CloisterOptions
     pythia: PythiaOptions
     trace: TraceOptions
+    prelim: PrelimOptions
     outputs: OutputOptions

@@ -1,13 +1,15 @@
-import csv
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-import os
 
-script_dir = os.path.dirname(__file__)
+from matilda.data.option import PrelimOptions
 
-csv_path_x = os.path.join(script_dir, "prelim/input/model-data-x.csv")
-csv_path_y = os.path.join(script_dir, "prelim/input/model-data-y.csv")
-csv_path_beta = os.path.join(script_dir, "prelim/output/model-data-beta.csv")
+script_dir = Path(__file__).parent
+
+csv_path_x = script_dir / "prelim/input/model-data-x.csv"
+csv_path_y = script_dir / "prelim/input/model-data-y.csv"
+csv_path_beta = script_dir / "prelim/output/model-data-beta.csv"
 
 x_input = np.genfromtxt(csv_path_x, delimiter=",")
 y_input = np.genfromtxt(csv_path_y, delimiter=",")
@@ -20,22 +22,21 @@ max_perf = 0
 bound = 1
 norm = 1
 
+opts = PrelimOptions(
+    abs_perf=abs_perf,
+    beta_threshold=beta_threshold,
+    epsilon=epsilon,
+    max_perf=max_perf,
+    bound=bound,
+    norm=norm,
+)
+
 def test_prelim() -> None:
-    """
-    The test case for demonstration.
-
-    Returns
-    -------
-        None
-
-    """
     # Call the prelim function
     from matilda.prelim import prelim
-    beta = prelim(x_input, y_input, abs_perf, beta_threshold, epsilon, max_perf, bound, norm)
+    beta = prelim(x_input, y_input, opts)
 
     # print(beta)
     # print(beta_output)
-    
 
-    assert np.allclose(beta, beta_output), "The output from the function is not as expected."
-    assert True, "Something is wrong with the Github Workflow - please contact"
+    assert np.allclose(beta, beta_output)
