@@ -59,6 +59,8 @@ def test_input():
     # np.testing.assert_array_almost_equal(Z[0], expected_first_row, decimal=5, err_msg="First row does not match expected values.")
     # print(algolabels)
 
+"""Test and compare the cross validation result of Python and MATLAB. """
+
 def test_cv_indices():
     nalgos = y_bin.shape[1]
     cv_folds = opts.pythia.cv_folds
