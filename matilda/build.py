@@ -20,14 +20,19 @@ Example usage:
     python your_module_name.py /path/to/data
 """
 
+import os
 import sys
 import warnings
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from sklearn.model_selection import train_test_split
 
 from matilda.data.model import Model
+from matilda.data.option import Opts
+from matilda.prelim import prelim
+from matilda.filter import filter_by_us
 
 MAX_DUPLICATES_RATIO = 0.5  # Constant
 
@@ -48,17 +53,18 @@ if __name__ == "__main__":
     build_instance_space(rootdir)
 
 
-def data_processing(idx: NDArray[np.bool_], model: Model) -> int:  # fix late
+def data_processing(idx: NDArray[np.bool_], model: Model, option: Opts) -> int:
+    # fix upper line late
     """
     Process data for instance space analysis.
 
     :param idx: A boolean array indicating features to be retained or removed.
     """
-    if idx is not None:
+    if np.any(idx):
         # Remove instances with too many missing values
         warnings.warn(
             "There are features with too many missing values. They are\
-being removed to increase speed."
+being removed to increase speed.",
         )
         model.data.x = model.data.x.loc[:, ~idx]
         model.data.feat_labels = [
@@ -73,8 +79,128 @@ being removed to increase speed."
     if nuinst / ninst < MAX_DUPLICATES_RATIO:
         warnings.warn(
             "-> There are too many repeated instances. It is unlikely\
-that this run will produce good results."
+that this run will produce good results.",
         )
 
     # Storing the raw data for further processing, e.g., graphs
-    return 1
+    model.data.x_raw = model.data.x.copy()
+    model.data.y_raw = model.data.y.copy()
+
+    # Removing the template data such that it can be used in the labels of graphs
+    # and figures
+    model.data.feat_labels = [
+        label.replace("feature_", "") for label in model.data.feat_labels
+    ]
+    model.data.algo_labels = [
+        label.replace("algo_", "") for label in model.data.algo_labels
+    ]
+
+    # Running PRELIM as to preprocess the data, including scaling and bounding
+    option.prelim = option.perf
+    option.prelim.bound = option.bound.flag
+    option.prelim.norm = option.norm.flag
+    [
+        model.data.x,
+        model.data.y,
+        model.data.y_best,
+        model.data.y_bin,
+        model.data.p,
+        model.data.num_good_algos,
+        model.data.beta,
+        model.prelim,
+    ] = prelim(model.data.x, model.data.y, option.prelim)
+
+    idx = np.all(~model.data.y_bin, axis=0)
+    if np.any(idx):
+        warnings.warn(
+            '-> There are algorithms with no "good" instances. They are being\
+removed to increase speed.',
+        )
+        model.data.y_raw = model.data.y_raw[:, ~idx]
+        model.data.y = model.data.y[:, ~idx]
+        model.data.y_bin = model.data.y_bin[:, ~idx]
+        model.data.algo_labels = model.data.algo_labels[~idx]
+        nalgos = model.data.Y.shape[1]
+        if nalgos == 0:
+            raise Exception(
+                "'-> There are no ''good'' algorithms. Please verify\
+                             the binary performance measure. STOPPING!'",
+            )
+
+    # If we are only meant to take some observations
+    print("-------------------------------------------------------------------")
+    ninst = model.data.x.shape[0]
+    fractional = (
+        "selvars" in option
+        and "samll_scale_flag" in option.selvars
+        and option.selvars.small_scale_flag
+        and "small_scale" in option.selvars
+        and isinstance(option.selvars.small_scale, float)
+    )
+    fileindexed = (
+        "selvars" in option
+        and "file_idx_flag" in option.selvars
+        and option.selvars.file_idx_flag
+        and "file_idx" in option.selvars
+        and os.path.isfile(option.selvars.file_idx)
+    )
+    bydensity = (
+        "selvars" in option
+        and "density_flag" in option.selvars
+        and option.selvars.density_flag
+        and "min_distance" in option.selvars
+        and isinstance(option.selvars.min_distance, float)
+        and "type" in option.selvars
+        and isinstance(option.selvars.type, str)
+    )
+    if fractional:
+        print(f"-> Creating a small scale experiment for validation. \
+              Percentage of subset: \
+              {round(100 * option.selvars.small_scale, 2)}%")
+        _, subset_idx = train_test_split(
+            np.arange(ninst),
+            test_size=option.selvars.small_scale,
+            random_state=0,
+        )
+        # below are not sure
+        subset_index = np.zeros(ninst, dtype=bool)
+        subset_index[idx] = True
+    elif fileindexed:
+        print("-> Using a subset of instances.")
+        subset_index = np.zeros(ninst, dtype=bool)
+        aux = pd.read_csv(option.selvars.file_idx, header=None).values.flatten()
+        aux = aux[aux < ninst]
+        subset_index[aux] = True
+    elif bydensity:
+        print("-> Creating a small scale experiment for validation based on density.")
+        subset_index = filter_by_us(
+            model.data.x,
+            model.data.y,
+            model.data.y_bin,
+            option.selvars,
+        )
+        subset_index = ~subset_index
+        print(f"-> Percentage of instances retained: \
+              {round(100 * np.mean(subset_index), 2)}%")
+    else:
+        print("-> Using the complete set of the instances.")
+        subset_index = np.ones(ninst, dtype=bool)
+
+    if fileindexed or fractional or bydensity:
+        if bydensity:
+            model.data_dense = model.data
+
+        model.data.x = model.data.x[subset_index, :]
+        model.data.y = model.data.y[subset_index, :]
+        model.data.x_raw = model.data.x_raw[subset_index, :]
+        model.data.y_raw = model.data.y_raw[subset_index, :]
+        model.data.y_bin = model.data.y_bin[subset_index, :]
+        model.data.beta = model.data.beta[subset_index, :]
+        model.data.num_good_algos = model.data.num_good_algos[subset_index, :]
+        model.data.y_best = model.data.y_best[subset_index, :]
+        model.data.p = model.data.p[subset_index, :]
+        model.data.inst_labels = model.data.inst_labels[subset_index, :]
+
+        if "S" in model.data:
+            model.data.S = model.data.S[subset_index, :]
+    return model.data.x.shape[1]  # nfeats

@@ -12,9 +12,10 @@ from matilda.data.option import SelvarsOptions
 
 
 def filter_by_us(
-        x: NDArray[np.double],
-        y: NDArray[np.double],
-        opts: SelvarsOptions,
+    x: NDArray[np.double],
+    y: NDArray[np.double],
+    y_bin: NDArray[np.bool_],
+    opts: SelvarsOptions,
 ) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]]:
     """
     NOT quite sure where this function was used.

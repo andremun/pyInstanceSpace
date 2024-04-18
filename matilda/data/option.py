@@ -120,6 +120,18 @@ class OutputOptions:
 
 
 @dataclass
+class PrelimOptions:
+    """options for Prelim."""
+
+    max_perf: bool
+    abs_perf: bool
+    epsilon: float
+    beta_threshold: float
+    bound: int
+    norm: int
+
+
+@dataclass
 class Opts:
     """Aggregates all options into a single configuration object for the model."""
 
@@ -135,3 +147,4 @@ class Opts:
     pythia: PythiaOptions
     trace: TraceOptions
     outputs: OutputOptions
+    prelim: PrelimOptions
