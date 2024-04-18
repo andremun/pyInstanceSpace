@@ -5,7 +5,6 @@ from pathlib import Path
 
 from tests.manual_selection import test_manual_selection
 
-
 path_root = Path(__file__).parents[0]
 sys.path.append(str(path_root))
 

@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from matilda.build import select_features_and_algorithms
+from matilda.build import remove_instances_with_many_missing_values
 from matilda.data.model import (
     CloisterOut,
     Data,
@@ -36,16 +36,24 @@ path_root = Path(__file__).parents[1]
 sys.path.append(str(path_root))
 
 
-def create_dummy_model(data: Data, selvars: SelvarsOptions):
-    empty_feat_sel = FeatSel(idx=np.array([], dtype=np.intc))
-
+def create_default_model(data: Data) -> Model:
     opts = Opts(
         parallel=ParallelOptions(flag=False, n_cores=1),
         perf=PerformanceOptions(max_perf=False, abs_perf=False, epsilon=0.1, beta_threshold=0.5),
         auto=AutoOptions(preproc=False),
         bound=BoundOptions(flag=False),
         norm=NormOptions(flag=False),
-        selvars=selvars,
+        selvars=SelvarsOptions(
+            small_scale_flag=False,
+            small_scale=0.1,
+            file_idx_flag=False,
+            file_idx="",
+            feats=[],
+            algos=[],
+            type="",
+            min_distance=0.0,
+            density_flag=False,
+        ),
         sifted=SiftedOptions(flag=False, rho=0.5, k=10, n_trees=100, max_iter=100, replicates=10),
         pilot=PilotOptions(analytic=False, n_tries=10),
         cloister=CloisterOptions(p_val=0.05, c_thres=0.5),
@@ -53,6 +61,8 @@ def create_dummy_model(data: Data, selvars: SelvarsOptions):
         trace=TraceOptions(use_sim=False, PI=0.95),
         outputs=OutputOptions(csv=False, web=False, png=False),
     )
+
+    empty_feat_sel = FeatSel(idx=np.array([], dtype=np.intc))
     empty_prelim = PrelimOut(
         med_val=np.array([], dtype=np.double),
         iq_range=np.array([], dtype=np.double),
@@ -116,18 +126,20 @@ def create_dummy_model(data: Data, selvars: SelvarsOptions):
     )
 
 
-def test_manual_selection() -> None:
-    """
-    The test case for select_features_and_algorithms.
-
-    Main success scenario, no error
-    """
+def test_remove_instances_with_two_row_missing() -> None:
     rng = np.random.default_rng(33)
-    large_x = rng.random((100, 10))  # 100 rows, 10 features (columns)
-    large_y = rng.random((100, 5))  # 100 rows, 5 features (columns)
+
+    # Create sample data with missing values (10 rows)
+    large_x = rng.random((10, 10))
+    large_x[0, :] = np.nan  # First row all NaN
+    large_x[1, :5] = np.nan  # Second row first 5 columns NaN
+    large_x[:, 0] = np.nan  # First column all NaN (> 20% missing)
+
+    large_y = rng.random((10, 5))
+    large_y[1, :] = np.nan  # second row all NaN
 
     data = Data(
-        inst_labels=pd.Series(),
+        inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
         feat_labels=[f"feature{i}" for i in range(10)],
         algo_labels=[f"algo{i}" for i in range(5)],
         x=large_x,
@@ -142,47 +154,38 @@ def test_manual_selection() -> None:
         s=set(),
     )
 
-    selvars = SelvarsOptions(
-        feats=["feature1", "feature3", "feature5", "feature7", "feature9"],
-        algos=["algo1", "algo3"],
-        small_scale_flag=False,
-        small_scale=0.1,
-        file_idx_flag=False,
-        file_idx="",
-        type="",
-        min_distance=0.0,
-        density_flag=False,
-    )
+    model = create_default_model(data)
 
-    model = create_dummy_model(data, selvars)
+    remove_instances_with_many_missing_values(model)
 
-    select_features_and_algorithms(model, model.opts)
+    # Check instances removal
+    assert model.data.x.shape[0] == 8, "Instances with all NaN values not removed correctly"
+    assert model.data.y.shape[0] == 8, "Instances with all NaN values not removed correctly"
+    assert model.data.inst_labels.shape[0] == 8, "Instance labels not updated after removal"
 
-    assert model.data.feat_labels == ["feature1", "feature3", "feature5", "feature7",
-                                      "feature9"], "Feature selection failed"
-    assert model.data.algo_labels == ["algo1", "algo3"], "Algorithm selection failed"
+    # Check feature dimensions are unchanged
+    assert model.data.x.shape[1] == 10, "x dimensions should not change"
+    assert model.data.y.shape[1] == 5, "y dimensions should not change"
+    # Check inst_labels content
+    assert model.data.inst_labels.tolist() == ["inst" + str(i) for i in range(2, 10)], "inst_labels content not right"
 
-    # check the contents
-    expected_x = large_x[:, [1, 3, 5, 7, 9]]
-    expected_y = large_y[:, [1, 3]]
-    np.testing.assert_array_equal(model.data.x, expected_x,
-                                  err_msg="Feature data content mismatch")
-    np.testing.assert_array_equal(model.data.y, expected_y,
-                                  err_msg="Algorithm data content mismatch")
+    # not sure how to test idx,
 
 
-def test_manual_wrong_names() -> None:
-    """
-    The test case for select_features_and_algorithms.
-
-    Main success scenario, no error
-    """
+def test_remove_instances_with_3_row_missing() -> None:
     rng = np.random.default_rng(33)
-    large_x = rng.random((100, 10))  # 100 rows, 10 features (columns)
-    large_y = rng.random((100, 5))  # 100 rows, 5 features (columns)
+
+    # Create sample data with missing values (10 rows)
+    large_x = rng.random((10, 10))
+    large_x[2, :] = np.nan  # third row all NaN
+    large_x[1, :5] = np.nan  # Second row first 5 columns NaN
+
+    large_y = rng.random((10, 5))
+    large_y[4, :] = np.nan  # fifth row all NaN
+    large_y[3, :] = np.nan  # forth row all NaN
 
     data = Data(
-        inst_labels=pd.Series(),
+        inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
         feat_labels=[f"feature{i}" for i in range(10)],
         algo_labels=[f"algo{i}" for i in range(5)],
         x=large_x,
@@ -197,47 +200,40 @@ def test_manual_wrong_names() -> None:
         s=set(),
     )
 
-    selvars = SelvarsOptions(
-        feats=["feature1", "feature3", "feature5", "featu", "feature9"],
-        algos=["al", "algo3"],
-        small_scale_flag=False,
-        small_scale=0.1,
-        file_idx_flag=False,
-        file_idx="",
-        type="",
-        min_distance=0.0,
-        density_flag=False,
-    )
+    model = create_default_model(data)
 
-    model = create_dummy_model(data, selvars)
+    remove_instances_with_many_missing_values(model)
 
-    select_features_and_algorithms(model, model.opts)
+    # Check instances removal
+    assert model.data.x.shape[0] == 7, "Instances with all NaN values not removed correctly"
+    assert model.data.y.shape[0] == 7, "Instances with all NaN values not removed correctly"
+    assert model.data.inst_labels.shape[0] == 7, "Instance labels not updated after removal"
 
-    assert model.data.feat_labels == ["feature1", "feature3", "feature5",
-                                      "feature9"], "Feature selection failed"
-    assert model.data.algo_labels == ["algo3"], "Algorithm selection failed"
+    # Check feature dimensions are unchanged
+    assert model.data.x.shape[1] == 10, "x dimensions should not change"
+    assert model.data.y.shape[1] == 5, "y dimensions should not change"
+    # Check inst_labels content
+    assert model.data.inst_labels.tolist() == ["inst0", "inst1", "inst5", "inst6", "inst7", "inst8", "inst9"], \
+        "inst_labels content not right"
 
-    # check the contents
-    expected_x = large_x[:, [1, 3, 5, 9]]
-    expected_y = large_y[:, [3]]
-    np.testing.assert_array_equal(model.data.x, expected_x,
-                                  err_msg="Feature data content mismatch")
-    np.testing.assert_array_equal(model.data.y, expected_y,
-                                  err_msg="Algorithm data content mismatch")
+    # not sure how to test idx,
 
 
-def test_manual_empty_feats() -> None:
-    """
-    The test case for select_features_and_algorithms.
-
-    Main success scenario, no error
-    """
+def test_remove_instances_keep_same() -> None:
     rng = np.random.default_rng(33)
-    large_x = rng.random((100, 10))  # 100 rows, 10 features (columns)
-    large_y = rng.random((100, 5))  # 100 rows, 5 features (columns)
+
+    # Create sample data with missing values (10 rows)
+    large_x = rng.random((10, 10))
+
+    large_x[1, :5] = np.nan  # Second row first 5 columns NaN
+
+    large_x[4, :5] = np.nan  # 5th row first 5 columns NaN
+
+    large_y = rng.random((10, 5))
+    large_y[6, :2] = np.nan  # 7th row first 2columns NaN
 
     data = Data(
-        inst_labels=pd.Series(),
+        inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
         feat_labels=[f"feature{i}" for i in range(10)],
         algo_labels=[f"algo{i}" for i in range(5)],
         x=large_x,
@@ -252,35 +248,25 @@ def test_manual_empty_feats() -> None:
         s=set(),
     )
 
-    selvars = SelvarsOptions(
-        feats=[],
-        algos=[],
-        small_scale_flag=False,
-        small_scale=0.1,
-        file_idx_flag=False,
-        file_idx="",
-        type="",
-        min_distance=0.0,
-        density_flag=False,
-    )
+    model = create_default_model(data)
 
-    model = create_dummy_model(data, selvars)
+    remove_instances_with_many_missing_values(model)
 
-    select_features_and_algorithms(model, model.opts)
+    # Check instances removal
+    assert model.data.x.shape[0] == 10, "Instances with all NaN values not removed correctly"
+    assert model.data.y.shape[0] == 10, "Instances with all NaN values not removed correctly"
+    assert model.data.inst_labels.shape[0] == 10, "Instance labels not updated after removal"
 
-    assert model.data.feat_labels == [f"feature{i}" for i in range(10)], "Feature selection failed"
-    assert model.data.algo_labels == [f"algo{i}" for i in range(5)], "Algorithm selection failed"
+    # Check feature dimensions are unchanged
+    assert model.data.x.shape[1] == 10, "x dimensions should not change"
+    assert model.data.y.shape[1] == 5, "y dimensions should not change"
+    # Check inst_labels content
+    assert model.data.inst_labels.tolist() == ["inst" + str(i) for i in range(0, 10)], "inst_labels content not right"
 
-    # check the contents
-    expected_x = large_x[:, :]
-    expected_y = large_y[:, :]
-    np.testing.assert_array_equal(model.data.x, expected_x,
-                                  err_msg="Feature data content mismatch")
-    np.testing.assert_array_equal(model.data.y, expected_y,
-                                  err_msg="Algorithm data content mismatch")
+    # not sure how to test idx,
 
 
 if __name__ == "__main__":
-    test_manual_selection()
-    test_manual_wrong_names()
-    test_manual_empty_feats()
+    test_remove_instances_with_two_row_missing()
+    test_remove_instances_with_3_row_missing()
+    test_remove_instances_keep_same()
