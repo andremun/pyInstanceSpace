@@ -1,3 +1,5 @@
+![Tests](https://github.com/2024-SWN90017-18/MT-Updating-Matilda/actions/workflows/validation-tests.yml/badge.svg)
+
 # 2. Updating the MATILDA [code:MT]
 ### (Masters Advanced Software Project SWEN90017)
 ## Client: Dr. Mario Andres Munoz Acosta
@@ -21,7 +23,6 @@ To convert the job management system to independent VM, following industry best 
 Implement better user and data management systems, including password recovery, two-factor authentication and other industry best practices.
 Better integration with existing platforms, such as FigShare and GitHub.
 
-
 # Development Environment Setup Guide
 
 REQUIREMENTS: Python 3.12 installed
@@ -37,8 +38,6 @@ REQUIREMENTS: Python 3.12 installed
 `(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -`
 
 ### Step 2: Setup virtual environment
-`poetry config virtualenvs.in-project true`
-
 `poetry shell`
 
 ### Step 3: Install python dependencies into virtual environment
