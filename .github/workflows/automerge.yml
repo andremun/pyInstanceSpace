@@ -6,8 +6,11 @@ on:
       - Staging
     types: [ closed ]
 
+permissions:
+  contents: write
+
 jobs:
-   merge_job:
+   automerge:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true
 
