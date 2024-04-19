@@ -1,4 +1,4 @@
-name: Merge Requirements Tests
+name: Validation Tests
 
 on:
   push:

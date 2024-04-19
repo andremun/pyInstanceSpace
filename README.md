@@ -1,3 +1,5 @@
+![Tests](https://github.com/2024-SWN90017-18/MT-Updating-Matilda/actions/workflows/validation-tests.yml/badge.svg)
+
 # 2. Updating the MATILDA [code:MT]
 ### (Masters Advanced Software Project SWEN90017)
 ## Client: Dr. Mario Andres Munoz Acosta
