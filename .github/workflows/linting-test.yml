@@ -31,6 +31,10 @@ jobs:
       with:
         poetry-version: ${{ matrix.poetry-version }}
 
+    - name: Poetry Test
+      run: |-
+        poetry install
+
     - name: Check Linting with Ruff and static check with mypy
       run: poetry run poe test
 
