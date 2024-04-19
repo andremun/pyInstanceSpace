@@ -1,15 +1,19 @@
 name: Automerge
 
 on:
-  pull_request:
-    branches:
-      - Staging
-    types: [ closed ]
+  workflow_run:
+    workflows: [Validation Tests]
+    branches: [Staging]
+    types:
+      - completed
+
+permissions:
+  contents: write
 
 jobs:
-   merge_job:
+   automerge:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout code
