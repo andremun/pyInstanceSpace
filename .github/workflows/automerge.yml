@@ -7,18 +7,12 @@ on:
     types:
       - completed
 
-  pull_request:
-    branches:
-      - Staging
-    types: [ closed ]
-
 permissions:
   contents: write
 
 jobs:
    automerge:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
 
     steps:
       - name: Checkout code
