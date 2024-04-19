@@ -1,4 +1,4 @@
-name: Merge Requirements tests
+name: Merge Requirements Tests
 
 on:
   push:
