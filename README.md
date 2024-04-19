@@ -21,7 +21,6 @@ To convert the job management system to independent VM, following industry best 
 Implement better user and data management systems, including password recovery, two-factor authentication and other industry best practices.
 Better integration with existing platforms, such as FigShare and GitHub.
 
-
 # Development Environment Setup Guide
 
 REQUIREMENTS: Python 3.12 installed
