@@ -1,4 +1,4 @@
-![Tests](https://github.com/2024-SWN90017-18/MT-Updating-Matilda/actions/workflows/merge-requirements-tests.yml/badge.svg)
+![Tests](https://github.com/2024-SWN90017-18/MT-Updating-Matilda/actions/workflows/validation-tests.yml/badge.svg)
 
 # 2. Updating the MATILDA [code:MT]
 ### (Masters Advanced Software Project SWEN90017)
