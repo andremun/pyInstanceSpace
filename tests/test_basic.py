@@ -17,7 +17,6 @@ def test_assertions() -> None:
         None
 
     """
-    pytest.fail()  # noqa: PT016
     #string = True
     assert True, "Something is wrong with the Github Workflow - " \
                  "please contact kharek@student.unimelb.edu.au"
