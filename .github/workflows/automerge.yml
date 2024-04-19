@@ -2,8 +2,8 @@ name: Automerge
 
 on:
   workflow_run:
-    workflows: ["Merge Requirements Tests"]
-    branches: ["Staging"]
+    workflows: [ "Merge Requirements Tests" ]
+    branches: [ Staging ]
     types:
       - completed
 
@@ -13,6 +13,7 @@ permissions:
 jobs:
    automerge:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout code
