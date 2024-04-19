@@ -26,15 +26,15 @@ jobs:
       with:
         python-version: "3.12"
 
-    - name: Poetry Install
+    - name: Poetry install
       uses: abatilo/actions-poetry@v2
       with:
         poetry-version: ${{ matrix.poetry-version }}
 
-    - name: Poetry Test
+    - name: Install dependancies
       run: |-
         poetry install
 
-    - name: Check Linting with Ruff and static check with mypy
+    - name: Check linting with Ruff and static check with mypy
       run: poetry run poe test
 
