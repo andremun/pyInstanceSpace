@@ -1,4 +1,4 @@
-name: Application Testing
+name: Merge Requirements tests
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  Build-Test:
+  merge_requirements_tests:
     strategy:
       fail-fast: false
       matrix:
@@ -19,10 +19,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up Python 3.12
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v4
       with:
         python-version: "3.12"
 
@@ -35,7 +34,9 @@ jobs:
       run: |-
         poetry install
 
+    - name: Check linting with Ruff and static check with Mypy
+      run: poetry run poe test
+
     - name: Test with pytest
-      run: |
-        poetry run pytest
+      run: poetry run pytest
 
