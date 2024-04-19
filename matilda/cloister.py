@@ -7,6 +7,8 @@ the correlation between the features. The class then uses these edges to constru
 a convex hull, providing a boundary for the dataset.
 """
 
+from typing import Self
+
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial import ConvexHull, QhullError
@@ -51,7 +53,7 @@ class Cloister:
     """
 
     def __init__(
-        self: "Cloister",
+        self: Self,
         x: NDArray[np.double],
         a: NDArray[np.double],
         options: CloisterOptions,
@@ -74,7 +76,7 @@ class Cloister:
         self.options = options
         self.nfeats = x.shape[1]
 
-    def compute_correlation(self: "Cloister") -> NDArray[np.double]:
+    def compute_correlation(self: Self) -> NDArray[np.double]:
         """
         Calculate the Pearson correlation coefficient for the dataset.
 
@@ -100,7 +102,7 @@ class Cloister:
 
         return rho
 
-    def decimal_to_binary_matrix(self: "Cloister") -> NDArray[np.intc]:
+    def decimal_to_binary_matrix(self: Self) -> NDArray[np.intc]:
         """
         Generate a matrix converting decimal numbers to binary representation.
 
@@ -118,7 +120,7 @@ class Cloister:
         return binary_matrix[:, ::-1]
 
     def calculate_convex_hull(
-        self: "Cloister",
+        self: Self,
         points: NDArray[np.double],
     ) -> NDArray[np.double]:
         """
@@ -146,7 +148,7 @@ class Cloister:
             return np.array([])
 
     def generate_boundaries(
-        self: "Cloister",
+        self: Self,
         rho: NDArray[np.double],
     ) -> BoundaryResult:
         """
@@ -193,7 +195,7 @@ class Cloister:
 
         return BoundaryResult(x_edge=x_edge, remove=remove)
 
-    def run(self: "Cloister") -> CloisterOut:
+    def run(self: Self) -> CloisterOut:
         """
         Run boundary estimation analysis on the dataset.
 
