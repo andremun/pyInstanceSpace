@@ -2,8 +2,13 @@ name: Automerge
 
 on:
   workflow_run:
+<<<<<<< Updated upstream
     workflows: [ Staging, Merge Requirements Tests ]
     branches: [ Staging ]
+=======
+    workflows: [Merge Requirements Tests]
+    branches: [Staging]
+>>>>>>> Stashed changes
     types:
       - completed
 
