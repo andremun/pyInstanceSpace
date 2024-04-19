@@ -4,6 +4,7 @@ version = "0.1.0"
 description = ""
 authors = [
     "Your Name <you@example.com>",
+    "Kushagra Khare <kharek@student.unimelb.edu.au>",
     "Nathan Harvey <nhharvey@student.unimelb.edu.au>",
 ]
 readme = "README.md"
@@ -35,8 +36,13 @@ build-backend = "poetry.core.masonry.api"
 check_ruff = "ruff check --fix"
 check_mypy = "mypy ."
 
+test_ruff = "ruff check --no-fix"
+
 check.sequence = ["check_ruff", "check_mypy"]
 check.ignore_fail = "return_non_zero"
+
+test.sequence = ["test_ruff", "chec_mypy"]
+test.ignore_fail = "return_non_zero"
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
