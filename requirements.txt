@@ -1,5 +1,0 @@
-#### Libraries to install ####
-ruff
-mypy
-numpy
-scipy
