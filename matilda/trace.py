@@ -8,6 +8,12 @@ For more details, please read the original Matlab code and liveDemo.
 
 """
 
+# Allows using Trace type inside the Trace class. This is only required in static
+# constructors.
+from __future__ import annotations
+
+from typing import Self
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -17,6 +23,33 @@ from matilda.data.option import TraceOptions
 
 class Trace:
     """See file docstring."""
+
+    z: NDArray[np.double]
+    y_bin: NDArray[np.bool_]
+    p: NDArray[np.double]
+    beta: NDArray[np.bool_]
+    algo_labels: list[str]
+    opts: TraceOptions
+
+    @staticmethod
+    def __new(
+        z: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        p: NDArray[np.double],
+        beta: NDArray[np.bool_],
+        algo_labels: list[str],
+        opts: TraceOptions,
+    ) -> Trace:
+        new = Trace()
+
+        new.z = z
+        new.y_bin = y_bin
+        new.p = p
+        new.beta = beta
+        new.algo_labels = algo_labels
+        new.opts = opts
+
+        return new
 
     @staticmethod
     def run(
@@ -52,6 +85,7 @@ class Trace:
             including algorithm footprints and performance summaries.
 
         """
+        trace = Trace.__new(z, y_bin, p, beta, algo_labels, opts)
         # TODO: Rewrite TRACE logic in python
         raise NotImplementedError
 
@@ -63,11 +97,8 @@ class Trace:
     """
 
 
-    @staticmethod
     def build(
-        z: NDArray[np.double],
-        y_bin: NDArray[np.bool_],
-        opts: TraceOptions,
+        self: Self,
     ) -> Footprint:
         """
         Build footprints for good or best performance of algorithms.
@@ -90,14 +121,12 @@ class Trace:
         raise NotImplementedError
 
 
-    @staticmethod
     def contra(
+        self: Self,
         base: Footprint,
         test: Footprint,
-        z: NDArray[np.double],
         y_base: NDArray[np.bool_],
         y_test: NDArray[np.bool_],
-        opts: TraceOptions,
     ) -> tuple[Footprint, Footprint]:
         """
         Detect and remove contradictory sections between two algorithm footprints.
@@ -128,12 +157,9 @@ class Trace:
         raise NotImplementedError
 
 
-    @staticmethod
     def tight(
+        self: Self,
         polygon: PolyShape,
-        z: NDArray[np.double],
-        y_bin: NDArray[np.bool_],
-        opts: TraceOptions,
     ) -> PolyShape:
         """
         Refer the original Matlab function to get more info.
@@ -160,12 +186,9 @@ class Trace:
 
 
     # note that for polydata, it is  highly probably a 2 dimensional array
-    @staticmethod
     def fitpoly(
+        self: Self,
         poly_data: NDArray[np.double],
-        z: NDArray[np.double],
-        y_bin: NDArray[np.bool_],
-        opts: TraceOptions,
     ) -> PolyShape:
         """
         Fits a polygon to the given data points according to TRACE criteria.
@@ -191,8 +214,8 @@ class Trace:
         raise NotImplementedError
 
 
-    @staticmethod
     def summary(
+        self: Self,
         footprint: Footprint,
         space_area: float,
         space_density: float,
@@ -220,8 +243,9 @@ class Trace:
         raise NotImplementedError
 
 
-    @staticmethod
-    def throw() -> Footprint:
+    def throw(
+        self: Self,
+    ) -> Footprint:
         """
         Generate a default 'empty' footprint.
 
@@ -236,8 +260,8 @@ class Trace:
         raise NotImplementedError
 
 
-    @staticmethod
     def dbscan(
+        self: Self,
         x: NDArray[np.double],
         k: int,
         eps: float,
@@ -269,8 +293,11 @@ class Trace:
         raise NotImplementedError
 
 
-    @staticmethod
-    def epsilon(x: NDArray[np.double], k: int) -> float:
+    def epsilon(
+        self: Self,
+        x: NDArray[np.double],
+        k: int,
+    ) -> float:
         """
         Estimates the optimal epsilon value for DBSCAN based on the data.
 
@@ -292,8 +319,11 @@ class Trace:
         raise NotImplementedError
 
 
-    @staticmethod
-    def dist(i: NDArray[np.double], x: NDArray[np.double]) -> NDArray[np.double]:
+    def dist(
+        self: Self,
+        i: NDArray[np.double],
+        x: NDArray[np.double],
+    ) -> NDArray[np.double]:
         """
         Calculate the Euclidean distance between a point and multiple other points.
 
