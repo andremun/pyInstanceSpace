@@ -85,7 +85,7 @@ class Trace:
             including algorithm footprints and performance summaries.
 
         """
-        trace = Trace.__new(z, y_bin, p, beta, algo_labels, opts)
+        trace = Trace.__new(z, y_bin, p, beta, algo_labels, opts)  # noqa: F841
         # TODO: Rewrite TRACE logic in python
         raise NotImplementedError
 
