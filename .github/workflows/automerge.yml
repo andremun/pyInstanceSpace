@@ -2,8 +2,8 @@ name: Automerge
 
 on:
   workflow_run:
-    workflows: [ Staging, Merge Requirements Tests ]
-    branches: [ Staging ]
+    workflows: [Merge Requirements Tests]
+    branches: [Staging]
     types:
       - completed
 

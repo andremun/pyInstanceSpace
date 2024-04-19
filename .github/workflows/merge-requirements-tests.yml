@@ -1,10 +1,10 @@
-name: Merge Requirements tests
+name: Merge Requirements Tests
 
 on:
   push:
-    branches: [ "Staging", "main" ]
+    branches: [Staging, main]
   pull_request:
-    branches: [ "Staging" ]
+    branches: [Staging]
 
 permissions:
   contents: read
