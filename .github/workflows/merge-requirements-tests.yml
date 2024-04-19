@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [Staging]
 
+  workflow_run:
+    workflows: [Automerge]
+    branches: [main]
+    types:
+      - completed
+
 permissions:
   contents: read
 
