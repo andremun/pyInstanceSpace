@@ -8,6 +8,7 @@ to data analysis and model building.
 
 from dataclasses import dataclass
 from typing import Any
+from typing import Union, Set
 
 import numpy as np
 import pandas as pd
@@ -32,7 +33,8 @@ class Data:
     p: NDArray[np.double]
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
-    s: set[str] | None
+    # s: set[str] | None
+    s: Union[Set[str], None]
 
 
 @dataclass
@@ -45,18 +47,47 @@ class FeatSel:
 @dataclass
 class AlgorithmSummary:
     """Provides a summary of an algorithm's performance across different metrics."""
+    def __init__(
+            self, 
+            name: str,
+            avg_perf_all_instances: Union[float, None] = None,
+            std_perf_all_instances: Union[float, None] = None,
+            probability_of_good: Union[float, None] = None,
+            avg_perf_selected_instances: Union[float, None] = None,
+            std_perf_selected_instances: Union[float, None] = None,
+            cv_model_accuracy: Union[float, None] = None,
+            cv_model_precision: Union[float, None] = None,
+            cv_model_recall: Union[float, None] = None,
+            box_constraint: Union[float, None] = None,
+            kernel_scale: Union[float, None] = None,
+     ):
+        self.name = name
+        self.avg_perf_all_instances = avg_perf_all_instances
+        self.std_perf_all_instances = std_perf_all_instances
+        self.probability_of_good = probability_of_good
+        self.avg_perf_selected_instances = avg_perf_selected_instances
+        self.std_perf_selected_instances = std_perf_selected_instances
+        self.cv_model_accuracy = cv_model_accuracy
+        self.cv_model_precision = cv_model_precision
+        self.cv_model_recall = cv_model_recall
+        self.box_constraint = box_constraint
+        self.kernel_scale = kernel_scale
 
-    name: str
-    avg_perf_all_instances: float | None
-    std_perf_all_instances: float | None
-    probability_of_good: float | None
-    avg_perf_selected_instances: float | None
-    std_perf_selected_instances: float | None
-    cv_model_accuracy: float | None
-    cv_model_precision: float | None
-    cv_model_recall: float | None
-    box_constraint: float | None
-    kernel_scale: float | None
+    def __str__(self):
+        return (f"Algorithm: {self.name}, "\
+                f"Avg Performance: {self.avg_perf_all_instances}, "\
+                f"Std: {self.std_perf_all_instances}, "\
+                f"Prob Good: {self.probability_of_good}, "\
+                f"Avg Selected: {self.avg_perf_selected_instances}, "\
+                f"Std Selected: {self.std_perf_selected_instances}, "\
+                f"Accuracy: {self.cv_model_accuracy}, "\
+                f"Precision: {self.cv_model_precision}, "\
+                f"Recall: {self.cv_model_recall}, "\
+                f"Box Constraint: {self.box_constraint}, "\
+                f"Kernel Scale: {self.kernel_scale}")
+    
+    def __repr__(self):
+        return self.__str__()
 
 
 @dataclass
