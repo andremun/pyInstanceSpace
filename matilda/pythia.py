@@ -10,7 +10,7 @@ from sklearn.metrics import confusion_matrix
 # from sklearn import SVC
 
 from matilda.data.model import AlgorithmSummary
-from matilda.data.option import Opts
+from matilda.data.option import PythiaOptions
 
 
 def pythia(
@@ -19,7 +19,7 @@ def pythia(
     y_bin: NDArray[np.double],
     y_best: NDArray[np.double],
     algo_labels: list[str],
-    opts: Opts.pythia,
+    opts: PythiaOptions,
 ) -> list[AlgorithmSummary]:
     """
     PYTHIA function for algorithm selection and performance evaluation using SVM.
@@ -36,7 +36,7 @@ def pythia(
     """
     print("  -> Initializing PYTHIA.")
 
-    # Test case Required: Same result from MATLAB
+    # Initialise data with its structure that can be used in Pythia.py.
     z_norm = zscore(z, axis = 0, ddof = 1)
     mu, sigma = np.mean(z, axis=0), np.std(z, axis=0, ddof=1) 
 
@@ -68,7 +68,7 @@ def pythia(
 
     params = np.full((nalgos, 2), np.nan)
 
-    if opts.pythia.is_poly_krnl:
+    if opts.is_poly_krnl:
         kernel_fcn = "polynomial"
     else:
         if ninst > 1000:
@@ -80,7 +80,7 @@ def pythia(
     print(f"  -> PYTHIA is using a {kernel_fcn} kernel ")
     print("-------------------------------------------------------------------------")
     
-    if opts.pythia.use_lib_svm:
+    if opts.use_lib_svm:
         print("  -> Using LIBSVM''s libraries.")
 
         if precalcparams:
@@ -99,7 +99,8 @@ def pythia(
 
         print("-------------------------------------------------------------------------")
         
-        if opts.pythia.use_weights:
+        #??????????????????????????
+        if opts.use_weights:
             print("  -> PYTHIA is using cost-sensitive classification.")
             w = np.abs(y - np.nanmean(y))
             w [w == 0] = np.min(w [w != 0])
@@ -111,7 +112,7 @@ def pythia(
 
     print("-------------------------------------------------------------------------")     
     
-    print(f"  -> Using a {opts.pythia.cv_folds}-fold stratified cross-validation experiment to evaluate the SVMs.")
+    print(f"  -> Using a {opts.cv_folds}-fold stratified cross-validation experiment to evaluate the SVMs.")
     print("-------------------------------------------------------------------------")
     
     # Section 3: Train SVM model for each algorithm & Evaluate performance.
@@ -135,24 +136,25 @@ def pythia(
         # Ensure that each fold of the dataset has the same percentage of samples of each target class as 
         # the complete set. This is especially useful in classification problems with imbalanced class distributions.
 
-        skf = StratifiedKFold(n_splits = opts.pythia.cv_folds, shuffle = True, random_state = 0)
+        skf = StratifiedKFold(n_splits = opts.cv_folds, shuffle = True, random_state = 0)
 
         # OPTION 2:
         # Dataset is randomly divided into k equal or nearly equal sized parts. Each fold acts as 
         # the test set once, and acts as part of the training set k−1 times. 
 
-        # kf = KFold(n_splits = opts.pythia.cv_folds, shuffle = True, random_state = 0)
+        # kf = KFold(n_splits = opts.cv_folds, shuffle = True, random_state = 0)
 
-        # cp[i] = kf
-
+        
         fold = []
         for train_index, test_index in skf.split(np.zeros(len(y_bin[:, i])), y_bin[:, i]):
             fold.append(test_index.tolist())
 
         pd.DataFrame(fold).to_csv(f'python_cv_indices_{i}.csv', index=False)
-        #  c.split(np.zeros(group.shape), group)
 
-        if opts.pythia.use_lib_svm:
+        # Test input data for svm training
+        pd.DataFrame(z_norm).to_csv('tests/test_pythia_output/z_norm.csv', index=False, header=False)
+
+        if opts.use_lib_svm:
             svm_res = None #fit_libsvm(z_norm, y_b, cp[i], kernel_fcn, params[i])
         else:
             svm_res = None #fit_mat_svm(z_norm, y_b, w[:, i], cp[i], kernel_fcn, params[i])
