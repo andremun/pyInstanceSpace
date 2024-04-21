@@ -21,7 +21,7 @@ CSV_ALGO = 'tests/test_pythia_input/algolabels.csv'
 try:
     z = np.loadtxt(CSV_Z, delimiter=',')
     y = np.loadtxt(CSV_Y, delimiter=',')
-    y_bin = np.loadtxt(CSV_YBIN, delimiter=',')
+    y_bin = np.loadtxt(CSV_YBIN, delimiter=',', skiprows=1)
     y_best = np.loadtxt(CSV_YBEST, delimiter=',')
 
     with open(CSV_ALGO, newline='') as csvfile:
