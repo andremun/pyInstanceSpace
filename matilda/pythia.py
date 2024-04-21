@@ -120,7 +120,7 @@ def pythia(
 
     t = TicToc()
     t.tic()
-    # print("       " + str(nalgos))
+    print("       " + str(nalgos))
 
     for i in range(nalgos):
         t_inner = TicToc()
