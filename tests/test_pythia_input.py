@@ -11,20 +11,7 @@ pythia_opts = PythiaOptions(
     use_weights=False,
     use_lib_svm=False
 )
-opts = Opts(
-    parallel=None,
-    perf=None,
-    auto=None,
-    bound=None,
-    norm=None,
-    selvars=None,
-    sifted=None,
-    pilot=None,
-    cloister=None,
-    pythia=pythia_opts,
-    trace=None,
-    outputs=None
-)
+
 CSV_Z = 'tests/testData_pythia/z.csv'
 CSV_Y = 'tests/testData_pythia/y.csv'
 CSV_YBIN = 'tests/testData_pythia/ybin.csv'
@@ -63,9 +50,9 @@ def test_input():
 
 def test_cv_indices():
     nalgos = y_bin.shape[1]
-    cv_folds = opts.pythia.cv_folds
+    cv_folds = pythia_opts.cv_folds
 
-    res =  pythia(z, y, y_bin, y_best, algolabels, opts)
+    res =  pythia(z, y, y_bin, y_best, algolabels, pythia_opts)
     i = 0
     
     for fold in range(nalgos):

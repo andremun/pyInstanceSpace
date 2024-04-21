@@ -19,20 +19,20 @@ def pythia(
     y_bin: NDArray[np.double],
     y_best: NDArray[np.double],
     algo_labels: list[str],
-    opts: Opts,
+    opts: Opts.pythia,
 ) -> list[AlgorithmSummary]:
     """
     PYTHIA function for algorithm selection and performance evaluation using SVM.
 
-    :param Z: Feature matrix (instances x features).
-    :param Y: Target variable vector (not used directly in this function, but part
-    of the interface).
-    :param Ybin: Binary matrix indicating success/failure of algorithms.
-    :param Ybest: Vector containing the best performance of each instance.
-    :param algolabels: List of algorithm labels.
-    :param opts: Dictionary of options.
+    model.pilot.Z:    Projected data matrix derived from PILOT.m
+    model.data.Yraw:  Preserve the original label data of model.data.Y & synchronize with modifications
+    model.data.Ybin:  A binary matrix used in this context to represent certain attributes or outcomes 
+                      associated with the dataset in a binary format.
+    model.data.Ybest: Store the "best" results or selections from multiple algorithmic outputs related 
+                      to the algorithms in model.data.Y
+    model.data.algolabels: A collection of labels for different algorithms.
+    opts.pythia: Params by users to configure identical algorithm selection.
 
-    :return: Summary of performance for each algorithm.
     """
     print("  -> Initializing PYTHIA.")
 
@@ -62,7 +62,7 @@ def pythia(
     # No params in opt??
     precalcparams = (
         hasattr(opts, 'params') and
-        isinstance(opts.params, (list, np.ndarray)) and # only np.ndarrays
+        isinstance(opts.params, (list, np.ndarray)) and
         np.array(opts.params).shape == (nalgos, 2)
     )
 
@@ -143,7 +143,7 @@ def pythia(
 
         # kf = KFold(n_splits = opts.pythia.cv_folds, shuffle = True, random_state = 0)
 
-        cp[i] = skf
+        # cp[i] = kf
 
         fold = []
         for train_index, test_index in skf.split(np.zeros(len(y_bin[:, i])), y_bin[:, i]):
