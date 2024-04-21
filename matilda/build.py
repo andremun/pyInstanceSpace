@@ -30,9 +30,8 @@ from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split
 
 from matilda.data.model import Model
-from matilda.data.option import Opts
-from matilda.prelim import prelim
 from matilda.filter import filter_by_us
+from matilda.prelim import prelim
 
 MAX_DUPLICATES_RATIO = 0.5  # Constant
 
@@ -53,7 +52,7 @@ if __name__ == "__main__":
     build_instance_space(rootdir)
 
 
-def data_processing(idx: NDArray[np.bool_], model: Model, option: Opts) -> int:
+def data_processing(idx: NDArray[np.bool_], model: Model) -> int:
     # fix upper line late
     """
     Process data for instance space analysis.
@@ -66,14 +65,14 @@ def data_processing(idx: NDArray[np.bool_], model: Model, option: Opts) -> int:
             "There are features with too many missing values. They are\
 being removed to increase speed.",
         )
-        model.data.x = model.data.x.loc[:, ~idx]
+        model.data.x = model.data.x[:, ~idx]
         model.data.feat_labels = [
             label for label, keep in zip(model.data.feat_labels, ~idx) if keep
         ]
 
     # get the number of instances and unique instances
     ninst = model.data.x.shape[0]
-    nuinst = len(model.data.x.drop_duplicates())
+    nuinst = len(np.unique(model.data.x, axis=0))
 
     # check if there are too many repeated instances
     if nuinst / ninst < MAX_DUPLICATES_RATIO:
@@ -96,9 +95,9 @@ that this run will produce good results.",
     ]
 
     # Running PRELIM as to preprocess the data, including scaling and bounding
-    option.prelim = option.perf
-    option.prelim.bound = option.bound.flag
-    option.prelim.norm = option.norm.flag
+    model.opts.prelim = model.opts.perf
+    model.opts.prelim.bound = model.opts.bound.flag
+    model.opts.prelim.norm = model.opts.norm.flag
     [
         model.data.x,
         model.data.y,
@@ -108,7 +107,7 @@ that this run will produce good results.",
         model.data.num_good_algos,
         model.data.beta,
         model.prelim,
-    ] = prelim(model.data.x, model.data.y, option.prelim)
+    ] = prelim(model.data.x, model.data.y, model.opts)
 
     idx = np.all(~model.data.y_bin, axis=0)
     if np.any(idx):
@@ -120,7 +119,7 @@ removed to increase speed.',
         model.data.y = model.data.y[:, ~idx]
         model.data.y_bin = model.data.y_bin[:, ~idx]
         model.data.algo_labels = model.data.algo_labels[~idx]
-        nalgos = model.data.Y.shape[1]
+        nalgos = model.data.y.shape[1]
         if nalgos == 0:
             raise Exception(
                 "'-> There are no ''good'' algorithms. Please verify\
@@ -131,35 +130,35 @@ removed to increase speed.',
     print("-------------------------------------------------------------------")
     ninst = model.data.x.shape[0]
     fractional = (
-        "selvars" in option
-        and "samll_scale_flag" in option.selvars
-        and option.selvars.small_scale_flag
-        and "small_scale" in option.selvars
-        and isinstance(option.selvars.small_scale, float)
+        hasattr(model.opts, "selvars")
+        and hasattr(model.opts.selvars, "small_scale_flag")
+        and model.opts.selvars.small_scale_flag
+        and hasattr(model.opts.selvars, "small_scale")
+        and isinstance(model.opts.selvars.small_scale, float)
     )
     fileindexed = (
-        "selvars" in option
-        and "file_idx_flag" in option.selvars
-        and option.selvars.file_idx_flag
-        and "file_idx" in option.selvars
-        and os.path.isfile(option.selvars.file_idx)
+        hasattr(model.opts, "selvars")
+        and hasattr(model.opts.selvars, "file_idx_flag")
+        and model.opts.selvars.file_idx_flag
+        and hasattr(model.opts.selvars, "file_idx")
+        and os.path.isfile(model.opts.selvars.file_idx)
     )
     bydensity = (
-        "selvars" in option
-        and "density_flag" in option.selvars
-        and option.selvars.density_flag
-        and "min_distance" in option.selvars
-        and isinstance(option.selvars.min_distance, float)
-        and "type" in option.selvars
-        and isinstance(option.selvars.type, str)
+        hasattr(model.opts, "selvars")
+        and hasattr(model.opts.selvars, "density_flag")
+        and model.opts.selvars.density_flag
+        and hasattr(model.opts.selvars, "min_distance")
+        and isinstance(model.opts.selvars.min_distance, float)
+        and hasattr(model.opts.selvars, "type")
+        and isinstance(model.opts.selvars.type, str)
     )
     if fractional:
         print(f"-> Creating a small scale experiment for validation. \
               Percentage of subset: \
-              {round(100 * option.selvars.small_scale, 2)}%")
+              {round(100 * model.opts.selvars.small_scale, 2)}%")
         _, subset_idx = train_test_split(
             np.arange(ninst),
-            test_size=option.selvars.small_scale,
+            test_size=model.opts.selvars.small_scale,
             random_state=0,
         )
         # below are not sure
@@ -168,16 +167,16 @@ removed to increase speed.',
     elif fileindexed:
         print("-> Using a subset of instances.")
         subset_index = np.zeros(ninst, dtype=bool)
-        aux = pd.read_csv(option.selvars.file_idx, header=None).values.flatten()
+        aux = pd.read_csv(model.opts.selvars.file_idx, header=None).values.flatten()
         aux = aux[aux < ninst]
         subset_index[aux] = True
     elif bydensity:
         print("-> Creating a small scale experiment for validation based on density.")
-        subset_index = filter_by_us(
+        subset_index, _, _ = filter_by_us(
             model.data.x,
             model.data.y,
             model.data.y_bin,
-            option.selvars,
+            model.opts.selvars,
         )
         subset_index = ~subset_index
         print(f"-> Percentage of instances retained: \
@@ -201,6 +200,6 @@ removed to increase speed.',
         model.data.p = model.data.p[subset_index, :]
         model.data.inst_labels = model.data.inst_labels[subset_index, :]
 
-        if "S" in model.data:
+        if hasattr(model.data, "S"):
             model.data.S = model.data.S[subset_index, :]
     return model.data.x.shape[1]  # nfeats
