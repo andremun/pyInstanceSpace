@@ -16,6 +16,7 @@ pandas = "^2.2.1"
 pandas-stubs = "^2.2.1.240316"
 scikit-learn = "^1.4.1.post1"
 pytest = "^8.1.1"
+pdoc3 = "^0.10.0"
 
 [tool.poetry.group.backend]
 optional = true
