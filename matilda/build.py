@@ -22,13 +22,14 @@ Example usage:
 
 import sys
 
-import numpy as np
 
-from matilda.data.model import Model
-from matilda.data.option import Opts
+from matilda.data.metadata import Metadata
+from matilda.data.model import Data, Model
+from matilda.data.option import Options
 
 
-def build_instance_space(rootdir: str) -> Model:
+
+def build_instance_space(metadata: Metadata, options: Options) -> Model:
     """
     Construct and return a Model object after instance space analysis.
 
@@ -36,8 +37,12 @@ def build_instance_space(rootdir: str) -> Model:
     :return: A Model object representing the built instance space.
     """
     # TODO: Rewrite buildIS logic in Python
+
+
     raise NotImplementedError
 
+def _preprocess_input(metadata: Metadata, options: Options) -> Data:
+    raise NotImplementedError
 
 def select_features_and_algorithms(model: Model, opts: Opts) -> None:
     """
@@ -133,4 +138,4 @@ def remove_instances_with_many_missing_values(model) -> None:
 
 if __name__ == "__main__":
     rootdir = sys.argv[1]
-    build_instance_space(rootdir)
+    # build_instance_space(rootdir)
