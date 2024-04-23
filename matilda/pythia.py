@@ -5,7 +5,7 @@ from numpy.typing import NDArray
 from sklearn import SVC
 
 from matilda.data.model import AlgorithmSummary
-from matilda.data.option import Opts
+from matilda.data.option import Options
 
 
 class SvmRes:
@@ -29,7 +29,7 @@ class Pilot:
         y_bin: NDArray[np.double],  # noqa: ARG004
         y_best: NDArray[np.double],  # noqa: ARG004
         algo_labels: list[str],  # noqa: ARG004
-        opts: Opts,  # noqa: ARG004
+        opts: Options,  # noqa: ARG004
     ) -> list[AlgorithmSummary]:
         """
         PYTHIA function for algorithm selection and performance evaluation using SVM.

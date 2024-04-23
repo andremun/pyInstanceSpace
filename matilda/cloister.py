@@ -10,7 +10,7 @@ a convex hull, providing a boundary estimate for the dataset.
 import numpy as np
 from numpy.typing import NDArray
 
-from matilda.data.model import CloisterOut, Opts
+from matilda.data.model import CloisterOut, Options
 
 
 class Cloister:
@@ -20,7 +20,7 @@ class Cloister:
     def run(
         x: NDArray[np.double],
         a: NDArray[np.double],
-        opts: Opts,
+        opts: Options,
     ) -> CloisterOut:
         """
         Estimate a boundary for the space using correlation.
@@ -28,7 +28,7 @@ class Cloister:
         :param X: The feature matrix (instances x features) to process.
         :param A: A matrix, probably the performance matrix (instances x algorithms)
             to process. (Not sure now)
-        :param opts: An object of type Opts containing options for processing.
+        :param opts: An object of type Options containing options for processing.
         :return: A structure containing Zedge and Zecorr
 
         """

@@ -53,7 +53,7 @@ class InstanceSpace:
     _stages: dict[_Stage, bool]
 
     @staticmethod
-    def build() -> Model:
+    def build(metadata: Metadata, options: Options) -> Model:
         """
         Construct and return a Model object after instance space analysis.
 
