@@ -39,15 +39,6 @@ def build_instance_space(metadata: Metadata, options: Options) -> Model:
 
     raise NotImplementedError
 
-def metadata_from_file(filepath: str) -> Metadata:
-    """
-    Parse metadata from a file, and construct a Metadata object.
-
-    :param filepath: The path of a csv file containing the metadata.
-    :return: A Metadata object.
-    """
-    raise NotImplementedError
-
 def options_from_file(filepath: str) -> Options:
     """
     Parse options from a file, and construct an Options object.
