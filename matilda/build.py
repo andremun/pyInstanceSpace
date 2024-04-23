@@ -22,11 +22,11 @@ Example usage:
 
 import sys
 
+import numpy as np
 
 from matilda.data.metadata import Metadata
 from matilda.data.model import Data, Model
 from matilda.data.option import Options
-
 
 
 def build_instance_space(metadata: Metadata, options: Options) -> Model:
@@ -38,13 +38,14 @@ def build_instance_space(metadata: Metadata, options: Options) -> Model:
     """
     # TODO: Rewrite buildIS logic in Python
 
-
     raise NotImplementedError
+
 
 def _preprocess_input(metadata: Metadata, options: Options) -> Data:
     raise NotImplementedError
 
-def select_features_and_algorithms(model: Model, opts: Opts) -> None:
+
+def select_features_and_algorithms(data: Data, opts: Options) -> None:
     """
     Select features and algorithms based on options provided in opts.
 
@@ -56,7 +57,7 @@ def select_features_and_algorithms(model: Model, opts: Opts) -> None:
 
         # assume that model.data.feat_labels and
         # opts.selvars.feats are list of string
-        selected_features = [feat for feat in model.data.feat_labels
+        selected_features = [feat for feat in data.feat_labels
                              if feat in opts.selvars.feats]
 
         # if something were chosen, based on the logic index,
@@ -66,10 +67,10 @@ def select_features_and_algorithms(model: Model, opts: Opts) -> None:
                   f"{' '.join(selected_features)}")
 
             # based on manually selected feature to update the data.x
-            is_selected_feature = [model.data.feat_labels.index(feat)
+            is_selected_feature = [data.feat_labels.index(feat)
                                    for feat in selected_features]
-            model.data.x = model.data.x[:, is_selected_feature]
-            model.data.feat_labels = selected_features
+            data.x = data.x[:, is_selected_feature]
+            data.feat_labels = selected_features
         else:
             print("No features were specified in opts.selvars."
                   "feats or it was an empty list.")
@@ -77,63 +78,65 @@ def select_features_and_algorithms(model: Model, opts: Opts) -> None:
     print("---------------------------------------------------")
     if (getattr(opts, "selvars", None) is not None) and \
             (getattr(opts.selvars, "algos", None) is not None):
-        selected_algorithms = [algo for algo in model.data.algo_labels
+        selected_algorithms = [algo for algo in data.algo_labels
                                if algo in opts.selvars.algos]
 
         if selected_algorithms:
             print(f"-> Using the following algorithms: "
                   f"{' '.join(selected_algorithms)}")
 
-            is_selected_algo = [model.data.algo_labels.index(algo)
+            is_selected_algo = [data.algo_labels.index(algo)
                                 for algo in selected_algorithms]
-            model.data.y = model.data.y[:, is_selected_algo]
-            model.data.algo_labels = selected_algorithms
+            data.y = data.y[:, is_selected_algo]
+            data.algo_labels = selected_algorithms
         else:
             print("No algorithms were specified in opts.selvars."
                   "algos or it was an empty list.")
 
 
-def remove_instances_with_many_missing_values(model) -> None:
+def remove_instances_with_many_missing_values(data: Data) -> None:
+    """
+    Remove rows (instances) and features (X columns).
+
+    Washing criterion:
+        1. For any row, if that row in both X and Y are NaN, remove
+        2. For X columns, if that column's 20% grids are filled with NaN, remove
+    """
     # Identify rows where all elements are NaN in X or Y
-    idx = np.all(np.isnan(model.data.x), axis=1) |\
-          np.all(np.isnan(model.data.y), axis=1)
+    idx = np.all(np.isnan(data.x), axis=1) | \
+          np.all(np.isnan(data.y), axis=1)
     if np.any(idx):
         print("-> There are instances with too many missing values. "
               "They are being removed to increase speed.")
         # Remove instances (rows) where all values are NaN
-        model.data.x = model.data.x[~idx]
-        model.data.y = model.data.y[~idx]
+        data.x = data.x[~idx]
+        data.y = data.y[~idx]
 
-        model.data.inst_labels = model.data.inst_labels[~idx]
+        data.inst_labels = data.inst_labels[~idx]
 
         # don't know what does that mean
-        if hasattr(model.data, "S"):
-            model.data.S = model.data.S[~idx]
+        if hasattr(data, "S"):
+            data.S = data.S[~idx]
 
     # Check for features(column) with more than 20% missing values
     threshold = 0.20
-    idx = np.mean(np.isnan(model.data.x), axis=0) >= threshold
-    """
+    idx = np.mean(np.isnan(data.x), axis=0) >= threshold
+
     if np.any(idx):
-        # Remove instances with too many missing values
-        print(
-            "There are features with too many missing values. "
-            "They are being removed to increase speed.",
-        )
-        model.data.x = model.data.x[:, ~idx]
-        model.data.feat_labels = [
-            label for label, keep in zip(model.data.feat_labels, ~idx) if keep
-        ]
-        # get the number of instances and unique instances
-    ninst = model.data.x.shape[0]
-    nuinst = len(np.unique(model.data.x, axis=0))
+        print("-> There are features with too many missing values. "
+              "They are being removed to increase speed.")
+        data.x = data.x[:, ~idx]
+        data.feat_labels = [label for label,
+        keep in zip(data.feat_labels, ~idx) if keep]
+
+    ninst = data.x.shape[0]
+    nuinst = len(np.unique(data.x, axis=0))
     # check if there are too many repeated instances
     max_duplic_ratio = 0.5
     if nuinst / ninst < max_duplic_ratio:
-        print(
-            "-> There are too many repeated instances. "
-            "It is unlikely that this run will produce good results.",
-        )"""
+        print("-> There are too many repeated instances. "
+              "It is unlikely that this run will produce good results.",
+              )
 
 
 if __name__ == "__main__":
