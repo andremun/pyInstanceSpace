@@ -231,7 +231,7 @@ def test_remove_instances_keep_same() -> None:
     ], "feat_labels content not right"
 
 
-def duplicated_data_edge() -> None:
+def test_duplicated_data_edge() -> None:
     """
     Test case.
 
@@ -310,7 +310,7 @@ def duplicated_data_edge() -> None:
     ], "feat_labels content not right"
 
 
-def duplicated_data() -> None:
+def test_duplicated_data() -> None:
     """
     Test case.
 
