@@ -34,9 +34,14 @@ Example usage:
 
 from __future__ import annotations
 
+from collections import defaultdict
 from enum import Enum
+from typing import Self
 
+from matilda.data.metadata import Metadata
 from matilda.data.model import Model
+from matilda.data.option import Options
+from matilda.prelim import Prelim
 
 
 class _Stage(Enum):
@@ -47,18 +52,115 @@ class _Stage(Enum):
     TRACE = "trace"
     PYTHIA = "pythia"
 
+class StageError(Exception):
+    """
+    Prerequisite stages haven't been ran.
+
+    An error raised when a user attempts to run a stage without first running any
+    prerequisite stages.
+    """
+
+    pass
+
 class InstanceSpace:
     """TODO: Describe what an instance space IS."""
 
     _stages: dict[_Stage, bool]
+    _metadata: Metadata
+    _options: Options
+
+    _model: Model | None = None
+
 
     @staticmethod
-    def build(metadata: Metadata, options: Options) -> Model:
+    def new(metadata: Metadata, options: Options) -> InstanceSpace:
+        """
+        Create a new InstanceSpace object.
+
+        Args:
+        ----
+            metadata (Metadata): _description_
+            options (Options): _description_
+
+        Returns:
+        -------
+            InstanceSpace: _description_
+
+        """
+        new = InstanceSpace()
+
+        # Assigning to private member ok in constructor
+        new._stages = defaultdict(lambda: False)  # noqa: SLF001
+        new._metadata = metadata  # noqa: SLF001
+        new._options = options  # noqa: SLF001
+
+        return new
+
+
+    def build(self: Self) -> Model:
         """
         Construct and return a Model object after instance space analysis.
 
-        :param rootdir: The root directory containing the data and configuration files
-        :return: A Model object representing the built instance space.
+        This runs all stages.
+
+        Returns
+        -------
+            model: A Model object representing the built instance space.
+
         """
         raise NotImplementedError
 
+
+    def prelim(self: Self) -> None:
+        self._stages[_Stage.PRELIM] = True
+
+        prelim_out = Prelim.run(
+            self._metadata.,
+            self._model.data.y,
+            self._options,
+        )
+
+
+    def sifted(self: Self) -> None:
+        if not self._stages[_Stage.PRELIM]:
+            raise StageError
+
+        self._stages[_Stage.SIFTED] = True
+
+        raise NotImplementedError
+
+
+    def pilot(self: Self) -> None:
+        if not self._stages[_Stage.SIFTED]:
+            raise StageError
+
+        self._stages[_Stage.PILOT] = True
+
+        raise NotImplementedError
+
+
+    def cloister(self: Self) -> None:
+        if not self._stages[_Stage.PILOT]:
+            raise StageError
+
+        self._stages[_Stage.CLOISTER] = True
+
+        raise NotImplementedError
+
+
+    def trace(self: Self) -> None:
+        if not self._stages[_Stage.PILOT]:
+            raise StageError
+
+        self._stages[_Stage.TRACE] = True
+
+        raise NotImplementedError
+
+
+    def pythia(self: Self) -> None:
+        if not self._stages[_Stage.PILOT]:
+            raise StageError
+
+        self._stages[_Stage.PYTHIA] = True
+
+        raise NotImplementedError
