@@ -30,7 +30,7 @@ from matilda.data.option import (
     TraceOptions,
 )
 
-path_root = Path(__file__).parents[1]
+path_root = Path(__file__).parent
 sys.path.append(str(path_root))
 
 
