@@ -39,16 +39,6 @@ def build_instance_space(metadata: Metadata, options: Options) -> Model:
 
     raise NotImplementedError
 
-def options_from_file(filepath: str) -> Options:
-    """
-    Parse options from a file, and construct an Options object.
-
-    :param filepath: The path of a json file containing the options.
-    :return: An Options object.
-    """
-    raise NotImplementedError
-
-
 def _preprocess_input(metadata: Metadata, options: Options) -> Data:
     raise NotImplementedError
 
