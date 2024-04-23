@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from matilda.data.option import Opts
+from matilda.data.option import Options
 
 
 @dataclass
@@ -205,4 +205,4 @@ class Model:
     cloist: CloisterOut
     pythia: PythiaOut
     trace: TraceOut
-    opts: Opts
+    opts: Options
