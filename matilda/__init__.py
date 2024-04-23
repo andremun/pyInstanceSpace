@@ -32,15 +32,33 @@ Example usage:
     python your_module_name.py /path/to/data
 """
 
+from __future__ import annotations
+
+from enum import Enum
+
 from matilda.data.model import Model
 
 
-def build_instance_space(rootdir: str) -> Model:
-    """
-    Construct and return a Model object after instance space analysis.
+class _Stage(Enum):
+    PRELIM = "prelim"
+    SIFTED = "sifted"
+    PILOT = "pilot"
+    CLOISTER = "cloister"
+    TRACE = "trace"
+    PYTHIA = "pythia"
 
-    :param rootdir: The root directory containing the data and configuration files
-    :return: A Model object representing the built instance space.
-    """
-    # TODO: Rewrite buildIS logic in Python
-    raise NotImplementedError
+class InstanceSpace:
+    """TODO: Describe what an instance space IS."""
+
+    _stages: dict[_Stage, bool]
+
+    @staticmethod
+    def build() -> Model:
+        """
+        Construct and return a Model object after instance space analysis.
+
+        :param rootdir: The root directory containing the data and configuration files
+        :return: A Model object representing the built instance space.
+        """
+        raise NotImplementedError
+
