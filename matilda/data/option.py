@@ -2,10 +2,13 @@
 Defines a collection of data classes that represent configuration options.
 
 These classes provide a structured way to specify and manage settings for different
-aspects of the model's execution and behavior.
+aspects of the model's execution and behaviour.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import Self
 
 import pandas as pd
 
@@ -120,7 +123,7 @@ class OutputOptions:
 
 
 @dataclass
-class Opts:
+class Options:
     """Aggregates all options into a single configuration object for the model."""
 
     parallel: ParallelOptions
@@ -135,3 +138,22 @@ class Opts:
     pythia: PythiaOptions
     trace: TraceOptions
     outputs: OutputOptions
+
+
+    @staticmethod
+    def from_file(filepath: str) -> Options:
+        """
+        Parse options from a file, and construct an Options object.
+
+        :param filepath: The path of a json file containing the options.
+        :return: An Options object.
+        """
+        raise NotImplementedError
+
+    def to_file(self: Self, filepath: str) -> None:
+        """
+        Store options in a file from an Options object.
+
+        :param filepath: The path of the resulting json file containing the options.
+        """
+        raise NotImplementedError
