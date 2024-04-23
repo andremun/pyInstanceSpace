@@ -1,3 +1,12 @@
+"""
+Contains test cases for the remove_instances_with_many_missing_values function.
+
+The basic mechanism of the test is to compare its output against
+the expected output from the specification of original BuildIS code,
+and check if the outputs are exactly same with the exception.
+
+"""
+
 import sys
 from pathlib import Path
 
@@ -9,8 +18,10 @@ from matilda.data.model import (
     CloisterOut,
     Data,
     FeatSel,
+    Footprint,
     Model,
     PilotOut,
+    PolyShape,
     PrelimOut,
     PythiaOut,
     SiftedOut,
@@ -37,9 +48,16 @@ sys.path.append(str(path_root))
 
 
 def create_default_model(data: Data) -> Model:
+    """
+    Create a default model with the given data.
+
+    All the value that assigned to the model are trivial, except the parameter: data
+    """
     opts = Opts(
         parallel=ParallelOptions(flag=False, n_cores=1),
-        perf=PerformanceOptions(max_perf=False, abs_perf=False, epsilon=0.1, beta_threshold=0.5),
+        perf=PerformanceOptions(
+            max_perf=False, abs_perf=False, epsilon=0.1, beta_threshold=0.5,
+        ),
         auto=AutoOptions(preproc=False),
         bound=BoundOptions(flag=False),
         norm=NormOptions(flag=False),
@@ -54,10 +72,14 @@ def create_default_model(data: Data) -> Model:
             min_distance=0.0,
             density_flag=False,
         ),
-        sifted=SiftedOptions(flag=False, rho=0.5, k=10, n_trees=100, max_iter=100, replicates=10),
+        sifted=SiftedOptions(
+            flag=False, rho=0.5, k=10, n_trees=100, max_iter=100, replicates=10,
+        ),
         pilot=PilotOptions(analytic=False, n_tries=10),
         cloister=CloisterOptions(p_val=0.05, c_thres=0.5),
-        pythia=PythiaOptions(cv_folds=5, is_poly_krnl=False, use_weights=False, use_lib_svm=False),
+        pythia=PythiaOptions(
+            cv_folds=5, is_poly_krnl=False, use_weights=False, use_lib_svm=False,
+        ),
         trace=TraceOptions(use_sim=False, PI=0.95),
         outputs=OutputOptions(csv=False, web=False, png=False),
     )
@@ -76,7 +98,8 @@ def create_default_model(data: Data) -> Model:
         lambda_y=np.array([], dtype=np.double),
         sigma_y=np.array([], dtype=np.double),
     )
-    empty_sifted = SiftedOut(flag=0, rho=0.0, k=0, n_trees=0, max_lter=0, replicates=0)
+    empty_sifted = SiftedOut(flag=0, rho=np.double(0),
+                             k=0, n_trees=0, max_lter=0, replicates=0)
     empty_pilot = PilotOut(
         X0=np.array([], dtype=np.double),
         alpha=np.array([], dtype=np.double),
@@ -90,7 +113,9 @@ def create_default_model(data: Data) -> Model:
         r2=np.array([], dtype=np.double),
         summary=pd.DataFrame(),
     )
-    empty_cloist = CloisterOut(Zedge=np.array([], dtype=np.double), Zecorr=np.array([], dtype=np.double))
+    empty_cloist = CloisterOut(
+        Zedge=np.array([], dtype=np.double), Zecorr=np.array([], dtype=np.double),
+    )
     empty_pythia = PythiaOut(
         mu=[],
         sigma=[],
@@ -110,7 +135,18 @@ def create_default_model(data: Data) -> Model:
         selection1=None,
         summary=pd.DataFrame(),
     )
-    empty_trace = TraceOut(space=None, good=[], best=[], hard=None, summary=pd.DataFrame())
+
+    poly = PolyShape()
+    dummy = Footprint(
+        polygon=poly,
+        area=float(0),
+        elements=float(0),
+        good_elements=float(0),
+        density=float(0),
+        purity=float(0),
+    )
+    empty_trace = TraceOut(space=dummy, good=[], best=[],
+                           hard=dummy, summary=pd.DataFrame())
 
     return Model(
         data=data,
@@ -127,6 +163,7 @@ def create_default_model(data: Data) -> Model:
 
 
 def test_remove_instances_with_two_row_missing() -> None:
+    """Test remove_instances_with_many_missing_values function with two rows missing."""
     rng = np.random.default_rng(33)
 
     # Create sample data with missing values (10 rows)
@@ -158,21 +195,36 @@ def test_remove_instances_with_two_row_missing() -> None:
 
     remove_instances_with_many_missing_values(model)
 
+    expected_rows = 8
+
     # Check instances removal
-    assert model.data.x.shape[0] == 8, "Instances with all NaN values not removed correctly"
-    assert model.data.y.shape[0] == 8, "Instances with all NaN values not removed correctly"
-    assert model.data.inst_labels.shape[0] == 8, "Instance labels not updated after removal"
+    assert (
+            model.data.x.shape[0] == expected_rows
+    ), "Instances with all NaN values not removed correctly"
+    assert (
+            model.data.y.shape[0] == expected_rows
+    ), "Instances with all NaN values not removed correctly"
+    assert (
+            model.data.inst_labels.shape[0] == expected_rows
+    ), "Instance labels not updated after removal"
+
+    expected_x_columns = 10
+    expected_y_columns = 5
 
     # Check feature dimensions are unchanged
-    assert model.data.x.shape[1] == 10, "x dimensions should not change"
-    assert model.data.y.shape[1] == 5, "y dimensions should not change"
+    assert model.data.x.shape[1] == expected_x_columns, "x dimensions should not change"
+    assert model.data.y.shape[1] == expected_y_columns, "y dimensions should not change"
+
     # Check inst_labels content
-    assert model.data.inst_labels.tolist() == ["inst" + str(i) for i in range(2, 10)], "inst_labels content not right"
+    assert model.data.inst_labels.tolist() == [
+        "inst" + str(i) for i in range(2, 10)
+    ], "inst_labels content not right"
 
     # not sure how to test idx,
 
 
 def test_remove_instances_with_3_row_missing() -> None:
+    """Test remove_instances_with_many_missing_values function with three rows missing."""
     rng = np.random.default_rng(33)
 
     # Create sample data with missing values (10 rows)
@@ -204,22 +256,44 @@ def test_remove_instances_with_3_row_missing() -> None:
 
     remove_instances_with_many_missing_values(model)
 
+    expected_rows = 7
+
     # Check instances removal
-    assert model.data.x.shape[0] == 7, "Instances with all NaN values not removed correctly"
-    assert model.data.y.shape[0] == 7, "Instances with all NaN values not removed correctly"
-    assert model.data.inst_labels.shape[0] == 7, "Instance labels not updated after removal"
+    assert (
+            model.data.x.shape[0] == expected_rows
+    ), "Instances with all NaN values not removed correctly"
+    assert (
+            model.data.y.shape[0] == expected_rows
+    ), "Instances with all NaN values not removed correctly"
+    assert (
+            model.data.inst_labels.shape[0] == expected_rows
+    ), "Instance labels not updated after removal"
+
+    expected_x_columns = 10
+    expected_y_columns = 5
 
     # Check feature dimensions are unchanged
-    assert model.data.x.shape[1] == 10, "x dimensions should not change"
-    assert model.data.y.shape[1] == 5, "y dimensions should not change"
+    assert model.data.x.shape[1] == expected_x_columns, "x dimensions should not change"
+    assert model.data.y.shape[1] == expected_y_columns, "y dimensions should not change"
+
     # Check inst_labels content
-    assert model.data.inst_labels.tolist() == ["inst0", "inst1", "inst5", "inst6", "inst7", "inst8", "inst9"], \
-        "inst_labels content not right"
+    assert model.data.inst_labels.tolist() == [
+        "inst0",
+        "inst1",
+        "inst5",
+        "inst6",
+        "inst7",
+        "inst8",
+        "inst9",
+    ], "inst_labels content not right"
 
     # not sure how to test idx,
 
 
 def test_remove_instances_keep_same() -> None:
+    """
+    Test remove_instances_with_many_missing_values function with no rows missing.
+    """
     rng = np.random.default_rng(33)
 
     # Create sample data with missing values (10 rows)
@@ -252,16 +326,30 @@ def test_remove_instances_keep_same() -> None:
 
     remove_instances_with_many_missing_values(model)
 
+    expected_rows = 10
+
     # Check instances removal
-    assert model.data.x.shape[0] == 10, "Instances with all NaN values not removed correctly"
-    assert model.data.y.shape[0] == 10, "Instances with all NaN values not removed correctly"
-    assert model.data.inst_labels.shape[0] == 10, "Instance labels not updated after removal"
+    assert (
+            model.data.x.shape[0] == expected_rows
+    ), "Instances with all NaN values not removed correctly"
+    assert (
+            model.data.y.shape[0] == expected_rows
+    ), "Instances with all NaN values not removed correctly"
+    assert (
+            model.data.inst_labels.shape[0] == expected_rows
+    ), "Instance labels not updated after removal"
+
+    expected_x_columns = 10
+    expected_y_columns = 5
 
     # Check feature dimensions are unchanged
-    assert model.data.x.shape[1] == 10, "x dimensions should not change"
-    assert model.data.y.shape[1] == 5, "y dimensions should not change"
+    assert model.data.x.shape[1] == expected_x_columns, "x dimensions should not change"
+    assert model.data.y.shape[1] == expected_y_columns, "y dimensions should not change"
+
     # Check inst_labels content
-    assert model.data.inst_labels.tolist() == ["inst" + str(i) for i in range(0, 10)], "inst_labels content not right"
+    assert model.data.inst_labels.tolist() == [
+        "inst" + str(i) for i in range(0, 10)
+    ], "inst_labels content not right"
 
     # not sure how to test idx,
 

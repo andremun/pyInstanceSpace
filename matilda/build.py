@@ -88,11 +88,13 @@ def select_features_and_algorithms(model: Model, opts: Opts) -> None:
                   "algos or it was an empty list.")
 
 
-def remove_instances_with_many_missing_values(model):
+def remove_instances_with_many_missing_values(model) -> None:
     # Identify rows where all elements are NaN in X or Y
-    idx = np.all(np.isnan(model.data.x), axis=1) | np.all(np.isnan(model.data.y), axis=1)
+    idx = np.all(np.isnan(model.data.x), axis=1) |\
+          np.all(np.isnan(model.data.y), axis=1)
     if np.any(idx):
-        print("-> There are instances with too many missing values. They are being removed to increase speed.")
+        print("-> There are instances with too many missing values. "
+              "They are being removed to increase speed.")
         # Remove instances (rows) where all values are NaN
         model.data.x = model.data.x[~idx]
         model.data.y = model.data.y[~idx]
@@ -104,7 +106,29 @@ def remove_instances_with_many_missing_values(model):
             model.data.S = model.data.S[~idx]
 
     # Check for features(column) with more than 20% missing values
-    idx = np.mean(np.isnan(model.data.x), axis=0) >= 0.20
+    threshold = 0.20
+    idx = np.mean(np.isnan(model.data.x), axis=0) >= threshold
+    """
+    if np.any(idx):
+        # Remove instances with too many missing values
+        print(
+            "There are features with too many missing values. "
+            "They are being removed to increase speed.",
+        )
+        model.data.x = model.data.x[:, ~idx]
+        model.data.feat_labels = [
+            label for label, keep in zip(model.data.feat_labels, ~idx) if keep
+        ]
+        # get the number of instances and unique instances
+    ninst = model.data.x.shape[0]
+    nuinst = len(np.unique(model.data.x, axis=0))
+    # check if there are too many repeated instances
+    max_duplic_ratio = 0.5
+    if nuinst / ninst < max_duplic_ratio:
+        print(
+            "-> There are too many repeated instances. "
+            "It is unlikely that this run will produce good results.",
+        )"""
 
 
 if __name__ == "__main__":
