@@ -5,7 +5,7 @@ from numpy.typing import NDArray
 from sklearn import SVC
 
 from matilda.data.model import AlgorithmSummary
-from matilda.data.option import Opts
+from matilda.data.option import Options
 
 
 def pythia(
@@ -14,7 +14,7 @@ def pythia(
     y_bin: NDArray[np.double],
     y_best: NDArray[np.double],
     algo_labels: list[str],
-    opts: Opts,
+    opts: Options,
 ) -> list[AlgorithmSummary]:
     """
     PYTHIA function for algorithm selection and performance evaluation using SVM.
