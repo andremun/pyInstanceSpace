@@ -1,9 +1,9 @@
 """
 Contains test cases for the remove_instances_with_many_missing_values function.
 
-The basic mechanism of the test is to compare its output against
-the expected output from the specification of original BuildIS code,
-and check if the outputs are exactly same with the exception.
+These testing codes are tested by artificial data
+(the data that I generated, rather than read from CSV)
+and check against with the logic of original codes of BuildIS
 
 """
 
