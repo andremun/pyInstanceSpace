@@ -396,6 +396,6 @@ if __name__ == "__main__":
     print("------------------------------")
     test_remove_instances_keep_same()
     print("------------------------------")
-    duplicated_data_edge()
+    test_duplicated_data_edge()
     print("------------------------------")
-    duplicated_data()
+    test_duplicated_data()
