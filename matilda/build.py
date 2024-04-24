@@ -29,14 +29,12 @@ import pandas as pd
 from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split
 
-from matilda.data.model import Model
-from matilda.filter import filter_by_us
-from matilda.prelim import prelim
-
-MAX_DUPLICATES_RATIO = 0.5  # Constant
+from matilda.data.metadata import Metadata
+from matilda.data.model import Data, Model
+from matilda.data.option import Options
 
 
-def build_instance_space(rootdir: str) -> Model:
+def build_instance_space(metadata: Metadata, options: Options) -> Model:
     """
     Construct and return a Model object after instance space analysis.
 
@@ -44,6 +42,11 @@ def build_instance_space(rootdir: str) -> Model:
     :return: A Model object representing the built instance space.
     """
     # TODO: Rewrite buildIS logic in Python
+
+    raise NotImplementedError
+
+
+def _preprocess_input(metadata: Metadata, options: Options) -> Data:
     raise NotImplementedError
 
 
