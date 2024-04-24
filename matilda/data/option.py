@@ -140,6 +140,7 @@ class Options:
 
     parallel: ParallelOptions
     perf: PerformanceOptions
+    prelim: PrelimOptions
     auto: AutoOptions
     bound: BoundOptions
     norm: NormOptions
