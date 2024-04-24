@@ -6,22 +6,11 @@ These classes define types for problem instances found in the metadata.csv file.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Self
 
+import numpy as np
+from numpy.typing import NDArray
 
-@dataclass
-class ProblemInstance:
-    # TODO: Ask someone for a better description of what a problem instance is
-    """A description of a problem instance."""
-
-    identifier: str
-    source: str | None
-
-    # Features and algorithm performance should have type double. Pythons float type
-    # has double precision. An alternative would be to use numpy's double128.
-    features: dict[str, float]
-    algorithms: dict[str, float]
 
 class Metadata:
     # TODO: Ask someone for a better description of what metadata is
@@ -29,7 +18,8 @@ class Metadata:
 
     feature_names: list[str]
     algorithm_names: list[str]
-    problem_instances: list[ProblemInstance]
+    features: NDArray[np.double]
+    algorithms: NDArray[np.double]
 
 
     @staticmethod

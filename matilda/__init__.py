@@ -36,10 +36,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 from enum import Enum
-from typing import Self
 
 from matilda.data.metadata import Metadata
-from matilda.data.model import Model
+from matilda.data.model import Data, Model, PrelimOut
 from matilda.data.option import Options
 from matilda.prelim import Prelim
 
@@ -69,6 +68,10 @@ class InstanceSpace:
     _metadata: Metadata
     _options: Options
 
+    _data: Data
+
+    _prelim_out: PrelimOut
+
     _model: Model | None = None
 
 
@@ -97,7 +100,7 @@ class InstanceSpace:
         return new
 
 
-    def build(self: Self) -> Model:
+    def build(self) -> Model:
         """
         Construct and return a Model object after instance space analysis.
 
@@ -111,14 +114,16 @@ class InstanceSpace:
         raise NotImplementedError
 
 
-    def prelim(self) -> None:
+    def prelim(self) -> PrelimOut:
         self._stages[_Stage.PRELIM] = True
 
-        # prelim_out = Prelim.run(
-        #     self._metadata.,
-        #     self._model.data.y,
-        #     self._options,
-        # )
+        self._data, self._prelim_out = Prelim.run(
+            self._metadata.features,
+            self._metadata.algorithms,
+            self._options,
+        )
+
+        return self._prelim_out
 
 
     def sifted(self) -> None:
