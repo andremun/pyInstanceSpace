@@ -114,6 +114,9 @@ ignore = [
 
     # Temporary, while we are doing stubs
     "ARG001",
+
+    # Deprecated, type annotation on self is unneeded
+    "ANN101",
 ]
 
 [tool.mypy]

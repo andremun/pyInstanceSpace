@@ -111,17 +111,17 @@ class InstanceSpace:
         raise NotImplementedError
 
 
-    def prelim(self: Self) -> None:
+    def prelim(self) -> None:
         self._stages[_Stage.PRELIM] = True
 
-        prelim_out = Prelim.run(
-            self._metadata.,
-            self._model.data.y,
-            self._options,
-        )
+        # prelim_out = Prelim.run(
+        #     self._metadata.,
+        #     self._model.data.y,
+        #     self._options,
+        # )
 
 
-    def sifted(self: Self) -> None:
+    def sifted(self) -> None:
         if not self._stages[_Stage.PRELIM]:
             raise StageError
 
@@ -130,7 +130,7 @@ class InstanceSpace:
         raise NotImplementedError
 
 
-    def pilot(self: Self) -> None:
+    def pilot(self) -> None:
         if not self._stages[_Stage.SIFTED]:
             raise StageError
 
@@ -139,7 +139,7 @@ class InstanceSpace:
         raise NotImplementedError
 
 
-    def cloister(self: Self) -> None:
+    def cloister(self) -> None:
         if not self._stages[_Stage.PILOT]:
             raise StageError
 
@@ -148,7 +148,7 @@ class InstanceSpace:
         raise NotImplementedError
 
 
-    def trace(self: Self) -> None:
+    def trace(self) -> None:
         if not self._stages[_Stage.PILOT]:
             raise StageError
 
@@ -157,7 +157,7 @@ class InstanceSpace:
         raise NotImplementedError
 
 
-    def pythia(self: Self) -> None:
+    def pythia(self) -> None:
         if not self._stages[_Stage.PILOT]:
             raise StageError
 
