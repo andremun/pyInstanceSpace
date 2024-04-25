@@ -15,16 +15,10 @@ numpy = "^1.26.4"
 pandas = "^2.2.1"
 pandas-stubs = "^2.2.1.240316"
 scikit-learn = "^1.4.1.post1"
-pytest = "^8.1.1"
-
-[tool.poetry.group.backend]
-optional = true
-
-[tool.poetry.group.backend.dependencies]
-fastapi = "^0.110.0"
-uvicorn = {extras = ["standard"], version = "^0.29.0"}
+click = "^8.1.7"
 
 [tool.poetry.group.dev.dependencies]
+pytest = "^8.1.1"
 poethepoet = "^0.25.0"
 ruff = "^0.3.4"
 mypy = "^1.9.0"
@@ -120,6 +114,12 @@ ignore = [
 
     # Temporary, while we are doing stubs
     "ARG001",
+
+    # Deprecated, type annotation on self is unneeded
+    "ANN101",
+
+    # Collides with D416
+    "D406",
 ]
 
 [tool.mypy]

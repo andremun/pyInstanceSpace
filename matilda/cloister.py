@@ -13,20 +13,25 @@ from numpy.typing import NDArray
 from matilda.data.model import CloisterOut, Options
 
 
-def cloister(
-    x: NDArray[np.double],
-    a: NDArray[np.double],
-    opts: Options,
-) -> CloisterOut:
-    """
-    Estimate a boundary for the space using correlation.
+class Cloister:
+    """See file docstring."""
 
-    :param X: The feature matrix (instances x features) to process.
-    :param A: A matrix, probably the performance matrix (instances x algorithms)
-      to process. (Not sure now)
-    :param opts: An object of type Options containing options for processing.
-    :return: A structure containing Zedge and Zecorr
+    @staticmethod
+    def run(
+        x: NDArray[np.double],
+        a: NDArray[np.double],
+        opts: Options,
+    ) -> CloisterOut:
+        """
+        Estimate a boundary for the space using correlation.
 
-    """
-    # TODO: Rewrite PRELIM logic in python
-    raise NotImplementedError
+        :param X: The feature matrix (instances x features) to process.
+        :param A: A matrix, probably the performance matrix (instances x algorithms)
+            to process. (Not sure now)
+        :param opts: An object of type Options containing options for processing.
+        :return: A structure containing Zedge and Zecorr
+
+        """
+        # TODO: Rewrite PRELIM logic in python
+        raise NotImplementedError
+

@@ -20,14 +20,9 @@ Example usage:
     python your_module_name.py /path/to/data
 """
 
-import sys
-
-import numpy as np
-
 from matilda.data.metadata import Metadata
-from matilda.data.model import Data, Model
+from matilda.data.model import Data
 from matilda.data.option import Options
-
 
 def build_instance_space(metadata: Metadata, options: Options) -> Model:
     """
@@ -150,6 +145,5 @@ def remove_instances_with_many_missing_values(data: Data) -> Data:
     return popout
 
 
-if __name__ == "__main__":
-    rootdir = sys.argv[1]
-    # build_instance_space(rootdir)
+def _preprocess_input(metadata: Metadata, options: Options) -> Data:
+    raise NotImplementedError
