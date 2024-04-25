@@ -36,7 +36,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from enum import Enum
-import os
 from pathlib import Path
 
 from matilda.cloister import Cloister
