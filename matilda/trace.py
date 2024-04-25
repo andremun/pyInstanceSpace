@@ -11,6 +11,7 @@ For more details, please read the original Matlab code and liveDemo.
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from concurrent.futures import ThreadPoolExecutor
 import time
 
 from matilda.data.model import Footprint, PolyShape, TraceOut
@@ -50,6 +51,7 @@ def trace(
         including algorithm footprints and performance summaries.
 
     """
+    # TODO: Rewrite TRACE logic in python[unfinished]
     print("  -> TRACE is calculating the space area and density.")
     ninst = z.shape[0]
     nalgos = y_bin.shape[1]
@@ -94,6 +96,7 @@ def trace(
     
     print("  -> TRACE has completed. Footprint analysis results:")
     print(summary)
+    # raise NotImplementedError
 
 """
 % =========================================================================
