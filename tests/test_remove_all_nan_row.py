@@ -55,7 +55,7 @@ def test_remove_instances_with_two_row_missing() -> None:
         p=np.array([], dtype=np.double),
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
-        s=set(),
+        s=None,
     )
 
     out = remove_instances_with_many_missing_values(data)
@@ -121,7 +121,7 @@ def test_remove_instances_with_3_row_missing() -> None:
         p=np.array([], dtype=np.double),
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
-        s=set(),
+        s=None,
     )
 
     out = remove_instances_with_many_missing_values(data)
@@ -196,7 +196,7 @@ def test_remove_instances_keep_same() -> None:
         p=np.array([], dtype=np.double),
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
-        s=set(),
+        s=None,
     )
 
     out = remove_instances_with_many_missing_values(data)
@@ -273,7 +273,7 @@ def test_duplicated_data_edge() -> None:
         p=np.array([], dtype=np.double),
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
-        s=set(),
+        s=None,
     )
 
     out = remove_instances_with_many_missing_values(data)
@@ -350,7 +350,7 @@ def test_duplicated_data() -> None:
         p=np.array([], dtype=np.double),
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
-        s=set(),
+        s=None,
     )
 
     out = remove_instances_with_many_missing_values(data)

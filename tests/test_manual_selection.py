@@ -78,7 +78,7 @@ def test_manual_selection() -> None:
         p=np.array([], dtype=np.double),
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
-        s=set(),
+        s=None,
     )
 
     selvars = SelvarsOptions(
@@ -133,7 +133,7 @@ def test_manual_wrong_names() -> None:
         p=np.array([], dtype=np.double),
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
-        s=set(),
+        s=None,
     )
 
     selvars = SelvarsOptions(
