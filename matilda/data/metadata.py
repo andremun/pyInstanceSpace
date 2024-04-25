@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Self
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
 
 
@@ -23,17 +24,54 @@ class Metadata:
     algorithm_names: list[str]
     features: NDArray[np.double]
     algorithms: NDArray[np.double]
-
+    # newly added:
+    inst_labels: pd.Series
+    s: set[str] | None
 
     @staticmethod
-    def from_file(filepath: Path) -> Metadata:
+    def from_file(filepath: Path) -> "Metadata":
         """
         Parse metadata from a file, and construct a Metadata object.
 
         :param filepath: The path of a csv file containing the metadata.
         :return: A Metadata object.
         """
-        raise NotImplementedError
+        if not filepath.is_file():
+            raise FileNotFoundError(f"Please place the datafiles in the directory '{filepath.parent}'")
+
+        print('-------------------------------------------------------------------------')
+        print('-> Loading the data.')
+        Xbar = pd.read_csv(filepath)
+
+        varlabels = Xbar.columns
+        isname = varlabels.str.lower() == 'instances'
+        isfeat = varlabels.str.lower().str.startswith('feature_')
+        isalgo = varlabels.str.lower().str.startswith('algo_')
+        issource = varlabels.str.lower() == 'source'
+
+        instlabels = Xbar.loc[:, isname].squeeze()
+
+        if pd.api.types.is_numeric_dtype(instlabels):
+            instlabels = instlabels.astype(str)
+
+        s = None
+        if issource.any():
+            s = pd.Categorical(Xbar.loc[:, issource].squeeze())
+
+        X = Xbar.loc[:, isfeat]
+        Y = Xbar.loc[:, isalgo]
+
+        feature_names = X.columns.tolist()
+        algorithm_names = Y.columns.tolist()
+
+        return Metadata(
+            feature_names=feature_names,
+            algorithm_names=algorithm_names,
+            features=X.to_numpy(),
+            algorithms=Y.to_numpy(),
+            s=s,
+            inst_labels=instlabels
+        )
 
     def to_file(self: Self, filepath: Path) -> None:
         """
@@ -43,3 +81,16 @@ class Metadata:
         """
         raise NotImplementedError
 
+
+if __name__ == "__main__":
+    metadata_file = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/csv_files/metadata.csv")
+
+    metadata = Metadata.from_file(metadata_file)
+
+    np.set_printoptions(precision=15)
+    print("Feature names:", metadata.feature_names)
+    print("Algorithm names:", metadata.algorithm_names)
+    print("Features shape:", metadata.features.shape)
+    print("Algorithms shape:", metadata.algorithms.shape)
+    print("Instance labels:", metadata.inst_labels)
+    print("Source categories:", metadata.s)
