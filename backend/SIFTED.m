@@ -139,6 +139,8 @@ maxcomb = 1000;
 % Determine which combination produces the best separation while using a
 % two dimensional PCA projection. The separation is defined by a Tree
 % Bagger.
+% PYGMO -> GA
+% NEVERGRAD
 if ncomb>maxcomb
     disp('-> There are over 1000 valid combinations. Using a GA+LookUpTable to find an optimal one.');
     gacostvals = NaN.*ones(ncomb,1);
