@@ -45,12 +45,13 @@ def _preprocess_input(metadata: Metadata, options: Options) -> Data:
     raise NotImplementedError
 
 
-def select_features_and_algorithms(data: Data, opts: Options) -> None:
+def select_features_and_algorithms(data: Data, opts: Options) -> Data:
     """
     Select features and algorithms based on options provided in opts.
 
     Remove instances with too many missing values.
     """
+    popout = data
     print("---------------------------------------------------")
     if (getattr(opts, "selvars", None) is not None) and \
             (getattr(opts.selvars, "feats", None) is not None):
@@ -69,8 +70,8 @@ def select_features_and_algorithms(data: Data, opts: Options) -> None:
             # based on manually selected feature to update the data.x
             is_selected_feature = [data.feat_labels.index(feat)
                                    for feat in selected_features]
-            data.x = data.x[:, is_selected_feature]
-            data.feat_labels = selected_features
+            popout.x = data.x[:, is_selected_feature]
+            popout.feat_labels = selected_features
         else:
             print("No features were specified in opts.selvars."
                   "feats or it was an empty list.")
@@ -87,14 +88,15 @@ def select_features_and_algorithms(data: Data, opts: Options) -> None:
 
             is_selected_algo = [data.algo_labels.index(algo)
                                 for algo in selected_algorithms]
-            data.y = data.y[:, is_selected_algo]
-            data.algo_labels = selected_algorithms
+            popout.y = data.y[:, is_selected_algo]
+            popout.algo_labels = selected_algorithms
         else:
             print("No algorithms were specified in opts.selvars."
                   "algos or it was an empty list.")
+    return popout
 
 
-def remove_instances_with_many_missing_values(data: Data) -> None:
+def remove_instances_with_many_missing_values(data: Data) -> Data:
     """
     Remove rows (instances) and features (X columns).
 
@@ -102,6 +104,7 @@ def remove_instances_with_many_missing_values(data: Data) -> None:
         1. For any row, if that row in both X and Y are NaN, remove
         2. For X columns, if that column's 20% grids are filled with NaN, remove
     """
+    popout = data
     # Identify rows where all elements are NaN in X or Y
     idx = np.all(np.isnan(data.x), axis=1) | \
           np.all(np.isnan(data.y), axis=1)
@@ -109,14 +112,13 @@ def remove_instances_with_many_missing_values(data: Data) -> None:
         print("-> There are instances with too many missing values. "
               "They are being removed to increase speed.")
         # Remove instances (rows) where all values are NaN
-        data.x = data.x[~idx]
-        data.y = data.y[~idx]
+        popout.x = data.x[~idx]
+        popout.y = data.y[~idx]
 
-        data.inst_labels = data.inst_labels[~idx]
+        popout.inst_labels = data.inst_labels[~idx]
 
-        # don't know what does that mean
-        if hasattr(data, "S"):
-            data.S = data.S[~idx]
+        if data.s is not None:
+            popout.s = data.s[~idx]
 
     # Check for features(column) with more than 20% missing values
     threshold = 0.20
@@ -125,18 +127,19 @@ def remove_instances_with_many_missing_values(data: Data) -> None:
     if np.any(idx):
         print("-> There are features with too many missing values. "
               "They are being removed to increase speed.")
-        data.x = data.x[:, ~idx]
-        data.feat_labels = [label for label,
+        popout.x = data.x[:, ~idx]
+        popout.feat_labels = [label for label,
         keep in zip(data.feat_labels, ~idx) if keep]
 
-    ninst = data.x.shape[0]
-    nuinst = len(np.unique(data.x, axis=0))
+    ninst = popout.x.shape[0]
+    nuinst = len(np.unique(popout.x, axis=0))
     # check if there are too many repeated instances
     max_duplic_ratio = 0.5
     if nuinst / ninst < max_duplic_ratio:
         print("-> There are too many repeated instances. "
               "It is unlikely that this run will produce good results.",
               )
+    return popout
 
 
 if __name__ == "__main__":
