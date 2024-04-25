@@ -117,6 +117,9 @@ ignore = [
 
     # Deprecated, type annotation on self is unneeded
     "ANN101",
+
+    # Collides with D416
+    "D406",
 ]
 
 [tool.mypy]

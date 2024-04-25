@@ -8,6 +8,7 @@ aspects of the model's execution and behaviour.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Self
 
 import pandas as pd
@@ -141,7 +142,7 @@ class Options:
 
 
     @staticmethod
-    def from_file(filepath: str) -> Options:
+    def from_file(filepath: Path) -> Options:
         """
         Parse options from a file, and construct an Options object.
 
@@ -150,7 +151,7 @@ class Options:
         """
         raise NotImplementedError
 
-    def to_file(self: Self, filepath: str) -> None:
+    def to_file(self: Self, filepath: Path) -> None:
         """
         Store options in a file from an Options object.
 

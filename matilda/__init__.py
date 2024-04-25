@@ -36,6 +36,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 from enum import Enum
+import os
+from pathlib import Path
 
 from matilda.cloister import Cloister
 from matilda.data.metadata import Metadata
@@ -94,8 +96,7 @@ class InstanceSpace:
     _model: Model | None = None
 
 
-    @staticmethod
-    def new(metadata: Metadata, options: Options) -> InstanceSpace:
+    def __init__(self, metadata: Metadata, options: Options) -> None:
         """
         Create a new InstanceSpace object.
 
@@ -104,19 +105,10 @@ class InstanceSpace:
             metadata (Metadata): _description_
             options (Options): _description_
 
-        Returns:
-        -------
-            InstanceSpace: _description_
-
         """
-        new = InstanceSpace()
-
-        # Assigning to private member ok in constructor
-        new._stages = defaultdict(lambda: False)  # noqa: SLF001
-        new._metadata = metadata  # noqa: SLF001
-        new._options = options  # noqa: SLF001
-
-        return new
+        self._stages = defaultdict(lambda: False)
+        self._metadata = metadata
+        self._options = options
 
 
     def build(self) -> Model:
@@ -125,7 +117,7 @@ class InstanceSpace:
 
         This runs all stages.
 
-        Returns
+        Returns:
         -------
             model: A Model object representing the built instance space.
 
@@ -137,7 +129,7 @@ class InstanceSpace:
         """
         Run the prelim stage.
 
-        Returns
+        Returns:
         -------
             prelim_out: The return of the prelim stage.
 
@@ -157,7 +149,7 @@ class InstanceSpace:
         """
         Run the sifted stage.
 
-        Returns
+        Returns:
         -------
             sifted_out: The return of the sifted stage.
 
@@ -181,7 +173,7 @@ class InstanceSpace:
         """
         Run the pilot stage.
 
-        Returns
+        Returns:
         -------
             pilot_out: The return of the pilot stage.
 
@@ -205,7 +197,7 @@ class InstanceSpace:
         """
         Run the cloister stage.
 
-        Returns
+        Returns:
         -------
             cloister_out: The return of the cloister stage.
 
@@ -231,7 +223,7 @@ class InstanceSpace:
         """
         Run the trace stage.
 
-        Returns
+        Returns:
         -------
             trace_out: The return of the trace stage.
 
@@ -260,7 +252,7 @@ class InstanceSpace:
         """
         Run the pythia stage.
 
-        Returns
+        Returns:
         -------
             pythia_out: The return of the pythia stage.
 
@@ -283,3 +275,45 @@ class InstanceSpace:
         )
 
         return self._pythia_out
+
+def from_files(metadata_filepath: Path, options_filepath: Path) -> InstanceSpace:
+    """
+    Construct an instance space object from 2 files.
+
+    Args:
+    ----
+        metadata_filepath (Path): Path to the metadata csv file.
+        options_filepath (Path): Path to the options json file.
+
+    Returns:
+    -------
+        instance_space: A new instance space object instantiated with metadata and
+        options from the specified files.
+
+    """
+    metadata = Metadata.from_file(metadata_filepath)
+    options = Options.from_file(options_filepath)
+
+    return InstanceSpace(metadata, options)
+
+
+
+
+def from_directory(directory: Path) -> InstanceSpace:
+    """
+    Construct an instance space object from 2 files.
+
+    Args:
+    ----
+        directory (str): Path to correctly formatted directory.
+
+    Returns:
+    -------
+        instance_space: A new instance space object instantiated with metadata and
+        options from the specified directory.
+
+    """
+    metadata = Metadata.from_file(directory / "metadata.csv")
+    options = Options.from_file(directory / "options.json")
+
+    return InstanceSpace(metadata, options)

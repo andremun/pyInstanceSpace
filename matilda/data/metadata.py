@@ -6,6 +6,7 @@ These classes define types for problem instances found in the metadata.csv file.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Self
 
 import numpy as np
@@ -23,7 +24,7 @@ class Metadata:
 
 
     @staticmethod
-    def from_file(filepath: str) -> Metadata:
+    def from_file(filepath: Path) -> Metadata:
         """
         Parse metadata from a file, and construct a Metadata object.
 
@@ -32,7 +33,7 @@ class Metadata:
         """
         raise NotImplementedError
 
-    def to_file(self: Self, filepath: str) -> None:
+    def to_file(self: Self, filepath: Path) -> None:
         """
         Store metadata in a file from a Metadata object.
 
