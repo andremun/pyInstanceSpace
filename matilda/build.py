@@ -32,6 +32,8 @@ from sklearn.model_selection import train_test_split
 from matilda.data.metadata import Metadata
 from matilda.data.model import Data, Model
 from matilda.data.option import Options
+from matilda.filter import filter_by_us
+from matilda.prelim import prelim
 
 
 def build_instance_space(metadata: Metadata, options: Options) -> Model:
@@ -52,38 +54,15 @@ def _preprocess_input(metadata: Metadata, options: Options) -> Data:
 
 if __name__ == "__main__":
     rootdir = sys.argv[1]
-    build_instance_space(rootdir)
+    build_instance_space(rootdir, Options)
 
 
-def data_processing(idx: NDArray[np.bool_], model: Model) -> int:
-    # fix upper line late
+def process_data(model: Model) -> None:
     """
-    Process data for instance space analysis.
+    Store the raw data for further processing and remove the template data.
 
-    :param idx: A boolean array indicating features to be retained or removed.
+    :param model: The model object containing the data to be processed.
     """
-    if np.any(idx):
-        # Remove instances with too many missing values
-        warnings.warn(
-            "There are features with too many missing values. They are\
-being removed to increase speed.",
-        )
-        model.data.x = model.data.x[:, ~idx]
-        model.data.feat_labels = [
-            label for label, keep in zip(model.data.feat_labels, ~idx) if keep
-        ]
-
-    # get the number of instances and unique instances
-    ninst = model.data.x.shape[0]
-    nuinst = len(np.unique(model.data.x, axis=0))
-
-    # check if there are too many repeated instances
-    if nuinst / ninst < MAX_DUPLICATES_RATIO:
-        warnings.warn(
-            "-> There are too many repeated instances. It is unlikely\
-that this run will produce good results.",
-        )
-
     # Storing the raw data for further processing, e.g., graphs
     model.data.x_raw = model.data.x.copy()
     model.data.y_raw = model.data.y.copy()
@@ -98,9 +77,24 @@ that this run will produce good results.",
     ]
 
     # Running PRELIM as to preprocess the data, including scaling and bounding
-    model.opts.prelim = model.opts.perf
+    # model.opts.prelim = model.opts.perf
+    model.opts.prelim.max_perf = model.opts.perf.max_perf
+    model.opts.prelim.abs_perf = model.opts.perf.abs_perf
+    model.opts.prelim.epsilon = model.opts.perf.epsilon
+    model.opts.prelim.beta_threshold = model.opts.perf.beta_threshold
     model.opts.prelim.bound = model.opts.bound.flag
     model.opts.prelim.norm = model.opts.norm.flag
+
+
+def data_processing(idx: NDArray[np.bool_], model: Model) -> int:
+    # fix upper line late
+    """
+    Process data for instance space analysis.
+
+    :param idx: A boolean array indicating features to be retained or removed.
+    """
+    process_data(model)
+
     [
         model.data.x,
         model.data.y,
@@ -110,7 +104,7 @@ that this run will produce good results.",
         model.data.num_good_algos,
         model.data.beta,
         model.prelim,
-    ] = prelim(model.data.x, model.data.y, model.opts)
+    ] = prelim(model.data.x, model.data.y, model.opts.prelim)
 
     idx = np.all(~model.data.y_bin, axis=0)
     if np.any(idx):
@@ -159,7 +153,7 @@ removed to increase speed.',
         print(f"-> Creating a small scale experiment for validation. \
               Percentage of subset: \
               {round(100 * model.opts.selvars.small_scale, 2)}%")
-        _, subset_idx = train_test_split(
+        _, subset_index = train_test_split(
             np.arange(ninst),
             test_size=model.opts.selvars.small_scale,
             random_state=0,
