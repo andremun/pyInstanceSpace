@@ -37,10 +37,24 @@ from __future__ import annotations
 from collections import defaultdict
 from enum import Enum
 
+from matilda.cloister import Cloister
 from matilda.data.metadata import Metadata
-from matilda.data.model import Data, Model, PrelimOut
+from matilda.data.model import (
+    CloisterOut,
+    Data,
+    Model,
+    PilotOut,
+    PrelimOut,
+    PythiaOut,
+    SiftedOut,
+    TraceOut,
+)
 from matilda.data.option import Options
+from matilda.pilot import Pilot
 from matilda.prelim import Prelim
+from matilda.pythia import Pythia
+from matilda.sifted import Sifted
+from matilda.trace import Trace
 
 
 class _Stage(Enum):
@@ -68,9 +82,14 @@ class InstanceSpace:
     _metadata: Metadata
     _options: Options
 
-    _data: Data
+    _data: Data | None
 
-    _prelim_out: PrelimOut
+    _prelim_out: PrelimOut | None = None
+    _sifted_out: SiftedOut | None = None
+    _pilot_out: PilotOut | None = None
+    _cloister_out: CloisterOut | None = None
+    _trace_out: TraceOut | None = None
+    _pythia_out: PythiaOut | None = None
 
     _model: Model | None = None
 
@@ -115,6 +134,14 @@ class InstanceSpace:
 
 
     def prelim(self) -> PrelimOut:
+        """
+        Run the prelim stage.
+
+        Returns
+        -------
+            prelim_out: The return of the prelim stage.
+
+        """
         self._stages[_Stage.PRELIM] = True
 
         self._data, self._prelim_out = Prelim.run(
@@ -126,46 +153,133 @@ class InstanceSpace:
         return self._prelim_out
 
 
-    def sifted(self) -> None:
-        if not self._stages[_Stage.PRELIM]:
+    def sifted(self) -> SiftedOut:
+        """
+        Run the sifted stage.
+
+        Returns
+        -------
+            sifted_out: The return of the sifted stage.
+
+        """
+        if not self._stages[_Stage.PRELIM] or self._data is None:
             raise StageError
 
         self._stages[_Stage.SIFTED] = True
 
-        raise NotImplementedError
+        something, self._sifted_out = Sifted.run(
+            self._data.x,
+            self._data.y,
+            self._data.y_bin,
+            self._options.sifted,
+        )
+
+        return self._sifted_out
 
 
-    def pilot(self) -> None:
-        if not self._stages[_Stage.SIFTED]:
+    def pilot(self) -> PilotOut:
+        """
+        Run the pilot stage.
+
+        Returns
+        -------
+            pilot_out: The return of the pilot stage.
+
+        """
+        if not self._stages[_Stage.SIFTED] or self._data is None:
             raise StageError
 
         self._stages[_Stage.PILOT] = True
 
-        raise NotImplementedError
+        self._pilot_out = Pilot.run(
+            self._data.x,
+            self._data.y,
+            self._data.feat_labels,
+            self._options.pilot,
+        )
+
+        return self._pilot_out
 
 
-    def cloister(self) -> None:
-        if not self._stages[_Stage.PILOT]:
+    def cloister(self) -> CloisterOut:
+        """
+        Run the cloister stage.
+
+        Returns
+        -------
+            cloister_out: The return of the cloister stage.
+
+        """
+        if (
+            not self._stages[_Stage.PILOT] or self._data is None
+            or self._pilot_out is None
+        ):
             raise StageError
 
         self._stages[_Stage.CLOISTER] = True
 
-        raise NotImplementedError
+        self._cloister_out = Cloister.run(
+            self._data.x,
+            self._pilot_out.a,
+            self._options,
+        )
+
+        return self._cloister_out
 
 
-    def trace(self) -> None:
-        if not self._stages[_Stage.PILOT]:
+    def trace(self) -> TraceOut:
+        """
+        Run the trace stage.
+
+        Returns
+        -------
+            trace_out: The return of the trace stage.
+
+        """
+        if (
+            not self._stages[_Stage.PILOT] or self._data is None
+            or self._pilot_out is None
+        ):
             raise StageError
 
         self._stages[_Stage.TRACE] = True
 
-        raise NotImplementedError
+        self._trace_out = Trace.run(
+            self._pilot_out.z,
+            self._data.y_bin,
+            self._data.p,
+            self._data.beta,
+            self._data.algo_labels,
+            self._options.trace,
+        )
+
+        return self._trace_out
 
 
-    def pythia(self) -> None:
-        if not self._stages[_Stage.PILOT]:
+    def pythia(self) -> PythiaOut:
+        """
+        Run the pythia stage.
+
+        Returns
+        -------
+            pythia_out: The return of the pythia stage.
+
+        """
+        if (
+            not self._stages[_Stage.PILOT] or self._data is None
+            or self._pilot_out is None
+        ):
             raise StageError
 
         self._stages[_Stage.PYTHIA] = True
 
-        raise NotImplementedError
+        self._pythia_out = Pythia.run(
+            self._pilot_out.z,
+            self._data.y_raw,
+            self._data.y_bin,
+            self._data.y_best,
+            self._data.algo_labels,
+            self._options,
+        )
+
+        return self._pythia_out

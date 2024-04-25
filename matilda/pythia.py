@@ -4,7 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 from sklearn import SVC
 
-from matilda.data.model import AlgorithmSummary
+from matilda.data.model import PythiaOut
 from matilda.data.option import Options
 
 
@@ -19,18 +19,18 @@ class SvmRes:
     C: float
     g: float
 
-class Pilot:
+class Pythia:
     """See file docstring."""
 
     @staticmethod
     def run(
         z: NDArray[np.double],  # noqa: ARG004
         y: NDArray[np.double],  # noqa: ARG004
-        y_bin: NDArray[np.double],  # noqa: ARG004
+        y_bin: NDArray[np.bool_],  # noqa: ARG004
         y_best: NDArray[np.double],  # noqa: ARG004
         algo_labels: list[str],  # noqa: ARG004
         opts: Options,  # noqa: ARG004
-    ) -> list[AlgorithmSummary]:
+    ) -> PythiaOut:
         """
         PYTHIA function for algorithm selection and performance evaluation using SVM.
 
