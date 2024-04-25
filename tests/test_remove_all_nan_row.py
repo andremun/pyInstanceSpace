@@ -58,7 +58,7 @@ def test_remove_instances_with_two_row_missing() -> None:
         s=set(),
     )
 
-    remove_instances_with_many_missing_values(data)
+    out = remove_instances_with_many_missing_values(data)
 
     expected_rows = 8  # two rows (instances) should be removed
     expected_x_columns = 9  # first column should be removed
@@ -66,25 +66,25 @@ def test_remove_instances_with_two_row_missing() -> None:
 
     # Check instances removal
     assert (
-            data.x.shape[0] == expected_rows
+            out.x.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            data.y.shape[0] == expected_rows
+            out.y.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            data.inst_labels.shape[0] == expected_rows
+            out.inst_labels.shape[0] == expected_rows
     ), "Instance labels not updated after removal"
 
     # Check feature dimensions
-    assert data.x.shape[1] == expected_x_columns, "x dimensions should not change"
-    assert data.y.shape[1] == expected_y_columns, "y dimensions should not change"
+    assert out.x.shape[1] == expected_x_columns, "x dimensions should not change"
+    assert out.y.shape[1] == expected_y_columns, "y dimensions should not change"
 
     # Check inst_labels content
-    assert data.inst_labels.tolist() == [
+    assert out.inst_labels.tolist() == [
         "inst" + str(i) for i in range(2, 10)
     ], "inst_labels content not right"
 
-    assert data.feat_labels == [f"feature{i}" for i in range(1, 10)], \
+    assert out.feat_labels == [f"feature{i}" for i in range(1, 10)], \
         "feat_labels content not right"
 
 
@@ -124,30 +124,30 @@ def test_remove_instances_with_3_row_missing() -> None:
         s=set(),
     )
 
-    remove_instances_with_many_missing_values(data)
+    out = remove_instances_with_many_missing_values(data)
 
     expected_rows = 7
 
     # Check instances removal
     assert (
-            data.x.shape[0] == expected_rows
+            out.x.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            data.y.shape[0] == expected_rows
+            out.y.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            data.inst_labels.shape[0] == expected_rows
+            out.inst_labels.shape[0] == expected_rows
     ), "Instance labels not updated after removal"
 
     expected_x_columns = 10
     expected_y_columns = 5
 
     # Check feature dimensions are unchanged
-    assert data.x.shape[1] == expected_x_columns, "x dimensions should not change"
-    assert data.y.shape[1] == expected_y_columns, "y dimensions should not change"
+    assert out.x.shape[1] == expected_x_columns, "x dimensions should not change"
+    assert out.y.shape[1] == expected_y_columns, "y dimensions should not change"
 
     # Check inst_labels content
-    assert data.inst_labels.tolist() == [
+    assert out.inst_labels.tolist() == [
         "inst0",
         "inst1",
         "inst5",
@@ -158,7 +158,7 @@ def test_remove_instances_with_3_row_missing() -> None:
     ], "inst_labels content not right"
 
     # Check feat_labels content
-    assert data.feat_labels == [f"feature{i}" for i in range(10)], \
+    assert out.feat_labels == [f"feature{i}" for i in range(10)], \
         "feat_labels content not right"
 
 
@@ -199,7 +199,7 @@ def test_remove_instances_keep_same() -> None:
         s=set(),
     )
 
-    remove_instances_with_many_missing_values(data)
+    out = remove_instances_with_many_missing_values(data)
 
     expected_rows = 10
     expected_x_columns = 5
@@ -207,26 +207,26 @@ def test_remove_instances_keep_same() -> None:
 
     # Check instances removal
     assert (
-            data.x.shape[0] == expected_rows
+            out.x.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            data.y.shape[0] == expected_rows
+            out.y.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            data.inst_labels.shape[0] == expected_rows
+            out.inst_labels.shape[0] == expected_rows
     ), "Instance labels not updated after removal"
 
     # Check feature dimensions are unchanged
-    assert data.x.shape[1] == expected_x_columns, "x dimensions should not change"
-    assert data.y.shape[1] == expected_y_columns, "y dimensions should not change"
+    assert out.x.shape[1] == expected_x_columns, "x dimensions should not change"
+    assert out.y.shape[1] == expected_y_columns, "y dimensions should not change"
 
     # Check inst_labels content
-    assert data.inst_labels.tolist() == [
+    assert out.inst_labels.tolist() == [
         "inst" + str(i) for i in range(0, 10)
     ], "inst_labels content not right"
 
     # Check feat_labels content
-    assert data.feat_labels == [
+    assert out.feat_labels == [
         "feature" + str(i) for i in range(5, 10)
     ], "feat_labels content not right"
 
@@ -241,7 +241,7 @@ def test_duplicated_data_edge() -> None:
                       4. feat_labels will only contain feature 5 to 9
                       5. not print: too many repeated instances
     """
-    rng = np.random.default_rng(33)
+    rng = np.random.default_rng()
 
     # Create sample data with missing values and repeated instances (10 rows)
     large_x = np.array([
@@ -276,9 +276,7 @@ def test_duplicated_data_edge() -> None:
         s=set(),
     )
 
-
-
-    remove_instances_with_many_missing_values(data)
+    out = remove_instances_with_many_missing_values(data)
 
     expected_rows = 10
     expected_x_columns = 5
@@ -286,26 +284,26 @@ def test_duplicated_data_edge() -> None:
 
     # Check instances removal
     assert (
-            data.x.shape[0] == expected_rows
+            out.x.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            data.y.shape[0] == expected_rows
+            out.y.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            data.inst_labels.shape[0] == expected_rows
+            out.inst_labels.shape[0] == expected_rows
     ), "Instance labels not updated after removal"
 
     # Check feature dimensions are unchanged
-    assert data.x.shape[1] == expected_x_columns, "x dimensions should not change"
-    assert data.y.shape[1] == expected_y_columns, "y dimensions should not change"
+    assert out.x.shape[1] == expected_x_columns, "x dimensions should not change"
+    assert out.y.shape[1] == expected_y_columns, "y dimensions should not change"
 
     # Check inst_labels content
-    assert data.inst_labels.tolist() == [
+    assert out.inst_labels.tolist() == [
         "inst" + str(i) for i in range(0, 10)
     ], "inst_labels content not right"
 
     # Check feat_labels content
-    assert data.feat_labels == [
+    assert out.feat_labels == [
         "feature" + str(i) for i in range(5, 10)
     ], "feat_labels content not right"
 
@@ -355,8 +353,7 @@ def test_duplicated_data() -> None:
         s=set(),
     )
 
-
-    remove_instances_with_many_missing_values(data)
+    out = remove_instances_with_many_missing_values(data)
 
     expected_rows = 10
     expected_x_columns = 10
@@ -364,26 +361,26 @@ def test_duplicated_data() -> None:
 
     # Check instances removal
     assert (
-            data.x.shape[0] == expected_rows
+            out.x.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            data.y.shape[0] == expected_rows
+            out.y.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            data.inst_labels.shape[0] == expected_rows
+            out.inst_labels.shape[0] == expected_rows
     ), "Instance labels not updated after removal"
 
     # Check feature dimensions are unchanged
-    assert data.x.shape[1] == expected_x_columns, "x dimensions should not change"
-    assert data.y.shape[1] == expected_y_columns, "y dimensions should not change"
+    assert out.x.shape[1] == expected_x_columns, "x dimensions should not change"
+    assert out.y.shape[1] == expected_y_columns, "y dimensions should not change"
 
     # Check inst_labels content
-    assert data.inst_labels.tolist() == [
+    assert out.inst_labels.tolist() == [
         "inst" + str(i) for i in range(0, 10)
     ], "inst_labels content not right"
 
     # Check feat_labels content
-    assert data.feat_labels == [
+    assert out.feat_labels == [
         "feature" + str(i) for i in range(0, 10)
     ], "feat_labels content not right"
 

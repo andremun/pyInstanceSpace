@@ -55,14 +55,13 @@ def create_dummy_opt(selvars: SelvarsOptions) -> Options:
     )
 
 
-
 def test_manual_selection() -> None:
     """
     The test case for select_features_and_algorithms.
 
     Main success scenario, no error
     """
-    rng = np.random.default_rng(33)
+    rng = np.random.default_rng()
     large_x = rng.random((100, 10))  # 100 rows, 10 features (columns)
     large_y = rng.random((100, 5))  # 100 rows, 5 features (columns)
 
@@ -96,18 +95,18 @@ def test_manual_selection() -> None:
 
     opts = create_dummy_opt(selvars)
 
-    select_features_and_algorithms(data, opts)
+    out = select_features_and_algorithms(data, opts)
 
-    assert data.feat_labels == ["feature1", "feature3", "feature5", "feature7",
-                                "feature9"], "Feature selection failed"
-    assert data.algo_labels == ["algo1", "algo3"], "Algorithm selection failed"
+    assert out.feat_labels == ["feature1", "feature3", "feature5", "feature7",
+                               "feature9"], "Feature selection failed"
+    assert out.algo_labels == ["algo1", "algo3"], "Algorithm selection failed"
 
     # check the contents
     expected_x = large_x[:, [1, 3, 5, 7, 9]]
     expected_y = large_y[:, [1, 3]]
-    np.testing.assert_array_equal(data.x, expected_x,
+    np.testing.assert_array_equal(out.x, expected_x,
                                   err_msg="Feature data content mismatch")
-    np.testing.assert_array_equal(data.y, expected_y,
+    np.testing.assert_array_equal(out.y, expected_y,
                                   err_msg="Algorithm data content mismatch")
 
 
@@ -117,7 +116,7 @@ def test_manual_wrong_names() -> None:
 
     Main success scenario, no error
     """
-    rng = np.random.default_rng(33)
+    rng = np.random.default_rng()
     large_x = rng.random((100, 10))  # 100 rows, 10 features (columns)
     large_y = rng.random((100, 5))  # 100 rows, 5 features (columns)
 
@@ -151,18 +150,18 @@ def test_manual_wrong_names() -> None:
 
     opts = create_dummy_opt(selvars)
 
-    select_features_and_algorithms(data, opts)
+    out = select_features_and_algorithms(data, opts)
 
-    assert data.feat_labels == ["feature1", "feature3", "feature5",
-                                "feature9"], "Feature selection failed"
-    assert data.algo_labels == ["algo3"], "Algorithm selection failed"
+    assert out.feat_labels == ["feature1", "feature3", "feature5",
+                               "feature9"], "Feature selection failed"
+    assert out.algo_labels == ["algo3"], "Algorithm selection failed"
 
     # check the contents
     expected_x = large_x[:, [1, 3, 5, 9]]
     expected_y = large_y[:, [3]]
-    np.testing.assert_array_equal(data.x, expected_x,
+    np.testing.assert_array_equal(out.x, expected_x,
                                   err_msg="Feature data content mismatch")
-    np.testing.assert_array_equal(data.y, expected_y,
+    np.testing.assert_array_equal(out.y, expected_y,
                                   err_msg="Algorithm data content mismatch")
 
 
@@ -206,17 +205,23 @@ def test_manual_empty_feats() -> None:
 
     opts = create_dummy_opt(selvars)
 
-    select_features_and_algorithms(data, opts)
+    out = select_features_and_algorithms(data, opts)
 
-    assert data.feat_labels == [f"feature{i}" for i in range(10)], \
+    assert out.feat_labels == [f"feature{i}" for i in range(10)], \
         "Feature selection failed"
-    assert data.algo_labels == [f"algo{i}" for i in range(5)], \
+    assert out.algo_labels == [f"algo{i}" for i in range(5)], \
         "Algorithm selection failed"
 
     # check the contents
     expected_x = large_x[:, :]
     expected_y = large_y[:, :]
-    np.testing.assert_array_equal(data.x, expected_x,
+    np.testing.assert_array_equal(out.x, expected_x,
                                   err_msg="Feature data content mismatch")
-    np.testing.assert_array_equal(data.y, expected_y,
+    np.testing.assert_array_equal(out.y, expected_y,
                                   err_msg="Algorithm data content mismatch")
+
+
+if __name__ == "__main__":
+    test_manual_selection()
+    test_manual_wrong_names()
+    test_manual_empty_feats()
