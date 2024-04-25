@@ -26,10 +26,10 @@ class Metadata:
     algorithms: NDArray[np.double]
     # newly added:
     inst_labels: pd.Series
-    s: set[str] | None
+    s: pd.Series | None
 
     @staticmethod
-    def from_file(filepath: Path) -> "Metadata":
+    def from_file(filepath: Path) -> Metadata:
         """
         Parse metadata from a file, and construct a Metadata object.
 
@@ -37,40 +37,41 @@ class Metadata:
         :return: A Metadata object.
         """
         if not filepath.is_file():
-            raise FileNotFoundError(f"Please place the datafiles in the directory '{filepath.parent}'")
+            raise FileNotFoundError(f"Please place the metadata.csv in the directory"
+                                    f" '{filepath.parent}'")
 
-        print('-------------------------------------------------------------------------')
-        print('-> Loading the data.')
-        Xbar = pd.read_csv(filepath)
+        print("-------------------------------------------------------------------------")
+        print("-> Loading the data.")
+        xbar = pd.read_csv(filepath)
 
-        varlabels = Xbar.columns
-        isname = varlabels.str.lower() == 'instances'
-        isfeat = varlabels.str.lower().str.startswith('feature_')
-        isalgo = varlabels.str.lower().str.startswith('algo_')
-        issource = varlabels.str.lower() == 'source'
+        varlabels = xbar.columns
+        isname = varlabels.str.lower() == "instances"
+        isfeat = varlabels.str.lower().str.startswith("feature_")
+        isalgo = varlabels.str.lower().str.startswith("algo_")
+        issource = varlabels.str.lower() == "source"
 
-        instlabels = Xbar.loc[:, isname].squeeze()
+        instlabels = xbar.loc[:, isname].squeeze()
 
         if pd.api.types.is_numeric_dtype(instlabels):
             instlabels = instlabels.astype(str)
 
         s = None
         if issource.any():
-            s = pd.Categorical(Xbar.loc[:, issource].squeeze())
+            s = xbar.loc[:, issource].squeeze()
 
-        X = Xbar.loc[:, isfeat]
-        Y = Xbar.loc[:, isalgo]
+        x = xbar.loc[:, isfeat]
+        y = xbar.loc[:, isalgo]
 
-        feature_names = X.columns.tolist()
-        algorithm_names = Y.columns.tolist()
+        feature_names = x.columns.tolist()
+        algorithm_names = y.columns.tolist()
 
         return Metadata(
             feature_names=feature_names,
             algorithm_names=algorithm_names,
-            features=X.to_numpy(),
-            algorithms=Y.to_numpy(),
+            features=x.to_numpy(),
+            algorithms=y.to_numpy(),
             s=s,
-            inst_labels=instlabels
+            inst_labels=instlabels,
         )
 
     def to_file(self: Self, filepath: Path) -> None:
@@ -83,7 +84,7 @@ class Metadata:
 
 
 if __name__ == "__main__":
-    metadata_file = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/csv_files/metadata.csv")
+    metadata_file = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/Trial_files/metadata.csv")
 
     metadata = Metadata.from_file(metadata_file)
 
