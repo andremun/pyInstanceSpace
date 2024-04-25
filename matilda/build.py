@@ -19,9 +19,10 @@ Functions:
 Example usage:
     python your_module_name.py /path/to/data
 """
+import numpy as np
 
 from matilda.data.metadata import Metadata
-from matilda.data.model import Data
+from matilda.data.model import Data, Model
 from matilda.data.option import Options
 
 def build_instance_space(metadata: Metadata, options: Options) -> Model:
