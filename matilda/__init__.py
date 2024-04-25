@@ -99,6 +99,9 @@ class InstanceSpace:
         """
         Create a new InstanceSpace object.
 
+        TODO: Fill in the docstring here. This will be the most enduser visible version
+        of this so it needs to be informative.
+
         Args:
         ----
             metadata (Metadata): _description_
@@ -116,6 +119,9 @@ class InstanceSpace:
 
         This runs all stages.
 
+        TODO: Fill in the docstring here. This will be the most enduser visible version
+        of this so it needs to be informative.
+
         Returns:
         -------
             model: A Model object representing the built instance space.
@@ -127,6 +133,9 @@ class InstanceSpace:
     def prelim(self) -> PrelimOut:
         """
         Run the prelim stage.
+
+        TODO: Fill in the docstring here. This will be the most enduser visible version
+        of this so it needs to be informative.
 
         Returns:
         -------
@@ -147,6 +156,9 @@ class InstanceSpace:
     def sifted(self) -> SiftedOut:
         """
         Run the sifted stage.
+
+        TODO: Fill in the docstring here. This will be the most enduser visible version
+        of this so it needs to be informative.
 
         Returns:
         -------
@@ -172,6 +184,9 @@ class InstanceSpace:
         """
         Run the pilot stage.
 
+        TODO: Fill in the docstring here. This will be the most enduser visible version
+        of this so it needs to be informative.
+
         Returns:
         -------
             pilot_out: The return of the pilot stage.
@@ -195,6 +210,9 @@ class InstanceSpace:
     def cloister(self) -> CloisterOut:
         """
         Run the cloister stage.
+
+        TODO: Fill in the docstring here. This will be the most enduser visible version
+        of this so it needs to be informative.
 
         Returns:
         -------
@@ -221,6 +239,9 @@ class InstanceSpace:
     def trace(self) -> TraceOut:
         """
         Run the trace stage.
+
+        TODO: Fill in the docstring here. This will be the most enduser visible version
+        of this so it needs to be informative.
 
         Returns:
         -------
@@ -250,6 +271,9 @@ class InstanceSpace:
     def pythia(self) -> PythiaOut:
         """
         Run the pythia stage.
+
+        TODO: Fill in the docstring here. This will be the most enduser visible version
+        of this so it needs to be informative.
 
         Returns:
         -------
