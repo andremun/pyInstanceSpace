@@ -34,7 +34,7 @@ class Data:
     p: NDArray[np.double]
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
-    s: set[str] | None
+    s: list[str] | None
 
 
 @dataclass
