@@ -33,6 +33,8 @@ class Metadata:
         :param filepath: The path of a csv file containing the metadata.
         :return: A Metadata object.
         """
+
+
         raise NotImplementedError
 
     def to_file(self: Self, filepath: Path) -> None:

@@ -25,6 +25,7 @@ from matilda.data.metadata import Metadata
 from matilda.data.model import Data, Model
 from matilda.data.option import Options
 
+
 def build_instance_space(metadata: Metadata, options: Options) -> Model:
     """
     Construct and return a Model object after instance space analysis.
@@ -144,7 +145,3 @@ def remove_instances_with_many_missing_values(data: Data) -> Data:
               "It is unlikely that this run will produce good results.",
               )
     return popout
-
-
-def _preprocess_input(metadata: Metadata, options: Options) -> Data:
-    raise NotImplementedError
