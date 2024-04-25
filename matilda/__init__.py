@@ -276,6 +276,7 @@ class InstanceSpace:
 
         return self._pythia_out
 
+
 def from_files(metadata_filepath: Path, options_filepath: Path) -> InstanceSpace:
     """
     Construct an instance space object from 2 files.
@@ -295,8 +296,6 @@ def from_files(metadata_filepath: Path, options_filepath: Path) -> InstanceSpace
     options = Options.from_file(options_filepath)
 
     return InstanceSpace(metadata, options)
-
-
 
 
 def from_directory(directory: Path) -> InstanceSpace:
