@@ -6,6 +6,7 @@ These classes define types for problem instances found in the metadata.csv file.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Self
 
@@ -13,6 +14,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 
+@dataclass
 class Metadata:
     # TODO: Ask someone for a better description of what metadata is
     """Metadata for problem instances."""
