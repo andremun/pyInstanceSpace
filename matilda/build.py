@@ -50,14 +50,17 @@ def select_features_and_algorithms(data: Data, opts: Options) -> Data:
     Select features and algorithms based on options provided in opts.
 
     Remove instances with too many missing values.
+    :param data: the Data class that contains the content of instances,
+                with algorithm and feature labels
+    :param opts: the Option class that contains setting for analysis.
+
+    :return Data: the Data class that has been modified based on the settings
     """
     popout = data
     print("---------------------------------------------------")
     if (getattr(opts, "selvars", None) is not None) and \
             (getattr(opts.selvars, "feats", None) is not None):
 
-        # assume that model.data.feat_labels and
-        # opts.selvars.feats are list of string
         selected_features = [feat for feat in data.feat_labels
                              if feat in opts.selvars.feats]
 
@@ -100,7 +103,12 @@ def remove_instances_with_many_missing_values(data: Data) -> Data:
     """
     Remove rows (instances) and features (X columns).
 
-    Washing criterion:
+    :param data: the Data class that contains the content of instances,
+                with algorithm and feature labels
+
+    :return Data: the Data class that has been modified based on the Washing criterion
+
+     Washing criterion:
         1. For any row, if that row in both X and Y are NaN, remove
         2. For X columns, if that column's 20% grids are filled with NaN, remove
     """

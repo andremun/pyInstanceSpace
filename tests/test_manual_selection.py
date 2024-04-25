@@ -35,7 +35,17 @@ sys.path.append(str(path_root))
 
 
 def create_dummy_opt(selvars: SelvarsOptions) -> Options:
-    """Create a dummy model with the given data and selection variables."""
+    """
+    Create a dummy model with the given data and selection variables.
+
+    :param selvars: the SelvarsOptions class that contains setting for analysis.
+
+    :return Options: the Option class that contains setting for analysis,
+            where all the meaningful info. are stored in Option.selvars,
+            other info, are trivial
+
+
+    """
     return Options(
         parallel=ParallelOptions(flag=False, n_cores=1),
         perf=PerformanceOptions(max_perf=False, abs_perf=False,
@@ -188,7 +198,7 @@ def test_manual_empty_feats() -> None:
         p=np.array([], dtype=np.double),
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
-        s= None,
+        s=None,
     )
 
     selvars = SelvarsOptions(
