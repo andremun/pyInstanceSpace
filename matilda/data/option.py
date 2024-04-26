@@ -149,7 +149,6 @@ class Options:
     # general: GeneralOptions
 
     @staticmethod
-
     def from_file(filepath: Path) -> Options:
         if not filepath.is_file():
             raise FileNotFoundError(f"Please place the options.json in the directory '{filepath.parent}'")
@@ -183,7 +182,7 @@ class Options:
         print("-> Listing options to be used:")
         for field_name in fields(Options):
             field_value = getattr(options, field_name.name)
-            print("{field_name.name}: {field_value}")
+            print(f"{field_name.name}: {field_value}")
 
         return options
 
