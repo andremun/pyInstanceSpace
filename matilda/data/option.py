@@ -124,6 +124,13 @@ class OutputOptions:
 
 
 @dataclass
+class GeneralOptions:
+    """General options that affect the whole system."""
+
+    beta_threshold: float
+
+
+@dataclass
 class Options:
     """Aggregates all options into a single configuration object for the model."""
 
@@ -139,6 +146,7 @@ class Options:
     pythia: PythiaOptions
     trace: TraceOptions
     outputs: OutputOptions
+    general: GeneralOptions
 
 
     @staticmethod
