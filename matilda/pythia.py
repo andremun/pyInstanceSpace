@@ -2,7 +2,6 @@
 
 import numpy as np
 from numpy.typing import NDArray
-from sklearn import SVC
 
 from matilda.data.model import PythiaOut
 from matilda.data.option import Options
@@ -11,7 +10,7 @@ from matilda.data.option import Options
 class SvmRes:
     """Resent data resulting from SVM."""
 
-    svm: SVC
+    svm: None
     Ysub: NDArray[np.double]
     Psub: NDArray[np.double]
     Yhat: NDArray[np.double]
