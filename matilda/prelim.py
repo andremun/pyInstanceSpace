@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
 from scipy import stats
 
@@ -199,6 +200,9 @@ def prelim(
             sigmaY[i] = np.std(aux)
             y[~idx, i] = aux
 
+    # construct the return object
+    
+
     # return beta.astype(int)[1:] # this passes
     # return np.ravel(y_best)[1:] # this passes
     # return num_good_algos[1:].reshape(-1, 1) # this passes
@@ -206,36 +210,19 @@ def prelim(
     # return y_bin[1:] # this passes
 
 def main() -> None:
-    # Create sample feature and performance data matrices
-    # read x, y from test/input/model-data-x and y
-    x = np.genfromtxt(script_dir / "prelim/input/model-data-x.csv", delimiter=",")
-    y = np.genfromtxt(script_dir / "prelim/input/model-data-y.csv", delimiter=",")
-
-    # print("X printing")
-    # print(x[0, 0])  # Print the first value of the first column
-    x[0, 0] = 0.332548382
-    y[0, 0] = 0.280095763
-    # with open("prelim/input/options.json", "r") as f:
-    #     data = json.load(f)
-    # Create sample options
-    abs_perf = 1
-    beta_threshold = 0.5500
-    epsilon = 0.2000
-    max_perf = 0
-    bound = 1
-    norm = 1
+    """Run Prelim main function."""
+    x = pd.read_csv(script_dir / "prelim/input/model-data-x.csv").to_numpy()
+    y = pd.read_csv(script_dir / "prelim/input/model-data-y.csv").to_numpy()
 
     opts = PrelimOptions(
-        abs_perf=abs_perf,
-        beta_threshold=beta_threshold,
-        epsilon=epsilon,
-        max_perf=max_perf,
-        bound=bound,
-        norm=norm,
+        abs_perf=1,
+        beta_threshold=0.5500,
+        epsilon=0.2000,
+        max_perf=0,
+        bound=1,
+        norm=1,
     )
-    # read input from json file
 
-    # Call the prelim function
     prelim(x, y, opts)
 
 if __name__ == "__main__":
