@@ -149,58 +149,41 @@ class Options:
     # general: GeneralOptions
 
     @staticmethod
+
     def from_file(filepath: Path) -> Options:
-        """
-        Parse options from a file, and construct an Options object.
-        The every field in the JSON must be exactly same with the attribute name in class option
-
-        :param filepath: The path of a json file containing the options.
-        :return: An Options object.
-        """
-        if not filepath.is_file():
-            raise FileNotFoundError(f"Please place the options.json in the directory '{filepath.parent}'")
-
         if not filepath.is_file():
             raise FileNotFoundError(f"Please place the options.json in the directory '{filepath.parent}'")
 
         with open(filepath, 'r') as file:
             opts_dict = json.load(file)
 
-            # 初始化Options中的每一个部分
-        parallel_opts = load_dataclass(ParallelOptions, opts_dict.get('parallel', {}))
-        perf_opts = load_dataclass(PerformanceOptions, opts_dict.get('perf', {}))
-        auto_opts = load_dataclass(AutoOptions, opts_dict.get('auto', {}))
-        bound_opts = load_dataclass(BoundOptions, opts_dict.get('bound', {}))
-        norm_opts = load_dataclass(NormOptions, opts_dict.get('norm', {}))
-        selvars_opts = load_dataclass(SelvarsOptions, opts_dict.get('selvars', {}))
-        sifted_opts = load_dataclass(SiftedOptions, opts_dict.get('sifted', {}))
-        pilot_opts = load_dataclass(PilotOptions, opts_dict.get('pilot', {}))
-        cloister_opts = load_dataclass(CloisterOptions, opts_dict.get('cloister', {}))
-        pythia_opts = load_dataclass(PythiaOptions, opts_dict.get('pythia', {}))
-        trace_opts = load_dataclass(TraceOptions, opts_dict.get('trace', {}))
-        output_opts = load_dataclass(OutputOptions, opts_dict.get('outputs', {}))
+        # 验证顶级字段是否与Options中定义的字段相匹配
+        options_fields = {f.name for f in fields(Options)}
+        extra_fields = set(opts_dict.keys()) - options_fields
+        if extra_fields:
+            raise ValueError(f"Extra fields in JSON not defined in Options: {extra_fields}")
 
+        # 初始化Options中的每一个部分
         options = Options(
-            parallel=parallel_opts,
-            perf=perf_opts,
-            auto=auto_opts,
-            bound=bound_opts,
-            norm=norm_opts,
-            selvars=selvars_opts,
-            sifted=sifted_opts,
-            pilot=pilot_opts,
-            cloister=cloister_opts,
-            pythia=pythia_opts,
-            trace=trace_opts,
-            outputs=output_opts
+            parallel=load_dataclass(ParallelOptions, opts_dict.get('parallel', {})),
+            perf=load_dataclass(PerformanceOptions, opts_dict.get('perf', {})),
+            auto=load_dataclass(AutoOptions, opts_dict.get('auto', {})),
+            bound=load_dataclass(BoundOptions, opts_dict.get('bound', {})),
+            norm=load_dataclass(NormOptions, opts_dict.get('norm', {})),
+            selvars=load_dataclass(SelvarsOptions, opts_dict.get('selvars', {})),
+            sifted=load_dataclass(SiftedOptions, opts_dict.get('sifted', {})),
+            pilot=load_dataclass(PilotOptions, opts_dict.get('pilot', {})),
+            cloister=load_dataclass(CloisterOptions, opts_dict.get('cloister', {})),
+            pythia=load_dataclass(PythiaOptions, opts_dict.get('pythia', {})),
+            trace=load_dataclass(TraceOptions, opts_dict.get('trace', {})),
+            outputs=load_dataclass(OutputOptions, opts_dict.get('outputs', {}))
         )
 
         print("-------------------------------------------------------------------------")
         print("-> Listing options to be used:")
         for field_name in fields(Options):
             field_value = getattr(options, field_name.name)
-            print(field_name.name)
-            print(field_value)
+            print("{field_name.name}: {field_value}")
 
         return options
 
@@ -231,5 +214,4 @@ def load_dataclass(data_class, data):
 
 if __name__ == "__main__":
     metadata_file = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/Trial_files/options.json")
-
     opt = Options.from_file(metadata_file)

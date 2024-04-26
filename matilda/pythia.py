@@ -2,7 +2,7 @@
 
 import numpy as np
 from numpy.typing import NDArray
-from sklearn import SVC
+from sklearn.svm import SVC
 
 from matilda.data.model import PythiaOut
 from matilda.data.option import Options
