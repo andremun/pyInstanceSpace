@@ -22,10 +22,12 @@ Example usage:
 
 import sys
 
-from matilda.data.model import Model
+from matilda.data.metadata import Metadata
+from matilda.data.model import Data, Model
+from matilda.data.option import Options
 
 
-def build_instance_space(rootdir: str) -> Model:
+def build_instance_space(metadata: Metadata, options: Options) -> Model:
     """
     Construct and return a Model object after instance space analysis.
 
@@ -33,9 +35,13 @@ def build_instance_space(rootdir: str) -> Model:
     :return: A Model object representing the built instance space.
     """
     # TODO: Rewrite buildIS logic in Python
+
+
     raise NotImplementedError
 
+def _preprocess_input(metadata: Metadata, options: Options) -> Data:
+    raise NotImplementedError
 
 if __name__ == "__main__":
     rootdir = sys.argv[1]
-    build_instance_space(rootdir)
+    # build_instance_space(rootdir)
