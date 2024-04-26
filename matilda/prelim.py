@@ -117,47 +117,87 @@ def prelim(
     # print(num_good_algos)
     beta = num_good_algos > (opts.beta_threshold * nalgos)
 
-    print('printing x')
-    print(x)
+    # print('printing x')
+    # print(x)
 
     if opts.bound:
         print("-> Removing extreme outliers from the feature values.")
         med_val = np.nanmedian(x, axis=0)
-        print("med value", med_val)
+        # print("med value", med_val)
 
         iqr_scipy = stats.iqr(x, axis=0)
-        print("iqr scipy", iqr_scipy)
+        # print("iqr scipy", iqr_scipy)
 
         q25 = np.nanpercentile(x, 25, axis=0)
         q75 = np.nanpercentile(x, 75, axis=0)
-        print("q25", q25)
-        print("q75", q75)
+        # print("q25", q25)
+        # print("q75", q75)
 
         iq_range = q75 - q25
-        print("iq range", iq_range)
+        # print("iq range", iq_range)
 
         # iq_range = np.array([0.0221, 0.1316, 0.1723, 0.1801, 1.6898, 0.4534, 0.7827, 0.1691, 0.2775, 0.1804])
         # print("iq range matlab", np.array([0.0221, 0.1316, 0.1723, 0.1801, 1.6898, 0.4534, 0.7827, 0.1691, 0.2775, 0.1804]))
 
         hi_bound = med_val + 5 * iq_range
         lo_bound = med_val - 5 * iq_range
-        print("hi bound", hi_bound)
-        print("lo bound", lo_bound)
+        # print("hi bound", hi_bound)
+        # print("lo bound", lo_bound)
 
         himask = x > hi_bound
         lomask = x < lo_bound
-        print("himask", himask.astype(int).sum(axis=0))
-        print("lomask", lomask.astype(int).sum(axis=0))
+        # print("himask", himask.astype(int).sum(axis=0))
+        # print("lomask", lomask.astype(int).sum(axis=0))
 
         x = x * ~(himask | lomask)
         x += np.multiply(himask, np.broadcast_to(hi_bound, x.shape))
         x += np.multiply(lomask, np.broadcast_to(lo_bound, x.shape))
 
-        print("x after bounding.")
-        # export x to csv
+        # print("x after bounding.")
+        ## export x to csv
         # np.set_printoptions(precision=9, suppress=True)
         # np.savetxt(script_dir / "prelim/output/x_after_bounding.csv", x, delimiter=",", fmt='%.9f')
-        print(x)
+        # print(x)
+    print("Y printing")
+    print(y)
+    if opts.norm:
+        nfeats = x.shape[1]
+        nalgos = y.shape[1]
+        print('-> Auto-normalizing the data using Box-Cox and Z transformations.')
+        minX = np.min(x, axis=0)
+        x = x - minX + 1
+        lambdaX = np.zeros(nfeats)
+        muX = np.zeros(nfeats)
+        sigmaX = np.zeros(nfeats)
+
+        for i in range(nfeats):
+            aux = x[:, i]
+            idx = np.isnan(aux)
+            # print("idx", idx)
+            # print("aux", aux)
+            # print("aux[~idx]", aux[~idx])
+            # print("boxcox", stats.boxcox(aux[~idx]))
+            # print("zscore", stats.zscore(aux))
+            aux, lambdaX[i] = stats.boxcox(aux[~idx])
+            aux = stats.zscore(aux)
+            muX[i] = np.mean(aux)
+            sigmaX[i] = np.std(aux)
+            x[~idx, i] = aux
+
+        minY = np.min(y)
+        y = (y - minY) + np.finfo(float).eps
+        lambdaY = np.zeros(nalgos)
+        muY = np.zeros(nalgos)
+        sigmaY = np.zeros(nalgos)
+        for i in range(nalgos):
+            aux = y[:, i]
+            idx = np.isnan(aux)
+            # print("boxcox", stats.boxcox(aux[~idx]))
+            aux, lambdaY[i] = stats.boxcox(aux[~idx])
+            aux = stats.zscore(aux)
+            muY[i] = np.mean(aux)
+            sigmaY[i] = np.std(aux)
+            y[~idx, i] = aux
 
     # return beta.astype(int)[1:] # this passes
     # return np.ravel(y_best)[1:] # this passes
@@ -174,6 +214,7 @@ def main() -> None:
     # print("X printing")
     # print(x[0, 0])  # Print the first value of the first column
     x[0, 0] = 0.332548382
+    y[0, 0] = 0.280095763
     # with open("prelim/input/options.json", "r") as f:
     #     data = json.load(f)
     # Create sample options
