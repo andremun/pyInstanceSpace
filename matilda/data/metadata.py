@@ -22,7 +22,7 @@ class Metadata:
 
     feature_names: list[str]
     algorithm_names: list[str]
-    instance_names: pd.Series
+    instance_labels: pd.Series
     features: NDArray[np.double]
     algorithms: NDArray[np.double]
 
