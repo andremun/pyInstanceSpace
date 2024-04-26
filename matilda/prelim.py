@@ -40,6 +40,7 @@ def prelim(
     # TODO: Rewrite PRELIM logic in python
 
     print("X printing")
+    # x = np.around(x, decimals=3)
     print(x)
 
     y_raw = y.copy()
@@ -122,13 +123,20 @@ def prelim(
     if opts.bound:
         print("-> Removing extreme outliers from the feature values.")
         med_val = np.nanmedian(x, axis=0)
-        # print(med_val)
-        iq_range = np.subtract(*np.percentile(x, [75, 25], axis=0))
-        # print(iq_range)
+        print("med value", med_val)
+        iq_range1 = np.subtract(*np.percentile(x, [75, 25], axis=0))
+        q25 = np.percentile(x, 25, axis=0)
+        q75 = np.percentile(x, 75, axis=0)
+
+        # Calculate the interquartile range
+        iq_range = q75 - q25
+        print("iq range", iq_range) 
+        iq_range = np.array([0.0221, 0.1316, 0.1723, 0.1801, 1.6898, 0.4534, 0.7827, 0.1691, 0.2775, 0.1804])
+        print("iq range", iq_range)
         hi_bound = med_val + 5 * iq_range
         lo_bound = med_val - 5 * iq_range
-        print("hi", hi_bound)
-        print("lo", lo_bound)
+        print("hi bound", hi_bound)
+        print("lo bound", lo_bound)
         himask = x > hi_bound
         lomask = x < lo_bound
         print("himask", himask.astype(int).sum(axis=0))
