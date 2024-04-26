@@ -120,7 +120,7 @@ def pythia(
 
     t = TicToc()
     t.tic()
-    print("       " + str(nalgos))
+    # print("       " + str(nalgos))
 
     for i in range(nalgos):
         t_inner = TicToc()
@@ -136,7 +136,7 @@ def pythia(
         # Ensure that each fold of the dataset has the same percentage of samples of each target class as 
         # the complete set. This is especially useful in classification problems with imbalanced class distributions.
 
-        skf = StratifiedKFold(n_splits = opts.cv_folds, shuffle = True, random_state = 0)
+        skf = StratifiedKFold(n_splits = opts.cv_folds, shuffle = False)
 
         # OPTION 2:
         # Dataset is randomly divided into k equal or nearly equal sized parts. Each fold acts as 
