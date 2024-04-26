@@ -40,7 +40,7 @@ def prelim(
     # TODO: Rewrite PRELIM logic in python
 
     print("X printing")
-    # x = np.around(x, decimals=3)
+    x = np.around(x, decimals=4)
     print(x)
 
     y_raw = y.copy()
@@ -124,27 +124,39 @@ def prelim(
         print("-> Removing extreme outliers from the feature values.")
         med_val = np.nanmedian(x, axis=0)
         print("med value", med_val)
-        iq_range1 = np.subtract(*np.percentile(x, [75, 25], axis=0))
-        q25 = np.percentile(x, 25, axis=0)
-        q75 = np.percentile(x, 75, axis=0)
 
-        # Calculate the interquartile range
+        iqr_scipy = stats.iqr(x, axis=0)
+        print("iqr scipy", iqr_scipy)
+
+        q25 = np.nanpercentile(x, 25, axis=0)
+        q75 = np.nanpercentile(x, 75, axis=0)
+        print("q25", q25)
+        print("q75", q75)
+
         iq_range = q75 - q25
-        print("iq range", iq_range) 
-        iq_range = np.array([0.0221, 0.1316, 0.1723, 0.1801, 1.6898, 0.4534, 0.7827, 0.1691, 0.2775, 0.1804])
         print("iq range", iq_range)
+
+        # iq_range = np.array([0.0221, 0.1316, 0.1723, 0.1801, 1.6898, 0.4534, 0.7827, 0.1691, 0.2775, 0.1804])
+        # print("iq range matlab", np.array([0.0221, 0.1316, 0.1723, 0.1801, 1.6898, 0.4534, 0.7827, 0.1691, 0.2775, 0.1804]))
+
         hi_bound = med_val + 5 * iq_range
         lo_bound = med_val - 5 * iq_range
         print("hi bound", hi_bound)
         print("lo bound", lo_bound)
+
         himask = x > hi_bound
         lomask = x < lo_bound
         print("himask", himask.astype(int).sum(axis=0))
         print("lomask", lomask.astype(int).sum(axis=0))
-        x = np.where(himask | lomask, x, hi_bound)
-        x = np.where(lomask, x, lo_bound)
+
+        x = x * ~(himask | lomask)
+        x += np.multiply(himask, np.broadcast_to(hi_bound, x.shape))
+        x += np.multiply(lomask, np.broadcast_to(lo_bound, x.shape))
 
         print("x after bounding.")
+        # export x to csv
+        # np.set_printoptions(precision=9, suppress=True)
+        # np.savetxt(script_dir / "prelim/output/x_after_bounding.csv", x, delimiter=",", fmt='%.9f')
         print(x)
 
     # return beta.astype(int)[1:] # this passes
