@@ -39,6 +39,9 @@ def prelim(
     """
     # TODO: Rewrite PRELIM logic in python
 
+    print("X printing")
+    print(x)
+
     y_raw = y.copy()
     nalgos = y.shape[1]
     out = {}
@@ -113,55 +116,28 @@ def prelim(
     # print(num_good_algos)
     beta = num_good_algos > (opts.beta_threshold * nalgos)
 
+    print('printing x')
+    print(x)
+
     if opts.bound:
         print("-> Removing extreme outliers from the feature values.")
         med_val = np.nanmedian(x, axis=0)
+        # print(med_val)
         iq_range = np.subtract(*np.percentile(x, [75, 25], axis=0))
+        # print(iq_range)
         hi_bound = med_val + 5 * iq_range
         lo_bound = med_val - 5 * iq_range
+        print("hi", hi_bound)
+        print("lo", lo_bound)
         himask = x > hi_bound
         lomask = x < lo_bound
+        print("himask", himask.astype(int).sum(axis=0))
+        print("lomask", lomask.astype(int).sum(axis=0))
         x = np.where(himask | lomask, x, hi_bound)
         x = np.where(lomask, x, lo_bound)
 
-    # if norm:
-    #     nfeats = x.shape[1]
-    #     nalgos = y.shape[1]
-    #     print("-> Auto-normalizing the data using Box-Cox and Z transformations.")
-    #     min_x = np.min(x, axis=0)
-    #     x = x - min_x + 1
-    #     lambda_x = np.zeros(nfeats)
-    #     mu_x = np.zeros(nfeats)
-    #     sigma_x = np.zeros(nfeats)
-    #     for i in range(nfeats):
-    #         aux = x[:, i]
-    #         idx = np.isnan(aux)
-    #         print(aux)
-    #         print(idx)
-    #         print(~idx)
-            
-    #         non_nan_positive = aux[~idx][aux[~idx] > 0]  # Select non-NaN positive values
-    #         if non_nan_positive.size > 0:  # Check if there are valid values for transformation
-    #             transformed_values, lambda_x[i] = stats.boxcox(non_nan_positive)
-    #             aux[~idx] = transformed_values
-    #             aux, mu_x[i], sigma_x[i] = stats.zscore(aux, ddof=1)
-    #             x[:, i] = aux
-
-    #     min_y = np.min(y)
-    #     y = (y - min_y) + np.finfo(float).eps
-    #     lambda_y = np.zeros(nalgos)
-    #     mu_y = np.zeros(nalgos)
-    #     sigma_y = np.zeros(nalgos)
-    #     for i in range(nalgos):
-    #         aux = y[:, i]
-    #         idx = np.isnan(aux)
-    #         non_nan_positive = aux[~idx][aux[~idx] > 0]  # Select non-NaN positive values
-    #         if non_nan_positive.size > 0:  # Check if there are valid values for transformation
-    #             transformed_values, lambda_y[i] = stats.boxcox(non_nan_positive)
-    #             aux[~idx] = transformed_values
-    #             aux, mu_y[i], sigma_y[i] = stats.zscore(aux, ddof=1)
-    #             y[:, i] = aux
-
+        print("x after bounding.")
+        print(x)
 
     # return beta.astype(int)[1:] # this passes
     # return np.ravel(y_best)[1:] # this passes
@@ -175,6 +151,9 @@ def main() -> None:
     x = np.genfromtxt(script_dir / "prelim/input/model-data-x.csv", delimiter=",")
     y = np.genfromtxt(script_dir / "prelim/input/model-data-y.csv", delimiter=",")
 
+    # print("X printing")
+    # print(x[0, 0])  # Print the first value of the first column
+    x[0, 0] = 0.332548382
     # with open("prelim/input/options.json", "r") as f:
     #     data = json.load(f)
     # Create sample options
