@@ -14,7 +14,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 
-@dataclass
+@dataclass(frozen=True)
 class Metadata:
     # TODO: Ask someone for a better description of what metadata is
     """Metadata for problem instances."""

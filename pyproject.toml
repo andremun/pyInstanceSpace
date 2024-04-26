@@ -14,7 +14,7 @@ python = "^3.12"
 numpy = "^1.26.4"
 pandas = "^2.2.1"
 pandas-stubs = "^2.2.1.240316"
-scikit-learn = "^1.4.1.post1"
+scikit-learn = "^1.4.2"
 click = "^8.1.7"
 
 [tool.poetry.group.dev.dependencies]
@@ -22,6 +22,7 @@ pytest = "^8.1.1"
 poethepoet = "^0.25.0"
 ruff = "^0.3.4"
 mypy = "^1.9.0"
+pdoc = "^14.4.0"
 
 [build-system]
 requires = ["poetry-core"]

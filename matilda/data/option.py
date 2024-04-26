@@ -14,7 +14,7 @@ from typing import Self
 import pandas as pd
 
 
-@dataclass
+@dataclass(frozen=True)
 class ParallelOptions:
     """Configuration options for parallel computing."""
 
@@ -22,7 +22,7 @@ class ParallelOptions:
     n_cores: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class PerformanceOptions:
     """Options related to performance thresholds and criteria for model evaluation."""
 
@@ -32,28 +32,28 @@ class PerformanceOptions:
     beta_threshold: float
 
 
-@dataclass
+@dataclass(frozen=True)
 class AutoOptions:
     """Options for automatic processing steps in the model pipeline."""
 
     preproc: bool
 
 
-@dataclass
+@dataclass(frozen=True)
 class BoundOptions:
     """Options for applying bounds in the model calculations or evaluations."""
 
     flag: bool
 
 
-@dataclass
+@dataclass(frozen=True)
 class NormOptions:
     """Options to control normalization processes within the model."""
 
     flag: bool
 
 
-@dataclass
+@dataclass(frozen=True)
 class SelvarsOptions:
     """Options for selecting variables, including criteria and file indices."""
 
@@ -68,7 +68,7 @@ class SelvarsOptions:
     density_flag: bool
 
 
-@dataclass
+@dataclass(frozen=True)
 class SiftedOptions:
     """Options specific to the sifting process in data analysis."""
 
@@ -80,7 +80,7 @@ class SiftedOptions:
     replicates: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class PilotOptions:
     """Options for pilot studies or preliminary analysis phases."""
 
@@ -88,7 +88,7 @@ class PilotOptions:
     n_tries: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class CloisterOptions:
     """Options for cloistering in the model."""
 
@@ -96,7 +96,7 @@ class CloisterOptions:
     c_thres: float
 
 
-@dataclass
+@dataclass(frozen=True)
 class PythiaOptions:
     """Configuration for the Pythia component of the model."""
 
@@ -106,7 +106,7 @@ class PythiaOptions:
     use_lib_svm: bool
 
 
-@dataclass
+@dataclass(frozen=True)
 class TraceOptions:
     """Options for trace analysis in the model."""
 
@@ -114,7 +114,7 @@ class TraceOptions:
     PI: float
 
 
-@dataclass
+@dataclass(frozen=True)
 class OutputOptions:
     """Options for controlling the output format."""
 
@@ -123,14 +123,14 @@ class OutputOptions:
     png: bool
 
 
-@dataclass
+@dataclass(frozen=True)
 class GeneralOptions:
     """General options that affect the whole system."""
 
     beta_threshold: float
 
 
-@dataclass
+@dataclass(frozen=True)
 class Options:
     """Aggregates all options into a single configuration object for the model."""
 
