@@ -10,7 +10,6 @@ outlier detection and removal, and binary performance classification. These task
 guided by the options specified in the `Opts` object.
 """
 
-import json
 from pathlib import Path
 
 import numpy as np
@@ -27,8 +26,7 @@ def prelim(
     x: NDArray[np.double],
     y: NDArray[np.double],
     opts: PrelimOptions,
-):
-# ) -> tuple[Data, PrelimOut]:
+) -> tuple[Data, PrelimOut]:
     """
     Perform preliminary processing on the input data 'x' and 'y'.
 
@@ -38,15 +36,8 @@ def prelim(
     :return: A tuple containing the processed data (as 'Data' object) and preliminary
              output information (as 'PrelimOut' object).
     """
-    # TODO: Rewrite PRELIM logic in python
-
-    print("X printing")
-    x = np.around(x, decimals=4)
-    print(x)
-
     y_raw = y.copy()
     nalgos = y.shape[1]
-    out = {}
 
     print("-------------------------------------------------------------------------")
     print("-> Calculating the binary measure of performance")
@@ -115,99 +106,111 @@ def prelim(
     print("Random selection is used to break ties.")
 
     num_good_algos = np.sum(y_bin, axis=1)
-    # print(num_good_algos)
     beta = num_good_algos > (opts.beta_threshold * nalgos)
 
-    # print('printing x')
-    # print(x)
-
     if opts.bound:
-        print("-> Removing extreme outliers from the feature values.")
-        med_val = np.nanmedian(x, axis=0)
-        # print("med value", med_val)
+        x, med_val, iq_range, hi_bound, lo_bound = bound(x)
 
-        iqr_scipy = stats.iqr(x, axis=0)
-        # print("iqr scipy", iqr_scipy)
-
-        q25 = np.nanpercentile(x, 25, axis=0)
-        q75 = np.nanpercentile(x, 75, axis=0)
-        # print("q25", q25)
-        # print("q75", q75)
-
-        iq_range = q75 - q25
-        # print("iq range", iq_range)
-
-        # iq_range = np.array([0.0221, 0.1316, 0.1723, 0.1801, 1.6898, 0.4534, 0.7827, 0.1691, 0.2775, 0.1804])
-        # print("iq range matlab", np.array([0.0221, 0.1316, 0.1723, 0.1801, 1.6898, 0.4534, 0.7827, 0.1691, 0.2775, 0.1804]))
-
-        hi_bound = med_val + 5 * iq_range
-        lo_bound = med_val - 5 * iq_range
-        # print("hi bound", hi_bound)
-        # print("lo bound", lo_bound)
-
-        himask = x > hi_bound
-        lomask = x < lo_bound
-        # print("himask", himask.astype(int).sum(axis=0))
-        # print("lomask", lomask.astype(int).sum(axis=0))
-
-        x = x * ~(himask | lomask)
-        x += np.multiply(himask, np.broadcast_to(hi_bound, x.shape))
-        x += np.multiply(lomask, np.broadcast_to(lo_bound, x.shape))
-
-        # print("x after bounding.")
-        ## export x to csv
-        # np.set_printoptions(precision=9, suppress=True)
-        # np.savetxt(script_dir / "prelim/output/x_after_bounding.csv", x, delimiter=",", fmt='%.9f')
-        # print(x)
-    print("Y printing")
-    print(y)
     if opts.norm:
-        nfeats = x.shape[1]
-        nalgos = y.shape[1]
-        print('-> Auto-normalizing the data using Box-Cox and Z transformations.')
-        minX = np.min(x, axis=0)
-        x = x - minX + 1
-        lambdaX = np.zeros(nfeats)
-        muX = np.zeros(nfeats)
-        sigmaX = np.zeros(nfeats)
+        min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y = normalise(x, y)
 
-        for i in range(nfeats):
-            aux = x[:, i]
-            idx = np.isnan(aux)
-            # print("idx", idx)
-            # print("aux", aux)
-            # print("aux[~idx]", aux[~idx])
-            # print("boxcox", stats.boxcox(aux[~idx]))
-            # print("zscore", stats.zscore(aux))
-            aux, lambdaX[i] = stats.boxcox(aux[~idx])
-            aux = stats.zscore(aux)
-            muX[i] = np.mean(aux)
-            sigmaX[i] = np.std(aux)
-            x[~idx, i] = aux
+    data = Data(
+        inst_labels="",
+        feat_labels="",
+        algo_labels="",
+        x=x,
+        y=y,
+        x_raw=x,
+        y_raw=y_raw,
+        y_bin=y_bin,
+        y_best=y_best,
+        p=p,
+        num_good_algos=num_good_algos,
+        beta=beta,
+        s=None,
+    )
 
-        minY = np.min(y)
-        y = (y - minY) + np.finfo(float).eps
-        lambdaY = np.zeros(nalgos)
-        muY = np.zeros(nalgos)
-        sigmaY = np.zeros(nalgos)
-        for i in range(nalgos):
-            aux = y[:, i]
-            idx = np.isnan(aux)
-            # print("boxcox", stats.boxcox(aux[~idx]))
-            aux, lambdaY[i] = stats.boxcox(aux[~idx])
-            aux = stats.zscore(aux)
-            muY[i] = np.mean(aux)
-            sigmaY[i] = np.std(aux)
-            y[~idx, i] = aux
+    prelim_out = PrelimOut(
+        med_val=med_val,
+        iq_range=iq_range,
+        hi_bound=hi_bound,
+        lo_bound=lo_bound,
+        min_x=min_x,
+        lambda_x=lambda_x,
+        mu_x=mu_x,
+        sigma_x=sigma_x,
+        min_y=min_y,
+        lambda_y=lambda_y,
+        sigma_y=sigma_y,
+        mu_y=mu_y,
+    )
 
-    # construct the return object
-    
+    return data, prelim_out
 
     # return beta.astype(int)[1:] # this passes
     # return np.ravel(y_best)[1:] # this passes
     # return num_good_algos[1:].reshape(-1, 1) # this passes
     # return p[1:] # this passes
     # return y_bin[1:] # this passes
+
+def bound(x: NDArray[np.double]) -> tuple[NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double]]:
+    """Remove extreme outliers from the feature values."""
+    print("-> Removing extreme outliers from the feature values.")
+    med_val = np.nanmedian(x, axis=0)
+
+    iq_range = stats.iqr(x, axis=0)
+    # iq_range = np.array([0.0221, 0.1316, 0.1723, 0.1801, 1.6898, 0.4534, 0.7827, 0.1691, 0.2775, 0.1804])
+
+    hi_bound = med_val + 5 * iq_range
+    lo_bound = med_val - 5 * iq_range
+
+    hi_mask = x > hi_bound
+    lo_mask = x < lo_bound
+
+    x = x * ~(hi_mask | lo_mask)
+    x += np.multiply(hi_mask, np.broadcast_to(hi_bound, x.shape))
+    x += np.multiply(lo_mask, np.broadcast_to(lo_bound, x.shape))
+
+    return x, med_val, iq_range, hi_bound, lo_bound
+
+def normalise(x: NDArray[np.double], y: NDArray[np.double]) -> tuple[NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], float]:
+    """Normalize the data using Box-Cox and Z transformations."""
+    print("-> Auto-normalizing the data using Box-Cox and Z transformations.")
+
+    nfeats = x.shape[1]
+    nalgos = y.shape[1]
+
+    min_x = np.min(x, axis=0)
+    x = x - min_x + 1
+    lambda_x = np.zeros(nfeats)
+    mu_x = np.zeros(nfeats)
+    sigma_x = np.zeros(nfeats)
+
+    for i in range(nfeats):
+        aux = x[:, i]
+        idx = np.isnan(aux)
+        aux, lambda_x[i] = stats.boxcox(aux[~idx])
+        aux = stats.zscore(aux)
+        mu_x[i] = np.mean(aux)
+        sigma_x[i] = np.std(aux)
+        x[~idx, i] = aux
+
+    min_y = np.min(y)
+    y = (y - min_y) + np.finfo(float).eps
+    lambda_y = np.zeros(nalgos)
+    mu_y = np.zeros(nalgos)
+    sigma_y = np.zeros(nalgos)
+
+    for i in range(nalgos):
+        aux = y[:, i]
+        idx = np.isnan(aux)
+        aux, lambda_y[i] = stats.boxcox(aux[~idx])
+        aux = stats.zscore(aux)
+        mu_y[i] = np.mean(aux)
+        sigma_y[i] = np.std(aux)
+        y[~idx, i] = aux
+
+    return min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y
 
 def main() -> None:
     """Run Prelim main function."""
@@ -223,7 +226,9 @@ def main() -> None:
         norm=1,
     )
 
-    prelim(x, y, opts)
+    data, prelim_out = prelim(x, y, opts)
+    print(data)
+    print(prelim_out)
 
 if __name__ == "__main__":
     main()
