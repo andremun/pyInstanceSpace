@@ -32,6 +32,18 @@ class PerformanceOptions:
 
 
 @dataclass
+class PrelimOptions:
+    """Options for running PRELIM."""
+
+    max_perf: bool
+    abs_perf: bool
+    epsilon: float
+    beta_threshold: float
+    bound: bool
+    norm: bool
+
+
+@dataclass
 class AutoOptions:
     """Options for automatic processing steps in the model pipeline."""
 
@@ -138,7 +150,6 @@ class Options:
     pythia: PythiaOptions
     trace: TraceOptions
     outputs: OutputOptions
-
 
     @staticmethod
     def from_file(filepath: str) -> Options:
