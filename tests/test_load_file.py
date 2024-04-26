@@ -49,7 +49,7 @@ class TestMetadata:
 
         Returns:
         -------
-            Metadata: An instance loaded from a predefined CSV file that includes a source field.
+            Metadata: An instance loaded from a predefined CSV file with a source field.
 
         """
         metadata_path = script_dir / "test_data/load_file/metadata_with_source.csv"
