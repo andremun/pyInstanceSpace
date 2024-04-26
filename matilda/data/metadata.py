@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Self
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
 
 
@@ -21,6 +22,7 @@ class Metadata:
 
     feature_names: list[str]
     algorithm_names: list[str]
+    instance_names: pd.Series
     features: NDArray[np.double]
     algorithms: NDArray[np.double]
 
