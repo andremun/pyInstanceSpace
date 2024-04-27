@@ -20,7 +20,6 @@ Example usage:
     python your_module_name.py /path/to/data
 """
 
-import sys
 
 import numpy as np
 
@@ -148,8 +147,3 @@ def remove_instances_with_many_missing_values(data: Data) -> Data:
               "It is unlikely that this run will produce good results.",
               )
     return popout
-
-
-if __name__ == "__main__":
-    rootdir = sys.argv[1]
-    # build_instance_space(rootdir)

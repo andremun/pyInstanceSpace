@@ -31,7 +31,7 @@ def test_remove_instances_with_two_row_missing() -> None:
                       3. inst_labels content will change
                       4. feat_labels will change
     """
-    rng = np.random.default_rng(33)
+    rng = np.random
 
     # Create sample data with missing values (10 rows)
     large_x = rng.random((10, 10))
@@ -97,7 +97,7 @@ def test_remove_instances_with_3_row_missing() -> None:
                       3. inst_labels content will change
                       4. feat_labels will unchanged
     """
-    rng = np.random.default_rng(33)
+    rng = np.random
 
     # Create sample data with missing values (10 rows)
     large_x = rng.random((10, 10))
@@ -171,7 +171,7 @@ def test_remove_instances_keep_same() -> None:
                       3. inst_labels content unchanged
                       4. feat_labels will only contain feature 5 to 9
     """
-    rng = np.random.default_rng(33)
+    rng = np.random
 
     # Create sample data with missing values (10 rows)
     large_x = rng.random((10, 10))
@@ -241,7 +241,7 @@ def test_duplicated_data_edge() -> None:
                       4. feat_labels will only contain feature 5 to 9
                       5. not print: too many repeated instances
     """
-    rng = np.random.default_rng()
+    rng = np.random
 
     # Create sample data with missing values and repeated instances (10 rows)
     large_x = np.array([
@@ -318,7 +318,7 @@ def test_duplicated_data() -> None:
                       4. feat_labels will be unchanged
                       5. print: too many repeated instances
     """
-    rng = np.random.default_rng(33)
+    rng = np.random
 
     # Create sample data with missing values and repeated instances (10 rows)
     large_x = np.array([
@@ -383,16 +383,3 @@ def test_duplicated_data() -> None:
     assert out.feat_labels == [
         "feature" + str(i) for i in range(0, 10)
     ], "feat_labels content not right"
-
-
-if __name__ == "__main__":
-    print("------------------------------")
-    test_remove_instances_with_two_row_missing()
-    print("------------------------------")
-    test_remove_instances_with_3_row_missing()
-    print("------------------------------")
-    test_remove_instances_keep_same()
-    print("------------------------------")
-    test_duplicated_data_edge()
-    print("------------------------------")
-    test_duplicated_data()

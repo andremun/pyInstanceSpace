@@ -230,8 +230,3 @@ def test_manual_empty_feats() -> None:
     np.testing.assert_array_equal(out.y, expected_y,
                                   err_msg="Algorithm data content mismatch")
 
-
-if __name__ == "__main__":
-    test_manual_selection()
-    test_manual_wrong_names()
-    test_manual_empty_feats()
