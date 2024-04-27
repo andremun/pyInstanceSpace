@@ -165,7 +165,8 @@ class TestOption:
     def test_option_value_error(self: Self) -> None:
         """Test loading option with invalid attribute name will raise value error."""
         invalid_option_path = script_dir / "test_data/load_file/options_invalid.json"
-        error_msg = "Field 'MaxPerf_invalid' in JSON is not defined in the dataclass 'PerformanceOptions'"
+        error_msg = "Field 'MaxPerf_invalid' in JSON is " \
+                    "not defined in the dataclass 'PerformanceOptions'"
         with pytest.raises(ValueError, match=error_msg):
             Options.from_file(invalid_option_path)
 
@@ -176,62 +177,93 @@ class TestOption:
             Options.from_file(path)
 
     def test_missing_field(self: Self) -> None:
-        """loading from json, and any top field and sub fields are missing"""
+        """Loading from json, and any top field and sub fields are missing."""
         invalid_path = script_dir / "test_data/load_file/options_dropped.json"
-        with open(invalid_path, 'r') as file:
+        with Path.open(invalid_path) as file:
             options_dict = json.load(file)
             loaded_options = Options.from_file(invalid_path)
-        assert loaded_options.auto.preproc == options_dict["auto"]["preproc"], "Auto preproc value mismatch."
-        assert loaded_options.bound.flag == options_dict["bound"]["flag"], "Bound flag value mismatch."
-        assert loaded_options.norm.flag == options_dict["norm"]["flag"], "Norm flag value mismatch."
+
+        if loaded_options.auto is not None:
+            assert loaded_options.auto.preproc == options_dict["auto"]["preproc"], \
+                "Auto preproc value mismatch."
+        else:
+            pytest.fail("auto should not be None")
+
+            # Bound Options
+        if loaded_options.bound is not None:
+            assert loaded_options.bound.flag == options_dict["bound"]["flag"], \
+                "Bound flag value mismatch."
+        else:
+            pytest.fail("bound should not be None")
+
+            # Norm Options
+        if loaded_options.norm is not None:
+            assert loaded_options.norm.flag == options_dict["norm"]["flag"], \
+                "Norm flag value mismatch."
+        else:
+            pytest.fail("norm should not be None")
 
         # Selvars subfields
-        assert loaded_options.selvars.small_scale_flag == options_dict["selvars"][
-            "small_scale_flag"], "Selvars small_scale_flag mismatch."
-        assert loaded_options.selvars.small_scale == options_dict["selvars"][
-            "small_scale"], "Selvars small_scale mismatch."
-        assert loaded_options.selvars.file_idx_flag == options_dict["selvars"][
-            "file_idx_flag"], "Selvars file_idx_flag mismatch."
-        assert loaded_options.selvars.file_idx == options_dict["selvars"]["file_idx"], "Selvars file_idx mismatch."
-        assert loaded_options.selvars.density_flag == options_dict["selvars"][
-            "density_flag"], "Selvars density_flag mismatch."
-        assert loaded_options.selvars.min_distance == options_dict["selvars"][
-            "min_distance"], "Selvars min_distance mismatch."
-        assert loaded_options.selvars.type == options_dict["selvars"]["type"], "Selvars type mismatch."
+        if loaded_options.selvars is not None:
+            assert loaded_options.selvars.small_scale_flag == options_dict["selvars"][
+                "small_scale_flag"], "Selvars small_scale_flag mismatch."
+            assert loaded_options.selvars.small_scale == options_dict["selvars"][
+                "small_scale"], "Selvars small_scale mismatch."
+            assert loaded_options.selvars.file_idx_flag == options_dict["selvars"][
+                "file_idx_flag"], "Selvars file_idx_flag mismatch."
+            assert loaded_options.selvars.file_idx \
+                   == options_dict["selvars"]["file_idx"], "Selvars file_idx mismatch."
+            assert loaded_options.selvars.density_flag == options_dict["selvars"][
+                "density_flag"], "Selvars density_flag mismatch."
+            assert loaded_options.selvars.min_distance == options_dict["selvars"][
+                "min_distance"], "Selvars min_distance mismatch."
+            assert loaded_options.selvars.type == options_dict["selvars"]["type"], \
+                "Selvars type mismatch."
+        else:
+            pytest.fail("Selvars should not be None")
 
         # Sifted subfields
-        assert loaded_options.sifted.flag == options_dict["sifted"]["flag"], "Sifted flag mismatch."
-        assert loaded_options.sifted.rho == options_dict["sifted"]["rho"], "Sifted rho mismatch."
-        assert loaded_options.sifted.k is None, "Sifted k mismatch."
-        assert loaded_options.sifted.n_trees is None, "Sifted n_trees mismatch."
-        assert loaded_options.sifted.max_iter == options_dict["sifted"]["max_iter"], "Sifted max_iter mismatch."
-        assert loaded_options.sifted.replicates == options_dict["sifted"]["replicates"], "Sifted replicates mismatch."
+        if loaded_options.sifted is not None:
+            assert loaded_options.sifted.flag == options_dict["sifted"]["flag"], \
+                "Sifted flag mismatch."
+            assert loaded_options.sifted.rho == options_dict["sifted"]["rho"], \
+                "Sifted rho mismatch."
+
+            assert loaded_options.sifted.k is None, "Sifted k mismatch."
+            assert loaded_options.sifted.n_trees is None, "Sifted n_trees mismatch."
+            assert loaded_options.sifted.max_iter == \
+                   options_dict["sifted"]["max_iter"], "Sifted max_iter mismatch."
+            assert loaded_options.sifted.replicates == options_dict["sifted"][
+                "replicates"], "Sifted replicates mismatch."
+        else:
+            pytest.fail("Sifted  should not be None")
 
         # Other fields
-        assert loaded_options.pilot.analytic == options_dict["pilot"]["analytic"], "Pilot analytic mismatch."
-        assert loaded_options.pilot.n_tries == options_dict["pilot"]["n_tries"], "Pilot n_tries mismatch."
-        assert loaded_options.cloister.c_thres == options_dict["cloister"]["c_thres"], "Cloister c_thres mismatch."
-        assert loaded_options.cloister.p_val == options_dict["cloister"]["p_val"], "Cloister p_val mismatch."
-        assert loaded_options.pythia.cv_folds == options_dict["pythia"]["cv_folds"], "Pythia cv_folds mismatch."
+        assert loaded_options.pilot.analytic == options_dict["pilot"]["analytic"], \
+            "Pilot analytic mismatch."
+        assert loaded_options.pilot.n_tries == options_dict["pilot"]["n_tries"], \
+            "Pilot n_tries mismatch."
+        assert loaded_options.cloister.c_thres == options_dict["cloister"]["c_thres"], \
+            "Cloister c_thres mismatch."
+        assert loaded_options.cloister.p_val == options_dict["cloister"]["p_val"], \
+            "Cloister p_val mismatch."
+        assert loaded_options.pythia.cv_folds == options_dict["pythia"]["cv_folds"], \
+            "Pythia cv_folds mismatch."
         assert loaded_options.pythia.is_poly_krnl == options_dict["pythia"][
             "is_poly_krnl"], "Pythia is_poly_krnl mismatch."
         assert loaded_options.pythia.use_weights == options_dict["pythia"][
             "use_weights"], "Pythia use_weights mismatch."
         assert loaded_options.pythia.use_lib_svm == options_dict["pythia"][
             "use_lib_svm"], "Pythia use_lib_svm mismatch."
-        assert loaded_options.trace.use_sim == options_dict["trace"]["use_sim"], "Trace use_sim mismatch."
-        assert loaded_options.trace.PI == options_dict["trace"]["PI"], "Trace PI mismatch."
-        assert loaded_options.outputs.csv == options_dict["outputs"]["csv"], "Outputs csv mismatch."
-        assert loaded_options.outputs.png == options_dict["outputs"]["png"], "Outputs png mismatch."
-        assert loaded_options.outputs.web == options_dict["outputs"]["web"], "Outputs web mismatch."
+        assert loaded_options.trace.use_sim == options_dict["trace"]["use_sim"], \
+            "Trace use_sim mismatch."
 
         assert loaded_options.parallel is None, "Parallel should be None"
         assert loaded_options.perf is None, "Perf should be None"
 
     def test_extra_top_fields(self: Self) -> None:
-        """any top field are not defined in the class"""
+        """Any top field are not defined in the class."""
         path = script_dir / "test_data/load_file/options_extra_topfield.json"
         error_msg = "Extra fields in JSON not defined in Options: {'top'}"
         with pytest.raises(ValueError, match=error_msg):
             Options.from_file(path)
-

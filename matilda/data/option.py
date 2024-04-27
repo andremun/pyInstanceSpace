@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Self
+from typing import Self, TypeVar
 
 import pandas as pd
 
@@ -128,50 +128,74 @@ class OutputOptions:
 class Options:
     """Aggregates all options into a single configuration object for the model."""
 
-    parallel: ParallelOptions
-    perf: PerformanceOptions
-    auto: AutoOptions
-    bound: BoundOptions
-    norm: NormOptions
-    selvars: SelvarsOptions
-    sifted: SiftedOptions
-    pilot: PilotOptions
-    cloister: CloisterOptions
-    pythia: PythiaOptions
-    trace: TraceOptions
-    outputs: OutputOptions
+    parallel: ParallelOptions | None
+    perf: PerformanceOptions | None
+    auto: AutoOptions | None
+    bound: BoundOptions | None
+    norm: NormOptions | None
+    selvars: SelvarsOptions | None
+    sifted: SiftedOptions | None
+    pilot: PilotOptions | None
+    cloister: CloisterOptions | None
+    pythia: PythiaOptions | None
+    trace: TraceOptions | None
+    outputs: OutputOptions | None
     "we probably need to have this 'general' field"  # general: GeneralOptions
 
     @staticmethod
     def from_file(filepath: Path) -> Options:
-        if not filepath.is_file():
-            raise FileNotFoundError \
-                (f"Please place the options.json in the directory '{filepath.parent}'")
+        """
+        Load configuration options from a JSON file into an Options object.
 
-        with open(filepath) as file:
+        This function reads a JSON file from `filepath`, checks for expected
+        top-level fields as defined in Options, initializes each part of the
+        Options with data from the file, and sets missing optional fields to None.
+
+        :param filepath: Path to the JSON file with configuration options.
+        :return: Options object populated with data from the file.
+        :raises FileNotFoundError: If the JSON file is not found at filepath.
+        :raises ValueError: If the JSON file contains undefined fields.
+        """
+        if not filepath.is_file():
+            raise FileNotFoundError(f"Please place the options.json in the directory '"
+                                    f"{filepath.parent}'")
+
+        with Path.open(filepath) as file:
             opts_dict = json.load(file)
 
-        # 验证顶级字段是否与Options中定义的字段相匹配
+        # Validate if the top-level fields match those in the Options class
         options_fields = {f.name for f in fields(Options)}
         extra_fields = set(opts_dict.keys()) - options_fields
         if extra_fields:
-            raise ValueError \
-                (f"Extra fields in JSON not defined in Options: {extra_fields}")
+            raise ValueError(f"Extra fields in JSON not defined in Options:"
+                             f" {extra_fields}")
 
-        # 初始化Options中的每一个部分
+        # Initialize each part of Options
         options = Options(
-            parallel=load_dataclass(ParallelOptions, opts_dict["parallel"]) if "parallel" in opts_dict else None,
-            perf=load_dataclass(PerformanceOptions, opts_dict["perf"]) if "perf" in opts_dict else None,
-            auto=load_dataclass(AutoOptions, opts_dict["auto"]) if "auto" in opts_dict else None,
-            bound=load_dataclass(BoundOptions, opts_dict["bound"]) if "bound" in opts_dict else None,
-            norm=load_dataclass(NormOptions, opts_dict["norm"]) if "norm" in opts_dict else None,
-            selvars=load_dataclass(SelvarsOptions, opts_dict["selvars"]) if "selvars" in opts_dict else None,
-            sifted=load_dataclass(SiftedOptions, opts_dict["sifted"]) if "sifted" in opts_dict else None,
-            pilot=load_dataclass(PilotOptions, opts_dict["pilot"]) if "pilot" in opts_dict else None,
-            cloister=load_dataclass(CloisterOptions, opts_dict["cloister"]) if "cloister" in opts_dict else None,
-            pythia=load_dataclass(PythiaOptions, opts_dict["pythia"]) if "pythia" in opts_dict else None,
-            trace=load_dataclass(TraceOptions, opts_dict["trace"]) if "trace" in opts_dict else None,
-            outputs=load_dataclass(OutputOptions, opts_dict["outputs"]) if "outputs" in opts_dict else None
+            parallel=load_dataclass(ParallelOptions, opts_dict["parallel"])
+            if "parallel" in opts_dict else None,
+            perf=load_dataclass(PerformanceOptions, opts_dict["perf"])
+            if "perf" in opts_dict else None,
+            auto=load_dataclass(AutoOptions, opts_dict["auto"])
+            if "auto" in opts_dict else None,
+            bound=load_dataclass(BoundOptions, opts_dict["bound"])
+            if "bound" in opts_dict else None,
+            norm=load_dataclass(NormOptions, opts_dict["norm"])
+            if "norm" in opts_dict else None,
+            selvars=load_dataclass(SelvarsOptions, opts_dict["selvars"])
+            if "selvars" in opts_dict else None,
+            sifted=load_dataclass(SiftedOptions, opts_dict["sifted"])
+            if "sifted" in opts_dict else None,
+            pilot=load_dataclass(PilotOptions, opts_dict["pilot"])
+            if "pilot" in opts_dict else None,
+            cloister=load_dataclass(CloisterOptions, opts_dict["cloister"])
+            if "cloister" in opts_dict else None,
+            pythia=load_dataclass(PythiaOptions, opts_dict["pythia"])
+            if "pythia" in opts_dict else None,
+            trace=load_dataclass(TraceOptions, opts_dict["trace"])
+            if "trace" in opts_dict else None,
+            outputs=load_dataclass(OutputOptions, opts_dict["outputs"])
+            if "outputs" in opts_dict else None,
         )
 
         print("-------------------------------------------------------------------------")
@@ -191,24 +215,42 @@ class Options:
         raise NotImplementedError
 
 
-def validate_fields(data_class, data) -> None:
-    # 获取数据类中定义的所有字段
+T = TypeVar("T", ParallelOptions, PerformanceOptions,
+            AutoOptions, BoundOptions, NormOptions, SelvarsOptions,
+            SiftedOptions, PilotOptions, CloisterOptions, PythiaOptions,
+            TraceOptions, OutputOptions)
+
+
+def validate_fields(data_class: type[T], data: dict) -> None:
+    """
+    Validate all keys in the provided dictionary are valid fields in dataclass.
+
+    Raises an error if a key is found that is not a field of the dataclass.
+    :param data_class: The dataclass type to validate against.
+    :param data: The dictionary whose keys are to be validated.
+    :raises ValueError: If an undefined field is found in the dictionary.
+    """
+    # Get all defined fields in the data class
     known_fields = {f.name for f in fields(data_class)}
-    # 检测JSON中的字段是否都在数据类中有定义
-    for key in data.keys():
+    # Check if all fields in the JSON are defined in the data class
+    for key in data:
         if key not in known_fields:
-            raise ValueError \
-                (f"Field '{key}' in JSON is not defined in the dataclass '{data_class.__name__}'")
+            raise ValueError(f"Field '{key}' in JSON is not defined in the dataclass '"
+                             f"{data_class.__name__}'")
 
 
-def load_dataclass(data_class, data):
-    validate_fields(data_class, data)  # 验证字段
-    # 对每个数据类字段，从 JSON 数据中提取值，如果不存在，则使用 None
+def load_dataclass(data_class: type[T], data: dict) -> T:
+    """
+    Load data into a dataclass from a dictionary.
+
+    Ensures all dictionary keys match dataclass fields
+    and fills in fields with available data or None.
+    :param data_class: The dataclass type to populate.
+    :param data: Dictionary containing data to load into the dataclass.
+    :return: An instance of the dataclass populated with data.
+    """
+    validate_fields(data_class, data)
+    # for every subfield, fill in the attribute with the content,
+    # return None if can't find the attribute content in the JSON
     init_args = {f.name: data.get(f.name, None) for f in fields(data_class)}
     return data_class(**init_args)
-
-
-if __name__ == "__main__":
-    metadata_file = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/Trial_files/options.json")
-    opt = Options.from_file(metadata_file)
-    print("fine")
