@@ -85,14 +85,14 @@ class InstanceSpace:
 
     _data: Data | None
 
-    _prelim_out: PrelimOut | None = None
-    _sifted_out: SiftedOut | None = None
-    _pilot_out: PilotOut | None = None
-    _cloister_out: CloisterOut | None = None
-    _trace_out: TraceOut | None = None
-    _pythia_out: PythiaOut | None = None
+    _prelim_out: PrelimOut | None
+    _sifted_out: SiftedOut | None
+    _pilot_out: PilotOut | None
+    _cloister_out: CloisterOut | None
+    _trace_out: TraceOut | None
+    _pythia_out: PythiaOut | None
 
-    _model: Model | None = None
+    _model: Model | None
 
 
     def __init__(self, metadata: Metadata, options: Options) -> None:
@@ -111,6 +111,17 @@ class InstanceSpace:
         self._stages = defaultdict(lambda: False)
         self._metadata = metadata
         self._options = options
+
+        _data = None
+
+        _prelim_out = None
+        _sifted_out = None
+        _pilot_out = None
+        _cloister_out = None
+        _trace_out = None
+        _pythia_out = None
+
+        _model = None
 
 
     def build(self) -> Model:
