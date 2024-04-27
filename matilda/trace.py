@@ -12,8 +12,6 @@ For more details, please read the original Matlab code and liveDemo.
 # constructors.
 from __future__ import annotations
 
-from typing import Self
-
 import numpy as np
 from numpy.typing import NDArray
 
