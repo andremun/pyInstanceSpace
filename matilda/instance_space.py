@@ -4,7 +4,6 @@ from collections import defaultdict
 from enum import Enum
 from pathlib import Path
 
-from matilda.cloister import Cloister
 from matilda.data.metadata import Metadata
 from matilda.data.model import (
     CloisterOut,
@@ -17,11 +16,12 @@ from matilda.data.model import (
     TraceOut,
 )
 from matilda.data.option import Options
-from matilda.pilot import Pilot
-from matilda.prelim import Prelim
-from matilda.pythia import Pythia
-from matilda.sifted import Sifted
-from matilda.trace import Trace
+from matilda.stages.cloister import Cloister
+from matilda.stages.pilot import Pilot
+from matilda.stages.prelim import Prelim
+from matilda.stages.pythia import Pythia
+from matilda.stages.sifted import Sifted
+from matilda.stages.trace import Trace
 
 
 class _Stage(Enum):
