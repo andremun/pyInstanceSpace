@@ -29,25 +29,35 @@ class Trace:
     algo_labels: list[str]
     opts: TraceOptions
 
-    @staticmethod
-    def __new(
+    def __init__(
+        self,
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         p: NDArray[np.double],
         beta: NDArray[np.bool_],
         algo_labels: list[str],
         opts: TraceOptions,
-    ) -> Trace:
-        new = Trace()
+    ) -> None:
+        """
+        Initialise the Trace stage.
 
-        new.z = z
-        new.y_bin = y_bin
-        new.p = p
-        new.beta = beta
-        new.algo_labels = algo_labels
-        new.opts = opts
+        Args:
+        ----
+            z (NDArray[np.double]): The space of instances
+            y_bin (NDArray[np.bool_]): Binary indicators of performance
+            p (NDArray[np.double]): Performance metrics for algorithms
+            beta (NDArray[np.bool_]): Specific beta threshold for footprint calculation
+            algo_labels (list[str]): Labels for each algorithm. Note that the datatype
+                is still in deciding
+            opts (TraceOptions): Configuration options for TRACE and its subroutines
 
-        return new
+        """
+        self.z = z
+        self.y_bin = y_bin
+        self.p = p
+        self.beta = beta
+        self.algo_labels = algo_labels
+        self.opts = opts
 
     @staticmethod
     def run(
@@ -64,7 +74,7 @@ class Trace:
         Parameters
         ----------
         z : NDArray[np.double]
-            The space of instances.
+            The space of instances
         y_bin : NDArray[np.bool_]
             Binary indicators of performance
         p : NDArray[np.double]
@@ -72,7 +82,7 @@ class Trace:
         beta : NDArray[np.bool_]
             Specific beta threshold for footprint calculation
         algo_labels : list[str]
-            Labels for each algorithm. Note that the datatype is still in deciding.
+            Labels for each algorithm. Note that the datatype is still in deciding
         opts : TraceOptions
             Configuration options for TRACE and its subroutines
 
@@ -83,7 +93,7 @@ class Trace:
             including algorithm footprints and performance summaries.
 
         """
-        trace = Trace.__new(z, y_bin, p, beta, algo_labels, opts)  # noqa: F841
+        trace = Trace(z, y_bin, p, beta, algo_labels, opts)  # noqa: F841
         # TODO: Rewrite TRACE logic in python
         raise NotImplementedError
 
