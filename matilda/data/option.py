@@ -160,18 +160,18 @@ class Options:
 
         # 初始化Options中的每一个部分
         options = Options(
-            parallel=opts_dict.get("parallel") and ParallelOptions(**opts_dict["parallel"]),
-            perf=opts_dict.get("perf") and PerformanceOptions(**opts_dict["perf"]),
-            auto=opts_dict.get("auto") and AutoOptions(**opts_dict["auto"]),
-            bound=opts_dict.get("bound") and BoundOptions(**opts_dict["bound"]),
-            norm=opts_dict.get("norm") and NormOptions(**opts_dict["norm"]),
-            selvars=opts_dict.get("selvars") and SelvarsOptions(**opts_dict["selvars"]),
-            sifted=opts_dict.get("sifted") and SiftedOptions(**opts_dict["sifted"]),
-            pilot=opts_dict.get("pilot") and PilotOptions(**opts_dict["pilot"]),
-            cloister=opts_dict.get("cloister") and CloisterOptions(**opts_dict["cloister"]),
-            pythia=opts_dict.get("pythia") and PythiaOptions(**opts_dict["pythia"]),
-            trace=opts_dict.get("trace") and TraceOptions(**opts_dict["trace"]),
-            outputs=opts_dict.get("outputs") and OutputOptions(**opts_dict["outputs"]),
+            parallel=load_dataclass(ParallelOptions, opts_dict["parallel"]) if "parallel" in opts_dict else None,
+            perf=load_dataclass(PerformanceOptions, opts_dict["perf"]) if "perf" in opts_dict else None,
+            auto=load_dataclass(AutoOptions, opts_dict["auto"]) if "auto" in opts_dict else None,
+            bound=load_dataclass(BoundOptions, opts_dict["bound"]) if "bound" in opts_dict else None,
+            norm=load_dataclass(NormOptions, opts_dict["norm"]) if "norm" in opts_dict else None,
+            selvars=load_dataclass(SelvarsOptions, opts_dict["selvars"]) if "selvars" in opts_dict else None,
+            sifted=load_dataclass(SiftedOptions, opts_dict["sifted"]) if "sifted" in opts_dict else None,
+            pilot=load_dataclass(PilotOptions, opts_dict["pilot"]) if "pilot" in opts_dict else None,
+            cloister=load_dataclass(CloisterOptions, opts_dict["cloister"]) if "cloister" in opts_dict else None,
+            pythia=load_dataclass(PythiaOptions, opts_dict["pythia"]) if "pythia" in opts_dict else None,
+            trace=load_dataclass(TraceOptions, opts_dict["trace"]) if "trace" in opts_dict else None,
+            outputs=load_dataclass(OutputOptions, opts_dict["outputs"]) if "outputs" in opts_dict else None
         )
 
         print("-------------------------------------------------------------------------")

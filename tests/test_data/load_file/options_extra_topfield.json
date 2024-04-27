@@ -1,7 +1,7 @@
 {
     "parallel": { "flag": false, "n_cores": 2 },
     "perf": {
-      "MaxPerf_invalid": false,
+      "max_perf": false,
       "abs_perf": true,
       "epsilon": 0.2,
       "beta_threshold": 0.55
@@ -24,6 +24,7 @@
       "min_distance": 0.1,
       "type": "Ftr&Good"
     },
+    "top": {"invalid": 3, "extra": 4},
     "sifted": {
       "flag": true,
       "rho": 0.1,
