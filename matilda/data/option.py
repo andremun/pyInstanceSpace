@@ -34,6 +34,18 @@ class PerformanceOptions:
 
 
 @dataclass
+class PrelimOptions:
+    """Options for running PRELIM."""
+
+    max_perf: bool
+    abs_perf: bool
+    epsilon: float
+    beta_threshold: float
+    bound: bool
+    norm: bool
+
+
+@dataclass
 class AutoOptions:
     """Options for automatic processing steps in the model pipeline."""
 
@@ -141,6 +153,7 @@ class Options:
     trace: TraceOptions | None
     outputs: OutputOptions | None
     "we probably need to have this 'general' field"  # general: GeneralOptions
+
 
     @staticmethod
     def from_file(filepath: Path) -> Options:
