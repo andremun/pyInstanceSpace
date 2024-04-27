@@ -170,7 +170,7 @@ class Options:
         """
         raise NotImplementedError
 
-    def to_file(self: Self, filepath: Path) -> None:
+    def to_file(self, filepath: Path) -> None:
         """
         Store options in a file from an Options object.
 

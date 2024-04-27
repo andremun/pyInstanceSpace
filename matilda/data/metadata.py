@@ -38,7 +38,7 @@ class Metadata:
         """
         raise NotImplementedError
 
-    def to_file(self: Self, filepath: Path) -> None:
+    def to_file(self, filepath: Path) -> None:
         """
         Store metadata in a file from a Metadata object.
 

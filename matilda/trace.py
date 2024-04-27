@@ -98,7 +98,7 @@ class Trace:
 
 
     def build(
-        self: Self,
+        self,
     ) -> Footprint:
         """
         Build footprints for good or best performance of algorithms.
@@ -122,7 +122,7 @@ class Trace:
 
 
     def contra(
-        self: Self,
+        self,
         base: Footprint,
         test: Footprint,
         y_base: NDArray[np.bool_],
@@ -158,7 +158,7 @@ class Trace:
 
 
     def tight(
-        self: Self,
+        self,
         polygon: PolyShape,
     ) -> PolyShape:
         """
@@ -187,7 +187,7 @@ class Trace:
 
     # note that for polydata, it is  highly probably a 2 dimensional array
     def fitpoly(
-        self: Self,
+        self,
         poly_data: NDArray[np.double],
     ) -> PolyShape:
         """
@@ -215,7 +215,7 @@ class Trace:
 
 
     def summary(
-        self: Self,
+        self,
         footprint: Footprint,
         space_area: float,
         space_density: float,
@@ -244,7 +244,7 @@ class Trace:
 
 
     def throw(
-        self: Self,
+        self,
     ) -> Footprint:
         """
         Generate a default 'empty' footprint.
@@ -261,7 +261,7 @@ class Trace:
 
 
     def dbscan(
-        self: Self,
+        self,
         x: NDArray[np.double],
         k: int,
         eps: float,
@@ -294,7 +294,7 @@ class Trace:
 
 
     def epsilon(
-        self: Self,
+        self,
         x: NDArray[np.double],
         k: int,
     ) -> float:
@@ -320,7 +320,7 @@ class Trace:
 
 
     def dist(
-        self: Self,
+        self,
         i: NDArray[np.double],
         x: NDArray[np.double],
     ) -> NDArray[np.double]:
