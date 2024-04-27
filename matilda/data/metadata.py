@@ -81,17 +81,3 @@ class Metadata:
         :param filepath: The path of the resulting csv file containing the metadata.
         """
         raise NotImplementedError
-
-
-if __name__ == "__main__":
-    metadata_file = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/Trial_files/metadata.csv")
-
-    metadata = Metadata.from_file(metadata_file)
-
-    np.set_printoptions(precision=15)
-    print("Feature names:", metadata.feature_names)
-    print("Algorithm names:", metadata.algorithm_names)
-    print("Features shape:", metadata.features.shape)
-    print("Algorithms shape:", metadata.algorithms.shape)
-    print("Instance labels:", metadata.inst_labels)
-    print("Source categories:", metadata.s)
