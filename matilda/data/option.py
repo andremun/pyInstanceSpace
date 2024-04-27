@@ -160,18 +160,18 @@ class Options:
 
         # 初始化Options中的每一个部分
         options = Options(
-            parallel=load_dataclass(ParallelOptions, opts_dict.get("parallel", {})),
-            perf=load_dataclass(PerformanceOptions, opts_dict.get("perf", {})),
-            auto=load_dataclass(AutoOptions, opts_dict.get("auto", {})),
-            bound=load_dataclass(BoundOptions, opts_dict.get("bound", {})),
-            norm=load_dataclass(NormOptions, opts_dict.get("norm", {})),
-            selvars=load_dataclass(SelvarsOptions, opts_dict.get("selvars", {})),
-            sifted=load_dataclass(SiftedOptions, opts_dict.get("sifted", {})),
-            pilot=load_dataclass(PilotOptions, opts_dict.get("pilot", {})),
-            cloister=load_dataclass(CloisterOptions, opts_dict.get("cloister", {})),
-            pythia=load_dataclass(PythiaOptions, opts_dict.get("pythia", {})),
-            trace=load_dataclass(TraceOptions, opts_dict.get("trace", {})),
-            outputs=load_dataclass(OutputOptions, opts_dict.get("outputs", {})),
+            parallel=opts_dict.get("parallel") and ParallelOptions(**opts_dict["parallel"]),
+            perf=opts_dict.get("perf") and PerformanceOptions(**opts_dict["perf"]),
+            auto=opts_dict.get("auto") and AutoOptions(**opts_dict["auto"]),
+            bound=opts_dict.get("bound") and BoundOptions(**opts_dict["bound"]),
+            norm=opts_dict.get("norm") and NormOptions(**opts_dict["norm"]),
+            selvars=opts_dict.get("selvars") and SelvarsOptions(**opts_dict["selvars"]),
+            sifted=opts_dict.get("sifted") and SiftedOptions(**opts_dict["sifted"]),
+            pilot=opts_dict.get("pilot") and PilotOptions(**opts_dict["pilot"]),
+            cloister=opts_dict.get("cloister") and CloisterOptions(**opts_dict["cloister"]),
+            pythia=opts_dict.get("pythia") and PythiaOptions(**opts_dict["pythia"]),
+            trace=opts_dict.get("trace") and TraceOptions(**opts_dict["trace"]),
+            outputs=opts_dict.get("outputs") and OutputOptions(**opts_dict["outputs"]),
         )
 
         print("-------------------------------------------------------------------------")
@@ -211,3 +211,4 @@ def load_dataclass(data_class, data):
 if __name__ == "__main__":
     metadata_file = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/Trial_files/options.json")
     opt = Options.from_file(metadata_file)
+    print("fine")
