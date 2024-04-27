@@ -58,8 +58,8 @@ def select_features_and_algorithms(data: Data, opts: Options) -> Data:
     """
     popout = data
     print("---------------------------------------------------")
-    if (getattr(opts, "selvars", None) is not None) and \
-            (getattr(opts.selvars, "feats", None) is not None):
+    if (opts.selvars is not None) and \
+            (opts.selvars.feats is not None):
 
         selected_features = [feat for feat in data.feat_labels
                              if feat in opts.selvars.feats]
@@ -80,8 +80,8 @@ def select_features_and_algorithms(data: Data, opts: Options) -> Data:
                   "feats or it was an empty list.")
 
     print("---------------------------------------------------")
-    if (getattr(opts, "selvars", None) is not None) and \
-            (getattr(opts.selvars, "algos", None) is not None):
+    if (opts.selvars is not None) and \
+            (opts.selvars.algos is not None):
         selected_algorithms = [algo for algo in data.algo_labels
                                if algo in opts.selvars.algos]
 
