@@ -23,18 +23,20 @@ poethepoet = "^0.25.0"
 ruff = "^0.3.4"
 mypy = "^1.9.0"
 pdoc = "^14.4.0"
+docconvert = "^2.1.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poe.tasks]
+format_docstrings = "docconvert -o numpy matilda/ --in-place"
 check_ruff = "ruff check --fix"
 check_mypy = "mypy ."
 
 test_ruff = "ruff check --no-fix"
 
-check.sequence = ["check_ruff", "check_mypy"]
+check.sequence = ["format_docstrings", "check_ruff", "check_mypy"]
 check.ignore_fail = "return_non_zero"
 
 test.sequence = ["test_ruff", "check_mypy"]
@@ -77,6 +79,7 @@ indent-width = 4
 
 # Assume Python 3.12
 target-version = "py312"
+
 
 [tool.ruff.lint]
 extend-select = [
@@ -122,6 +125,16 @@ ignore = [
     # Collides with D416
     "D406",
 ]
+
+[tool.ruff.lint.pydocstyle]
+# Use google style docstrings
+convention = "numpy"
+
+[tool.ruff.format]
+# Enable reformatting of code snippets in docstrings.
+docstring-code-format = true
+
+
 
 [tool.mypy]
 disallow_untyped_defs = 'True'

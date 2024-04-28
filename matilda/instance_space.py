@@ -34,8 +34,7 @@ class _Stage(Enum):
 
 
 class StageError(Exception):
-    """
-    Prerequisite stages haven't been ran.
+    """Prerequisite stages haven't been ran.
 
     An error raised when a user attempts to run a stage without first running any
     prerequisite stages.
@@ -64,8 +63,7 @@ class InstanceSpace:
 
 
     def __init__(self, metadata: Metadata, options: Options) -> None:
-        """
-        Create a new InstanceSpace object.
+        """Create a new InstanceSpace object.
 
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
@@ -74,7 +72,6 @@ class InstanceSpace:
         ----
             metadata (Metadata): _description_
             options (Options): _description_
-
         """
         self._stages = defaultdict(lambda: False)
         self._metadata = metadata
@@ -93,8 +90,7 @@ class InstanceSpace:
 
 
     def build(self) -> Model:
-        """
-        Construct and return a Model object after instance space analysis.
+        """Construct and return a Model object after instance space analysis.
 
         This runs all stages.
 
@@ -104,14 +100,12 @@ class InstanceSpace:
         Returns:
         -------
             model: A Model object representing the built instance space.
-
         """
         raise NotImplementedError
 
 
     def prelim(self) -> PrelimOut:
-        """
-        Run the prelim stage.
+        """Run the prelim stage.
 
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
@@ -119,7 +113,6 @@ class InstanceSpace:
         Returns:
         -------
             prelim_out: The return of the prelim stage.
-
         """
         self._stages[_Stage.PRELIM] = True
 
@@ -133,8 +126,7 @@ class InstanceSpace:
 
 
     def sifted(self) -> SiftedOut:
-        """
-        Run the sifted stage.
+        """Run the sifted stage.
 
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
@@ -142,7 +134,6 @@ class InstanceSpace:
         Returns:
         -------
             sifted_out: The return of the sifted stage.
-
         """
         if not self._stages[_Stage.PRELIM] or self._data is None:
             raise StageError
@@ -160,8 +151,7 @@ class InstanceSpace:
 
 
     def pilot(self) -> PilotOut:
-        """
-        Run the pilot stage.
+        """Run the pilot stage.
 
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
@@ -169,7 +159,6 @@ class InstanceSpace:
         Returns:
         -------
             pilot_out: The return of the pilot stage.
-
         """
         if not self._stages[_Stage.SIFTED] or self._data is None:
             raise StageError
@@ -187,8 +176,7 @@ class InstanceSpace:
 
 
     def cloister(self) -> CloisterOut:
-        """
-        Run the cloister stage.
+        """Run the cloister stage.
 
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
@@ -196,7 +184,6 @@ class InstanceSpace:
         Returns:
         -------
             cloister_out: The return of the cloister stage.
-
         """
         if (
             not self._stages[_Stage.PILOT] or self._data is None
@@ -216,8 +203,7 @@ class InstanceSpace:
 
 
     def trace(self) -> TraceOut:
-        """
-        Run the trace stage.
+        """Run the trace stage.
 
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
@@ -225,7 +211,6 @@ class InstanceSpace:
         Returns:
         -------
             trace_out: The return of the trace stage.
-
         """
         if (
             not self._stages[_Stage.PILOT] or self._data is None
@@ -248,8 +233,7 @@ class InstanceSpace:
 
 
     def pythia(self) -> PythiaOut:
-        """
-        Run the pythia stage.
+        """Run the pythia stage.
 
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
@@ -257,7 +241,6 @@ class InstanceSpace:
         Returns:
         -------
             pythia_out: The return of the pythia stage.
-
         """
         if (
             not self._stages[_Stage.PILOT] or self._data is None
@@ -283,8 +266,7 @@ def instance_space_from_files(
     metadata_filepath: Path,
     options_filepath: Path,
 ) -> InstanceSpace:
-    """
-    Construct an instance space object from 2 files.
+    """Construct an instance space object from 2 files.
 
     Args:
     ----
@@ -307,8 +289,7 @@ def instance_space_from_files(
 
 
 def instance_space_from_directory(directory: Path) -> InstanceSpace:
-    """
-    Construct an instance space object from 2 files.
+    """Construct an instance space object from 2 files.
 
     Args:
     ----

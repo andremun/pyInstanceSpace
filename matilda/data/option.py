@@ -1,5 +1,4 @@
-"""
-Defines a collection of data classes that represent configuration options.
+"""Defines a collection of data classes that represent configuration options.
 
 These classes provide a structured way to specify and manage settings for different
 aspects of the model's execution and behaviour.
@@ -160,8 +159,7 @@ class Options:
 
     @staticmethod
     def from_file(file_contents: str) -> Options:
-        """
-        Parse options from a file, and construct an Options object.
+        """Parse options from a file, and construct an Options object.
 
         Args:
         ----
@@ -170,17 +168,14 @@ class Options:
         Returns:
         -------
         An Options object.
-
         """
         raise NotImplementedError
 
     def to_file(self) -> str:
-        """
-        Store options in a file from an Options object.
+        """Store options in a file from an Options object.
 
         Returns:
         -------
         The options object serialised into a string.
-
         """
         raise NotImplementedError

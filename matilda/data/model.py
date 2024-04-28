@@ -1,5 +1,4 @@
-"""
-Defines a comprehensive set of data classes used in the instance space analysis.
+"""Defines a comprehensive set of data classes used in the instance space analysis.
 
 These classes are designed to encapsulate various aspects of the data and the results
 of different analytical processes, facilitating a structured and organized approach
@@ -175,8 +174,7 @@ class TraceOut:
 
 @dataclass(frozen=True)
 class Model:
-    """
-    Contain data and output.
+    """Contain data and output.
 
     Combines all components into a full model representation, including data and
     analysis results.

@@ -1,5 +1,4 @@
-"""
-Defines data types for metadata.
+"""Defines data types for metadata.
 
 These classes define types for problem instances found in the metadata.csv file.
 """
@@ -28,8 +27,7 @@ class Metadata:
 
     @staticmethod
     def from_file(file_contents: str) -> Metadata:
-        """
-        Parse metadata from a file, and construct a Metadata object.
+        """Parse metadata from a file, and construct a Metadata object.
 
         Args:
         ----
@@ -38,18 +36,15 @@ class Metadata:
         Returns:
         -------
         A Metadata object.
-
         """
         raise NotImplementedError
 
     def to_file(self) -> str:
-        """
-        Store metadata in a file from a Metadata object.
+        """Store metadata in a file from a Metadata object.
 
         Returns:
         -------
         The metadata object serialised into a string.
-
         """
         raise NotImplementedError
 

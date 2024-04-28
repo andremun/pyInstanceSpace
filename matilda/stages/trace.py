@@ -1,5 +1,4 @@
-"""
-TRACE: Calculating the algorithm footprints.
+"""TRACE: Calculating the algorithm footprints.
 
 Triangulation with Removal of Areas with Contradicting Evidence (TRACE)
 is an algorithm used to estimate the area of good performance of an
@@ -38,8 +37,7 @@ class Trace:
         algo_labels: list[str],
         opts: TraceOptions,
     ) -> None:
-        """
-        Initialise the Trace stage.
+        """Initialise the Trace stage.
 
         Args:
         ----
@@ -50,7 +48,6 @@ class Trace:
             algo_labels (list[str]): Labels for each algorithm. Note that the datatype
                 is still in deciding
             opts (TraceOptions): Configuration options for TRACE and its subroutines
-
         """
         self.z = z
         self.y_bin = y_bin
@@ -68,8 +65,7 @@ class Trace:
         algo_labels: list[str],
         opts: TraceOptions,
     ) -> TraceOut:
-        """
-        Estimate the good performance area of algorithms within the space using TRACE.
+        """Estimate the good performance area of algorithms within the space.
 
         Parameters
         ----------
@@ -86,12 +82,11 @@ class Trace:
         opts : TraceOptions
             Configuration options for TRACE and its subroutines
 
-        Returns
+        Returns:
         -------
         TraceOut :
             A structured output containing the results of the TRACE analysis
             including algorithm footprints and performance summaries.
-
         """
         trace = Trace(z, y_bin, p, beta, algo_labels, opts)  # noqa: F841
         # TODO: Rewrite TRACE logic in python
@@ -108,8 +103,7 @@ class Trace:
     def build(
         self,
     ) -> Footprint:
-        """
-        Build footprints for good or best performance of algorithms.
+        """Build footprints for good or best performance of algorithms.
 
         Parameters
         ----------
@@ -120,10 +114,9 @@ class Trace:
         opts: TraceOptions
             Configuration options for TRACE.
 
-        Returns
+        Returns:
         -------
         Footprint: A footprint structure containing polygons, area, density, and purity.
-
         """
         # TODO: Rewrite TRACEbuild logic in python
         raise NotImplementedError
@@ -136,8 +129,7 @@ class Trace:
         y_base: NDArray[np.bool_],
         y_test: NDArray[np.bool_],
     ) -> tuple[Footprint, Footprint]:
-        """
-        Detect and remove contradictory sections between two algorithm footprints.
+        """Detect and remove contradictory sections between two algorithm footprints.
 
         Parameters
         ----------
@@ -154,11 +146,10 @@ class Trace:
         opts,TraceOptions:
             Configuration options for TRACE.
 
-        Returns
+        Returns:
         -------
             tuple[Footprint, Footprint]
             still need to decide the return values type.
-
         """
         # not sure whether the returned value is tuple or list, needs further decision
         # TODO: Rewrite TRACEcontra logic in python
@@ -169,8 +160,7 @@ class Trace:
         self,
         polygon: PolyShape,
     ) -> PolyShape:
-        """
-        Refer the original Matlab function to get more info.
+        """Refer the original Matlab function to get more info.
 
         Parameters
         ----------
@@ -183,11 +173,10 @@ class Trace:
         opts : TraceOptions
             Configuration options for TRACE
 
-        Returns
+        Returns:
         -------
         PolyShape
             Not pretty sure the meaning
-
         """
         # TODO: Rewrite TRACEtight logic in python
         raise NotImplementedError
@@ -198,8 +187,7 @@ class Trace:
         self,
         poly_data: NDArray[np.double],
     ) -> PolyShape:
-        """
-        Fits a polygon to the given data points according to TRACE criteria.
+        """Fits a polygon to the given data points according to TRACE criteria.
 
         Parameters
         ----------
@@ -212,11 +200,10 @@ class Trace:
         opts : TraceOptions
             Configuration options for TRACE,
 
-        Returns
+        Returns:
         -------
         PolyShape
             Not pretty sure the meaning.
-
         """
         # TODO: Rewrite TRACEfitpoly logic in python
         raise NotImplementedError
@@ -228,8 +215,7 @@ class Trace:
         space_area: float,
         space_density: float,
     ) -> list[float]:
-        """
-        Generate a summary of a footprint's relative characteristics.
+        """Generate a summary of a footprint's relative characteristics.
 
         Parameters
         ----------
@@ -240,12 +226,11 @@ class Trace:
         space_density : double
             Not pretty sure the meaning.
 
-        Returns
+        Returns:
         -------
         list[float]
             A list containing summary statistics of the footprint,
             such as its area, normalized area, density, normalized density, and purity.
-
         """
         # TODO: Rewrite TRACEsummary logic in python
         raise NotImplementedError
@@ -254,15 +239,13 @@ class Trace:
     def throw(
         self,
     ) -> Footprint:
-        """
-        Generate a default 'empty' footprint.
+        """Generate a default 'empty' footprint.
 
-        Returns
+        Returns:
         -------
         Footprint
             with polygon set to an empty list and all numerical values set to 0,
             indicating an insufficient data scenario.
-
         """
         # TODO: Rewrite TRACEthrow logic in python
         raise NotImplementedError
@@ -274,8 +257,7 @@ class Trace:
         k: int,
         eps: float,
     ) -> tuple[NDArray[np.intc], NDArray[np.intc]]:
-        """
-        Perform DBSCAN clustering on the given data set.
+        """Perform DBSCAN clustering on the given data set.
 
         Parameters
         ----------
@@ -288,13 +270,12 @@ class Trace:
             to be considered as in the neighborhood of the other.
             note that parameter:eps could be dropped.
 
-        Returns
+        Returns:
         -------
         tuple[NDArray[np.intc], NDArray[np.intc]]
             tuple with arrays: the first indicates the cluster labels for each point,
             and the second array indicates the point types (core, border, outlier).
             not sure whether the returned value is tuple or list, needs further decision
-
         """
         # TODO: Rewrite dbscan logic in python
 
@@ -306,8 +287,7 @@ class Trace:
         x: NDArray[np.double],
         k: int,
     ) -> float:
-        """
-        Estimates the optimal epsilon value for DBSCAN based on the data.
+        """Estimates the optimal epsilon value for DBSCAN based on the data.
 
         Parameters
         ----------
@@ -317,11 +297,10 @@ class Trace:
             The minimum number of neighbors within `eps`
             radius to consider a point as a core point.
 
-        Returns
+        Returns:
         -------
         double
             The estimated optimal epsilon value for the given data set and `k`.
-
         """
         # TODO: Rewrite epsilon logic in python
         raise NotImplementedError
@@ -332,8 +311,7 @@ class Trace:
         i: NDArray[np.double],
         x: NDArray[np.double],
     ) -> NDArray[np.double]:
-        """
-        Calculate the Euclidean distance between a point and multiple other points.
+        """Calculate the Euclidean distance between a point and multiple other points.
 
         Parameters
         ----------
@@ -342,11 +320,10 @@ class Trace:
         x : NDArray[np.double]
             data matrix (m,n); m-objects, n-variables.
 
-        Returns
+        Returns:
         -------
         NDArray[np.double]
             Euclidean distance (m,1).
-
         """
         # TODO: Rewrite dist logic in python
         raise NotImplementedError
