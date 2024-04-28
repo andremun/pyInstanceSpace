@@ -80,16 +80,16 @@ class InstanceSpace:
         self._metadata = metadata
         self._options = options
 
-        _data = None
+        self._data = None
 
-        _prelim_out = None
-        _sifted_out = None
-        _pilot_out = None
-        _cloister_out = None
-        _trace_out = None
-        _pythia_out = None
+        self._prelim_out = None
+        self._sifted_out = None
+        self._pilot_out = None
+        self._cloister_out = None
+        self._trace_out = None
+        self._pythia_out = None
 
-        _model = None
+        self._model = None
 
 
     def build(self) -> Model:
