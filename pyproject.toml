@@ -9,6 +9,9 @@ authors = [
 ]
 readme = "README.md"
 
+[tool.poetry.scripts]
+matilda = "matilda.cli:cli"
+
 [tool.poetry.dependencies]
 python = "^3.12"
 numpy = "^1.26.4"
