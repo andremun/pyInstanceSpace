@@ -111,10 +111,9 @@ class CloisterOut:
     """Results of the Cloister process in the data analysis pipeline."""
 
     Zedge: NDArray[np.double]
-    Zecorr:NDArray[np.double]
+    Zecorr: NDArray[np.double]
 
     pass
-
 
 
 @dataclass

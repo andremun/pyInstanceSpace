@@ -22,7 +22,6 @@ Example usage:
 
 import os
 import sys
-import warnings
 
 import numpy as np
 import pandas as pd
@@ -31,7 +30,7 @@ from sklearn.model_selection import train_test_split
 
 from matilda.data.metadata import Metadata
 from matilda.data.model import Data, Model
-from matilda.data.option import Options
+from matilda.data.option import Options, PrelimOptions
 from matilda.filter import filter_by_us
 from matilda.prelim import prelim
 
@@ -57,7 +56,7 @@ if __name__ == "__main__":
     build_instance_space(rootdir, Options)
 
 
-def process_data(model: Model) -> None:
+def process_data(model: Model) -> PrelimOptions:
     """
     Store the raw data for further processing and remove the template data.
 
@@ -78,12 +77,41 @@ def process_data(model: Model) -> None:
 
     # Running PRELIM as to preprocess the data, including scaling and bounding
     # model.opts.prelim = model.opts.perf
-    model.opts.prelim.max_perf = model.opts.perf.max_perf
-    model.opts.prelim.abs_perf = model.opts.perf.abs_perf
-    model.opts.prelim.epsilon = model.opts.perf.epsilon
-    model.opts.prelim.beta_threshold = model.opts.perf.beta_threshold
-    model.opts.prelim.bound = model.opts.bound.flag
-    model.opts.prelim.norm = model.opts.norm.flag
+    return PrelimOptions(
+        max_perf=model.opts.perf.max_perf,
+        abs_perf=model.opts.perf.abs_perf,
+        epsilon=model.opts.perf.epsilon,
+        beta_threshold=model.opts.perf.beta_threshold,
+        bound=model.opts.bound.flag,
+        norm=model.opts.norm.flag,
+    )
+
+
+def remove_bad_instances(model: Model) -> None:
+    """
+    Remove algorithms with no "good" instances from the model.
+
+    :param model: The model object containing the data to be processed.
+    """
+    idx = np.all(~model.data.y_bin, axis=0)
+    if np.any(idx):
+        print(
+            '-> There are algorithms with no "good" instances. They are being\
+removed to increase speed.',
+        )
+        model.data.y_raw = model.data.y_raw[:, ~idx]
+        model.data.y = model.data.y[:, ~idx]
+        model.data.y_bin = model.data.y_bin[:, ~idx]
+
+        algo_labels_array = np.array(model.data.algo_labels)
+        filtered_algo_labels = algo_labels_array[~idx]
+        model.data.algo_labels = filtered_algo_labels.tolist()
+        nalgos = model.data.y.shape[1]
+        if nalgos == 0:
+            raise Exception(
+                "'-> There are no ''good'' algorithms. Please verify\
+the binary performance measure. STOPPING!'",
+            )
 
 
 def data_processing(idx: NDArray[np.bool_], model: Model) -> int:
@@ -93,7 +121,7 @@ def data_processing(idx: NDArray[np.bool_], model: Model) -> int:
 
     :param idx: A boolean array indicating features to be retained or removed.
     """
-    process_data(model)
+    prelim_opts = process_data(model)
 
     [
         model.data.x,
@@ -104,24 +132,9 @@ def data_processing(idx: NDArray[np.bool_], model: Model) -> int:
         model.data.num_good_algos,
         model.data.beta,
         model.prelim,
-    ] = prelim(model.data.x, model.data.y, model.opts.prelim)
+    ] = prelim(model.data.x, model.data.y, prelim_opts)
 
-    idx = np.all(~model.data.y_bin, axis=0)
-    if np.any(idx):
-        warnings.warn(
-            '-> There are algorithms with no "good" instances. They are being\
-removed to increase speed.',
-        )
-        model.data.y_raw = model.data.y_raw[:, ~idx]
-        model.data.y = model.data.y[:, ~idx]
-        model.data.y_bin = model.data.y_bin[:, ~idx]
-        model.data.algo_labels = model.data.algo_labels[~idx]
-        nalgos = model.data.y.shape[1]
-        if nalgos == 0:
-            raise Exception(
-                "'-> There are no ''good'' algorithms. Please verify\
-                             the binary performance measure. STOPPING!'",
-            )
+    remove_bad_instances(model)
 
     # If we are only meant to take some observations
     print("-------------------------------------------------------------------")

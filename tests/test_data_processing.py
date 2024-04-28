@@ -3,8 +3,9 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
-from matilda.build import process_data
+from matilda.build import process_data, remove_bad_instances
 from matilda.data.model import Data, Model
 from matilda.data.option import (
     AutoOptions,
@@ -16,7 +17,6 @@ from matilda.data.option import (
     ParallelOptions,
     PerformanceOptions,
     PilotOptions,
-    PrelimOptions,
     PythiaOptions,
     SelvarsOptions,
     SiftedOptions,
@@ -35,14 +35,6 @@ def create_dummy_opt() -> Options:
             abs_perf=True,
             epsilon=0.20,
             beta_threshold=0.55,
-        ),
-        prelim=PrelimOptions(
-            max_perf=False,
-            abs_perf=True,
-            epsilon=0.20,
-            beta_threshold=0.55,
-            bound=True,
-            norm=True,
         ),
         auto=AutoOptions(preproc=True),
         bound=BoundOptions(flag=True),
@@ -137,14 +129,179 @@ def test_process_data() -> None:
         trace=None,
     )
 
-    process_data(model)
+    prelim_opts = process_data(model)
 
     assert np.array_equal(model.data.x, x_after)
     assert np.array_equal(model.data.y, y_after)
     assert np.array_equal(algo_labels_after, model.data.algo_labels)
     assert np.array_equal(feat_labels_after, model.data.feat_labels)
-    # the representation of PrelimOptions is not implemented yet
+    # Check if the prelim options are set correctly, the values taken from the
+    # prelim_opts should be the same as before.
+    assert np.array_equal(prelim_opts.max_perf, False)
+    assert np.array_equal(prelim_opts.abs_perf, True)
+    assert np.array_equal(prelim_opts.epsilon, 0.20)
+    assert np.array_equal(prelim_opts.beta_threshold, 0.55)
+    assert np.array_equal(prelim_opts.bound, True)
+    assert np.array_equal(prelim_opts.norm, True)
+    print("Process data tests passed!")
+
+
+def test_remove_bad_instances_1() -> None:
+    """
+    Test case for testing if the function can remove_bad_instances.
+
+    According to the matlab example, the function should not remove any instances.
+
+    expected: No assertion errors.
+    """
+    # Read the data from the files.
+    y_bin = np.genfromtxt(
+        path_root / "Prelim_out/model-data-ybin.csv",
+        delimiter=",",
+    )
+    y_bin = y_bin.astype(np.bool_)
+    data = Data(
+        inst_labels=pd.Series(),
+        feat_labels=None,
+        algo_labels=None,
+        x=None,
+        y=None,
+        x_raw=None,
+        y_raw=None,
+        y_bin=y_bin,
+        y_best=None,
+        p=None,
+        num_good_algos=None,
+        beta=None,
+        s=None,
+    )
+    opts = create_dummy_opt()
+    model = Model(
+        data=data,
+        opts=opts,
+        feat_sel=None,
+        data_dense=None,
+        prelim=None,
+        sifted=None,
+        pilot=None,
+        cloist=None,
+        pythia=None,
+        trace=None,
+    )
+    remove_bad_instances(model)
+    assert model.data.y_bin.shape == y_bin.shape
+    print("Remove bad instances tests 1 (matlab example) passed!")
+
+
+def test_remove_bad_instances_2() -> None:
+    """
+    In this test case, I make the y_bin array is all False, so all instances should be removed.
+
+    expected: No assertion errors.
+    """  # noqa: E501
+    y_bin = np.genfromtxt(
+        path_root / "Prelim_out/model-data-ybin.csv",
+        delimiter=",",
+    )
+    y_bin = np.zeros_like(y_bin, dtype=np.bool_)
+
+    x = np.genfromtxt(path_root / "process_Data/X_before.csv", delimiter=",")
+    y = np.genfromtxt(path_root / "process_Data/Y_before.csv", delimiter=",")
+    with open(path_root / "process_Data/algolabels_after.txt") as file:
+        line = file.readline()
+        algo_labels = line.strip().split(",")
+
+    data = Data(
+        inst_labels=pd.Series(),
+        feat_labels=None,
+        algo_labels=algo_labels,
+        x=x,
+        y=y,
+        x_raw=x,
+        y_raw=y,
+        y_bin=y_bin,
+        y_best=None,
+        p=None,
+        num_good_algos=None,
+        beta=None,
+        s=None,
+    )
+
+    opts = create_dummy_opt()
+    model = Model(
+        data=data,
+        opts=opts,
+        feat_sel=None,
+        data_dense=None,
+        prelim=None,
+        sifted=None,
+        pilot=None,
+        cloist=None,
+        pythia=None,
+        trace=None,
+    )
+    with pytest.raises(Exception) as e:
+        remove_bad_instances(model)
+    assert "no ''good'' algorithms" in str(e.value), "Error message is not as expected."
+    print("Remove bad instances tests 2 passed!")
+
+
+def test_remove_bad_instances_3() -> None:
+    """
+    In this test case, there are some no good instances in the data, so they should be removed.
+
+    expected: No assertion errors.
+    """
+    y_bin = np.genfromtxt(
+        path_root / "Prelim_out/model-data-ybin.csv",
+        delimiter=",",
+    )
+    y_bin = np.zeros_like(y_bin, dtype=np.bool_)
+    # make the first 3 algorithms good instances
+    NUM_INSTANCES = 3
+    y_bin[:, :NUM_INSTANCES] = True
+
+    x = np.genfromtxt(path_root / "process_Data/X_before.csv", delimiter=",")
+    y = np.genfromtxt(path_root / "process_Data/Y_before.csv", delimiter=",")
+    with open(path_root / "process_Data/algolabels_after.txt") as file:
+        line = file.readline()
+        algo_labels = line.strip().split(",")
+    data = Data(
+        inst_labels=pd.Series(),
+        feat_labels=None,
+        algo_labels=algo_labels,
+        x=x,
+        y=y,
+        x_raw=x,
+        y_raw=y,
+        y_bin=y_bin,
+        y_best=None,
+        p=None,
+        num_good_algos=None,
+        beta=None,
+        s=None,
+    )
+
+    opts = create_dummy_opt()
+    model = Model(
+        data=data,
+        opts=opts,
+        feat_sel=None,
+        data_dense=None,
+        prelim=None,
+        sifted=None,
+        pilot=None,
+        cloist=None,
+        pythia=None,
+        trace=None,
+    )
+    remove_bad_instances(model)
+    assert model.data.y_bin.shape[1] == NUM_INSTANCES
+    print("Remove bad instances tests 3 passed!")
 
 
 if __name__ == "__main__":
     test_process_data()
+    test_remove_bad_instances_1()
+    test_remove_bad_instances_2()
+    test_remove_bad_instances_3()
