@@ -155,7 +155,7 @@ class PythiaOut:
     mu: list[float]
     sigma: list[float]
     cp: Any  # Change it to proper type
-    svm: Any  # Change it to proper type
+    # svm: Any  # Change it to proper type
     cvcmat: NDArray[np.double]
     y_sub: NDArray[np.bool_]
     y_hat: NDArray[np.bool_]

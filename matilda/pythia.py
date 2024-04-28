@@ -5,8 +5,10 @@ import pandas as pd
 from numpy.typing import NDArray
 from scipy.stats import zscore
 from pytictoc import TicToc
-from sklearn.model_selection import StratifiedKFold, KFold, GroupKFold
+from sklearn.model_selection import GridSearchCV, StratifiedKFold, KFold, cross_val_score
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import confusion_matrix
+from sklearn.svm import SVC
 # from sklearn import SVC
 
 from matilda.data.model import AlgorithmSummary
@@ -38,12 +40,16 @@ def pythia(
 
     # Initialise data with its structure that can be used in Pythia.py.
     z_norm = zscore(z, axis = 0, ddof = 1) # Test Case 1
+    # scaler = StandardScaler()
+    # scaler.fit(z)
+    # z_norm = scaler.transform(z)
 
     mu, sigma = np.mean(z, axis=0), np.std(z, axis=0, ddof=1) 
 
     ninst, nalgos = y_bin.shape
 
     cp, svm = [None] * nalgos, [None] * nalgos
+    svms = list()
 
     cvcmat = np.zeros((nalgos, 4))
 
@@ -133,19 +139,17 @@ def pythia(
         # OPTION 1:
         # Ensure that each fold of the dataset has the same percentage of samples of each target class as 
         # the complete set. This is especially useful in classification problems with imbalanced class distributions.
-
-        skf = StratifiedKFold(n_splits = opts.cv_folds, shuffle = False)
+        cp[i] = StratifiedKFold(n_splits = opts.cv_folds, shuffle = True, random_state = 0)
 
         # OPTION 2:
         # Dataset is randomly divided into k equal or nearly equal sized parts. Each fold acts as 
         # the test set once, and acts as part of the training set k−1 times. 
         # kf = KFold(n_splits = opts.cv_folds, shuffle = True, random_state = 0)
         
-        fold = []
-        for train_index, test_index in skf.split(np.zeros(len(y_bin[:, i])), y_bin[:, i]):
-            fold.append(test_index.tolist())
-
-        pd.DataFrame(fold).to_csv(f'python_cv_indices_{i}.csv', index=False)
+        # fold = []
+        # for train_index, test_index in skf.split(np.zeros(len(y_bin[:, i])), y_bin[:, i]):
+        #     fold.append(test_index.tolist())
+        # pd.DataFrame(fold).to_csv(f'python_cv_indices_{i}.csv', index=False)
 
         # Test input data for svm training
         pd.DataFrame(z_norm).to_csv('tests/test_pythia_output/z_norm.csv', index=False, header=False)
@@ -153,118 +157,114 @@ def pythia(
         if opts.use_lib_svm:
             svm_res = None #fit_libsvm(z_norm, y_b, cp[i], kernel_fcn, params[i])
         else:
-            svm_res = fit_mat_svm(z_norm, y_b, w[:, i], cp[i], kernel_fcn, params[i])
+            svm[i], 
+            y_sub[i], pro_sub[i],
+            y_hat[i], pro_hat[i],
+            box_const[i], k_scale[i] = fit_mat_svm(z_norm, y_b, w[:, i], cp[i], kernel_fcn, params[i])
 
-        np.random.set_state(state)
+        aux = confusion_matrix(y_b, y_sub[i])
+        print("------------aux-----------")
+        print(aux)
 
-        # REQUIRE: Test case for validation the result
-        # aux = confusion_matrix(y_b, y_sub[:, i])
-
-    #     if np.prod(aux.shape) != 4:
-    #         caux = aux
-    #         aux = np.zeros((2, 2))
+        if np.prod(aux.shape) != 4:
+            caux = aux
+            aux = np.zeros((2, 2))
     
-    #         if np.all(y_b == 0):
-    #             if np.all(y_sub[:, i] == 0):
-    #                 aux[0, 0] = caux
-    #             elif np.all(y_sub[:, i] == 1):
-    #                 aux[1, 0] = caux
+            if np.all(y_b == 0):
+                if np.all(y_sub[:, i] == 0):
+                    aux[0, 0] = caux
+                elif np.all(y_sub[:, i] == 1):
+                    aux[1, 0] = caux
 
-    #         elif np.all(y_b == 1):
-    #             if np.all(y_sub[:, i] == 0):
-    #                 aux[0, 1] = caux
-    #             elif np.all(y_sub[:, i] == 1):
-    #                 aux[1, 1] = caux
+            elif np.all(y_b == 1):
+                if np.all(y_sub[:, i] == 0):
+                    aux[0, 1] = caux
+                elif np.all(y_sub[:, i] == 1):
+                    aux[1, 1] = caux
 
-    #     cvcmat[:, i] = aux.flatten()
-            
-    #     models_left = nalgos - (i + 1)
-    #     if models_left == 0:
-    #         print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are no models left to train.")
-    #     elif models_left == 1:
-    #         print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there is 1 model left to train.")
-    #     else:
-    #          print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are {models_left} models left to train.")
+        cvcmat[:, i] = aux.flatten()
+        models_left = nalgos - (i + 1)
+        print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are {models_left} models left to train.")
 
-    #     print(f"      -> Elapsed time: {t_inner.tocvalue():.2f}s")
+        print(f"      -> Elapsed time: {t_inner.tocvalue():.2f}s")
     
-    # tn, fp, fn, tp = cvcmat[:, 0], cvcmat[:, 1], cvcmat[:, 2], cvcmat[:, 3]
-    # precision = tp / (tp + fp)
-    # recall = tp / (tp + fn)
-    # accuracy = (tp + tn) / ninst
+    tn, fp, fn, tp = cvcmat[:, 0], cvcmat[:, 1], cvcmat[:, 2], cvcmat[:, 3]
+    precision = tp / (tp + fp)
+    recall = tp / (tp + fn)
+    accuracy = (tp + tn) / ninst
 
-    # print(f"Total elapsed time: {t.tocvalue():.2f}s")
-    # print("-------------------------------------------------------------------------")
-    # print("  -> PYTHIA has completed training the models.")
-    # print(f"  -> The average cross validated precision is: {np.round(100 * np.mean(precision), 1)}%")
-    # print(f"  -> The average cross validated accuracy is: {np.round(100 * np.mean(accuracy), 1)}%")
-    # print(f"      -> Elapsed time: {t.tocvalue():.2f}s")
-    # print("-------------------------------------------------------------------------")
+    print(f"Total elapsed time: {t.tocvalue():.2f}s")
+    print("-------------------------------------------------------------------------")
+    print("  -> PYTHIA has completed training the models.")
+    print(f"  -> The average cross validated precision is: {np.round(100 * np.mean(precision), 1)}%")
+    print(f"  -> The average cross validated accuracy is: {np.round(100 * np.mean(accuracy), 1)}%")
+    print(f"      -> Elapsed time: {t.tocvalue():.2f}s")
+    print("-------------------------------------------------------------------------")
 
     # """We assume that the most precise SVM (as per CV-Precision) is the most reliable."""
-    # best, selection_0
-    # if nalgos > 1:
-    #     best, selection_0 = np.max(y_hat * precision.T, axis=1), np.argmax(y_hat * precision.T, axis=1)
-    # else:
-    #     best, selection_0 = y_hat, y_hat
+    best, selection_0
+    if nalgos > 1:
+        best, selection_0 = np.max(y_hat * precision.T, axis=1), np.argmax(y_hat * precision.T, axis=1)
+    else:
+        best, selection_0 = y_hat, y_hat
 
-    # default = np.argmax(np.mean(y_bin, axis=0))
-    # selection_1 = selection_0.copy()
-    # selection_0[best <= 0] = 0
-    # selection_1[best <= 0] = default
+    default = np.argmax(np.mean(y_bin, axis=0))
+    selection_1 = selection_0.copy()
+    selection_0[best <= 0] = 0
+    selection_1[best <= 0] = default
 
-    # sel0 = selection_0[:, None] == np.arange(1, nalgos + 1)
-    # sel1 = selection_1[:, None] == np.arange(1, nalgos + 1)
+    sel0 = selection_0[:, None] == np.arange(1, nalgos + 1)
+    sel1 = selection_1[:, None] == np.arange(1, nalgos + 1)
 
-    # avgperf = np.nanmean(y)
-    # stdperf = np.nanstd(y)
+    avgperf = np.nanmean(y)
+    stdperf = np.nanstd(y)
 
-    # y_full = y.copy()
-    # y_svms = y.copy()
+    y_full = y.copy()
+    y_svms = y.copy()
 
-    # y[~ sel0] = np.NaN
-    # y_full[~ sel1] = np.NaN
-    # y_svms[~ y_hat] = np.NaN
+    y[~ sel0] = np.NaN
+    y_full[~ sel1] = np.NaN
+    y_svms[~ y_hat] = np.NaN
 
-    # pgood = np.mean(np.any(y_bin & sel1, axis=1))
-    # fb = np.sum(np.any(y_bin & ~sel0, axis=1))
-    # fg = np.sum(np.any(~ y_bin & sel0, axis=1))
-    # tg = np.sum(np.any(y_bin & sel0, axis=1))
+    pgood = np.mean(np.any(y_bin & sel1, axis=1))
+    fb = np.sum(np.any(y_bin & ~sel0, axis=1))
+    fg = np.sum(np.any(~ y_bin & sel0, axis=1))
+    tg = np.sum(np.any(y_bin & sel0, axis=1))
 
-    # precisionsel = tg / (tg + fg)
-    # recallsel = tg / (tg + fb)
+    precisionsel = tg / (tg + fg)
+    recallsel = tg / (tg + fb)
 
-    # # Section 6: Generate output
-    # print("  -> PYTHIA is preparing the summary table.")
-    # summaries: list[AlgorithmSummary] = []
+    # Section 6: Generate output
+    print("  -> PYTHIA is preparing the summary table.")
+    summaries: list[AlgorithmSummary] = []
 
-    # for i, label in enumerate(algo_labels + ['Oracle', 'Selector']):
+    for i, label in enumerate(algo_labels + ['Oracle', 'Selector']):
         
-    #     summary = AlgorithmSummary(
-    #         label,
-    #         np.round(np.append(avgperf, [np.nanmean(y_best), np.nanmean(y_full)]), 3),
-    #         np.round(np.append(stdperf, [np.nanstd(y_best), np.nanstd(y_full)]), 3),
-    #         np.round(np.append(np.mean(y_bin, axis=0), [1, pgood]), 3),
-    #         np.round(np.append(np.nanmean(y_svms), [np.nan, np.nanmean(y)]), 3),
-    #         np.round(np.append(np.nanstd(y_svms), [np.nan, np.nanstd(y)]), 3),
-    #         np.round(np.append(100 * accuracy, [np.nan, np.nan]), 1),
-    #         np.round(np.append(100 * precision, [np.nan, precisionsel]), 1),
-    #         np.round(100 * np.append(recall, [np.nan, recallsel]), 1),
-    #         np.round(box_const, 3),
-    #         np.round(k_scale, 3)
-    #     )
+        summary = AlgorithmSummary(
+            label,
+            np.round(np.append(avgperf, [np.nanmean(y_best), np.nanmean(y_full)]), 3),
+            np.round(np.append(stdperf, [np.nanstd(y_best), np.nanstd(y_full)]), 3),
+            np.round(np.append(np.mean(y_bin, axis=0), [1, pgood]), 3),
+            np.round(np.append(np.nanmean(y_svms), [np.nan, np.nanmean(y)]), 3),
+            np.round(np.append(np.nanstd(y_svms), [np.nan, np.nanstd(y)]), 3),
+            np.round(np.append(100 * accuracy, [np.nan, np.nan]), 1),
+            np.round(np.append(100 * precision, [np.nan, precisionsel]), 1),
+            np.round(100 * np.append(recall, [np.nan, recallsel]), 1),
+            np.round(box_const, 3),
+            np.round(k_scale, 3)
+        )
 
-    #     summaries.append(summary)
-    # print("  -> PYTHIA has completed! Performance of the models:")
-    # print(" ")
+        summaries.append(summary)
+    print("  -> PYTHIA has completed! Performance of the models:")
+    print(" ")
 
-    # for result in summaries:
-    #     print(result)
+    for result in summaries:
+        print(result)
 
 class SvmRes:
     """Resent data resulting from SVM."""
 
-    svm: NDArray[np.double] # svm: SVC
+    svm: SVC
     Ysub: NDArray[np.double]
     Psub: NDArray[np.double]
     Yhat: NDArray[np.double]
@@ -288,7 +288,7 @@ def fit_mat_svm(
     z: NDArray[np.double],
     y_bin: NDArray[np.double],
     w: NDArray[np.double],
-    cp: NDArray[np.double], # Actually its an array and the type is dynamic
+    cp: StratifiedKFold, # Actually its an array and the type is dynamic
     k: str,
     params: NDArray[np.double],
 ) -> SvmRes:
@@ -297,4 +297,103 @@ def fit_mat_svm(
 
     :param cp: Cross-validation splitting strategy from package/lib
     """
-    raise NotImplementedError
+    # TODO Set up parallel workers in pool
+    
+
+    # Scikit-learn lib need to ensuring data contiguity
+    z = np.ascontiguousarray(z)
+    y_bin = np.ascontiguousarray(y_bin)
+    w = np.ascontiguousarray(w)
+    
+    # Check if hyperparameter is given by user
+    if(np.isnan(params).any()):
+        # Initialize a random number generator
+        np.random.seed(0)
+
+        # Retrieve default hyperparameters for fitcsvm and sets the range for the box constraint (C) and kernel scale
+        # Define the range for C and gamma in a logarithmic scale
+        param_grid = {
+        # Generates 15 numbers between 2^-10 and 2^4
+        'C': np.logspace(-10, 4, base=2, num=15),
+        'gamma': np.logspace(-10, 4, base=2, num=15)
+        }
+
+        # z is normalised without modifying the scale, since in the original settings, 
+        # the 'Standardize'is false
+        # MinMaxScaler  --- slight improve!
+        # scaler = StandardScaler()
+        # scaler.fit(z)
+        # z_norm = scaler.transform(z)
+
+        # By default, the class_weight=None represent equal weight OR
+        # Let SVC balance the weight with class_weight='balance'    ---------?
+        svm_model = SVC(kernel=k, class_weight=None, random_state=0)
+
+        # scores = cross_val_score(model, z, y, scoring='accuracy', cv=skf)
+        # # for score in scores:
+        # #     print("Accuracy for this al is: ", accuracy)
+        # print("Mean Accuracy for this al is: ", np.mean(scores))
+
+
+        # Used for exhaustive search over specified parameter values for the SVM. The param_grid defines 
+        # the range over which C and gamma will be tuned.
+        # GridSearchCV for optimizing the hyperparameters
+        grid_search = GridSearchCV(
+            estimator=svm_model, 
+            param_grid=param_grid, 
+            # 'roc_auc' measures the area under the receiver operating characteristic curve, which is a 
+            # good choice for binary classification problems, especially with imbalanced classes.
+            scoring='accuracy', # 'roc_auc'
+            cv=cp, 
+            verbose=0
+            #, n_jobs=nworkers if nworkers != 0 else None,
+            )
+
+        # OPT1: 
+        # Fit a probability calibration model with trained SVM
+        print(z.shape, y_bin.shape, w.shape)
+        grid_search.fit(z, y_bin, sample_weight=w)   # Fit GridSearchCV
+        best_svm = grid_search.best_estimator_
+        # With cv='prefit' and default method is method='sigmoid'
+        calibrator = CalibratedClassifierCV(best_svm, cv='prefit', method='sigmoid')
+        calibrator.fit(z, y_bin, sample_weight=w)
+
+        # OPT2: Use it to train
+        # calibrator = CalibratedClassifierCV(best_svm, cv=skf, method='sigmoid')
+        # calibrator.fit(z_norm, y, sample_weight=w)
+
+        # Retrieve the best model and hyperparameters
+        best_C = grid_search.best_params_['C']
+        best_g = grid_search.best_params_['gamma']
+
+        # y_sub = best_svm.predict(z)
+        y_sub = calibrator.predict(z)
+        p_sub = calibrator.predict_proba(z)
+
+        # Making predictions on the same data to simulate resubstitution prediction
+        y_hat = y_sub
+        p_hat = p_sub
+
+        return calibrator, y_sub, p_sub, y_hat, p_hat, best_C, best_g
+    else:
+        # while C and g is given
+        c = params[0]
+        g = params[1]
+
+        svm_model = SVC(kernel=k, C=c, gamma=g, class_weight='balanced')
+
+        # Wrap the SVM in a cross-validator for probability calibration
+        calibrator = CalibratedClassifierCV(svm_model, method='sigmoid', cv=cp)
+        calibrator.fit(z, y_bin)
+        y_sub = calibrator.predict(z)
+        p_sub = calibrator.predict_proba(z)
+
+        # Reset and retrain the SVM on the full training dataset
+        calibrator_no_cv = CalibratedClassifierCV(svm_model, method='sigmoid', cv='prefit')
+        calibrator_no_cv.fit(z, y_bin)
+        y_hat = calibrator_no_cv.predict(z)
+        p_hat = calibrator_no_cv.predict_proba(z)
+
+        return calibrator_no_cv, y_sub, p_sub, y_hat, p_hat, c, g
+
+
