@@ -68,7 +68,7 @@ class InstanceSpace:
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
 
-        Args:
+        Args
         ----
             metadata (Metadata): _description_
             options (Options): _description_
@@ -97,7 +97,7 @@ class InstanceSpace:
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
 
-        Returns:
+        Returns
         -------
             model: A Model object representing the built instance space.
         """
@@ -110,7 +110,7 @@ class InstanceSpace:
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
 
-        Returns:
+        Returns
         -------
             prelim_out: The return of the prelim stage.
         """
@@ -131,7 +131,7 @@ class InstanceSpace:
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
 
-        Returns:
+        Returns
         -------
             sifted_out: The return of the sifted stage.
         """
@@ -156,7 +156,7 @@ class InstanceSpace:
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
 
-        Returns:
+        Returns
         -------
             pilot_out: The return of the pilot stage.
         """
@@ -181,7 +181,7 @@ class InstanceSpace:
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
 
-        Returns:
+        Returns
         -------
             cloister_out: The return of the cloister stage.
         """
@@ -208,7 +208,7 @@ class InstanceSpace:
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
 
-        Returns:
+        Returns
         -------
             trace_out: The return of the trace stage.
         """
@@ -238,7 +238,7 @@ class InstanceSpace:
         TODO: Fill in the docstring here. This will be the most enduser visible version
         of this so it needs to be informative.
 
-        Returns:
+        Returns
         -------
             pythia_out: The return of the pythia stage.
         """
@@ -268,12 +268,12 @@ def instance_space_from_files(
 ) -> InstanceSpace:
     """Construct an instance space object from 2 files.
 
-    Args:
+    Args
     ----
         metadata_filepath (Path): Path to the metadata csv file.
         options_filepath (Path): Path to the options json file.
 
-    Returns:
+    Returns
     -------
         instance_space: A new instance space object instantiated with metadata and
         options from the specified files.
@@ -291,11 +291,11 @@ def instance_space_from_files(
 def instance_space_from_directory(directory: Path) -> InstanceSpace:
     """Construct an instance space object from 2 files.
 
-    Args:
+    Args
     ----
         directory (str): Path to correctly formatted directory.
 
-    Returns:
+    Returns
     -------
         instance_space (InstanceSpace): A new instance space object instantiated with
         metadata and options from the specified directory.

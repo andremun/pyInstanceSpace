@@ -29,11 +29,11 @@ class Metadata:
     def from_file(file_contents: str) -> Metadata:
         """Parse metadata from a file, and construct a Metadata object.
 
-        Args:
+        Args
         ----
         file_contents (str): The contents of a csv file containing the metadata.
 
-        Returns:
+        Returns
         -------
         A Metadata object.
         """
@@ -42,7 +42,7 @@ class Metadata:
     def to_file(self) -> str:
         """Store metadata in a file from a Metadata object.
 
-        Returns:
+        Returns
         -------
         The metadata object serialised into a string.
         """

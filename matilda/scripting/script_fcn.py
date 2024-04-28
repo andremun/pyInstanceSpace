@@ -20,7 +20,7 @@ def write_array_to_csv(
 ) -> None:
     """Write a NumPy array to a CSV file, including row and column headers.
 
-    Args:
+    Args
         data: The 2D array of data to write.
         col_names: List of column names for the CSV.
         row_names: List of row names for the CSV.
@@ -38,7 +38,7 @@ def write_cell_to_csv(
 ) -> None:
     """Write a pandas DataFrame to a CSV file, using specified row and column headers.
 
-    Args:
+    Args
         data: The DataFrame to write.
         col_names: List of column names for the CSV.
         row_names: List of row names for the CSV.
@@ -51,10 +51,10 @@ def write_cell_to_csv(
 def make_bnd_labels(data: NDArray[np.double]) -> list[str]:
     """Generate boundary labels for the given data array.
 
-    Args:
+    Args
         data: The data array for which to generate labels.
 
-    Returns:
+    Returns
     -------
         A list of boundary labels.
     """
@@ -65,10 +65,10 @@ def make_bnd_labels(data: NDArray[np.double]) -> list[str]:
 def color_scale(data: NDArray[np.double]) -> NDArray[np.double]:
     """Apply a color scaling transformation to the given data.
 
-    Args:
+    Args
         data: The data array to transform.
 
-    Returns:
+    Returns
     -------
         The color-scaled data array.
     """
@@ -79,10 +79,10 @@ def color_scale(data: NDArray[np.double]) -> NDArray[np.double]:
 def color_scaleg(data: NDArray[np.double]) -> NDArray[np.double]:
     """Apply a grayscale color scaling transformation to the given data.
 
-    Args:
+    Args
         data: The data array to transform.
 
-    Returns:
+    Returns
     -------
         The grayscale color-scaled data array.
     """
@@ -93,7 +93,7 @@ def color_scaleg(data: NDArray[np.double]) -> NDArray[np.double]:
 def draw_sources(z: NDArray[np.double], s: set[str]) -> None:
     """Draw source points from the given set onto the specified data.
 
-    Args:
+    Args
         z: The data array on which to draw.
         s: The set of sources to draw.
     """
@@ -108,7 +108,7 @@ def draw_scatter(
 ) -> None:
     """Create a scatter plot of the given data.
 
-    Args:
+    Args
         z: The data for the x-axis.
         x: The data for the y-axis.
         title_label: The title for the scatter plot.
@@ -125,7 +125,7 @@ def draw_portfolio_selections(
 ) -> None:
     """Draw a portfolio selection plot using the given data and algorithm labels.
 
-    Args:
+    Args
     ----
         z: The data array for the portfolio.
         p: The performance data array.
@@ -145,7 +145,7 @@ def draw_portfolio_footprint(
 ) -> None:
     """Draw a footprint plot for the portfolio selections.
 
-    Args:
+    Args
         z: The data array for the portfolio.
         best: A list representing the best selections.
         p: The performance data array.
@@ -164,7 +164,7 @@ def draw_good_bad_footprint(
 ) -> None:
     """Draw a footprint plot distinguishing good and bad selections.
 
-    Args:
+    Args
         z: The data array for the footprint.
         good: A list of good selection data.
         y_bin: A binary array indicating good and bad selections.
@@ -179,7 +179,7 @@ def draw_good_bad_footprint(
 def draw_footprint(footprint: list[Any], color: list[float], alpha: float) -> None:
     """Draw a footprint plot with specified color and transparency settings.
 
-    Args:
+    Args
         footprint: A list of footprint data.
         color: A list defining the color of the footprint.
         alpha: The transparency level of the footprint.
@@ -197,7 +197,7 @@ def draw_binary_performance(
 ) -> None:
     """Draw a binary performance plot based on the given data.
 
-    Args:
+    Args
         z: The data array used for plotting.
         y_bin: A binary array indicating the performance outcome (good
             or bad).

@@ -11,7 +11,7 @@ from matilda.data.model import Model
 def script_web(container: Model, rootdir: str) -> None:
     """Generate and save web-compatible output files to the specified directory.
 
-    Args:
+    Args
         container: The Model object containing the data to be visualized
             and saved as web-compatible files.
         rootdir: The root directory where the web output files will be

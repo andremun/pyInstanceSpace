@@ -14,7 +14,7 @@ def script_png(contianer: Model, rootdir: str) -> None:
 
     The image represent the data in the Model object.
 
-    Args:
+    Args
         contianer: The Model object containing the data to be visualized
             and saved as PNG images.
         rootdir: The root directory where the PNG images will be saved.

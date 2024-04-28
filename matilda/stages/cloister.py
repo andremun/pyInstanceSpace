@@ -23,14 +23,14 @@ class Cloister:
     ) -> CloisterOut:
         """Estimate a boundary for the space using correlation.
 
-        Args:
+        Args
             x: The feature matrix (instances x features) to process.
             a: A matrix, probably the performance matrix (instances x
                 algorithms) to process. (Not sure now)
             opts: An object of type Options containing options for
                 processing.
 
-        Returns:
+        Returns
         -------
             A structure containing Zedge and Zecorr
         """

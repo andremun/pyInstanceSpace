@@ -12,7 +12,7 @@ from matilda.data.model import Model
 def script_csv(model: Model, rootdir: str) -> None:
     """Export and save the data from a Model object into CSV files.
 
-    Args:
+    Args
         model: The Model object containing the data to be exported.
         rootdir: The root directory where the CSV files will be saved.
     """

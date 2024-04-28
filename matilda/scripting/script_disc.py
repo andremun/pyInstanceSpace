@@ -11,7 +11,7 @@ properly acknowledge its use.
 def script_disc(filename: str) -> None:
     """Display software disclaimer and citation information.
 
-    Args:
+    Args
         filename: Name of the file or software being described.
     """
     print("-" * 73)

@@ -161,11 +161,11 @@ class Options:
     def from_file(file_contents: str) -> Options:
         """Parse options from a file, and construct an Options object.
 
-        Args:
+        Args
         ----
         file_contents (str): The contents of a json file containing the options.
 
-        Returns:
+        Returns
         -------
         An Options object.
         """
@@ -174,7 +174,7 @@ class Options:
     def to_file(self) -> str:
         """Store options in a file from an Options object.
 
-        Returns:
+        Returns
         -------
         The options object serialised into a string.
         """

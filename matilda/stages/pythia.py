@@ -32,7 +32,7 @@ class Pythia:
     ) -> PythiaOut:
         """PYTHIA function for algorithm selection and performance evaluation using SVM.
 
-        Args:
+        Args
             z: Feature matrix (instances x features).
             y: Target variable vector (not used directly in this
                 function, but part
@@ -44,7 +44,7 @@ class Pythia:
             opts: Dictionary of options.
         of the interface).
 
-        Returns:
+        Returns
         -------
             Summary of performance for each algorithm.
         """

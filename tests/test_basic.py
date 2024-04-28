@@ -10,7 +10,7 @@ def test_assertions() -> None:
     """
     The test case for demonstration.
 
-    Returns:
+    Returns
     -------
         None
 

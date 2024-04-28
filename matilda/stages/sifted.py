@@ -27,14 +27,14 @@ class Sifted:
     ) -> tuple[NDArray[np.double], SiftedOut]:
         """Process data matrices and options to produce a sifted dataset.
 
-        Args:
+        Args
             x: The feature matrix (instances x features).
             y: The performance matrix (instances x algorithms).
             y_bin: The binary performance matrix
             opts: An instance of `SiftedOptions` containing processing
                 parameters.
 
-        Returns:
+        Returns
         -------
             A tuple containing the processed feature matrix and
             SiftedOut
@@ -53,7 +53,7 @@ class Sifted:
     ) -> NDArray[np.double]:
         """Compute the cost function for a given combination of features or parameters.
 
-        Args:
+        Args
             comb: Array representing the combination of parameters to
                 evaluate.
             x: The feature matrix (instances x features).
@@ -63,7 +63,7 @@ class Sifted:
             n_workers: The number of parallel workers to use in
                 computation.
 
-        Returns:
+        Returns
         -------
             An array representing the calculated cost for each
             combination.
@@ -83,7 +83,7 @@ class Sifted:
     ) -> NDArray[np.double]:
         """Evaluate the fitness of each individual instance in a genetic algorithm.
 
-        Args:
+        Args
             idx: An array of indices specifying the instances to be
                 evaluated.
             x: The feature matrix (instances x features).
@@ -95,7 +95,7 @@ class Sifted:
             n_workers: The number of parallel workers to use in
                 computation.
 
-        Returns:
+        Returns
         -------
             An array representing the fitness score for each instance.
         """

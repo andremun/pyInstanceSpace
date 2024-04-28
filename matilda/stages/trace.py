@@ -39,7 +39,7 @@ class Trace:
     ) -> None:
         """Initialise the Trace stage.
 
-        Args:
+        Args
         ----
             z (NDArray[np.double]): The space of instances
             y_bin (NDArray[np.bool_]): Binary indicators of performance
@@ -82,7 +82,7 @@ class Trace:
         opts : TraceOptions
             Configuration options for TRACE and its subroutines
 
-        Returns:
+        Returns
         -------
         TraceOut :
             A structured output containing the results of the TRACE analysis
@@ -114,7 +114,7 @@ class Trace:
         opts: TraceOptions
             Configuration options for TRACE.
 
-        Returns:
+        Returns
         -------
         Footprint: A footprint structure containing polygons, area, density, and purity.
         """
@@ -146,7 +146,7 @@ class Trace:
         opts,TraceOptions:
             Configuration options for TRACE.
 
-        Returns:
+        Returns
         -------
             tuple[Footprint, Footprint]
             still need to decide the return values type.
@@ -173,7 +173,7 @@ class Trace:
         opts : TraceOptions
             Configuration options for TRACE
 
-        Returns:
+        Returns
         -------
         PolyShape
             Not pretty sure the meaning
@@ -200,7 +200,7 @@ class Trace:
         opts : TraceOptions
             Configuration options for TRACE,
 
-        Returns:
+        Returns
         -------
         PolyShape
             Not pretty sure the meaning.
@@ -226,7 +226,7 @@ class Trace:
         space_density : double
             Not pretty sure the meaning.
 
-        Returns:
+        Returns
         -------
         list[float]
             A list containing summary statistics of the footprint,
@@ -241,7 +241,7 @@ class Trace:
     ) -> Footprint:
         """Generate a default 'empty' footprint.
 
-        Returns:
+        Returns
         -------
         Footprint
             with polygon set to an empty list and all numerical values set to 0,
@@ -270,7 +270,7 @@ class Trace:
             to be considered as in the neighborhood of the other.
             note that parameter:eps could be dropped.
 
-        Returns:
+        Returns
         -------
         tuple[NDArray[np.intc], NDArray[np.intc]]
             tuple with arrays: the first indicates the cluster labels for each point,
@@ -297,7 +297,7 @@ class Trace:
             The minimum number of neighbors within `eps`
             radius to consider a point as a core point.
 
-        Returns:
+        Returns
         -------
         double
             The estimated optimal epsilon value for the given data set and `k`.
@@ -320,7 +320,7 @@ class Trace:
         x : NDArray[np.double]
             data matrix (m,n); m-objects, n-variables.
 
-        Returns:
+        Returns
         -------
         NDArray[np.double]
             Euclidean distance (m,1).

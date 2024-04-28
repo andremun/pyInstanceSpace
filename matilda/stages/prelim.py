@@ -27,14 +27,14 @@ class Prelim:
     ) -> tuple[Data, PrelimOut]:
         """Perform preliminary processing on the input data 'x' and 'y'.
 
-        Args:
+        Args
             x: The feature matrix (instances x features) to process.
             y: The performance matrix (instances x algorithms) to
                 process.
             opts: An object of type Options containing options for
                 processing.
 
-        Returns:
+        Returns
         -------
             A tuple containing the processed data (as 'Data' object) and
             preliminary output information (as 'PrelimOut' object).
