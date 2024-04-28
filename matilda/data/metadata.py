@@ -7,7 +7,6 @@ These classes define types for problem instances found in the metadata.csv file.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -28,20 +27,29 @@ class Metadata:
 
 
     @staticmethod
-    def from_file(filepath: Path) -> Metadata:
+    def from_file(file_contents: str) -> Metadata:
         """
         Parse metadata from a file, and construct a Metadata object.
 
-        :param filepath: The path of a csv file containing the metadata.
-        :return: A Metadata object.
+        Args:
+        ----
+        file_contents (str): The contents of a csv file containing the metadata.
+
+        Returns:
+        -------
+        A Metadata object.
+
         """
         raise NotImplementedError
 
-    def to_file(self, filepath: Path) -> None:
+    def to_file(self) -> str:
         """
         Store metadata in a file from a Metadata object.
 
-        :param filepath: The path of the resulting csv file containing the metadata.
+        Returns:
+        -------
+        The metadata object serialised into a string.
+
         """
         raise NotImplementedError
 

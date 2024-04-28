@@ -279,7 +279,10 @@ class InstanceSpace:
         return self._pythia_out
 
 
-def from_files(metadata_filepath: Path, options_filepath: Path) -> InstanceSpace:
+def instance_space_from_files(
+    metadata_filepath: Path,
+    options_filepath: Path,
+) -> InstanceSpace:
     """
     Construct an instance space object from 2 files.
 
@@ -294,13 +297,16 @@ def from_files(metadata_filepath: Path, options_filepath: Path) -> InstanceSpace
         options from the specified files.
 
     """
-    metadata = Metadata.from_file(metadata_filepath)
-    options = Options.from_file(options_filepath)
+    metadata_file = Path.open(metadata_filepath)
+    metadata = Metadata.from_file(metadata_file.read())
+
+    options_file = Path.open(options_filepath)
+    options = Options.from_file(options_file.read())
 
     return InstanceSpace(metadata, options)
 
 
-def from_directory(directory: Path) -> InstanceSpace:
+def instance_space_from_directory(directory: Path) -> InstanceSpace:
     """
     Construct an instance space object from 2 files.
 
@@ -310,11 +316,14 @@ def from_directory(directory: Path) -> InstanceSpace:
 
     Returns:
     -------
-        instance_space: A new instance space object instantiated with metadata and
-        options from the specified directory.
+        instance_space (InstanceSpace): A new instance space object instantiated with
+        metadata and options from the specified directory.
 
     """
-    metadata = Metadata.from_file(directory / "metadata.csv")
-    options = Options.from_file(directory / "options.json")
+    metadata_file = Path.open(directory / "metadata.csv")
+    metadata = Metadata.from_file(metadata_file.read())
+
+    options_file = Path.open(directory / "options.json")
+    options = Options.from_file(options_file.read())
 
     return InstanceSpace(metadata, options)

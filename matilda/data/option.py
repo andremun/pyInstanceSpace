@@ -8,7 +8,6 @@ aspects of the model's execution and behaviour.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 import pandas as pd
 
@@ -160,19 +159,28 @@ class Options:
     general: GeneralOptions
 
     @staticmethod
-    def from_file(filepath: Path) -> Options:
+    def from_file(file_contents: str) -> Options:
         """
         Parse options from a file, and construct an Options object.
 
-        :param filepath: The path of a json file containing the options.
-        :return: An Options object.
+        Args:
+        ----
+        file_contents (str): The contents of a json file containing the options.
+
+        Returns:
+        -------
+        An Options object.
+
         """
         raise NotImplementedError
 
-    def to_file(self, filepath: Path) -> None:
+    def to_file(self) -> str:
         """
         Store options in a file from an Options object.
 
-        :param filepath: The path of the resulting json file containing the options.
+        Returns:
+        -------
+        The options object serialised into a string.
+
         """
         raise NotImplementedError
