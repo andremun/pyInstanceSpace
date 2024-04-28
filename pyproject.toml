@@ -107,6 +107,8 @@ extend-select = [
     "PL",
     "NPY",
     "RUF",
+
+    "D417",
 ]
 
 ignore = [
