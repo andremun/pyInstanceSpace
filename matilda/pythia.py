@@ -37,7 +37,8 @@ def pythia(
     print("  -> Initializing PYTHIA.")
 
     # Initialise data with its structure that can be used in Pythia.py.
-    z_norm = zscore(z, axis = 0, ddof = 1)
+    z_norm = zscore(z, axis = 0, ddof = 1) # Test Case 1
+
     mu, sigma = np.mean(z, axis=0), np.std(z, axis=0, ddof=1) 
 
     ninst, nalgos = y_bin.shape
@@ -59,7 +60,7 @@ def pythia(
     """
 
     print("-------------------------------------------------------------------------")
-    # No params in opt??
+    # No params in opt in example test case.
     precalcparams = (
         hasattr(opts, 'params') and
         isinstance(opts.params, (list, np.ndarray)) and
@@ -98,8 +99,7 @@ def pythia(
             print("    -> Bayesian Optimization will be used for parameter hyper-tunning.")
 
         print("-------------------------------------------------------------------------")
-        
-        #??????????????????????????
+    
         if opts.use_weights:
             print("  -> PYTHIA is using cost-sensitive classification.")
             w = np.abs(y - np.nanmean(y))
@@ -120,7 +120,6 @@ def pythia(
 
     t = TicToc()
     t.tic()
-    # print("       " + str(nalgos))
 
     for i in range(nalgos):
         t_inner = TicToc()
@@ -129,7 +128,6 @@ def pythia(
         state = np.random.get_state()
         np.random.seed(0)  # equivalent to MATLAB's rng('default') ?
 
-        # REQUIRE: Test case for validation the result
         y_b = y_bin[:, i]
 
         # OPTION 1:
@@ -141,9 +139,7 @@ def pythia(
         # OPTION 2:
         # Dataset is randomly divided into k equal or nearly equal sized parts. Each fold acts as 
         # the test set once, and acts as part of the training set k−1 times. 
-
         # kf = KFold(n_splits = opts.cv_folds, shuffle = True, random_state = 0)
-
         
         fold = []
         for train_index, test_index in skf.split(np.zeros(len(y_bin[:, i])), y_bin[:, i]):
@@ -157,7 +153,7 @@ def pythia(
         if opts.use_lib_svm:
             svm_res = None #fit_libsvm(z_norm, y_b, cp[i], kernel_fcn, params[i])
         else:
-            svm_res = None #fit_mat_svm(z_norm, y_b, w[:, i], cp[i], kernel_fcn, params[i])
+            svm_res = fit_mat_svm(z_norm, y_b, w[:, i], cp[i], kernel_fcn, params[i])
 
         np.random.set_state(state)
 

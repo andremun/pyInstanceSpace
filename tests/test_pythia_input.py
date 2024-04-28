@@ -44,9 +44,10 @@ def test_input():
     # np.testing.assert_array_almost_equal(Z[0], expected_first_row, decimal=5, err_msg="First row does not match expected values.")
     # print(algolabels)
 
-"""Test and compare the parameters for SVM training """
+"""T01: Check the equivalence of 'soft' normalization of a dataset Z """
 
-# T01: Check the equivalence of normalization of a dataset Z
+# SVMs assume that the data it works with is in a standard range, usually either 0 to 1, or -1 to 1 
+# (roughly). So the normalization of feature vectors prior to feeding them to the SVM is required. 
 def test_znorm_svm_input():
 
     z_norm_M = pd.read_csv('tests/test_pythia_input/z_norm.csv')
