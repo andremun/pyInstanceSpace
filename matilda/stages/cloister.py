@@ -36,4 +36,3 @@ class Cloister:
         """
         # TODO: Rewrite PRELIM logic in python
         raise NotImplementedError
-
