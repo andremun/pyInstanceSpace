@@ -1,5 +1,4 @@
-"""
-Perform instance space analysis on given dataset and configuration.
+"""Perform instance space analysis on given dataset and configuration.
 
 Construct an instance space from data and configuration files located in a specified
 directory. The instance space is represented as a Model object, which encapsulates the
@@ -20,28 +19,10 @@ Example usage:
     python your_module_name.py /path/to/data
 """
 
-import sys
-
 from matilda.data.metadata import Metadata
-from matilda.data.model import Data, Model
+from matilda.data.model import Data
 from matilda.data.option import Options
 
 
-def build_instance_space(metadata: Metadata, options: Options) -> Model:
-    """
-    Construct and return a Model object after instance space analysis.
-
-    :param rootdir: The root directory containing the data and configuration files
-    :return: A Model object representing the built instance space.
-    """
-    # TODO: Rewrite buildIS logic in Python
-
-
-    raise NotImplementedError
-
 def _preprocess_input(metadata: Metadata, options: Options) -> Data:
     raise NotImplementedError
-
-if __name__ == "__main__":
-    rootdir = sys.argv[1]
-    # build_instance_space(rootdir)
