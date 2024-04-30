@@ -106,7 +106,7 @@ class PilotOut:
     summary: pd.DataFrame
 
 
-@dataclass
+@dataclass(frozen=True)
 class BoundaryResult:
     """Results of generating boundaries from Cloister process."""
 
@@ -116,6 +116,7 @@ class BoundaryResult:
     def __iter__(self: "BoundaryResult") -> Iterator[NDArray[np.double]]:
         """Allow unpacking directly."""
         return iter((self.x_edge, self.remove))
+
 
 @dataclass(frozen=True)
 class CloisterOut:

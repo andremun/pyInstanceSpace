@@ -19,8 +19,8 @@ from pathlib import Path
 
 import numpy as np
 
-from matilda.cloister import Cloister
 from matilda.data.option import CloisterOptions
+from matilda.stages.cloister import Cloister
 
 script_dir = Path(__file__).parent
 
@@ -106,8 +106,7 @@ def test_run() -> None:
     z_edge_matlab = np.genfromtxt(csv_path_z_edge, delimiter=",")
     z_ecorr_matlab = np.genfromtxt(csv_path_z_ecorr, delimiter=",")
 
-    cloister = Cloister(input_x, input_a, default_option)
-    z_edge, z_ecorr = cloister.run()
+    z_edge, z_ecorr = Cloister.run(input_x, input_a, default_option)
 
     assert np.allclose(z_edge_matlab, z_edge)
     assert np.allclose(z_ecorr_matlab, z_ecorr)
@@ -117,7 +116,7 @@ def test_convex_hull_qhull_error() -> None:
     """Test convex hull function properly handles qhull error."""
     points_collinear = np.array([[0, 0], [1, 1], [2, 2]])
     cloister = Cloister(input_x, input_a, default_option)
-    output = cloister.calculate_convex_hull(points_collinear)
+    output = cloister.compute_convex_hull(points_collinear)
     assert output.size == 0
 
 
@@ -125,7 +124,7 @@ def test_convex_hull_value_error() -> None:
     """Test convex hull function properly handles value error."""
     points_one_dimension = np.array([[1], [2], [3]])
     cloister = Cloister(input_x, input_a, default_option)
-    output = cloister.calculate_convex_hull(points_one_dimension)
+    output = cloister.compute_convex_hull(points_one_dimension)
     assert output.size == 0
 
 
