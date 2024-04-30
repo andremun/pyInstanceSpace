@@ -61,7 +61,6 @@ class InstanceSpace:
 
     _model: Model | None
 
-
     def __init__(self, metadata: Metadata, options: Options) -> None:
         """Create a new InstanceSpace object.
 
@@ -88,7 +87,6 @@ class InstanceSpace:
 
         self._model = None
 
-
     def build(self) -> Model:
         """Construct and return a Model object after instance space analysis.
 
@@ -102,7 +100,6 @@ class InstanceSpace:
             model: A Model object representing the built instance space.
         """
         raise NotImplementedError
-
 
     def prelim(self) -> PrelimOut:
         """Run the prelim stage.
@@ -123,7 +120,6 @@ class InstanceSpace:
         )
 
         return self._prelim_out
-
 
     def sifted(self) -> SiftedOut:
         """Run the sifted stage.
@@ -149,7 +145,6 @@ class InstanceSpace:
 
         return self._sifted_out
 
-
     def pilot(self) -> PilotOut:
         """Run the pilot stage.
 
@@ -174,7 +169,6 @@ class InstanceSpace:
 
         return self._pilot_out
 
-
     def cloister(self) -> CloisterOut:
         """Run the cloister stage.
 
@@ -186,8 +180,8 @@ class InstanceSpace:
             cloister_out: The return of the cloister stage.
         """
         if (
-            not self._stages[_Stage.PILOT] or self._data is None
-            or self._pilot_out is None
+                not self._stages[_Stage.PILOT] or self._data is None
+                or self._pilot_out is None
         ):
             raise StageError
 
@@ -201,7 +195,6 @@ class InstanceSpace:
 
         return self._cloister_out
 
-
     def trace(self) -> TraceOut:
         """Run the trace stage.
 
@@ -213,8 +206,8 @@ class InstanceSpace:
             trace_out: The return of the trace stage.
         """
         if (
-            not self._stages[_Stage.PILOT] or self._data is None
-            or self._pilot_out is None
+                not self._stages[_Stage.PILOT] or self._data is None
+                or self._pilot_out is None
         ):
             raise StageError
 
@@ -231,7 +224,6 @@ class InstanceSpace:
 
         return self._trace_out
 
-
     def pythia(self) -> PythiaOut:
         """Run the pythia stage.
 
@@ -243,8 +235,8 @@ class InstanceSpace:
             pythia_out: The return of the pythia stage.
         """
         if (
-            not self._stages[_Stage.PILOT] or self._data is None
-            or self._pilot_out is None
+                not self._stages[_Stage.PILOT] or self._data is None
+                or self._pilot_out is None
         ):
             raise StageError
 
@@ -263,8 +255,8 @@ class InstanceSpace:
 
 
 def instance_space_from_files(
-    metadata_filepath: Path,
-    options_filepath: Path,
+        metadata_filepath: Path,
+        options_filepath: Path,
 ) -> InstanceSpace:
     """Construct an instance space object from 2 files.
 

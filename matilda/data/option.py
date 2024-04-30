@@ -6,11 +6,11 @@ aspects of the model's execution and behaviour.
 
 from __future__ import annotations
 
-
 import json
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Self, TypeVar
+
 import pandas as pd
 
 
@@ -163,17 +163,28 @@ class Options:
 
     @staticmethod
     def from_file(filepath: Path) -> Options:
-        """
-        Load configuration options from a JSON file into an Options object.
+        """Load configuration options from a JSON file into an Options object.
 
         This function reads a JSON file from `filepath`, checks for expected
         top-level fields as defined in Options, initializes each part of the
         Options with data from the file, and sets missing optional fields to None.
 
-        :param filepath: Path to the JSON file with configuration options.
-        :return: Options object populated with data from the file.
-        :raises FileNotFoundError: If the JSON file is not found at filepath.
-        :raises ValueError: If the JSON file contains undefined fields.
+        Parameters
+        ----------
+        filepath
+            Path to the JSON file with configuration options.
+
+        Returns
+        -------
+        unknown
+            Options object populated with data from the file.
+
+        Raises
+        ------
+        FileNotFoundError
+            If the JSON file is not found at filepath.
+        ValueError
+            If the JSON file contains undefined fields.
         """
         if not filepath.is_file():
             raise FileNotFoundError(f"Please place the options.json in the directory '"
@@ -226,8 +237,8 @@ class Options:
         return options
 
     def to_file(self: Self, filepath: Path) -> None:
-        """
-        Store options in a file from an Options object.
+        """Store options in a file from an Options object.
+
         Returns
         -------
         The options object serialised into a string.
@@ -260,14 +271,22 @@ def validate_fields(data_class: type[T], data: dict) -> None:
 
 
 def load_dataclass(data_class: type[T], data: dict) -> T:
-    """
-    Load data into a dataclass from a dictionary.
+    """Load data into a dataclass from a dictionary.
 
     Ensures all dictionary keys match dataclass fields
     and fills in fields with available data or None.
-    :param data_class: The dataclass type to populate.
-    :param data: Dictionary containing data to load into the dataclass.
-    :return: An instance of the dataclass populated with data.
+
+    Parameters
+    ----------
+    data_class
+        The dataclass type to populate.
+    data
+        Dictionary containing data to load into the dataclass.
+
+    Returns
+    -------
+    unknown
+        An instance of the dataclass populated with data.
     """
     validate_fields(data_class, data)
     # for every subfield, fill in the attribute with the content,

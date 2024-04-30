@@ -21,21 +21,27 @@ class Metadata:
     feature_names: list[str]
     algorithm_names: list[str]
     instance_labels: pd.Series
-    instance_sources: pd.Series
+    instance_sources: pd.Series | None
     features: NDArray[np.double]
     algorithms: NDArray[np.double]
 
     @staticmethod
-    def from_file(file_contents: str) -> Metadata:
-        """
-        Parse metadata from a file, and construct a Metadata object.
+    def from_file(file_contents: Path) -> Metadata:
+        """Parse metadata from a file, and construct a Metadata object.
 
-        :param file_contents: The path of a csv file containing the metadata.
-        :return: A Metadata object.
+        Parameters
+        ----------
+        file_contents
+            The path of a csv file containing the metadata.
+
+        Returns
+        -------
+        unknown
+            A Metadata object.
         """
-        if not Path(file_contents).is_file():
+        if not file_contents.is_file():
             raise FileNotFoundError(f"Please place the metadata.csv in the directory"
-                                    f" '{Path(file_contents).parent}'")
+                                    f" '{file_contents.parent}'")
 
         print("-------------------------------------------------------------------------")
         print("-> Loading the data.")

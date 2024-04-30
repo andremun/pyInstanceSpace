@@ -39,7 +39,7 @@ class TestMetadata:
             Metadata: An instance loaded from a predefined CSV file without source.
 
         """
-        metadata_path = "test_data/load_file/metadata.csv"
+        metadata_path = script_dir / "test_data/load_file/metadata.csv"
         return Metadata.from_file(metadata_path)
 
     @pytest.fixture()
@@ -52,7 +52,7 @@ class TestMetadata:
             Metadata: An instance loaded from a predefined CSV file with a source field.
 
         """
-        metadata_path = "test_data/load_file/metadata_with_source.csv"
+        metadata_path = script_dir / "test_data/load_file/metadata_with_source.csv"
         return Metadata.from_file(metadata_path)
 
     def test_instance_labels_count(self: Self, valid_metadata: Metadata) -> None:
@@ -93,7 +93,7 @@ class TestMetadata:
 
     def test_metadata_invalid_path(self: Self) -> None:
         """Test FileNotFound exception is thrown with invalid path."""
-        invalid_path = "invalid_path"
+        invalid_path = script_dir / "invalid_path"
         with pytest.raises(FileNotFoundError):
             Metadata.from_file(invalid_path)
 
