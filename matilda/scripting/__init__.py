@@ -1,5 +1,4 @@
-"""
-Contain modules for scripting results into csv, web, and png files.
+"""Contain modules for scripting results into csv, web, and png files.
 
 Modules:
     - script_csv: Saves result into csv file.

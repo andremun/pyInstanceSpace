@@ -1,5 +1,4 @@
-"""
-PILOT: Obtaining a two-dimensional projection.
+"""PILOT: Obtaining a two-dimensional projection.
 
 Projecting Instances with Linearly Observable Trends (PILOT)
 is a dimensionality reduction algorithm which aims to facilitate
@@ -26,8 +25,7 @@ class Pilot:
         feat_labels: list[str],
         opts: PilotOptions,
     ) -> PilotOut:
-        """
-        Produce the final subset of features.
+        """Produce the final subset of features.
 
         opts.pilot.analytic determines whether the analytic (set as TRUE) or the
         numerical (set as FALSE) solution to be adopted.

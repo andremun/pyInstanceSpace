@@ -3,7 +3,6 @@
 import numpy as np
 from numpy.typing import NDArray
 
-#from sklearn.svm import SVC
 from matilda.data.model import PythiaOut
 from matilda.data.option import Options
 
@@ -11,7 +10,7 @@ from matilda.data.option import Options
 class SvmRes:
     """Resent data resulting from SVM."""
 
-    #svm: SVC
+    svm: None
     Ysub: NDArray[np.double]
     Psub: NDArray[np.double]
     Yhat: NDArray[np.double]
@@ -31,18 +30,23 @@ class Pythia:
         algo_labels: list[str],  # noqa: ARG004
         opts: Options,  # noqa: ARG004
     ) -> PythiaOut:
-        """
-        PYTHIA function for algorithm selection and performance evaluation using SVM.
+        """PYTHIA function for algorithm selection and performance evaluation using SVM.
 
-        :param Z: Feature matrix (instances x features).
-        :param Y: Target variable vector (not used directly in this function, but part
+        Args
+            z: Feature matrix (instances x features).
+            y: Target variable vector (not used directly in this
+                function, but part
+            y_bin: Binary matrix indicating success/failure of
+                algorithms.
+            y_best: Vector containing the best performance of each
+                instance.
+            algo_labels: List of algorithm labels.
+            opts: Dictionary of options.
         of the interface).
-        :param Ybin: Binary matrix indicating success/failure of algorithms.
-        :param Ybest: Vector containing the best performance of each instance.
-        :param algolabels: List of algorithm labels.
-        :param opts: Dictionary of options.
 
-        :return: Summary of performance for each algorithm.
+        Returns
+        -------
+            Summary of performance for each algorithm.
         """
         print("  -> Initializing PYTHIA.")
 
@@ -84,9 +88,5 @@ class Pythia:
         k: str,
         params: NDArray[np.double],
     ) -> SvmRes:
-        """
-        Train a SVM model using MATLAB's 'fitcsvm' function.
-
-        :param cp: Cross-validation splitting strategy from package/lib
-        """
+        """Train a SVM model using MATLAB's 'fitcsvm' function."""
         raise NotImplementedError

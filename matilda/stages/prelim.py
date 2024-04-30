@@ -1,5 +1,4 @@
-"""
-Performing preliminary data processing.
+"""Performing preliminary data processing.
 
 The main focus is on the `prelim` function, which prepares the input data for further
 analysis and modeling.
@@ -26,13 +25,18 @@ class Prelim:
         y: NDArray[np.double],
         opts: Options,
     ) -> tuple[Data, PrelimOut]:
-        """
-        Perform preliminary processing on the input data 'x' and 'y'.
+        """Perform preliminary processing on the input data 'x' and 'y'.
 
-        :param x: The feature matrix (instances x features) to process.
-        :param y: The performance matrix (instances x algorithms) to process.
-        :param opts: An object of type Options containing options for processing.
-        :return: A tuple containing the processed data (as 'Data' object) and
+        Args
+            x: The feature matrix (instances x features) to process.
+            y: The performance matrix (instances x algorithms) to
+                process.
+            opts: An object of type Options containing options for
+                processing.
+
+        Returns
+        -------
+            A tuple containing the processed data (as 'Data' object) and
             preliminary output information (as 'PrelimOut' object).
         """
         # TODO: Rewrite PRELIM logic in python

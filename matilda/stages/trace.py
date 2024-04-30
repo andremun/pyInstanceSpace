@@ -1,5 +1,4 @@
-"""
-TRACE: Calculating the algorithm footprints.
+"""TRACE: Calculating the algorithm footprints.
 
 Triangulation with Removal of Areas with Contradicting Evidence (TRACE)
 is an algorithm used to estimate the area of good performance of an
@@ -11,8 +10,6 @@ For more details, please read the original Matlab code and liveDemo.
 # Allows using Trace type inside the Trace class. This is only required in static
 # constructors.
 from __future__ import annotations
-
-from typing import Self
 
 import numpy as np
 from numpy.typing import NDArray
@@ -31,25 +28,33 @@ class Trace:
     algo_labels: list[str]
     opts: TraceOptions
 
-    @staticmethod
-    def __new(
+    def __init__(
+        self,
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         p: NDArray[np.double],
         beta: NDArray[np.bool_],
         algo_labels: list[str],
         opts: TraceOptions,
-    ) -> Trace:
-        new = Trace()
+    ) -> None:
+        """Initialise the Trace stage.
 
-        new.z = z
-        new.y_bin = y_bin
-        new.p = p
-        new.beta = beta
-        new.algo_labels = algo_labels
-        new.opts = opts
-
-        return new
+        Args
+        ----
+            z (NDArray[np.double]): The space of instances
+            y_bin (NDArray[np.bool_]): Binary indicators of performance
+            p (NDArray[np.double]): Performance metrics for algorithms
+            beta (NDArray[np.bool_]): Specific beta threshold for footprint calculation
+            algo_labels (list[str]): Labels for each algorithm. Note that the datatype
+                is still in deciding
+            opts (TraceOptions): Configuration options for TRACE and its subroutines
+        """
+        self.z = z
+        self.y_bin = y_bin
+        self.p = p
+        self.beta = beta
+        self.algo_labels = algo_labels
+        self.opts = opts
 
     @staticmethod
     def run(
@@ -60,13 +65,12 @@ class Trace:
         algo_labels: list[str],
         opts: TraceOptions,
     ) -> TraceOut:
-        """
-        Estimate the good performance area of algorithms within the space using TRACE.
+        """Estimate the good performance area of algorithms within the space.
 
         Parameters
         ----------
         z : NDArray[np.double]
-            The space of instances.
+            The space of instances
         y_bin : NDArray[np.bool_]
             Binary indicators of performance
         p : NDArray[np.double]
@@ -74,7 +78,7 @@ class Trace:
         beta : NDArray[np.bool_]
             Specific beta threshold for footprint calculation
         algo_labels : list[str]
-            Labels for each algorithm. Note that the datatype is still in deciding.
+            Labels for each algorithm. Note that the datatype is still in deciding
         opts : TraceOptions
             Configuration options for TRACE and its subroutines
 
@@ -83,9 +87,8 @@ class Trace:
         TraceOut :
             A structured output containing the results of the TRACE analysis
             including algorithm footprints and performance summaries.
-
         """
-        trace = Trace.__new(z, y_bin, p, beta, algo_labels, opts)  # noqa: F841
+        trace = Trace(z, y_bin, p, beta, algo_labels, opts)  # noqa: F841
         # TODO: Rewrite TRACE logic in python
         raise NotImplementedError
 
@@ -98,10 +101,9 @@ class Trace:
 
 
     def build(
-        self: Self,
+        self,
     ) -> Footprint:
-        """
-        Build footprints for good or best performance of algorithms.
+        """Build footprints for good or best performance of algorithms.
 
         Parameters
         ----------
@@ -115,21 +117,19 @@ class Trace:
         Returns
         -------
         Footprint: A footprint structure containing polygons, area, density, and purity.
-
         """
         # TODO: Rewrite TRACEbuild logic in python
         raise NotImplementedError
 
 
     def contra(
-        self: Self,
+        self,
         base: Footprint,
         test: Footprint,
         y_base: NDArray[np.bool_],
         y_test: NDArray[np.bool_],
     ) -> tuple[Footprint, Footprint]:
-        """
-        Detect and remove contradictory sections between two algorithm footprints.
+        """Detect and remove contradictory sections between two algorithm footprints.
 
         Parameters
         ----------
@@ -150,7 +150,6 @@ class Trace:
         -------
             tuple[Footprint, Footprint]
             still need to decide the return values type.
-
         """
         # not sure whether the returned value is tuple or list, needs further decision
         # TODO: Rewrite TRACEcontra logic in python
@@ -158,11 +157,10 @@ class Trace:
 
 
     def tight(
-        self: Self,
+        self,
         polygon: PolyShape,
     ) -> PolyShape:
-        """
-        Refer the original Matlab function to get more info.
+        """Refer the original Matlab function to get more info.
 
         Parameters
         ----------
@@ -179,7 +177,6 @@ class Trace:
         -------
         PolyShape
             Not pretty sure the meaning
-
         """
         # TODO: Rewrite TRACEtight logic in python
         raise NotImplementedError
@@ -187,11 +184,10 @@ class Trace:
 
     # note that for polydata, it is  highly probably a 2 dimensional array
     def fitpoly(
-        self: Self,
+        self,
         poly_data: NDArray[np.double],
     ) -> PolyShape:
-        """
-        Fits a polygon to the given data points according to TRACE criteria.
+        """Fits a polygon to the given data points according to TRACE criteria.
 
         Parameters
         ----------
@@ -208,20 +204,18 @@ class Trace:
         -------
         PolyShape
             Not pretty sure the meaning.
-
         """
         # TODO: Rewrite TRACEfitpoly logic in python
         raise NotImplementedError
 
 
     def summary(
-        self: Self,
+        self,
         footprint: Footprint,
         space_area: float,
         space_density: float,
     ) -> list[float]:
-        """
-        Generate a summary of a footprint's relative characteristics.
+        """Generate a summary of a footprint's relative characteristics.
 
         Parameters
         ----------
@@ -237,37 +231,33 @@ class Trace:
         list[float]
             A list containing summary statistics of the footprint,
             such as its area, normalized area, density, normalized density, and purity.
-
         """
         # TODO: Rewrite TRACEsummary logic in python
         raise NotImplementedError
 
 
     def throw(
-        self: Self,
+        self,
     ) -> Footprint:
-        """
-        Generate a default 'empty' footprint.
+        """Generate a default 'empty' footprint.
 
         Returns
         -------
         Footprint
             with polygon set to an empty list and all numerical values set to 0,
             indicating an insufficient data scenario.
-
         """
         # TODO: Rewrite TRACEthrow logic in python
         raise NotImplementedError
 
 
     def dbscan(
-        self: Self,
+        self,
         x: NDArray[np.double],
         k: int,
         eps: float,
     ) -> tuple[NDArray[np.intc], NDArray[np.intc]]:
-        """
-        Perform DBSCAN clustering on the given data set.
+        """Perform DBSCAN clustering on the given data set.
 
         Parameters
         ----------
@@ -286,7 +276,6 @@ class Trace:
             tuple with arrays: the first indicates the cluster labels for each point,
             and the second array indicates the point types (core, border, outlier).
             not sure whether the returned value is tuple or list, needs further decision
-
         """
         # TODO: Rewrite dbscan logic in python
 
@@ -294,12 +283,11 @@ class Trace:
 
 
     def epsilon(
-        self: Self,
+        self,
         x: NDArray[np.double],
         k: int,
     ) -> float:
-        """
-        Estimates the optimal epsilon value for DBSCAN based on the data.
+        """Estimates the optimal epsilon value for DBSCAN based on the data.
 
         Parameters
         ----------
@@ -313,19 +301,17 @@ class Trace:
         -------
         double
             The estimated optimal epsilon value for the given data set and `k`.
-
         """
         # TODO: Rewrite epsilon logic in python
         raise NotImplementedError
 
 
     def dist(
-        self: Self,
+        self,
         i: NDArray[np.double],
         x: NDArray[np.double],
     ) -> NDArray[np.double]:
-        """
-        Calculate the Euclidean distance between a point and multiple other points.
+        """Calculate the Euclidean distance between a point and multiple other points.
 
         Parameters
         ----------
@@ -338,7 +324,6 @@ class Trace:
         -------
         NDArray[np.double]
             Euclidean distance (m,1).
-
         """
         # TODO: Rewrite dist logic in python
         raise NotImplementedError
