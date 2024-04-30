@@ -1,5 +1,4 @@
-"""
-Test module for Cloister class to verify its functionality.
+"""Test module for Cloister class to verify its functionality.
 
 The file contains multiple unit tests to ensure that the `Cloister` class corretly
 perform its tasks. The basic mechanism of the test is to compare its output against
@@ -34,8 +33,7 @@ default_option = CloisterOptions(p_val=0.05, c_thres=0.7)
 
 
 def test_correlation_calculation() -> None:
-    """
-    Test correlation calculation against MATLAB's correlation output.
+    """Test correlation calculation against MATLAB's correlation output.
 
     Compare the calculated rho value between MATLAB's and Python's computation
     using same pval value.
@@ -50,8 +48,7 @@ def test_correlation_calculation() -> None:
 
 
 def test_correlation_calculation_boundary() -> None:
-    """
-    Test with pval value being zero.
+    """Test with pval value being zero.
 
     This will test both on point and off point boundary.
     """
@@ -66,8 +63,7 @@ def test_correlation_calculation_boundary() -> None:
 
 
 def test_decimal_to_binary() -> None:
-    """
-    Test generating binary matrix from decimal against MATLAB's de2bi ouput.
+    """Test generating binary matrix from decimal against MATLAB's de2bi ouput.
 
     Compare the generated binary matrix between MATLAB's de2bi function and custom
     function implemented in Python. Python's matrix should be 1 less than MATLAB's
@@ -93,8 +89,7 @@ def test_decimal_to_binary_with_empty_x() -> None:
 
 
 def test_run() -> None:
-    """
-    Test run methods correctly run analysis from start to end.
+    """Test run methods correctly run analysis from start to end.
 
     The test also test for convex hull calculation with valid input. The z_edge and
     z_ecorr output from MATLAB's convhull produce circular ouput, containing duplicated
@@ -129,8 +124,7 @@ def test_convex_hull_value_error() -> None:
 
 
 def test_boundary_generation() -> None:
-    """
-    Test boundary generation against MATLAB's output.
+    """Test boundary generation against MATLAB's output.
 
     Compare the z_edge and z_ecorr vaules obtained from the function with MATLAB's.
     output to verify Python implementation produce out within acceptable range.
