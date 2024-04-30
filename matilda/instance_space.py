@@ -280,10 +280,10 @@ def instance_space_from_files(
 
     """
     metadata_file = Path.open(metadata_filepath)
-    metadata = Metadata.from_file(metadata_file.read())
+    metadata = Metadata.from_csv(metadata_file.read())
 
     options_file = Path.open(options_filepath)
-    options = Options.from_file(options_file.read())
+    options = Options.from_csv(options_file.read())
 
     return InstanceSpace(metadata, options)
 
@@ -302,9 +302,9 @@ def instance_space_from_directory(directory: Path) -> InstanceSpace:
 
     """
     metadata_file = Path.open(directory / "metadata.csv")
-    metadata = Metadata.from_file(metadata_file.read())
+    metadata = Metadata.from_csv(metadata_file.read())
 
     options_file = Path.open(directory / "options.json")
-    options = Options.from_file(options_file.read())
+    options = Options.from_csv(options_file.read())
 
     return InstanceSpace(metadata, options)

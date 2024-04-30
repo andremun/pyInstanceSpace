@@ -26,7 +26,7 @@ class Metadata:
 
 
     @staticmethod
-    def from_file(file_contents: str) -> Metadata:
+    def from_csv(file_contents: str) -> Metadata:
         """Parse metadata from a file, and construct a Metadata object.
 
         Args
