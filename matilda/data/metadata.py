@@ -39,12 +39,12 @@ class Metadata:
         """
         raise NotImplementedError
 
-    def to_file(self) -> str:
-        """Store metadata in a file from a Metadata object.
+    def to_csv(self) -> str:
+        """Get the contents of metadata in the format of a csv.
 
         Returns
         -------
-        The metadata object serialised into a string.
+        The metadata object serialised into a csv.
         """
         raise NotImplementedError
 
