@@ -179,3 +179,20 @@ class Options:
         The options object serialised into a string.
         """
         raise NotImplementedError
+
+    def prelim_options(self) -> PrelimOptions:
+        """Derive prelim options from the options data.
+
+        Returns
+        -------
+            PrelimOptions: Options used by the prelim stage.
+
+        """
+        return PrelimOptions(
+            self.perf.max_perf,
+            self.perf.abs_perf,
+            self.perf.epsilon,
+            self.perf.beta_threshold,
+            self.bound.flag,
+            self.norm.flag,
+        )
