@@ -1,5 +1,4 @@
-"""
-Perform instance space analysis on given dataset and configuration.
+"""Perform instance space analysis on given dataset and configuration.
 
 Construct an instance space from data and configuration files located in a specified
 directory. The instance space is represented as a Model object, which encapsulates the
@@ -20,12 +19,11 @@ Example usage:
     python your_module_name.py /path/to/data
 """
 
-
 import numpy as np
-
 from matilda.data.metadata import Metadata
-from matilda.data.model import Data, Model
+from matilda.data.model import Data
 from matilda.data.option import Options
+
 
 
 def build_instance_space(metadata: Metadata, options: Options) -> Model:
@@ -147,3 +145,6 @@ def remove_instances_with_many_missing_values(data: Data) -> Data:
               "It is unlikely that this run will produce good results.",
               )
     return popout
+
+def _preprocess_input(metadata: Metadata, options: Options) -> Data:
+    raise NotImplementedError
