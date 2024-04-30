@@ -14,4 +14,10 @@ def cli() -> None:
 @click.option("--out", default="out.csv", show_default=True)
 @cli.command()
 def build() -> None:
+    """TODO: documentation.
+
+    Work out if we want to do docstrings for commands. I don't think we want to include
+    the cli in the code documentation. It might be confusing to document it as
+    functions.
+    """
     click.echo("build")
