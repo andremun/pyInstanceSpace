@@ -158,8 +158,8 @@ class Options:
     general: GeneralOptions
 
     @staticmethod
-    def from_file(file_contents: str) -> Options:
-        """Parse options from a file, and construct an Options object.
+    def from_csv(file_contents: str) -> Options:
+        """Parse options from a csv, and construct an Options object.
 
         Args
         ----
@@ -171,12 +171,12 @@ class Options:
         """
         raise NotImplementedError
 
-    def to_file(self) -> str:
-        """Store options in a file from an Options object.
+    def to_csv(self) -> str:
+        """Get the contents of options in the format of a csv.
 
         Returns
         -------
-        The options object serialised into a string.
+        The options object serialised into a csv.
         """
         raise NotImplementedError
 
