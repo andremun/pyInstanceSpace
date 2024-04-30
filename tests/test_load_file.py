@@ -39,7 +39,7 @@ class TestMetadata:
             Metadata: An instance loaded from a predefined CSV file without source.
 
         """
-        metadata_path = script_dir / "test_data/load_file/metadata.csv"
+        metadata_path = "test_data/load_file/metadata.csv"
         return Metadata.from_file(metadata_path)
 
     @pytest.fixture()
@@ -52,12 +52,12 @@ class TestMetadata:
             Metadata: An instance loaded from a predefined CSV file with a source field.
 
         """
-        metadata_path = script_dir / "test_data/load_file/metadata_with_source.csv"
+        metadata_path = "test_data/load_file/metadata_with_source.csv"
         return Metadata.from_file(metadata_path)
 
     def test_instance_labels_count(self: Self, valid_metadata: Metadata) -> None:
         """Check label count of metadata."""
-        assert valid_metadata.inst_labels.count() == self.expected_instances
+        assert valid_metadata.instance_labels.count() == self.expected_instances
 
     def test_feature_names_length(self: Self, valid_metadata: Metadata) -> None:
         """Check number of features in metadata."""
@@ -83,17 +83,17 @@ class TestMetadata:
 
     def test_s_is_none(self: Self, valid_metadata: Metadata) -> None:
         """Check source from metadata."""
-        assert valid_metadata.s is None
+        assert valid_metadata.instance_sources is None
 
     def test_s_not_none(self: Self, valid_metadata_with_source: Metadata) -> None:
         """Check source is not none from metadata."""
-        source = valid_metadata_with_source.s
+        source = valid_metadata_with_source.instance_sources
         assert source is not None, "Expected 's' to be not None"
         assert source.count() == self.expected_source
 
     def test_metadata_invalid_path(self: Self) -> None:
         """Test FileNotFound exception is thrown with invalid path."""
-        invalid_path = script_dir / "invalid_path"
+        invalid_path = "invalid_path"
         with pytest.raises(FileNotFoundError):
             Metadata.from_file(invalid_path)
 
