@@ -21,6 +21,7 @@ class Cloister:
     x: NDArray[np.double]
     a: NDArray[np.double]
     opts: CloisterOptions
+    nfeats: int
 
     def __init__(
         self,
