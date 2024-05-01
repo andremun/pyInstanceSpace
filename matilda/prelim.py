@@ -26,7 +26,7 @@ def prelim(
     x: NDArray[np.double],
     y: NDArray[np.double],
     opts: PrelimOptions,
-) -> tuple[Data, PrelimOut]:
+) -> tuple[Data, PrelimOut, NDArray[np.double]]:
     """
     Perform preliminary processing on the input data 'x' and 'y'.
 
@@ -122,6 +122,8 @@ def prelim(
     if opts.bound:
         x, med_val, iq_range, hi_bound, lo_bound = bound(x)
 
+    x_after_bound = x.copy()
+
     if opts.norm:
         min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y = normalise(x, y)
 
@@ -156,13 +158,7 @@ def prelim(
         mu_y=mu_y,
     )
 
-    return data, prelim_out
-
-    # return beta.astype(int)[1:] # this passes
-    # return np.ravel(y_best)[1:] # this passes
-    # return num_good_algos[1:].reshape(-1, 1) # this passes
-    # return p[1:] # this passes
-    # return y_bin[1:] # this passes
+    return data, prelim_out, x_after_bound
 
 def bound(x: NDArray[np.double]) -> tuple[NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double]]:
     """Remove extreme outliers from the feature values."""
@@ -202,6 +198,7 @@ def normalise(x: NDArray[np.double], y: NDArray[np.double]) -> tuple[NDArray[np.
         aux = x[:, i]
         idx = np.isnan(aux)
         aux, lambda_x[i] = stats.boxcox(aux[~idx])
+        print('aux', aux)
         aux = stats.zscore(aux)
         mu_x[i] = np.mean(aux)
         sigma_x[i] = np.std(aux)
