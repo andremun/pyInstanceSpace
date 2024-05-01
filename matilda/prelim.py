@@ -68,7 +68,9 @@ def prelim(
     else:
         y_aux = y.copy()
         y_aux[np.isnan(y_aux)] = np.inf
+
         y_best = np.min(y_aux, axis=1)
+        p = np.argmin(y_aux, axis=1)
 
         if opts.abs_perf:
             y_bin = y_aux <= opts.epsilon
@@ -86,6 +88,9 @@ def prelim(
             )
 
     print(msg)
+
+    # testing for ties
+    # If there is a tie, we pick an algorithm at random
 
     y_best = y_best[:, np.newaxis]
 
@@ -107,6 +112,8 @@ def prelim(
 
     num_good_algos = np.sum(y_bin, axis=1)
     beta = num_good_algos > (opts.beta_threshold * nalgos)
+
+    # Auto-Pre-Processing
 
     if opts.bound:
         x, med_val, iq_range, hi_bound, lo_bound = bound(x)
