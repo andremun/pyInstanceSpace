@@ -44,11 +44,13 @@ def prelim(
 
     msg = "An algorithm is good if its performance is "
     if opts.max_perf:
+        print("-> Maximizing performance.")
         y_aux = y.copy()
         y_aux[np.isnan(y_aux)] = -np.inf
 
         y_best = np.max(y_aux, axis=1)
-        p = np.argmax(y_aux, axis=1)
+        # add 1 to the index to match the MATLAB code
+        p = np.argmax(y_aux, axis=1) + 1
 
         if opts.abs_perf:
             y_bin = y_aux >= opts.epsilon
@@ -66,11 +68,13 @@ def prelim(
             )
 
     else:
+        print("-> Minimizing performance.")
         y_aux = y.copy()
         y_aux[np.isnan(y_aux)] = np.inf
 
         y_best = np.min(y_aux, axis=1)
-        p = np.argmin(y_aux, axis=1)
+        # add 1 to the index to match the MATLAB code
+        p = np.argmin(y_aux, axis=1) + 1
 
         if opts.abs_perf:
             y_bin = y_aux <= opts.epsilon
@@ -97,7 +101,7 @@ def prelim(
     best_algos = np.equal(y_raw, y_best)
     multiple_best_algos = np.sum(best_algos, axis=1) > 1
     aidx = np.arange(1, nalgos + 1)
-    p = np.zeros(y.shape[0], dtype=int)
+    # p = np.zeros(y.shape[0], dtype=int)
 
     for i in range(y.shape[0]):
         if multiple_best_algos[i].any():

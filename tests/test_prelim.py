@@ -132,14 +132,10 @@ def test_prelim() -> None:
     # fails
     # print('data.y_bin', data.y_bin)
     # print('ybin_output', ybin_output)
-    # assert np.allclose(data.y_bin, ybin_output)
+    # assert not np.allclose(data.y_bin, ybin_output)
 
     assert np.allclose(np.array(data.y_best).flatten(), ybest_output) # passes but need to flatten output 
-
-    # fails
-    # print(data.p)
-    # print(p_output)
-    # assert np.allclose(data.p, p_output)
+    assert np.allclose(data.p, p_output) # passes
     assert np.allclose(data.num_good_algos, numGoodAlgos_output.values.flatten()) # passes but need to flatten expected
     assert np.allclose(data.beta, beta_output) # passes
     assert data.s is None
