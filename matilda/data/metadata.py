@@ -53,7 +53,7 @@ class Metadata:
         isalgo = varlabels.str.lower().str.startswith("algo_")
         issource = varlabels.str.lower() == "source"
 
-        instlabels = xbar.loc[:, isname].squeeze()
+        instlabels = xbar.loc[:, is_name].squeeze()
 
         if pd.api.types.is_numeric_dtype(instlabels):
             instlabels = instlabels.astype(str)
