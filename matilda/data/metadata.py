@@ -36,7 +36,7 @@ class Metadata:
 
         Returns
         -------
-        unknown
+        Metadata
             A Metadata object.
         """
         if not file_contents.is_file():
@@ -48,7 +48,7 @@ class Metadata:
         xbar = pd.read_csv(file_contents)
 
         varlabels = xbar.columns
-        isname = varlabels.str.lower() == "instances"
+        is_name = varlabels.str.lower() == "instances"
         isfeat = varlabels.str.lower().str.startswith("feature_")
         isalgo = varlabels.str.lower().str.startswith("algo_")
         issource = varlabels.str.lower() == "source"
