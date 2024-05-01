@@ -190,3 +190,33 @@ class Model:
     pythia: PythiaOut
     trace: TraceOut
     opts: Options
+
+    def to_csv(self) -> str:
+        """Serialise the model into a csv.
+
+        Returns
+        -------
+        str
+            A csv representation of the model.
+        """
+        raise NotImplementedError
+
+    def to_web(self) -> str:
+        """Serialise the model into a csv.
+
+        Returns
+        -------
+        str
+            A representation of the model used for the website.
+        """
+        raise NotImplementedError
+
+    def to_png(self) -> None:
+        """Serialise the model into a csv.
+
+        Returns
+        -------
+        TODO: Work out what png representation we want to use.
+            A png representation of the model.
+        """
+        raise NotImplementedError

@@ -40,8 +40,6 @@ class StageError(Exception):
     prerequisite stages.
     """
 
-    pass
-
 
 class InstanceSpace:
     """TODO: Describe what an instance space IS."""
