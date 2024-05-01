@@ -196,7 +196,7 @@ class Options:
 
         # Initialize each part of Options
 
-        options = Options(
+        return Options(
             parallel=Options._load_dataclass(ParallelOptions, opts_dict["parallel"])
             if "parallel" in opts_dict else None,
             perf=Options._load_dataclass(PerformanceOptions, opts_dict["perf"])
@@ -224,8 +224,6 @@ class Options:
             general=Options._load_dataclass(GeneralOptions, opts_dict["general"])
             if "general" in opts_dict else None,
         )
-
-        return options
 
     def to_file(self: Self, filepath: Path) -> None:
         """Store options in a file from an Options object.
@@ -263,8 +261,8 @@ class Options:
         # Check if all fields in the JSON are defined in the data class
         for key in data:
             if key not in known_fields:
-                raise ValueError(f"Field '{key}' in JSON is not defined in the dataclass '"
-                                 f"{data_class.__name__}'")
+                raise ValueError(f"Field '{key}' in JSON is not defined "
+                                 f"in the dataclass '{data_class.__name__}'")
 
     @staticmethod
     def _load_dataclass(data_class: type[T], data: dict) -> T:
