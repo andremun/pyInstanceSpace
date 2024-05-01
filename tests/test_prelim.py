@@ -19,6 +19,19 @@ csv_path_ybin = script_dir / "prelim/output/model-data-ybin.csv"
 csv_path_x_output = script_dir / "prelim/output/model-data-x.csv"
 csv_path_y_output = script_dir / "prelim/output/model-data-y.csv"
 
+csv_path_prelim_output_hi_bound = script_dir / "prelim/output/model-prelim-hibound.csv"
+csv_path_prelim_output_iq_range = script_dir / "prelim/output/model-prelim-iqrange.csv"
+csv_path_prelim_output_med_val = script_dir / "prelim/output/model-prelim-medval.csv"
+csv_path_prelim_output_lo_bound = script_dir / "prelim/output/model-prelim-lobound.csv"
+csv_path_prelim_output_lambda_x = script_dir / "prelim/output/model-prelim-lambdaX.csv"
+csv_path_prelim_output_min_x = script_dir / "prelim/output/model-prelim-minX.csv"
+csv_path_prelim_output_lambda_y = script_dir / "prelim/output/model-prelim-lambdaY.csv"
+csv_path_prelim_output_min_y = script_dir / "prelim/output/model-prelim-minY.csv"
+csv_path_prelim_output_mu_x = script_dir / "prelim/output/model-prelim-muX.csv"
+csv_path_prelim_output_mu_y = script_dir / "prelim/output/model-prelim-muY.csv"
+csv_path_prelim_output_sigma_x = script_dir / "prelim/output/model-prelim-sigmaX.csv"
+csv_path_prelim_output_sigma_y = script_dir / "prelim/output/model-prelim-sigmaY.csv"
+
 # input data
 x_input = pd.read_csv(csv_path_x_input).to_numpy()
 y_input = pd.read_csv(csv_path_y_input).to_numpy()
@@ -31,6 +44,20 @@ ybin_output = pd.read_csv(csv_path_ybin, sep=",")
 numGoodAlgos_output = pd.read_csv(csv_path_numGoodAlgos, sep=",")
 x_output = pd.read_csv(csv_path_x_output).to_numpy()
 y_output = pd.read_csv(csv_path_y_output).to_numpy()
+
+prelim_hi_bound = pd.read_csv(csv_path_prelim_output_hi_bound).to_numpy()
+prelim_iq_range = pd.read_csv(csv_path_prelim_output_iq_range).to_numpy()
+prelim_med_val = pd.read_csv(csv_path_prelim_output_med_val).to_numpy()
+prelim_lo_bound = pd.read_csv(csv_path_prelim_output_lo_bound).to_numpy()
+prelim_lambda_x = pd.read_csv(csv_path_prelim_output_lambda_x).to_numpy()
+prelim_min_x = pd.read_csv(csv_path_prelim_output_min_x).to_numpy()
+prelim_lambda_y = pd.read_csv(csv_path_prelim_output_lambda_y).to_numpy()
+prelim_min_y = pd.read_csv(csv_path_prelim_output_min_y).to_numpy()
+prelim_mu_x = pd.read_csv(csv_path_prelim_output_mu_x).to_numpy()
+prelim_mu_y = pd.read_csv(csv_path_prelim_output_mu_y).to_numpy()
+prelim_sigma_x = pd.read_csv(csv_path_prelim_output_sigma_x).to_numpy()
+prelim_sigma_y = pd.read_csv(csv_path_prelim_output_sigma_y).to_numpy()
+
 
 
 opts = PrelimOptions(
