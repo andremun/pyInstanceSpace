@@ -61,6 +61,7 @@ class InstanceSpace:
 
     _model: Model | None
 
+
     def __init__(self, metadata: Metadata, options: Options) -> None:
         """Create a new InstanceSpace object.
 
@@ -180,8 +181,8 @@ class InstanceSpace:
             cloister_out: The return of the cloister stage.
         """
         if (
-                not self._stages[_Stage.PILOT] or self._data is None
-                or self._pilot_out is None
+            not self._stages[_Stage.PILOT] or self._data is None
+            or self._pilot_out is None
         ):
             raise StageError
 
@@ -206,8 +207,8 @@ class InstanceSpace:
             trace_out: The return of the trace stage.
         """
         if (
-                not self._stages[_Stage.PILOT] or self._data is None
-                or self._pilot_out is None
+            not self._stages[_Stage.PILOT] or self._data is None
+            or self._pilot_out is None
         ):
             raise StageError
 
@@ -235,8 +236,8 @@ class InstanceSpace:
             pythia_out: The return of the pythia stage.
         """
         if (
-                not self._stages[_Stage.PILOT] or self._data is None
-                or self._pilot_out is None
+            not self._stages[_Stage.PILOT] or self._data is None
+            or self._pilot_out is None
         ):
             raise StageError
 
@@ -271,9 +272,11 @@ def instance_space_from_files(
         options from the specified files.
 
     """
-    metadata = Metadata.from_file(metadata_filepath)
+    metadata_file = Path.open(metadata_filepath)
+    metadata = Metadata.from_file(metadata_file.read())
 
-    options = Options.from_file(options_filepath)
+    options_file = Path.open(options_filepath)
+    options = from_file(options_file.read())
 
     return InstanceSpace(metadata, options)
 
@@ -291,8 +294,17 @@ def instance_space_from_directory(directory: Path) -> InstanceSpace:
         metadata and options from the specified directory.
 
     """
-    metadata = Metadata.from_file(directory / "metadata.csv")
+    metadata_file = directory / "metadata.csv"
 
-    options = Options.from_file(directory / "options.json")
+    if not metadata_file.is_file():
+        raise FileNotFoundError(f"Please place the metadata.csv in the directory"
+                                f" '{metadata_file.parent}'")
+    print("-------------------------------------------------------------------------")
+    print("-> Loading the data.")
+    with metadata_file.open('r') as file:
+        metadata = Metadata.from_file(file.read())
+
+    options_file = Path.open(directory / "options.json")
+    options = from_file(options_file.read())
 
     return InstanceSpace(metadata, options)

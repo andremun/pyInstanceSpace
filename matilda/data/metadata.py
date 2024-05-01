@@ -6,7 +6,6 @@ These classes define types for problem instances found in the metadata.csv file.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -26,25 +25,20 @@ class Metadata:
     algorithms: NDArray[np.double]
 
     @staticmethod
-    def from_file(file_contents: Path) -> Metadata:
+    def from_file(file_contents: str) -> Metadata:
         """Parse metadata from a file, and construct a Metadata object.
 
         Parameters
         ----------
         file_contents
-            The path of a csv file containing the metadata.
+            The content of a csv file containing the metadata.
 
         Returns
         -------
         unknown
             A Metadata object.
         """
-        if not file_contents.is_file():
-            raise FileNotFoundError(f"Please place the metadata.csv in the directory"
-                                    f" '{file_contents.parent}'")
 
-        print("-------------------------------------------------------------------------")
-        print("-> Loading the data.")
         xbar = pd.read_csv(file_contents)
 
         varlabels = xbar.columns

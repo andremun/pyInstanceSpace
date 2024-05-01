@@ -105,7 +105,7 @@ class TestOption:
     def valid_options(self: Self) -> Options:
         """Load option json file from path."""
         option_path = script_dir / "test_data/load_file/options.json"
-        return Options.from_file(option_path)
+        return from_file(option_path)
 
     @pytest.mark.parametrize(
         ("option_key", "subkey", "expected_value"),
@@ -168,20 +168,20 @@ class TestOption:
         error_msg = "Field 'MaxPerf_invalid' in JSON is " \
                     "not defined in the dataclass 'PerformanceOptions'"
         with pytest.raises(ValueError, match=error_msg):
-            Options.from_file(invalid_option_path)
+            from_file(invalid_option_path)
 
     def test_option_invalid_path(self: Self) -> None:
         """Test FileNotFound exception is thrown with invalid path."""
         path = script_dir / "invalid_path"
         with pytest.raises(FileNotFoundError):
-            Options.from_file(path)
+            from_file(path)
 
     def test_missing_field(self: Self) -> None:
         """Loading from json, and any top field and sub fields are missing."""
         invalid_path = script_dir / "test_data/load_file/options_dropped.json"
         with Path.open(invalid_path) as file:
             options_dict = json.load(file)
-            loaded_options = Options.from_file(invalid_path)
+            loaded_options = from_file(invalid_path)
 
         if loaded_options.auto is not None:
             assert loaded_options.auto.preproc == options_dict["auto"]["preproc"], \
@@ -267,4 +267,4 @@ class TestOption:
         path = script_dir / "test_data/load_file/options_extra_topfield.json"
         error_msg = "Extra fields in JSON not defined in Options: {'top'}"
         with pytest.raises(ValueError, match=error_msg):
-            Options.from_file(path)
+            from_file(path)
