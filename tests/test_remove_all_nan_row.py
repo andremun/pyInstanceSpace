@@ -13,10 +13,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from matilda.build import remove_instances_with_many_missing_values
 from matilda.data.model import (
     Data,
 )
+from matilda.stages.build import remove_instances_with_many_missing_values
 
 path_root = Path(__file__).parents[1]
 sys.path.append(str(path_root))

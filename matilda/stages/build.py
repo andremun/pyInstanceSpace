@@ -20,18 +20,24 @@ Example usage:
 """
 
 import numpy as np
+
 from matilda.data.metadata import Metadata
-from matilda.data.model import Data
+from matilda.data.model import Data, Model
 from matilda.data.option import Options
 
 
-
 def build_instance_space(metadata: Metadata, options: Options) -> Model:
-    """
-    Construct and return a Model object after instance space analysis.
+    """Construct and return a Model object after instance space analysis.
 
-    :param rootdir: The root directory containing the data and configuration files
-    :return: A Model object representing the built instance space.
+    Parameters
+    ----------
+    rootdir
+        The root directory containing the data and configuration files
+
+    Returns
+    -------
+    unknown
+        A Model object representing the built instance space.
     """
     # TODO: Rewrite buildIS logic in Python
 
@@ -43,13 +49,17 @@ def _preprocess_input(metadata: Metadata, options: Options) -> Data:
 
 
 def select_features_and_algorithms(data: Data, opts: Options) -> Data:
-    """
-    Select features and algorithms based on options provided in opts.
+    """Select features and algorithms based on options provided in opts.
 
     Remove instances with too many missing values.
-    :param data: the Data class that contains the content of instances,
-                with algorithm and feature labels
-    :param opts: the Option class that contains setting for analysis.
+
+    Parameters
+    ----------
+    data
+        the Data class that contains the content of instances, with
+        algorithm and feature labels
+    opts
+        the Option class that contains setting for analysis.
 
     :return Data: the Data class that has been modified based on the settings
     """
@@ -97,11 +107,13 @@ def select_features_and_algorithms(data: Data, opts: Options) -> Data:
 
 
 def remove_instances_with_many_missing_values(data: Data) -> Data:
-    """
-    Remove rows (instances) and features (X columns).
+    """Remove rows (instances) and features (X columns).
 
-    :param data: the Data class that contains the content of instances,
-                with algorithm and feature labels
+    Parameters
+    ----------
+    data
+        the Data class that contains the content of instances, with
+        algorithm and feature labels
 
     :return Data: the Data class that has been modified based on the Washing criterion
 
