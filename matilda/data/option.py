@@ -158,8 +158,7 @@ class Options:
     pythia: PythiaOptions | None
     trace: TraceOptions | None
     outputs: OutputOptions | None
-    "we probably need to have this 'general' field"  # general: GeneralOptions
-
+    general: GeneralOptions | None
 
     @staticmethod
     def from_file(filepath: Path) -> Options:
@@ -226,6 +225,8 @@ class Options:
             if "trace" in opts_dict else None,
             outputs=load_dataclass(OutputOptions, opts_dict["outputs"])
             if "outputs" in opts_dict else None,
+            general=load_dataclass(GeneralOptions, opts_dict["general"])
+            if "general" in opts_dict else None,
         )
 
         print("-------------------------------------------------------------------------")
@@ -249,7 +250,7 @@ class Options:
 T = TypeVar("T", ParallelOptions, PerformanceOptions,
             AutoOptions, BoundOptions, NormOptions, SelvarsOptions,
             SiftedOptions, PilotOptions, CloisterOptions, PythiaOptions,
-            TraceOptions, OutputOptions)
+            TraceOptions, OutputOptions, GeneralOptions)
 
 
 def validate_fields(data_class: type[T], data: dict) -> None:

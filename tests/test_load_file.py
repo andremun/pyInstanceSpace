@@ -260,6 +260,7 @@ class TestOption:
 
         assert loaded_options.parallel is None, "Parallel should be None"
         assert loaded_options.perf is None, "Perf should be None"
+        assert loaded_options.general is None, "general should be None"
 
     def test_extra_top_fields(self: Self) -> None:
         """Any top field are not defined in the class."""
