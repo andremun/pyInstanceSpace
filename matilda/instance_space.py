@@ -272,11 +272,9 @@ def instance_space_from_files(
         options from the specified files.
 
     """
-    metadata_file = Path.open(metadata_filepath)
-    metadata = Metadata.from_file(metadata_file.read())
+    metadata = Metadata.from_file(metadata_filepath)
 
-    options_file = Path.open(options_filepath)
-    options = from_file(options_file.read())
+    options = Options.from_file(options_filepath)
 
     return InstanceSpace(metadata, options)
 
@@ -294,17 +292,8 @@ def instance_space_from_directory(directory: Path) -> InstanceSpace:
         metadata and options from the specified directory.
 
     """
-    metadata_file = directory / "metadata.csv"
+    metadata = Metadata.from_file(directory / "metadata.csv")
 
-    if not metadata_file.is_file():
-        raise FileNotFoundError(f"Please place the metadata.csv in the directory"
-                                f" '{metadata_file.parent}'")
-    print("-------------------------------------------------------------------------")
-    print("-> Loading the data.")
-    with metadata_file.open('r') as file:
-        metadata = Metadata.from_file(file.read())
-
-    options_file = Path.open(directory / "options.json")
-    options = from_file(options_file.read())
+    options = Options.from_file(directory / "options.json")
 
     return InstanceSpace(metadata, options)
