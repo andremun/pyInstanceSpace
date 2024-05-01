@@ -1,6 +1,7 @@
 """TODO: document instance space module."""
 
 from collections import defaultdict
+from dataclasses import fields
 from enum import Enum
 from pathlib import Path
 
@@ -254,6 +255,26 @@ class InstanceSpace:
 
         return self._pythia_out
 
+    def get_options(self) -> Options:
+        """Get the options for test cases.
+
+        Returns
+        -------
+        Options
+            The options object associated with this instance space.
+        """
+        return self._options
+
+    def get_metadata(self) -> Metadata:
+        """Get the metadata for test cases.
+
+        Returns
+        -------
+        Metadata
+            The metadata object associated with this instance space.
+        """
+        return self._metadata
+
 
 def instance_space_from_files(
     metadata_filepath: Path,
@@ -272,9 +293,26 @@ def instance_space_from_files(
         options from the specified files.
 
     """
-    metadata = Metadata.from_file(metadata_filepath)
+    if not metadata_filepath.is_file():
+        raise FileNotFoundError(f"Please place the metadata.csv in the directory"
+                                f" '{metadata_filepath.parent}'")
+    print("-------------------------------------------------------------------------")
+    print("-> Loading the data.")
+    with metadata_filepath.open() as f:
+        metadata_contents = f.read()
+    metadata = Metadata.from_file(metadata_contents)
 
-    options = Options.from_file(options_filepath)
+    if not options_filepath.is_file():
+        raise FileNotFoundError(f"Please place the options.json in the directory '"
+                                f"{options_filepath.parent}'")
+    with options_filepath.open() as o:
+        options_contents = o.read()
+    options = Options.from_file(options_contents)
+    print("-------------------------------------------------------------------------")
+    print("-> Listing options to be used:")
+    for field_name in fields(Options):
+        field_value = getattr(options, field_name.name)
+        print(f"{field_name.name}: {field_value}")
 
     return InstanceSpace(metadata, options)
 
@@ -294,6 +332,6 @@ def instance_space_from_directory(directory: Path) -> InstanceSpace:
     """
     metadata = Metadata.from_file(directory / "metadata.csv")
 
-    options = Options.from_file(directory / "options.json")
+    options = Options.from_file()
 
     return InstanceSpace(metadata, options)

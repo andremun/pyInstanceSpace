@@ -5,8 +5,8 @@ These classes define types for problem instances found in the metadata.csv file.
 
 from __future__ import annotations
 
+import io
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -26,55 +26,49 @@ class Metadata:
     algorithms: NDArray[np.double]
 
     @staticmethod
-    def from_file(file_contents: Path) -> Metadata:
+    def from_file(file_contents: str) -> Metadata:
         """Parse metadata from a file, and construct a Metadata object.
 
-        Parameters
+        Args
         ----------
         file_contents
-            The path of a csv file containing the metadata.
+            The content of a csv file containing the metadata.
 
         Returns
         -------
         Metadata
             A Metadata object.
         """
-        if not file_contents.is_file():
-            raise FileNotFoundError(f"Please place the metadata.csv in the directory"
-                                    f" '{file_contents.parent}'")
+        csv_df = pd.read_csv(io.StringIO(file_contents))
 
-        print("-------------------------------------------------------------------------")
-        print("-> Loading the data.")
-        xbar = pd.read_csv(file_contents)
+        var_labels = csv_df.columns
+        is_name = var_labels.str.lower() == "instances"
+        is_feat = var_labels.str.lower().str.startswith("feature_")
+        is_algo = var_labels.str.lower().str.startswith("algo_")
+        is_source = var_labels.str.lower() == "source"
 
-        varlabels = xbar.columns
-        is_name = varlabels.str.lower() == "instances"
-        isfeat = varlabels.str.lower().str.startswith("feature_")
-        isalgo = varlabels.str.lower().str.startswith("algo_")
-        issource = varlabels.str.lower() == "source"
+        instance_labels = csv_df.loc[:, is_name].squeeze()
 
-        instlabels = xbar.loc[:, is_name].squeeze()
+        if pd.api.types.is_numeric_dtype(instance_labels):
+            instance_labels = instance_labels.astype(str)
 
-        if pd.api.types.is_numeric_dtype(instlabels):
-            instlabels = instlabels.astype(str)
+        source_column = None
+        if is_source.any():
+            source_column = csv_df.loc[:, is_source].squeeze()
 
-        s = None
-        if issource.any():
-            s = xbar.loc[:, issource].squeeze()
+        features_raw = csv_df.loc[:, is_feat]
+        algo_raw = csv_df.loc[:, is_algo]
 
-        x = xbar.loc[:, isfeat]
-        y = xbar.loc[:, isalgo]
-
-        feature_names = x.columns.tolist()
-        algorithm_names = y.columns.tolist()
+        feature_names = features_raw.columns.tolist()
+        algorithm_names = algo_raw.columns.tolist()
 
         return Metadata(
             feature_names=feature_names,
             algorithm_names=algorithm_names,
-            features=x.to_numpy(),
-            algorithms=y.to_numpy(),
-            instance_sources=s,
-            instance_labels=instlabels,
+            features=features_raw.to_numpy(),
+            algorithms=algo_raw.to_numpy(),
+            instance_sources=source_column,
+            instance_labels=instance_labels,
         )
 
     def to_file(self) -> str:

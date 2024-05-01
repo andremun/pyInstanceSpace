@@ -161,17 +161,17 @@ class Options:
     general: GeneralOptions | None
 
     @staticmethod
-    def from_file(filepath: Path) -> Options:
+    def from_file(file_contents: str) -> Options:
         """Load configuration options from a JSON file into an Options object.
 
         This function reads a JSON file from `filepath`, checks for expected
         top-level fields as defined in Options, initializes each part of the
         Options with data from the file, and sets missing optional fields to None.
 
-        Parameters
+        Args
         ----------
-        filepath
-            Path to the JSON file with configuration options.
+        file_contents
+            Content of the JSON file with configuration options.
 
         Returns
         -------
@@ -185,55 +185,45 @@ class Options:
         ValueError
             If the JSON file contains undefined fields.
         """
-        if not filepath.is_file():
-            raise FileNotFoundError(f"Please place the options.json in the directory '"
-                                    f"{filepath.parent}'")
-
-        with Path.open(filepath) as file:
-            opts_dict = json.load(file)
+        opts_dict = json.loads(file_contents)
 
         # Validate if the top-level fields match those in the Options class
         options_fields = {f.name for f in fields(Options)}
         extra_fields = set(opts_dict.keys()) - options_fields
         if extra_fields:
-            raise ValueError(f"Extra fields in JSON not defined in Options:"
+            raise ValueError(f"Extra fields in JSON are not defined in Options:"
                              f" {extra_fields}")
 
         # Initialize each part of Options
+
         options = Options(
-            parallel=load_dataclass(ParallelOptions, opts_dict["parallel"])
+            parallel=Options._load_dataclass(ParallelOptions, opts_dict["parallel"])
             if "parallel" in opts_dict else None,
-            perf=load_dataclass(PerformanceOptions, opts_dict["perf"])
+            perf=Options._load_dataclass(PerformanceOptions, opts_dict["perf"])
             if "perf" in opts_dict else None,
-            auto=load_dataclass(AutoOptions, opts_dict["auto"])
+            auto=Options._load_dataclass(AutoOptions, opts_dict["auto"])
             if "auto" in opts_dict else None,
-            bound=load_dataclass(BoundOptions, opts_dict["bound"])
+            bound=Options._load_dataclass(BoundOptions, opts_dict["bound"])
             if "bound" in opts_dict else None,
-            norm=load_dataclass(NormOptions, opts_dict["norm"])
+            norm=Options._load_dataclass(NormOptions, opts_dict["norm"])
             if "norm" in opts_dict else None,
-            selvars=load_dataclass(SelvarsOptions, opts_dict["selvars"])
+            selvars=Options._load_dataclass(SelvarsOptions, opts_dict["selvars"])
             if "selvars" in opts_dict else None,
-            sifted=load_dataclass(SiftedOptions, opts_dict["sifted"])
+            sifted=Options._load_dataclass(SiftedOptions, opts_dict["sifted"])
             if "sifted" in opts_dict else None,
-            pilot=load_dataclass(PilotOptions, opts_dict["pilot"])
+            pilot=Options._load_dataclass(PilotOptions, opts_dict["pilot"])
             if "pilot" in opts_dict else None,
-            cloister=load_dataclass(CloisterOptions, opts_dict["cloister"])
+            cloister=Options._load_dataclass(CloisterOptions, opts_dict["cloister"])
             if "cloister" in opts_dict else None,
-            pythia=load_dataclass(PythiaOptions, opts_dict["pythia"])
+            pythia=Options._load_dataclass(PythiaOptions, opts_dict["pythia"])
             if "pythia" in opts_dict else None,
-            trace=load_dataclass(TraceOptions, opts_dict["trace"])
+            trace=Options._load_dataclass(TraceOptions, opts_dict["trace"])
             if "trace" in opts_dict else None,
-            outputs=load_dataclass(OutputOptions, opts_dict["outputs"])
+            outputs=Options._load_dataclass(OutputOptions, opts_dict["outputs"])
             if "outputs" in opts_dict else None,
-            general=load_dataclass(GeneralOptions, opts_dict["general"])
+            general=Options._load_dataclass(GeneralOptions, opts_dict["general"])
             if "general" in opts_dict else None,
         )
-
-        print("-------------------------------------------------------------------------")
-        print("-> Listing options to be used:")
-        for field_name in fields(Options):
-            field_value = getattr(options, field_name.name)
-            print(f"{field_name.name}: {field_value}")
 
         return options
 
@@ -246,51 +236,57 @@ class Options:
         """
         raise NotImplementedError
 
+    T = TypeVar("T", ParallelOptions, PerformanceOptions,
+                AutoOptions, BoundOptions, NormOptions, SelvarsOptions,
+                SiftedOptions, PilotOptions, CloisterOptions, PythiaOptions,
+                TraceOptions, OutputOptions, GeneralOptions)
 
-T = TypeVar("T", ParallelOptions, PerformanceOptions,
-            AutoOptions, BoundOptions, NormOptions, SelvarsOptions,
-            SiftedOptions, PilotOptions, CloisterOptions, PythiaOptions,
-            TraceOptions, OutputOptions, GeneralOptions)
+    @staticmethod
+    def _validate_fields(data_class: type[T], data: dict) -> None:
+        """
+        Validate all keys in the provided dictionary are valid fields in dataclass.
 
+        Args
+        ----------
+        data_class : type[T]
+            The dataclass type to validate against.
+        data : dict
+            The dictionary whose keys are to be validated.
 
-def validate_fields(data_class: type[T], data: dict) -> None:
-    """
-    Validate all keys in the provided dictionary are valid fields in dataclass.
+        Raises
+        ------
+        ValueError
+            If an undefined field is found in the dictionary.
+        """
+        # Get all defined fields in the data class
+        known_fields = {f.name for f in fields(data_class)}
+        # Check if all fields in the JSON are defined in the data class
+        for key in data:
+            if key not in known_fields:
+                raise ValueError(f"Field '{key}' in JSON is not defined in the dataclass '"
+                                 f"{data_class.__name__}'")
 
-    Raises an error if a key is found that is not a field of the dataclass.
-    :param data_class: The dataclass type to validate against.
-    :param data: The dictionary whose keys are to be validated.
-    :raises ValueError: If an undefined field is found in the dictionary.
-    """
-    # Get all defined fields in the data class
-    known_fields = {f.name for f in fields(data_class)}
-    # Check if all fields in the JSON are defined in the data class
-    for key in data:
-        if key not in known_fields:
-            raise ValueError(f"Field '{key}' in JSON is not defined in the dataclass '"
-                             f"{data_class.__name__}'")
+    @staticmethod
+    def _load_dataclass(data_class: type[T], data: dict) -> T:
+        """Load data into a dataclass from a dictionary.
 
+        Ensures all dictionary keys match dataclass fields and fills in fields
+        with available data or None.
 
-def load_dataclass(data_class: type[T], data: dict) -> T:
-    """Load data into a dataclass from a dictionary.
+        Args
+        ----------
+        data_class : type[T]
+            The dataclass type to populate.
+        data : dict
+            Dictionary containing data to load into the dataclass.
 
-    Ensures all dictionary keys match dataclass fields
-    and fills in fields with available data or None.
-
-    Parameters
-    ----------
-    data_class
-        The dataclass type to populate.
-    data
-        Dictionary containing data to load into the dataclass.
-
-    Returns
-    -------
-    unknown
-        An instance of the dataclass populated with data.
-    """
-    validate_fields(data_class, data)
-    # for every subfield, fill in the attribute with the content,
-    # return None if can't find the attribute content in the JSON
-    init_args = {f.name: data.get(f.name, None) for f in fields(data_class)}
-    return data_class(**init_args)
+        Returns
+        -------
+        T
+            An instance of the dataclass populated with data.
+        """
+        Options._validate_fields(data_class, data)
+        # for every subfield, fill in the attribute with the content,
+        # return None if can't find the attribute content in the JSON
+        init_args = {f.name: data.get(f.name, None) for f in fields(data_class)}
+        return data_class(**init_args)
