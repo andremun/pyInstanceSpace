@@ -12,12 +12,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from matilda.build import select_features_and_algorithms
 from matilda.data.model import Data
 from matilda.data.option import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,
+    GeneralOptions,
     NormOptions,
     Options,
     OutputOptions,
@@ -29,6 +29,7 @@ from matilda.data.option import (
     SiftedOptions,
     TraceOptions,
 )
+from matilda.stages.build import select_features_and_algorithms
 
 path_root = Path(__file__).parent
 sys.path.append(str(path_root))
@@ -62,6 +63,7 @@ def create_dummy_opt(selvars: SelvarsOptions) -> Options:
                              use_weights=False, use_lib_svm=False),
         trace=TraceOptions(use_sim=False, PI=0.95),
         outputs=OutputOptions(csv=False, web=False, png=False),
+        general=GeneralOptions(beta_threshold=1.0),
     )
 
 
@@ -229,4 +231,3 @@ def test_manual_empty_feats() -> None:
                                   err_msg="Feature data content mismatch")
     np.testing.assert_array_equal(out.y, expected_y,
                                   err_msg="Algorithm data content mismatch")
-
