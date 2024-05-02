@@ -87,7 +87,7 @@ def process_data(model: Model) -> PrelimOptions:
     )
 
 
-def remove_bad_instances(model: Model) -> None:
+def remove_bad_instances(model: Model) -> NDArray[np.bool_]:
     """
     Remove algorithms with no "good" instances from the model.
 
@@ -112,30 +112,15 @@ removed to increase speed.',
                 "'-> There are no ''good'' algorithms. Please verify\
 the binary performance measure. STOPPING!'",
             )
+    return idx
 
 
-def data_processing(idx: NDArray[np.bool_], model: Model) -> int:
-    # fix upper line late
+def split_data(idx: NDArray[np.bool_], model: Model) -> None:
     """
-    Process data for instance space analysis.
+    Determine whether and how to split the instance.
 
-    :param idx: A boolean array indicating features to be retained or removed.
+    :param model: The model object containing the data to be processed.
     """
-    prelim_opts = process_data(model)
-
-    [
-        model.data.x,
-        model.data.y,
-        model.data.y_best,
-        model.data.y_bin,
-        model.data.p,
-        model.data.num_good_algos,
-        model.data.beta,
-        model.prelim,
-    ] = prelim(model.data.x, model.data.y, prelim_opts)
-
-    remove_bad_instances(model)
-
     # If we are only meant to take some observations
     print("-------------------------------------------------------------------")
     ninst = model.data.x.shape[0]
@@ -212,4 +197,24 @@ def data_processing(idx: NDArray[np.bool_], model: Model) -> int:
 
         if hasattr(model.data, "S"):
             model.data.S = model.data.S[subset_index, :]
+
+
+def data_processing(model: Model) -> int:
+    # fix upper line late
+    """
+    Process data for instance space analysis.
+
+    :param idx: A boolean array indicating features to be retained or removed.
+    """
+    prelim_opts = process_data(model)
+
+    [
+        model.data,
+        model.prelim,
+    ] = prelim(model.data.x, model.data.y, prelim_opts)
+
+    idx = remove_bad_instances(model)
+
+    split_data(idx, model)
+
     return model.data.x.shape[1]  # nfeats

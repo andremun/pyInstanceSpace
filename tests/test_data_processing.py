@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from matilda.build import process_data, remove_bad_instances
+from matilda.build import process_data, remove_bad_instances, split_data
 from matilda.data.model import Data, Model
 from matilda.data.option import (
     AutoOptions,
@@ -188,7 +188,7 @@ def test_remove_bad_instances_1() -> None:
         pythia=None,
         trace=None,
     )
-    remove_bad_instances(model)
+    idx = remove_bad_instances(model)
     assert model.data.y_bin.shape == y_bin.shape
     print("Remove bad instances tests 1 (matlab example) passed!")
 
@@ -241,7 +241,7 @@ def test_remove_bad_instances_2() -> None:
         trace=None,
     )
     with pytest.raises(Exception) as e:
-        remove_bad_instances(model)
+        idx = remove_bad_instances(model)
     assert "no ''good'' algorithms" in str(e.value), "Error message is not as expected."
     print("Remove bad instances tests 2 passed!")
 
@@ -295,9 +295,125 @@ def test_remove_bad_instances_3() -> None:
         pythia=None,
         trace=None,
     )
-    remove_bad_instances(model)
+    idx = remove_bad_instances(model)
     assert model.data.y_bin.shape[1] == NUM_INSTANCES
     print("Remove bad instances tests 3 passed!")
+
+
+def test_split_data() -> None:
+    """
+    Test case for the split data function by using matlab example.
+
+    expected: No assertion errors.
+    """
+    idx = np.genfromtxt(path_root / "split/idx.txt", delimiter=",")
+
+    x_before = np.genfromtxt(path_root / "split/before/x_split.txt", delimiter=",")
+    y_before = np.genfromtxt(path_root / "split/before/Y_split.txt", delimiter=",")
+    x_raw_before = np.genfromtxt(
+        path_root / "split/before/Xraw_split.txt",
+        delimiter=",",
+    )
+    y_raw_before = np.genfromtxt(
+        path_root / "split/before/Yraw_split.txt",
+        delimiter=",",
+    )
+    y_bin_before = np.genfromtxt(
+        path_root / "split/before/Ybin_split.txt",
+        delimiter=",",
+    )
+    beta_before = np.genfromtxt(
+        path_root / "split/before/beta_split.txt",
+        delimiter=",",
+    )
+    num_good_algos_before = np.genfromtxt(
+        path_root / "split/before/numGoodAlgos_split.txt",
+        delimiter=",",
+    )
+    y_best_before = np.genfromtxt(
+        path_root / "split/before/Ybest_split.txt",
+        delimiter=",",
+    )
+    p_before = np.genfromtxt(path_root / "split/before/P_split.txt", delimiter=",")
+    inst_labels_before = pd.read_csv(
+        path_root / "split/before/instlabels_split.txt",
+        header=None,
+    ).loc[:, 0]
+
+    data = Data(
+        inst_labels=inst_labels_before,
+        feat_labels=None,
+        algo_labels=None,
+        x=x_before,
+        y=y_before,
+        x_raw=x_raw_before,
+        y_raw=y_raw_before,
+        y_bin=y_bin_before,
+        y_best=y_best_before,
+        p=p_before,
+        num_good_algos=num_good_algos_before,
+        beta=beta_before,
+        s=None,
+    )
+
+    opts = create_dummy_opt()
+    model = Model(
+        data=data,
+        opts=opts,
+        feat_sel=None,
+        data_dense=None,
+        prelim=None,
+        sifted=None,
+        pilot=None,
+        cloist=None,
+        pythia=None,
+        trace=None,
+    )
+    split_data(idx, model)
+
+    x_after = np.genfromtxt(path_root / "split/after/x_split.txt", delimiter=",")
+    y_after = np.genfromtxt(path_root / "split/after/Y_split.txt", delimiter=",")
+    x_raw_after = np.genfromtxt(
+        path_root / "split/after/Xraw_split.txt",
+        delimiter=",",
+    )
+    y_raw_after = np.genfromtxt(
+        path_root / "split/after/Yraw_split.txt",
+        delimiter=",",
+    )
+    y_bin_after = np.genfromtxt(
+        path_root / "split/after/Ybin_split.txt",
+        delimiter=",",
+    )
+    beta_after = np.genfromtxt(
+        path_root / "split/after/beta_split.txt",
+        delimiter=",",
+    )
+    num_good_algos_after = np.genfromtxt(
+        path_root / "split/after/numGoodAlgos_split.txt",
+        delimiter=",",
+    )
+    y_best_after = np.genfromtxt(
+        path_root / "split/after/Ybest_split.txt",
+        delimiter=",",
+    )
+    p_after = np.genfromtxt(path_root / "split/after/P_split.txt", delimiter=",")
+    inst_labels_after = pd.read_csv(
+        path_root / "split/after/instlabels_split.txt",
+        header=None,
+    ).loc[:, 0]
+
+    assert np.array_equal(model.data.x, x_after)
+    assert np.array_equal(model.data.y, y_after)
+    assert np.array_equal(model.data.x_raw, x_raw_after)
+    assert np.array_equal(model.data.y_raw, y_raw_after)
+    assert np.array_equal(model.data.y_bin, y_bin_after)
+    assert np.array_equal(model.data.beta, beta_after)
+    assert np.array_equal(model.data.num_good_algos, num_good_algos_after)
+    assert np.array_equal(model.data.y_best, y_best_after)
+    assert np.array_equal(model.data.p, p_after)
+    assert np.array_equal(model.data.inst_labels, inst_labels_after)
+    print("Split data tests passed!")
 
 
 if __name__ == "__main__":
@@ -305,3 +421,4 @@ if __name__ == "__main__":
     test_remove_bad_instances_1()
     test_remove_bad_instances_2()
     test_remove_bad_instances_3()
+    test_split_data()
