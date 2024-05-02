@@ -1,5 +1,4 @@
-"""
-Perform instance space analysis on given dataset and configuration.
+"""Perform instance space analysis on given dataset and configuration.
 
 Construct an instance space from data and configuration files located in a specified
 directory. The instance space is represented as a Model object, which encapsulates the

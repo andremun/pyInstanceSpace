@@ -1,5 +1,4 @@
-"""
-Display software disclaimer and citation information for a given software or file.
+"""Display software disclaimer and citation information for a given software or file.
 
 The `script_disc` function within this module is used to print out standardized
 disclaimer and citation information related to the software, including authorship,
@@ -10,10 +9,10 @@ properly acknowledge its use.
 """
 
 def script_disc(filename: str) -> None:
-    """
-    Display software disclaimer and citation information.
+    """Display software disclaimer and citation information.
 
-    :param filename: Name of the file or software being described.
+    Args
+        filename: Name of the file or software being described.
     """
     print("-" * 73)
     print()
