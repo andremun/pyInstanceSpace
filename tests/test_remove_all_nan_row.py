@@ -107,6 +107,7 @@ def test_remove_instances_with_3_row_missing() -> None:
     large_y = rng.random((10, 5))
     large_y[4, :] = np.nan  # fifth row all NaN
     large_y[3, :] = np.nan  # forth row all NaN
+    s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
 
     data = Data(
         inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
@@ -121,7 +122,7 @@ def test_remove_instances_with_3_row_missing() -> None:
         p=np.array([], dtype=np.double),
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
-        s=None,
+        s=s,
     )
 
     out = remove_instances_with_many_missing_values(data)
@@ -161,6 +162,17 @@ def test_remove_instances_with_3_row_missing() -> None:
     assert out.feat_labels == [f"feature{i}" for i in range(10)], \
         "feat_labels content not right"
 
+    assert out.s is not None, "s content should be valid"
+    assert out.s.tolist() == [
+        "source0",
+        "source1",
+        "source5",
+        "source6",
+        "source7",
+        "source8",
+        "source9",
+    ], "s content not right"
+
 
 def test_remove_instances_keep_same() -> None:
     """
@@ -183,6 +195,8 @@ def test_remove_instances_keep_same() -> None:
     large_y = rng.random((10, 5))
     large_y[6, :2] = np.nan  # 7th row first 2columns NaN
 
+    s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
+
     data = Data(
         inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
         feat_labels=[f"feature{i}" for i in range(10)],
@@ -196,7 +210,7 @@ def test_remove_instances_keep_same() -> None:
         p=np.array([], dtype=np.double),
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
-        s=None,
+        s=s,
     )
 
     out = remove_instances_with_many_missing_values(data)
@@ -259,6 +273,7 @@ def test_duplicated_data_edge() -> None:
 
     large_y = rng.random((10, 5))
     large_y[6, :2] = np.nan  # 7th row first 2 columns NaN
+    s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
 
     data = Data(
         inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
@@ -273,7 +288,7 @@ def test_duplicated_data_edge() -> None:
         p=np.array([], dtype=np.double),
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
-        s=None,
+        s=s,
     )
 
     out = remove_instances_with_many_missing_values(data)
@@ -307,6 +322,11 @@ def test_duplicated_data_edge() -> None:
         "feature" + str(i) for i in range(5, 10)
     ], "feat_labels content not right"
 
+    assert out.s is not None, "s content should be valid"
+
+    assert out.s.tolist() == ["source" + str(i) for i in range(0, 10)], \
+        "s content not right"
+
 
 def test_duplicated_data() -> None:
     """
@@ -337,20 +357,29 @@ def test_duplicated_data() -> None:
     large_y = rng.random((10, 5))
     large_y[6, :2] = np.nan  # 7th row first 2 columns NaN
 
+    x_raw = rng.random((10, 10))
+    y_raw = rng.random((10, 5))
+    y_bin = rng.choice([True, False], size=(10, 5))
+    y_best = rng.random((10, 5))
+    p = rng.random((10, 5))
+    num_good_algos = np.array([], dtype=np.double)
+    beta = rng.choice([True, False], size=(10, 5))
+    s = pd.Series(["string" + str(i) for i in range(10)])
+
     data = Data(
         inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
         feat_labels=[f"feature{i}" for i in range(10)],
         algo_labels=[f"algo{i}" for i in range(5)],
         x=large_x,
         y=large_y,
-        x_raw=np.array([], dtype=np.double),
-        y_raw=np.array([], dtype=np.double),
-        y_bin=np.array([], dtype=np.bool_),
-        y_best=np.array([], dtype=np.double),
-        p=np.array([], dtype=np.double),
-        num_good_algos=np.array([], dtype=np.double),
-        beta=np.array([], dtype=np.bool_),
-        s=None,
+        x_raw=x_raw,
+        y_raw=y_raw,
+        y_bin=y_bin,
+        y_best=y_best,
+        p=p,
+        num_good_algos=num_good_algos,
+        beta=beta,
+        s=s,
     )
 
     out = remove_instances_with_many_missing_values(data)
@@ -383,3 +412,36 @@ def test_duplicated_data() -> None:
     assert out.feat_labels == [
         "feature" + str(i) for i in range(0, 10)
     ], "feat_labels content not right"
+
+    # Check algo_labels content
+    assert out.algo_labels == [
+        "algo" + str(i) for i in range(0, 5)
+    ], "algo_labels content not right"
+
+    # Check x_raw content
+    assert np.array_equal(out.x_raw, x_raw), "x_raw content not right"
+
+    # Check y_raw content
+    assert np.array_equal(out.y_raw, y_raw), "y_raw content not right"
+
+    # Check y_bin content
+    assert np.array_equal(out.y_bin, y_bin), "y_bin content not right"
+
+    # Check y_best content
+    assert np.array_equal(out.y_best, y_best), "y_best content not right"
+
+    # Check p content
+    assert np.array_equal(out.p, p), "p content not right"
+
+    # Check num_good_algos content
+    assert np.array_equal(out.num_good_algos, num_good_algos), \
+        "num_good_algos content not right"
+
+    # Check beta content
+    assert np.array_equal(out.beta, beta), "beta content not right"
+
+    assert out.s is not None, "s content should be valid"
+
+    # Check s content
+    assert out.s.tolist() == ["string" + str(i) for i in range(10)], \
+        "s content not right"
