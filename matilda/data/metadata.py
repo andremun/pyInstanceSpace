@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from pandas import DataFrame
-from pandas.errors import ParserError
 
 
 @dataclass(frozen=True)
@@ -33,7 +32,7 @@ class Metadata:
 
         Args
         ----------
-        file_contents
+        data
             The content of a csv file containing the metadata.
 
         Returns
@@ -80,18 +79,18 @@ class Metadata:
         """
         raise NotImplementedError
 
-
-
-def from_file(file_path: Path) -> Metadata | None:
-
-
-    try:
-        csv_df = pd.read_csv(file_path)
-    except FileNotFoundError:
-        log("hey the file doesnt exist")
-        return None
-    except ParserError:
-        log("hey, the file isnt a csv")
-        return None
-
-    return Metadata.from_data_frame(csv_df)
+    @staticmethod
+    #not the method, It's a func
+    def from_file(file_path: Path) -> Metadata | None:
+        try:
+            csv_df = pd.read_csv(file_path)
+        except FileNotFoundError:
+            print(f"The file '{file_path}' does not exist.")
+            return None
+        except pd.errors.EmptyDataError:
+            print(f"The file '{file_path}' is empty.")
+            return None
+        except pd.errors.ParserError:
+            print(f"Error: The file '{file_path}' is not a valid CSV file.")
+            return None
+        return Metadata.from_data_frame(csv_df)

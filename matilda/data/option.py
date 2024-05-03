@@ -161,7 +161,7 @@ class Options:
     general: GeneralOptions
 
     @staticmethod
-    def from_file(file_contents: dict) -> Options:
+    def from_dict(file_contents: dict) -> Options:
         """Load configuration options from a JSON file into an Options object.
 
         This function reads a JSON file from `filepath`, checks for expected
@@ -171,7 +171,7 @@ class Options:
         Args
         ----------
         file_contents
-            Content of the JSON file with configuration options.
+            Content of the dict with configuration options.
 
         Returns
         -------
@@ -185,10 +185,9 @@ class Options:
         ValueError
             If the JSON file contains undefined fields.
         """
-
         # Validate if the top-level fields match those in the Options class
         options_fields = {f.name for f in fields(Options)}
-        extra_fields = set(opts_dict.keys()) - options_fields
+        extra_fields = set(file_contents.keys()) - options_fields
         if extra_fields:
             raise ValueError(f"Extra fields in JSON are not defined in Options:"
                              f" {extra_fields}")
@@ -196,26 +195,22 @@ class Options:
         # Initialize each part of Options
 
         return Options(
-            parallel=Options._load_dataclass(ParallelOptions, opts_dict["parallel"]),
-            perf=Options._load_dataclass(PerformanceOptions, opts_dict["perf"]),
-            auto=Options._load_dataclass(AutoOptions, opts_dict["auto"]),
-            bound=Options._load_dataclass(BoundOptions, opts_dict["bound"]),
-            norm=Options._load_dataclass(NormOptions, opts_dict["norm"]),
-            selvars=Options._load_dataclass(SelvarsOptions, opts_dict["selvars"]),
-            sifted=Options._load_dataclass(SiftedOptions, opts_dict["sifted"])
-            if "sifted" in opts_dict else None,
-            pilot=Options._load_dataclass(PilotOptions, opts_dict["pilot"])
-            if "pilot" in opts_dict else None,
-            cloister=Options._load_dataclass(CloisterOptions, opts_dict["cloister"])
-            if "cloister" in opts_dict else None,
-            pythia=Options._load_dataclass(PythiaOptions, opts_dict["pythia"])
-            if "pythia" in opts_dict else None,
-            trace=Options._load_dataclass(TraceOptions, opts_dict["trace"])
-            if "trace" in opts_dict else None,
-            outputs=Options._load_dataclass(OutputOptions, opts_dict["outputs"])
-            if "outputs" in opts_dict else None,
-            general=Options._load_dataclass(GeneralOptions, opts_dict["general"])
-            if "general" in opts_dict else None,
+            parallel=Options._load_dataclass(ParallelOptions, file_contents["parallel"]),
+            perf=Options._load_dataclass(PerformanceOptions, file_contents["perf"]),
+            auto=Options._load_dataclass(AutoOptions, file_contents["auto"]),
+            bound=Options._load_dataclass(BoundOptions, file_contents["bound"]),
+            norm=Options._load_dataclass(NormOptions, file_contents["norm"]),
+            selvars=Options._load_dataclass(SelvarsOptions, file_contents["selvars"]),
+            sifted=Options._load_dataclass(SiftedOptions, file_contents["sifted"]),
+            pilot=Options._load_dataclass(PilotOptions, file_contents["pilot"]),
+            cloister=Options._load_dataclass(
+                CloisterOptions,
+                file_contents["cloister"]
+            ),
+            pythia=Options._load_dataclass(PythiaOptions, file_contents["pythia"]),
+            trace=Options._load_dataclass(TraceOptions, file_contents["trace"]),
+            outputs=Options._load_dataclass(OutputOptions, file_contents["outputs"]),
+            general=Options._load_dataclass(GeneralOptions, file_contents["general"]),
         )
 
     def to_file(self: Self, filepath: Path) -> None:
@@ -282,5 +277,26 @@ class Options:
         init_args = {f.name: data.get(f.name, None) for f in fields(data_class)}
         return data_class(**init_args)
 
+    @staticmethod
+    def from_file(file_path: Path) -> Options | None:
+        try:
+            with file_path.open() as o:
+                options_contents = o.read()
+            opts_dict = json.loads(options_contents)
+        except FileNotFoundError:
+            print(f"The file '{file_path}' does not exist.")
+            return None
+        except json.JSONDecodeError:
+            print(f"The file '{file_path}' contains invalid JSON.")
+            return None
+        except OSError as e:
+            print(f"Error: An I/O error occurred while reading the file '{file_path}'.")
+            print(f"Error details: {e!s}")
+            return None
 
-opts_dict = json.loads(file_contents)
+        try:
+            return Options.from_dict(opts_dict)
+        except ValueError as e:
+            print(f"Error: Invalid options data in the file '{file_path}'.")
+            print(f"Error details: {e!s}")
+            return None

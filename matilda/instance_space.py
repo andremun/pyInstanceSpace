@@ -5,7 +5,6 @@ from dataclasses import fields
 from enum import Enum
 from pathlib import Path
 
-from matilda.data import metadata
 from matilda.data.metadata import Metadata
 from matilda.data.model import (
     CloisterOut,
@@ -294,23 +293,20 @@ def instance_space_from_files(
         options from the specified files.
 
     """
-    if not metadata_filepath.is_file():
-        raise FileNotFoundError(f"Please place the metadata.csv in the directory"
-                                f" '{metadata_filepath.parent}'")
     print("-------------------------------------------------------------------------")
     print("-> Loading the data.")
-    with metadata_filepath.open() as f:
-        metadata_contents = f.read()
-    metadata = metadata.from_file(metadata_contents)
 
-    if not options_filepath.is_file():
-        raise FileNotFoundError(f"Please place the options.json in the directory '"
-                                f"{options_filepath.parent}'")
-    with options_filepath.open() as o:
-        options_contents = o.read()
-    options = Options.from_file(options_contents)
+    metadata = Metadata.from_file(metadata_filepath)
+
+    if metadata is None:
+        #log something
+        exit(1)
+
     print("-------------------------------------------------------------------------")
     print("-> Listing options to be used:")
+
+    options = Options.from_file(options_filepath)
+
     for field_name in fields(Options):
         field_value = getattr(options, field_name.name)
         print(f"{field_name.name}: {field_value}")
@@ -333,6 +329,10 @@ def instance_space_from_directory(directory: Path) -> InstanceSpace:
     """
     metadata = Metadata.from_file(directory / "metadata.csv")
 
-    options = Options.from_file()
+    options = Options.from_file(directory / "options.json")
 
     return InstanceSpace(metadata, options)
+
+if __name__ == "__main__":
+    metadata_filepath = Path()
+    #instance_space_from_files(metadata_filepath,options_filepath)
