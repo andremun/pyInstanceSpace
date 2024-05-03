@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from pandas import DataFrame
+from pandas.errors import ParserError
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,9 @@ def from_file(file_path: Path) -> Metadata | None:
         csv_df = pd.read_csv(file_path)
     except FileNotFoundError:
         log("hey the file doesnt exist")
+        return None
+    except ParserError:
+        log("hey, the file isnt a csv")
         return None
 
     return Metadata.from_data_frame(csv_df)
