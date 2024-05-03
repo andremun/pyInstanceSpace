@@ -163,11 +163,11 @@ def prelim(
 def bound(x: NDArray[np.double]) -> tuple[NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double]]:
     """Remove extreme outliers from the feature values."""
     print("-> Removing extreme outliers from the feature values.")
-    med_val = np.nanmedian(x, axis=0)
+    med_val = np.median(x, axis=0)
 
-    # iq_range = stats.iqr(x, axis=0)
-    # iq_range = np.percentile(x, 75, axis=0) - np.percentile(x, 25, axis=0)
-    iq_range = np.array([0.022123737,0.131631199,0.1723483295,0.1801352925,1.689832909,0.4533861915,0.7827391025,0.1691318605,0.277548533,0.1804272135])
+    print(x.shape)
+
+    iq_range = stats.iqr(x, axis=0, interpolation="midpoint")
 
     hi_bound = med_val + 5 * iq_range
     lo_bound = med_val - 5 * iq_range
@@ -198,7 +198,7 @@ def normalise(x: NDArray[np.double], y: NDArray[np.double]) -> tuple[NDArray[np.
         aux = x[:, i]
         idx = np.isnan(aux)
         aux, lambda_x[i] = stats.boxcox(aux[~idx])
-        print('aux', aux)
+        # print('aux', aux)
         aux = stats.zscore(aux)
         mu_x[i] = np.mean(aux)
         sigma_x[i] = np.std(aux)
@@ -223,8 +223,8 @@ def normalise(x: NDArray[np.double], y: NDArray[np.double]) -> tuple[NDArray[np.
 
 def main() -> None:
     """Run Prelim main function."""
-    x = pd.read_csv(script_dir / "prelim/input/model-data-x.csv").to_numpy()
-    y = pd.read_csv(script_dir / "prelim/input/model-data-y.csv").to_numpy()
+    x = pd.read_csv(script_dir / "prelim/input/model-data-x.csv", header=None).to_numpy()
+    y = pd.read_csv(script_dir / "prelim/input/model-data-y.csv", header=None).to_numpy()
 
     opts = PrelimOptions(
         abs_perf=1,
@@ -235,9 +235,9 @@ def main() -> None:
         norm=1,
     )
 
-    data, prelim_out = prelim(x, y, opts)
-    print(data)
-    print(prelim_out)
+    data, prelim_out, x_after_bound = prelim(x, y, opts)
+    # print(data)
+    # print(prelim_out)
 
 if __name__ == "__main__":
     main()
