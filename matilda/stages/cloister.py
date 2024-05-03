@@ -175,7 +175,7 @@ class Cloister:
             )
             x_edge[i, :] = x_bnds.T.flatten()[ind]
             for j in range(self.nfeats):
-                for k in range(self.nfeats):
+                for k in range(j + 1, self.nfeats):
                     if (
                         (rho[j, k] > self.opts.c_thres
                         and np.sign(x_edge[i, j]) != np.sign(x_edge[i, k]))
