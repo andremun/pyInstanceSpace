@@ -165,8 +165,6 @@ def bound(x: NDArray[np.double]) -> tuple[NDArray[np.double], NDArray[np.double]
     print("-> Removing extreme outliers from the feature values.")
     med_val = np.median(x, axis=0)
 
-    print(x.shape)
-
     iq_range = stats.iqr(x, axis=0, interpolation="midpoint")
 
     hi_bound = med_val + 5 * iq_range
