@@ -5,12 +5,13 @@ These classes define types for problem instances found in the metadata.csv file.
 
 from __future__ import annotations
 
-import io
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from pandas import DataFrame
 
 
 @dataclass(frozen=True)
@@ -26,7 +27,7 @@ class Metadata:
     algorithms: NDArray[np.double]
 
     @staticmethod
-    def from_file(file_contents: str) -> Metadata:
+    def from_data_frame(data: DataFrame) -> Metadata:
         """Parse metadata from a file, and construct a Metadata object.
 
         Args
@@ -39,25 +40,23 @@ class Metadata:
         Metadata
             A Metadata object.
         """
-        csv_df = pd.read_csv(io.StringIO(file_contents))
-
-        var_labels = csv_df.columns
+        var_labels = data.columns
         is_name = var_labels.str.lower() == "instances"
         is_feat = var_labels.str.lower().str.startswith("feature_")
         is_algo = var_labels.str.lower().str.startswith("algo_")
         is_source = var_labels.str.lower() == "source"
 
-        instance_labels = csv_df.loc[:, is_name].squeeze()
+        instance_labels = data.loc[:, is_name].squeeze()
 
         if pd.api.types.is_numeric_dtype(instance_labels):
             instance_labels = instance_labels.astype(str)
 
         source_column = None
         if is_source.any():
-            source_column = csv_df.loc[:, is_source].squeeze()
+            source_column = data.loc[:, is_source].squeeze()
 
-        features_raw = csv_df.loc[:, is_feat]
-        algo_raw = csv_df.loc[:, is_algo]
+        features_raw = data.loc[:, is_feat]
+        algo_raw = data.loc[:, is_algo]
 
         feature_names = features_raw.columns.tolist()
         algorithm_names = algo_raw.columns.tolist()
@@ -79,3 +78,16 @@ class Metadata:
         The metadata object serialised into a string.
         """
         raise NotImplementedError
+
+
+
+def from_file(file_path: Path) -> Metadata | None:
+
+
+    try:
+        csv_df = pd.read_csv(file_path)
+    except FileNotFoundError:
+        log("hey the file doesnt exist")
+        return None
+
+    return Metadata.from_data_frame(csv_df)
