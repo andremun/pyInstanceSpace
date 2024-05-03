@@ -161,6 +161,10 @@ class Cloister:
             BoundaryResult: Contains the coordinates of boundary edges and indicators
             for which should be removed.
         """
+        # if no feature selection. then make a note in the boundary construction
+        # that it won't work, because nfeats is so large that decimal to binary matrix
+        # conversion wont be able to make a matrix.
+
         x_bnds = np.array([np.min(self.x, axis=0), np.max(self.x, axis=0)])
         idx = self.decimal_to_binary_matrix()
         ncomb = idx.shape[0]
@@ -176,6 +180,7 @@ class Cloister:
             x_edge[i, :] = x_bnds.T.flatten()[ind]
             for j in range(self.nfeats):
                 for k in range(j + 1, self.nfeats):
+                    # Check for valid points give the correlation trend
                     if (
                         (rho[j, k] > self.opts.c_thres
                         and np.sign(x_edge[i, j]) != np.sign(x_edge[i, k]))
