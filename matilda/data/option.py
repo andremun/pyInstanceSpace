@@ -146,22 +146,22 @@ class GeneralOptions:
 class Options:
     """Aggregates all options into a single configuration object for the model."""
 
-    parallel: ParallelOptions | None
-    perf: PerformanceOptions | None
-    auto: AutoOptions | None
-    bound: BoundOptions | None
-    norm: NormOptions | None
-    selvars: SelvarsOptions | None
-    sifted: SiftedOptions | None
-    pilot: PilotOptions | None
-    cloister: CloisterOptions | None
-    pythia: PythiaOptions | None
-    trace: TraceOptions | None
-    outputs: OutputOptions | None
-    general: GeneralOptions | None
+    parallel: ParallelOptions
+    perf: PerformanceOptions
+    auto: AutoOptions
+    bound: BoundOptions
+    norm: NormOptions
+    selvars: SelvarsOptions
+    sifted: SiftedOptions
+    pilot: PilotOptions
+    cloister: CloisterOptions
+    pythia: PythiaOptions
+    trace: TraceOptions
+    outputs: OutputOptions
+    general: GeneralOptions
 
     @staticmethod
-    def from_file(file_contents: str) -> Options:
+    def from_file(file_contents: dict) -> Options:
         """Load configuration options from a JSON file into an Options object.
 
         This function reads a JSON file from `filepath`, checks for expected
@@ -185,7 +185,6 @@ class Options:
         ValueError
             If the JSON file contains undefined fields.
         """
-        opts_dict = json.loads(file_contents)
 
         # Validate if the top-level fields match those in the Options class
         options_fields = {f.name for f in fields(Options)}
@@ -197,18 +196,12 @@ class Options:
         # Initialize each part of Options
 
         return Options(
-            parallel=Options._load_dataclass(ParallelOptions, opts_dict["parallel"])
-            if "parallel" in opts_dict else None,
-            perf=Options._load_dataclass(PerformanceOptions, opts_dict["perf"])
-            if "perf" in opts_dict else None,
-            auto=Options._load_dataclass(AutoOptions, opts_dict["auto"])
-            if "auto" in opts_dict else None,
-            bound=Options._load_dataclass(BoundOptions, opts_dict["bound"])
-            if "bound" in opts_dict else None,
-            norm=Options._load_dataclass(NormOptions, opts_dict["norm"])
-            if "norm" in opts_dict else None,
-            selvars=Options._load_dataclass(SelvarsOptions, opts_dict["selvars"])
-            if "selvars" in opts_dict else None,
+            parallel=Options._load_dataclass(ParallelOptions, opts_dict["parallel"]),
+            perf=Options._load_dataclass(PerformanceOptions, opts_dict["perf"]),
+            auto=Options._load_dataclass(AutoOptions, opts_dict["auto"]),
+            bound=Options._load_dataclass(BoundOptions, opts_dict["bound"]),
+            norm=Options._load_dataclass(NormOptions, opts_dict["norm"]),
+            selvars=Options._load_dataclass(SelvarsOptions, opts_dict["selvars"]),
             sifted=Options._load_dataclass(SiftedOptions, opts_dict["sifted"])
             if "sifted" in opts_dict else None,
             pilot=Options._load_dataclass(PilotOptions, opts_dict["pilot"])
@@ -288,3 +281,6 @@ class Options:
         # return None if can't find the attribute content in the JSON
         init_args = {f.name: data.get(f.name, None) for f in fields(data_class)}
         return data_class(**init_args)
+
+
+opts_dict = json.loads(file_contents)

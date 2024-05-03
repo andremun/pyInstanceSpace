@@ -300,7 +300,7 @@ def instance_space_from_files(
     print("-> Loading the data.")
     with metadata_filepath.open() as f:
         metadata_contents = f.read()
-    metadata = Metadata.from_file(metadata_contents)
+    metadata = metadata.from_file(metadata_contents)
 
     if not options_filepath.is_file():
         raise FileNotFoundError(f"Please place the options.json in the directory '"
