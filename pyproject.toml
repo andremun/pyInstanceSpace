@@ -32,7 +32,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.poe.tasks]
 format_docstrings = "docconvert -o numpy matilda/ --in-place"
 check_ruff = "ruff check --fix"
-check_mypy = "mypy ."
+check_mypy = "mypy --strict ."
 
 test_ruff = "ruff check --no-fix"
 
