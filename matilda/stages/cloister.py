@@ -9,7 +9,8 @@ a convex hull, providing a boundary estimate for the dataset.
 import numpy as np
 from numpy.typing import NDArray
 
-from matilda.data.model import CloisterOut, Options
+from matilda.data.model import CloisterOut
+from matilda.data.option import Options
 
 
 class Cloister:
