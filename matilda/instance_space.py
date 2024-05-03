@@ -5,6 +5,7 @@ from dataclasses import fields
 from enum import Enum
 from pathlib import Path
 
+from matilda.data import metadata
 from matilda.data.metadata import Metadata
 from matilda.data.model import (
     CloisterOut,
