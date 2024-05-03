@@ -113,19 +113,19 @@ class SelvarsOptions:
     file_idx: str | None
     feats: pd.DataFrame | None
     algos: pd.DataFrame | None
-    type: str | None
+    selvars_type: str | None
     min_distance: float | None
     density_flag: bool
 
     @staticmethod
     def default(
         small_scale_flag: bool = False,
-        small_scale: float = None,
+        small_scale: float = False,
         file_idx_flag: bool = False,
         file_idx: str | None = None,
         feats: pd.DataFrame | None = None,
         algos: pd.DataFrame | None = None,
-        type: str | None = None,
+        selvars_type: str | None = None,
         min_distance: float | None = None,
         density_flag: bool = False,
     ) -> SelvarsOptions:
@@ -137,7 +137,7 @@ class SelvarsOptions:
             file_idx=file_idx,
             feats=feats,
             algos=algos,
-            type=type,
+            selvars_type=selvars_type,
             min_distance=min_distance,
             density_flag=density_flag,
         )
@@ -286,7 +286,7 @@ class GeneralOptions:
 
     @staticmethod
     def default(
-        beta_threshold: float | None = None
+        beta_threshold: float | None = None,
     ) -> GeneralOptions:
         """Instantiate with default values."""
         return GeneralOptions(
