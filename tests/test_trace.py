@@ -33,6 +33,7 @@ class TestTraceFunction(unittest.TestCase):
         # Set return values for the mocked functions
         mock_polygon = MagicMock()
         # footprint = Footprint(mock_polygon,0.01,0.02,0.03,0.04,0.05)
+        
         mock_build.return_value = mock_polygon
         mock_contra.return_value = [mock_polygon,mock_polygon]
         mock_summary.return_value = [0.01,0.02,0.03,0.04]
