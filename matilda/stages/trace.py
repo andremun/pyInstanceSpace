@@ -14,7 +14,7 @@ from __future__ import annotations
 import numpy as np
 import time as time
 from numpy.typing import NDArray
-
+import pandas as pd
 from matilda.data.model import Footprint, PolyShape, TraceOut
 from matilda.data.option import TraceOptions
 
@@ -89,54 +89,50 @@ class Trace:
             A structured output containing the results of the TRACE analysis
             including algorithm footprints and performance summaries.
         """
+        # TODO: parallel pool
         trace = Trace(z, y_bin, p, beta, algo_labels, opts)  # noqa: F841
         print("  -> TRACE is calculating the space area and density.")
         ninst = z.shape[0]
         nalgos = y_bin.shape[1]
+        footprint = trace.build(z, np.ones((ninst, 1), dtype=bool), opts)
+        out = TraceOut(space=footprint, good=[], best=[], hard=Trace.throw(), summary=pd.DataFrame())
 
-        out = {}
-        out['space'] = TRACEbuild(z, np.ones((ninst, 1), dtype=bool), opts)
-        print(f"    -> Space area: {out['space'].area} | Space density: {out['space'].density}")
+        print(f"    -> Space area: {out.space.area} | Space density: {out.space.density}")
         
         print("-" * 10)
         print("  -> TRACE is calculating the algorithm footprints.")
     
-        good = [None] * nalgos
-        best = [None] * nalgos
-        out['good'] = good
-        out['best'] = best
-
+        
         print("-" * 10)
         print("  -> TRACE is detecting and removing contradictory sections of the footprints.")
     
         for i in range(nalgos):
             print(f"  -> Base algorithm '{algo_labels[i]}'")
+
         start_base = time.time()
         for j in range(i + 1, nalgos):
             print(f"      -> TRACE is comparing '{algo_labels[i]}' with '{algo_labels[j]}'")
             start_test = time.time()
-            out['best'][i], out['best'][j] = TRACEcontra(out['best'][i], out['best'][j], z, p == i, p == j, opts)
+            out.good[i], out.best[j] = TRACEcontra(out.best[i], out.best[j], z, p == i, p == j, opts)
             print(f"      -> Test algorithm '{algo_labels[j]}' completed. Elapsed time: {time.time() - start_test:.2f}s")
         print(f"  -> Base algorithm '{algo_labels[i]}' completed. Elapsed time: {time.time() - start_base:.2f}s")
 
         print("-" * 10)
         print("  -> TRACE is calculating the beta-footprint.")
-        out['hard'] = TRACEbuild(z, ~beta, opts)
+        out.hard = TRACEbuild(z, ~beta, opts)
 
         print("-" * 10)
         print("  -> TRACE is preparing the summary table.")
-        summary = pd.DataFrame(index=algo_labels, columns=['Area_Good', 'Area_Good_Normalized', 'Density_Good', 'Density_Good_Normalized', 'Purity_Good', 'Area_Best', 'Area_Best_Normalized', 'Density_Best', 'Density_Best_Normalized', 'Purity_Best'])
+        summary = pd.DataFrame(index=algo_labels, columns=['Area_Good', 'Area_Good_Normalized', 'Density_Good', 'Density_Good_Normalized', 'Purity_Good', 'Area_Best', 
+                'Area_Best_Normalized', 'Density_Best', 'Density_Best_Normalized', 'Purity_Best'])
         summary.loc['Total'] = None  # Row for totals or averages if needed
 
         for i in range(nalgos):
-            row = TRACEsummary(out['good'][i], out['space']['area'], out['space']['density']) + TRACEsummary(out['best'][i], out['space']['area'], out['space']['density'])
+            row = summary(out.good[i], out.space.area, out.space.density) + summary(out.best[i], out.space.area, out.space.density)
             summary.iloc[i] = np.round(row, 3)
         
         print("  -> TRACE has completed. Footprint analysis results:")
-        print(summary)
-            # TODO: Rewrite TRACE logic in python
-            #raise NotImplementedError
-
+        return out
 
     """
     % =========================================================================
