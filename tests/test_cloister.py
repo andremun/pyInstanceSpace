@@ -20,6 +20,7 @@ import numpy as np
 
 from matilda.data.option import CloisterOptions
 from matilda.stages.cloister import Cloister
+from tests.utils.option_creator import create_option
 
 script_dir = Path(__file__).parent
 
@@ -29,7 +30,7 @@ csv_path_a = script_dir / "test_data/cloister/input/input_a.csv"
 input_x = np.genfromtxt(csv_path_x, delimiter=",")
 input_a = np.genfromtxt(csv_path_a, delimiter=",")
 
-default_option = CloisterOptions(p_val=0.05, c_thres=0.7)
+default_option = create_option(cloister=CloisterOptions(p_val=0.05, c_thres=0.7))
 
 
 def test_correlation_calculation() -> None:
@@ -55,7 +56,7 @@ def test_correlation_calculation_boundary() -> None:
     csv_path_rho = script_dir / "test_data/cloister/output/rho_zero_pval.csv"
     rho_matlab = np.genfromtxt(csv_path_rho, delimiter=",")
 
-    option = CloisterOptions(p_val=0, c_thres=0.7)
+    option = create_option(cloister=CloisterOptions(p_val=0, c_thres=0.7))
     cloister = Cloister(input_x, input_a, option)
     rho = cloister.compute_correlation()
 

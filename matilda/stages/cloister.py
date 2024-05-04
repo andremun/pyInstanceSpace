@@ -12,7 +12,7 @@ from scipy.spatial import ConvexHull, QhullError
 from scipy.stats import pearsonr
 
 from matilda.data.model import BoundaryResult, CloisterOut
-from matilda.data.option import CloisterOptions
+from matilda.data.option import CloisterOptions, Options
 
 
 class Cloister:
@@ -27,7 +27,7 @@ class Cloister:
         self,
         x: NDArray[np.double],
         a: NDArray[np.double],
-        opts: CloisterOptions,
+        opts: Options,
     ) -> None:
         """Initialize the Cloister stage.
 
@@ -39,14 +39,14 @@ class Cloister:
         """
         self.x = x
         self.a = a
-        self.opts = opts
+        self.opts = opts.cloister
         self.nfeats = x.shape[1]
 
     @staticmethod
     def run(
         x: NDArray[np.double],
         a: NDArray[np.double],
-        opts: CloisterOptions,
+        opts: Options,
     ) -> CloisterOut:
         """Estimate a boundary for the space using correlation.
 

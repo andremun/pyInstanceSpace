@@ -196,7 +196,7 @@ class InstanceSpace:
         self._cloister_out = Cloister.run(
             self._data.x,
             self._pilot_out.a,
-            self._options.cloister,
+            self._options,
         )
 
         return self._cloister_out
