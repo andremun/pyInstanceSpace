@@ -17,8 +17,7 @@ from numpy.typing import NDArray
 import pandas as pd
 from matilda.data.model import Footprint, PolyShape, TraceOut
 from matilda.data.option import TraceOptions
-
-
+import warnings
 class Trace:
     """See file docstring."""
 
@@ -90,14 +89,19 @@ class Trace:
             including algorithm footprints and performance summaries.
         """
         # TODO: parallel pool
+        warnings.filterwarnings("ignore")
+
         trace = Trace(z, y_bin, p, beta, algo_labels, opts)  # noqa: F841
         print("  -> TRACE is calculating the space area and density.")
         ninst = z.shape[0]
         nalgos = y_bin.shape[1]
-        footprint = trace.build(z, np.ones((ninst, 1), dtype=bool), opts)
-        out = TraceOut(space=footprint, good=[], best=[], hard=Trace.throw(), summary=pd.DataFrame())
+        space = trace.build(z, np.ones((ninst, 1), dtype=bool), opts)
+        
+        good=[None]*len(algo_labels)
+        best=[None]*len(algo_labels)
+        summary=pd.DataFrame()
 
-        print(f"    -> Space area: {out.space.area} | Space density: {out.space.density}")
+        print(f"    -> Space area: {space.area} | Space density: {space.density}")
         
         print("-" * 10)
         print("  -> TRACE is calculating the algorithm footprints.")
@@ -109,28 +113,41 @@ class Trace:
         for i in range(nalgos):
             print(f"  -> Base algorithm '{algo_labels[i]}'")
 
-        start_base = time.time()
-        for j in range(i + 1, nalgos):
-            print(f"      -> TRACE is comparing '{algo_labels[i]}' with '{algo_labels[j]}'")
-            start_test = time.time()
-            out.good[i], out.best[j] = TRACEcontra(out.best[i], out.best[j], z, p == i, p == j, opts)
-            print(f"      -> Test algorithm '{algo_labels[j]}' completed. Elapsed time: {time.time() - start_test:.2f}s")
+            start_base = time.time()
+            for j in range(i + 1, nalgos):
+                print(f"      -> TRACE is comparing '{algo_labels[i]}' with '{algo_labels[j]}'")
+
+                start_test = time.time()
+                good[i], best[j] = trace.contra(best[i], best[j], z, p == i, p == j, opts)
+                print(f"      -> Test algorithm '{algo_labels[j]}' completed. Elapsed time: {time.time() - start_test:.2f}s")
         print(f"  -> Base algorithm '{algo_labels[i]}' completed. Elapsed time: {time.time() - start_base:.2f}s")
 
         print("-" * 10)
         print("  -> TRACE is calculating the beta-footprint.")
-        out.hard = TRACEbuild(z, ~beta, opts)
+        hard = trace.build(z, np.logical_not(beta), opts)
 
         print("-" * 10)
         print("  -> TRACE is preparing the summary table.")
-        summary = pd.DataFrame(index=algo_labels, columns=['Area_Good', 'Area_Good_Normalized', 'Density_Good', 'Density_Good_Normalized', 'Purity_Good', 'Area_Best', 
-                'Area_Best_Normalized', 'Density_Best', 'Density_Best_Normalized', 'Purity_Best'])
-        summary.loc['Total'] = None  # Row for totals or averages if needed
+
+        summary_columns=['','Area_Good', 'Area_Good_Normalized', 
+                        'Density_Good', 'Density_Good_Normalized', 'Purity_Good', 'Area_Best', 
+                        'Area_Best_Normalized', 'Density_Best', 'Density_Best_Normalized', 'Purity_Best']
+        summary = pd.DataFrame(index=algo_labels, columns=summary_columns)
 
         for i in range(nalgos):
-            row = summary(out.good[i], out.space.area, out.space.density) + summary(out.best[i], out.space.area, out.space.density)
-            summary.iloc[i] = np.round(row, 3)
+            summary_good = Trace.summary(good[i], space.area, space.density)
+            summary_best = Trace.summary(best[i], space.area, space.density)
+
+            # Concatenate summaries for good and best performance
+            row_data =  [algo_labels[i]] + summary_good + summary_best    
+            row = pd.DataFrame([row_data],columns=summary_columns)
+
+            row = row.round(3)
+            summary = pd.concat([summary, row]).dropna()
+
+        summary.set_index('',inplace=True)
         
+        out = TraceOut(space,good,best,hard,summary)
         print("  -> TRACE has completed. Footprint analysis results:")
         return out
 
@@ -160,8 +177,8 @@ class Trace:
         Footprint: A footprint structure containing polygons, area, density, and purity.
         """
         # TODO: Rewrite TRACEbuild logic in python
-        raise NotImplementedError
-
+        # raise NotImplementedError
+        pass
 
     def contra(
         self,
@@ -194,7 +211,8 @@ class Trace:
         """
         # not sure whether the returned value is tuple or list, needs further decision
         # TODO: Rewrite TRACEcontra logic in python
-        raise NotImplementedError
+        # raise NotImplementedError
+        pass
 
 
     def tight(
@@ -220,7 +238,8 @@ class Trace:
             Not pretty sure the meaning
         """
         # TODO: Rewrite TRACEtight logic in python
-        raise NotImplementedError
+        # raise NotImplementedError
+        pass
 
 
     # note that for polydata, it is  highly probably a 2 dimensional array
@@ -247,7 +266,8 @@ class Trace:
             Not pretty sure the meaning.
         """
         # TODO: Rewrite TRACEfitpoly logic in python
-        raise NotImplementedError
+        # raise NotImplementedError
+        pass
 
 
     def summary(
@@ -274,7 +294,8 @@ class Trace:
             such as its area, normalized area, density, normalized density, and purity.
         """
         # TODO: Rewrite TRACEsummary logic in python
-        raise NotImplementedError
+        # raise NotImplementedError
+        pass
 
 
     def throw(
@@ -289,7 +310,8 @@ class Trace:
             indicating an insufficient data scenario.
         """
         # TODO: Rewrite TRACEthrow logic in python
-        raise NotImplementedError
+        # raise NotImplementedError
+        pass
 
 
     def dbscan(
@@ -320,7 +342,8 @@ class Trace:
         """
         # TODO: Rewrite dbscan logic in python
 
-        raise NotImplementedError
+        # raise NotImplementedError
+        pass
 
 
     def epsilon(
@@ -344,7 +367,8 @@ class Trace:
             The estimated optimal epsilon value for the given data set and `k`.
         """
         # TODO: Rewrite epsilon logic in python
-        raise NotImplementedError
+        # raise NotImplementedError
+        pass
 
 
     def dist(
@@ -367,4 +391,5 @@ class Trace:
             Euclidean distance (m,1).
         """
         # TODO: Rewrite dist logic in python
-        raise NotImplementedError
+        #raise NotImplementedError
+        pass
