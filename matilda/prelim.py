@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from scipy import stats
+from scipy import optimize, stats
 
 from matilda.data.model import Data, PrelimOut
 from matilda.data.option import PrelimOptions
@@ -192,15 +192,38 @@ def normalise(x: NDArray[np.double], y: NDArray[np.double]) -> tuple[NDArray[np.
     mu_x = np.zeros(nfeats)
     sigma_x = np.zeros(nfeats)
 
+    ### To be deleted
+    out_path = script_dir / "prelim/output/"
+    np.savetxt(out_path / "norm_pre_x.csv", x, delimiter=",")
+    boxcox_aux = np.zeros_like(x)
+    zscore_aux = np.zeros_like(x)
+    ###
+
     for i in range(nfeats):
         aux = x[:, i]
         idx = np.isnan(aux)
-        aux, lambda_x[i] = stats.boxcox(aux[~idx])
+
+        # aux, lambda_x[i] = stats.boxcox(aux[~idx])
+        aux, lambda_x[i] = boxcox_fmin(aux[~idx])
+
+        boxcox_aux[:, i] = aux # TODO delete later
         # print('aux', aux)
-        aux = stats.zscore(aux)
+        # print(aux.shape)
+
         mu_x[i] = np.mean(aux)
-        sigma_x[i] = np.std(aux)
+        sigma_x[i] = np.std(aux, ddof=1)
+        aux = stats.zscore(aux, ddof=1)
+
+        zscore_aux[:, i] = aux #TODO delete later
+
         x[~idx, i] = aux
+
+    np.savetxt(out_path / "norm_boxcox_lambdaX.csv", [lambda_x], delimiter=",")
+    np.savetxt(out_path / "norm_post_x.csv", x, delimiter=",")
+    np.savetxt(out_path / "norm_boxcox_auxX.csv", boxcox_aux, delimiter=",")
+    np.savetxt(out_path / "norm_zscore_auxX.csv", zscore_aux, delimiter=",")
+    np.savetxt(out_path / "norm_muX.csv", [mu_x], delimiter=",")
+    np.savetxt(out_path / "norm_sigmaX.csv", [sigma_x], delimiter=",")
 
     min_y = np.min(y)
     y = (y - min_y) + np.finfo(float).eps
@@ -208,16 +231,65 @@ def normalise(x: NDArray[np.double], y: NDArray[np.double]) -> tuple[NDArray[np.
     mu_y = np.zeros(nalgos)
     sigma_y = np.zeros(nalgos)
 
+    ### To be deleted
+    np.savetxt(out_path / "norm_pre_y.csv", y, delimiter=",")
+    boxcox_aux_y = np.zeros_like(y)
+    zscore_aux_y = np.zeros_like(y)
+    ###
+
     for i in range(nalgos):
         aux = y[:, i]
         idx = np.isnan(aux)
-        aux, lambda_y[i] = stats.boxcox(aux[~idx])
-        aux = stats.zscore(aux)
+
+        # aux, lambda_y[i] = stats.boxcox(aux[~idx])
+        aux, lambda_y[i] = boxcox_fmin(aux[~idx])
+
+        boxcox_aux_y[:, i] = aux #TODO delete later
+
         mu_y[i] = np.mean(aux)
-        sigma_y[i] = np.std(aux)
+        sigma_y[i] = np.std(aux, ddof=1)
+        aux = stats.zscore(aux, ddof=1)
+
+        zscore_aux_y[:, i] = aux #TODO delete later
+
         y[~idx, i] = aux
 
+    np.savetxt(out_path / "norm_boxcox_lambdaY.csv", [lambda_y], delimiter=",")
+    np.savetxt(out_path / "norm_post_y.csv", y, delimiter=",")
+    np.savetxt(out_path / "norm_boxcox_auxY.csv", boxcox_aux_y, delimiter=",")
+    np.savetxt(out_path / "norm_zscore_auxY.csv", zscore_aux_y, delimiter=",")
+    np.savetxt(out_path / "norm_muY.csv", [mu_y], delimiter=",")
+    np.savetxt(out_path / "norm_sigmaY.csv", [sigma_y], delimiter=",")
+
     return min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y
+
+def boxcox_fmin(data: NDArray[np.double], lmbda_init: float = 0) -> tuple[NDArray[np.double], float]:
+    """
+    Perform Box-Cox transformation on data using fmin to optimize lambda.
+
+    Args:
+    ----
+    data (ArrayLike): The input data array which must contain only positive values.
+    lmbda_init (float): Initial guess for the lambda parameter.
+
+    Returns:
+    -------
+    tuple[np.ndarray, float]: A tuple containing the transformed data and the optimal lambda value.
+
+    """
+
+    # Function to be minimized (negative log-likelihood)
+    def neg_log_likelihood(lmbda: NDArray[np.double]) -> float:
+        return -stats.boxcox_llf(lmbda, data)
+
+    # Find the lambda that minimizes the negative log-likelihood
+    # We minimize the negative log-likelihood because fmin performs minimization
+    optimal_lambda = optimize.fmin(neg_log_likelihood, lmbda_init, disp=False)
+
+    # Use the optimal lambda to perform the Box-Cox transformation
+    transformed_data = stats.boxcox(data, optimal_lambda)
+
+    return transformed_data, optimal_lambda[0]
 
 def main() -> None:
     """Run Prelim main function."""
