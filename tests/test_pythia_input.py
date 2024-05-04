@@ -19,7 +19,7 @@ CSV_YBEST = 'tests/pythia/test_pythia_input/ybest.csv'
 CSV_ALGO = 'tests/pythia/test_pythia_input/algolabels.csv'
 
 try:
-    z = pd.read_csv(CSV_Z, header=None)
+    z = pd.read_csv(CSV_Z, header=None, dtype=np.float64)
     y = np.loadtxt(CSV_Y, delimiter=',')
     y_bin = np.loadtxt(CSV_YBIN, delimiter=',', skiprows=1)
     y_best = np.loadtxt(CSV_YBEST, delimiter=',')
@@ -50,14 +50,11 @@ def test_input():
 # (roughly). So the normalization of feature vectors prior to feeding them to the SVM is required. 
 def test_znorm_svm_input():
 
-    z_norm_M = pd.read_csv('tests/pythia/test_pythia_input/z_norm.csv', header=None)
+    z_norm_M = pd.read_csv('tests/pythia/test_pythia_input/z_norm.csv', header=None, dtype=np.float64)
 
     res =  pythia(z, y, y_bin, y_best, algolabels, pythia_opts)
 
-    z_norm_P = pd.read_csv('tests/pythia/test_pythia_output/z_norm.csv', header=None)
-
-    z_norm_M = z_norm_M.astype(np.float64)
-    z_norm_P = z_norm_P.astype(np.float64)
+    z_norm_P = pd.read_csv('tests/pythia/test_pythia_output/z_norm.csv', header=None, dtype=np.float64)
 
     # assert pd.testing.assert_frame_equal(z_norm_M, z_norm_P, atol=1e-5)
     # Small numerical differences may arise due to how each language handles 
