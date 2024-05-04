@@ -39,10 +39,7 @@ def pythia(
     print("  -> Initializing PYTHIA.")
 
     # Initialise data with its structure that can be used in Pythia.py.
-    z_norm = zscore(z, axis = 0, ddof = 1) # Test Case 1
-    # scaler = StandardScaler()
-    # scaler.fit(z)
-    # z_norm = scaler.transform(z)
+    z_norm = (z-np.mean(z, axis=0))/np.std(z, ddof=1, axis=0)
 
     mu, sigma = np.mean(z, axis=0), np.std(z, axis=0, ddof=1) 
 
@@ -152,46 +149,43 @@ def pythia(
         # pd.DataFrame(fold).to_csv(f'python_cv_indices_{i}.csv', index=False)
 
         # Test input data for svm training
-        pd.DataFrame(z_norm).to_csv('tests/test_pythia_output/z_norm.csv', index=False, header=False)
+        pd.DataFrame(z_norm).to_csv('tests/pythia/test_pythia_output/z_norm.csv',header=None, index=None)
 
         if opts.use_lib_svm:
             svm_res = None #fit_libsvm(z_norm, y_b, cp[i], kernel_fcn, params[i])
         else:
-            svm[i], 
-            y_sub[i], pro_sub[i],
-            y_hat[i], pro_hat[i],
-            box_const[i], k_scale[i] = fit_mat_svm(z_norm, y_b, w[:, i], cp[i], kernel_fcn, params[i])
+            svm_res = None #fit_mat_svm(z_norm, y_b, w[:, i], cp[i], kernel_fcn, params[i])
 
-        aux = confusion_matrix(y_b, y_sub[i])
-        print("------------aux-----------")
-        print(aux)
+    #     aux = confusion_matrix(y_b, y_sub[i])
+    #     print("------------aux-----------")
+    #     print(aux)
 
-        if np.prod(aux.shape) != 4:
-            caux = aux
-            aux = np.zeros((2, 2))
+    #     if np.prod(aux.shape) != 4:
+    #         caux = aux
+    #         aux = np.zeros((2, 2))
     
-            if np.all(y_b == 0):
-                if np.all(y_sub[:, i] == 0):
-                    aux[0, 0] = caux
-                elif np.all(y_sub[:, i] == 1):
-                    aux[1, 0] = caux
+    #         if np.all(y_b == 0):
+    #             if np.all(y_sub[:, i] == 0):
+    #                 aux[0, 0] = caux
+    #             elif np.all(y_sub[:, i] == 1):
+    #                 aux[1, 0] = caux
 
-            elif np.all(y_b == 1):
-                if np.all(y_sub[:, i] == 0):
-                    aux[0, 1] = caux
-                elif np.all(y_sub[:, i] == 1):
-                    aux[1, 1] = caux
+    #         elif np.all(y_b == 1):
+    #             if np.all(y_sub[:, i] == 0):
+    #                 aux[0, 1] = caux
+    #             elif np.all(y_sub[:, i] == 1):
+    #                 aux[1, 1] = caux
 
-        cvcmat[:, i] = aux.flatten()
-        models_left = nalgos - (i + 1)
-        print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are {models_left} models left to train.")
+    #     cvcmat[:, i] = aux.flatten()
+    #     models_left = nalgos - (i + 1)
+    #     print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are {models_left} models left to train.")
 
-        print(f"      -> Elapsed time: {t_inner.tocvalue():.2f}s")
+    #     print(f"      -> Elapsed time: {t_inner.tocvalue():.2f}s")
     
-    tn, fp, fn, tp = cvcmat[:, 0], cvcmat[:, 1], cvcmat[:, 2], cvcmat[:, 3]
-    precision = tp / (tp + fp)
-    recall = tp / (tp + fn)
-    accuracy = (tp + tn) / ninst
+    # tn, fp, fn, tp = cvcmat[:, 0], cvcmat[:, 1], cvcmat[:, 2], cvcmat[:, 3]
+    # precision = tp / (tp + fp)
+    # recall = tp / (tp + fn)
+    # accuracy = (tp + tn) / ninst
 
     # print(f"Total elapsed time: {t.tocvalue():.2f}s")
     # print("-------------------------------------------------------------------------")
@@ -351,7 +345,7 @@ def fit_mat_svm(
 
         # OPT1: 
         # Fit a probability calibration model with trained SVM
-        grid_search.fit(z, y_bin, sample_weight=w)   # Fit GridSearchCV
+        grid_search.fit(z, y_bin)   # Fit GridSearchCV
         best_svm = grid_search.best_estimator_
         # With cv='prefit' and default method is method='sigmoid'
         calibrator = CalibratedClassifierCV(best_svm, cv='prefit', method='sigmoid')

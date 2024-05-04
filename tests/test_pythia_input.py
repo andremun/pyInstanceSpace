@@ -12,14 +12,14 @@ pythia_opts = PythiaOptions(
     use_lib_svm=False
 )
 
-CSV_Z = 'tests/test_pythia_input/z.csv'
-CSV_Y = 'tests/test_pythia_input/y.csv'
-CSV_YBIN = 'tests/test_pythia_input/ybin.csv'
-CSV_YBEST = 'tests/test_pythia_input/ybest.csv'
-CSV_ALGO = 'tests/test_pythia_input/algolabels.csv'
+CSV_Z = 'tests/pythia/test_pythia_input/z.csv'
+CSV_Y = 'tests/pythia/test_pythia_input/y.csv'
+CSV_YBIN = 'tests/pythia/test_pythia_input/ybin.csv'
+CSV_YBEST = 'tests/pythia/test_pythia_input/ybest.csv'
+CSV_ALGO = 'tests/pythia/test_pythia_input/algolabels.csv'
 
 try:
-    z = pd.read_csv(CSV_Z)
+    z = pd.read_csv(CSV_Z, header=None)
     y = np.loadtxt(CSV_Y, delimiter=',')
     y_bin = np.loadtxt(CSV_YBIN, delimiter=',', skiprows=1)
     y_best = np.loadtxt(CSV_YBEST, delimiter=',')
@@ -50,22 +50,21 @@ def test_input():
 # (roughly). So the normalization of feature vectors prior to feeding them to the SVM is required. 
 def test_znorm_svm_input():
 
-    z_norm_M = pd.read_csv('tests/test_pythia_input/z_norm.csv')
+    z_norm_M = pd.read_csv('tests/pythia/test_pythia_input/z_norm.csv', header=None)
 
     res =  pythia(z, y, y_bin, y_best, algolabels, pythia_opts)
 
-    z_norm_P = pd.read_csv('tests/test_pythia_output/z_norm.csv')
+    z_norm_P = pd.read_csv('tests/pythia/test_pythia_output/z_norm.csv', header=None)
 
-    z_norm_M = z_norm_M.astype(float)
-    z_norm_P = z_norm_P.astype(float)
+    z_norm_M = z_norm_M.astype(np.float64)
+    z_norm_P = z_norm_P.astype(np.float64)
 
     # assert pd.testing.assert_frame_equal(z_norm_M, z_norm_P, atol=1e-5)
     # Small numerical differences may arise due to how each language handles 
     # floating-point arithmetic. atol is appropriate tolerance
 
-    # atol=1e-4 will pass!
-    difference = np.isclose(z_norm_M.values, z_norm_P.values, atol=1e-4)
-    # assert difference.all(), f"Mismatch found in elements: {np.where(~difference)}"
+    difference = np.isclose(z_norm_M.values, z_norm_P.values, atol=1e-7)
+    assert difference.all(), f"Mismatch found in elements: {np.where(~difference)}"
 
     
 
