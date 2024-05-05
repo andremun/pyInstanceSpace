@@ -14,6 +14,7 @@ from __future__ import annotations
 # Standard library imports
 import time
 import warnings
+from typing import List, Optional
 
 # Third-party imports
 import numpy as np
@@ -102,17 +103,28 @@ class Trace:
         print("  -> TRACE is calculating the space area and density.")
         ninst = z.shape[0]
         nalgos = y_bin.shape[1]
-        space = trace.build(z, np.ones((ninst, 1), dtype=bool), opts)
 
-        good=[None]*len(algo_labels)
-        best=[None]*len(algo_labels)
+        space = trace.build(z,np.ones((ninst, 1), dtype=bool), opts)
+
+        good = []
+        best = []
         summary=pd.DataFrame()
+        # good: List[Optional[Footprint]] = [None] * len(algo_labels)
+        # best: List[Optional[Footprint]] = [None] * len(algo_labels
 
         print(f"    -> Space area: {space.area} | Space density: {space.density}")
 
         print("-" * 10)
         print("  -> TRACE is calculating the algorithm footprints.")
 
+        for i in range(nalgos):
+            start_time = time.time()
+            print(f"    -> Good performance footprint for '{algo_labels[i]}'")
+            good.append(trace.build(z, y_bin[:, i], opts))
+            print(f"    -> Best performance footprint for '{algo_labels[i]}'")
+            best.append(trace.build(z, p == i, opts))
+            elapsed_time = time.time() - start_time
+            print(f"    -> Algorithm '{algo_labels[i]}' completed. Elapsed time: {elapsed_time:.2f}s")
 
         print("-" * 10)
         print("  -> TRACE is detecting and removing contradictory " +
@@ -122,11 +134,10 @@ class Trace:
             start_base = time.time()
             for j in range(i + 1, nalgos):
                 print(f"      -> TRACE is comparing '{algo_labels[i]}'" +
-                " with '{algo_labels[j]}'")
+                    f" with '{algo_labels[j]}'")
 
                 start_test = time.time()
-                good[i], best[j] = trace.contra(best[i], best[j],
-                                                z, p == i, p == j, opts)
+                [good[i], best[j]] = trace.contra(best[i], best[j], p == i, p == j)
                 print(f"      -> Test algorithm '{algo_labels[j]}'"+
                       f" completed. Elapsed time: {time.time() - start_test:.2f}s")
         elapsed_time = time.time() - start_base
@@ -135,7 +146,7 @@ class Trace:
 
         print("-" * 10)
         print("  -> TRACE is calculating the beta-footprint.")
-        hard = trace.build(z, np.logical_not(beta), opts)
+        hard = trace.build(z,np.logical_not(beta), opts)
 
         print("-" * 10)
         print("  -> TRACE is preparing the summary table.")
@@ -147,8 +158,10 @@ class Trace:
         summary = pd.DataFrame(index=algo_labels, columns=summary_columns)
 
         for i in range(nalgos):
-            summary_good = Trace.summary(good[i], space.area, space.density)
-            summary_best = Trace.summary(best[i], space.area, space.density)
+            summary_good = Trace.summary(footprint=good[i], space_area=space.area,
+                                         space_density=space.density)
+            summary_best = Trace.summary(footprint=best[i], space_area=space.area,
+                                         space_density=space.density)
 
             # Concatenate summaries for good and best performance
             row_data =  [algo_labels[i], *summary_good, *summary_best]
@@ -172,10 +185,13 @@ class Trace:
 
     def build(
         self,
+        z,
+        y_bin,
+        opts,
     ) -> Footprint:
         """Build footprints for good or best performance of algorithms.
 
-        Parameters
+        Args
         ----------
         z: NDArray[np.double]
             The space of instances.
@@ -190,7 +206,8 @@ class Trace:
         """
         # TODO: Rewrite TRACEbuild logic in python
         # raise NotImplementedError
-        pass
+        # Temporary return statement
+        return self.throw()
 
     def contra(
         self,
