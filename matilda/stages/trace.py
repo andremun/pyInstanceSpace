@@ -11,13 +11,20 @@ For more details, please read the original Matlab code and liveDemo.
 # constructors.
 from __future__ import annotations
 
+# Standard library imports
+import time
+import warnings
+
+# Third-party imports
 import numpy as np
-import time as time
-from numpy.typing import NDArray
 import pandas as pd
+from numpy.typing import NDArray
+
+# Local application/library specific imports
 from matilda.data.model import Footprint, PolyShape, TraceOut
 from matilda.data.option import TraceOptions
-import warnings
+
+
 class Trace:
     """See file docstring."""
 
@@ -91,36 +98,40 @@ class Trace:
         # TODO: parallel pool
         warnings.filterwarnings("ignore")
 
-        trace = Trace(z, y_bin, p, beta, algo_labels, opts)  # noqa: F841
+        trace = Trace(z, y_bin, p, beta, algo_labels, opts)
         print("  -> TRACE is calculating the space area and density.")
         ninst = z.shape[0]
         nalgos = y_bin.shape[1]
         space = trace.build(z, np.ones((ninst, 1), dtype=bool), opts)
-        
+
         good=[None]*len(algo_labels)
         best=[None]*len(algo_labels)
         summary=pd.DataFrame()
 
         print(f"    -> Space area: {space.area} | Space density: {space.density}")
-        
+
         print("-" * 10)
         print("  -> TRACE is calculating the algorithm footprints.")
-    
-        
+
+
         print("-" * 10)
-        print("  -> TRACE is detecting and removing contradictory sections of the footprints.")
-    
+        print("  -> TRACE is detecting and removing contradictory " +
+              "sections of the footprints.")
         for i in range(nalgos):
             print(f"  -> Base algorithm '{algo_labels[i]}'")
-
             start_base = time.time()
             for j in range(i + 1, nalgos):
-                print(f"      -> TRACE is comparing '{algo_labels[i]}' with '{algo_labels[j]}'")
+                print(f"      -> TRACE is comparing '{algo_labels[i]}'" +
+                " with '{algo_labels[j]}'")
 
                 start_test = time.time()
-                good[i], best[j] = trace.contra(best[i], best[j], z, p == i, p == j, opts)
-                print(f"      -> Test algorithm '{algo_labels[j]}' completed. Elapsed time: {time.time() - start_test:.2f}s")
-        print(f"  -> Base algorithm '{algo_labels[i]}' completed. Elapsed time: {time.time() - start_base:.2f}s")
+                good[i], best[j] = trace.contra(best[i], best[j],
+                                                z, p == i, p == j, opts)
+                print(f"      -> Test algorithm '{algo_labels[j]}'"+
+                      f" completed. Elapsed time: {time.time() - start_test:.2f}s")
+        elapsed_time = time.time() - start_base
+        print(f"  -> Base algorithm '{algo_labels[i]}' completed. "
+              f"Elapsed time: {elapsed_time:.2f}s")
 
         print("-" * 10)
         print("  -> TRACE is calculating the beta-footprint.")
@@ -129,9 +140,10 @@ class Trace:
         print("-" * 10)
         print("  -> TRACE is preparing the summary table.")
 
-        summary_columns=['','Area_Good', 'Area_Good_Normalized', 
-                        'Density_Good', 'Density_Good_Normalized', 'Purity_Good', 'Area_Best', 
-                        'Area_Best_Normalized', 'Density_Best', 'Density_Best_Normalized', 'Purity_Best']
+        summary_columns=["","Area_Good", "Area_Good_Normalized",
+                         "Density_Good", "Density_Good_Normalized", "Purity_Good",
+                         "Area_Best","Area_Best_Normalized", "Density_Best",
+                        "Density_Best_Normalized", "Purity_Best"]
         summary = pd.DataFrame(index=algo_labels, columns=summary_columns)
 
         for i in range(nalgos):
@@ -139,14 +151,14 @@ class Trace:
             summary_best = Trace.summary(best[i], space.area, space.density)
 
             # Concatenate summaries for good and best performance
-            row_data =  [algo_labels[i]] + summary_good + summary_best    
+            row_data =  [algo_labels[i], *summary_good, *summary_best]
             row = pd.DataFrame([row_data],columns=summary_columns)
 
             row = row.round(3)
             summary = pd.concat([summary, row]).dropna()
 
-        summary.set_index('',inplace=True)
-        
+        summary.set_index("",inplace=True)
+
         out = TraceOut(space,good,best,hard,summary)
         print("  -> TRACE has completed. Footprint analysis results:")
         return out
