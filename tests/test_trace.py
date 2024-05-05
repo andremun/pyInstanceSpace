@@ -28,7 +28,7 @@ csv_beta = script_dir/'trace/input/Beta.csv'
 csv_algo_labels = script_dir/'trace/input/Algolabels.csv'
 csv_pi = script_dir/'trace/input/Opts_PI.csv'
 csv_usesim = script_dir/'trace/input/Opts_usesim.csv'
-
+csv_summary_with_mock_data = script_dir/'trace/output/summary_with_mock_data.csv'
 class TestTraceRun(unittest.TestCase):
 
     def setUp(self):
@@ -55,5 +55,13 @@ class TestTraceRun(unittest.TestCase):
         
         # Call the trace function
         result = Trace.run(self.z, self.y_bin, self.p, self.beta, self.algo_labels, self.opts)
+        
+        # Index_col is the list of algo_labels which set to unnamed for consistency with matlab format
+        # Summary.csv is the output of the summary function generated with sample options and metadata 
 
+        summary_from_csv = pd.read_csv(csv_summary_with_mock_data, index_col='Unnamed: 0')
+
+        assert result.summary.equals(summary_from_csv), "The DataFrames do not match."
+    
+        #TODO: Add assertions
         
