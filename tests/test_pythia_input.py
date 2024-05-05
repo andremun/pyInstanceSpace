@@ -12,7 +12,7 @@ pythia_opts = PythiaOptions(
     use_lib_svm=False
 )
 
-CSV_Z = 'tests/pythia/test_pythia_input/z.csv'
+CSV_Z = 'tests/pythia/test_pythia_input/z_M.csv'
 CSV_Y = 'tests/pythia/test_pythia_input/y.csv'
 CSV_YBIN = 'tests/pythia/test_pythia_input/ybin.csv'
 CSV_YBEST = 'tests/pythia/test_pythia_input/ybest.csv'
@@ -50,7 +50,7 @@ def test_input():
 # (roughly). So the normalization of feature vectors prior to feeding them to the SVM is required. 
 def test_znorm_svm_input():
 
-    z_norm_M = pd.read_csv('tests/pythia/test_pythia_input/z_norm.csv', header=None, dtype=np.float64)
+    z_norm_M = pd.read_csv('tests/pythia/test_pythia_input/z_norm_M.csv', header=None, dtype=np.float64)
 
     res =  pythia(z, y, y_bin, y_best, algolabels, pythia_opts)
 
@@ -60,7 +60,7 @@ def test_znorm_svm_input():
     # Small numerical differences may arise due to how each language handles 
     # floating-point arithmetic. atol is appropriate tolerance
 
-    difference = np.isclose(z_norm_M.values, z_norm_P.values, atol=1e-7)
+    difference = np.isclose(z_norm_M.values, z_norm_P.values, atol=1e-10)
     assert difference.all(), f"Mismatch found in elements: {np.where(~difference)}"
 
     
