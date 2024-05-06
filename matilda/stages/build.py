@@ -160,8 +160,11 @@ def split_data(idx: NDArray[np.bool_], model: Model) -> None:
     elif fileindexed:
         print("-> Using a subset of instances.")
         subset_index = np.zeros(ninst, dtype=bool)
-        aux = pd.read_csv(model.opts.selvars.file_idx, header=None).values.flatten()
+        aux = np.genfromtxt(model.opts.selvars.file_idx, delimiter=",", dtype=int)
         aux = aux[aux < ninst]
+        # for some reason, the indices perform correctly starting from 1
+        for i in range(len(aux)):
+            aux[i] = aux[i] - 1
         subset_index[aux] = True
     elif bydensity:
         print("-> Creating a small scale experiment for validation based on density.")

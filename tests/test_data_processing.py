@@ -576,6 +576,158 @@ def test_split_fractional() -> None:
 
 def test_split_fileindexed() -> None:
     """Test case for the split data function by using fileindexed option."""
+    # Create options for fileindexed split
+    opts = Options(
+        parallel=ParallelOptions(flag=False, n_cores=2),
+        perf=PerformanceOptions(
+            max_perf=False,
+            abs_perf=True,
+            epsilon=0.20,
+            beta_threshold=0.55,
+        ),
+        auto=AutoOptions(preproc=True),
+        bound=BoundOptions(flag=True),
+        norm=NormOptions(flag=True),
+        selvars=SelvarsOptions(
+            small_scale_flag=False,
+            small_scale=0.50,
+            file_idx_flag=True,
+            file_idx="./fileidx/fileidx.csv",
+            type="Ftr&Good",
+            min_distance=0.1,
+            density_flag=False,
+            feats=pd.DataFrame(),
+            algos=pd.DataFrame(),
+        ),
+        sifted=SiftedOptions(
+            flag=True,
+            rho=0.1,
+            k=10,
+            n_trees=50,
+            max_iter=1000,
+            replicates=100,
+        ),
+        pilot=PilotOptions(analytic=False, n_tries=5),
+        cloister=CloisterOptions(p_val=0.05, c_thres=0.7),
+        pythia=PythiaOptions(
+            cv_folds=5,
+            is_poly_krnl=False,
+            use_weights=False,
+            use_lib_svm=False,
+        ),
+        trace=TraceOptions(use_sim=True, PI=0.55),
+        outputs=OutputOptions(csv=True, web=False, png=True),
+        general=GeneralOptions(beta_threshold=0.55),
+    )
+
+    idx = np.genfromtxt(path_root / "fileidx/idx.txt", delimiter=",")
+
+    x_before = np.genfromtxt(path_root / "fileidx/before/x_split.txt", delimiter=",")
+    y_before = np.genfromtxt(path_root / "fileidx/before/Y_split.txt", delimiter=",")
+    x_raw_before = np.genfromtxt(
+        path_root / "fileidx/before/Xraw_split.txt",
+        delimiter=",",
+    )
+    y_raw_before = np.genfromtxt(
+        path_root / "fileidx/before/Yraw_split.txt",
+        delimiter=",",
+    )
+    y_bin_before = np.genfromtxt(
+        path_root / "fileidx/before/Ybin_split.txt",
+        delimiter=",",
+    )
+    beta_before = np.genfromtxt(
+        path_root / "fileidx/before/beta_split.txt",
+        delimiter=",",
+    )
+    num_good_algos_before = np.genfromtxt(
+        path_root / "fileidx/before/numGoodAlgos_split.txt",
+        delimiter=",",
+    )
+    y_best_before = np.genfromtxt(
+        path_root / "fileidx/before/Ybest_split.txt",
+        delimiter=",",
+    )
+    p_before = np.genfromtxt(path_root / "fileidx/before/P_split.txt", delimiter=",")
+    inst_labels_before = pd.read_csv(
+        path_root / "fileidx/before/instlabels_split.txt",
+        header=None,
+    ).loc[:, 0]
+
+    data = Data(
+        inst_labels=inst_labels_before,
+        feat_labels=None,
+        algo_labels=None,
+        x=x_before,
+        y=y_before,
+        x_raw=x_raw_before,
+        y_raw=y_raw_before,
+        y_bin=y_bin_before,
+        y_best=y_best_before,
+        p=p_before,
+        num_good_algos=num_good_algos_before,
+        beta=beta_before,
+        s=None,
+    )
+
+    model = Model(
+        data=data,
+        opts=opts,
+        feat_sel=None,
+        data_dense=None,
+        prelim=None,
+        sifted=None,
+        pilot=None,
+        cloist=None,
+        pythia=None,
+        trace=None,
+    )
+
+    split_data(idx, model)
+
+    x_after = np.genfromtxt(path_root / "fileidx/after/x_split.txt", delimiter=",")
+    y_after = np.genfromtxt(path_root / "fileidx/after/Y_split.txt", delimiter=",")
+    x_raw_after = np.genfromtxt(
+        path_root / "fileidx/after/Xraw_split.txt",
+        delimiter=",",
+    )
+    y_raw_after = np.genfromtxt(
+        path_root / "fileidx/after/Yraw_split.txt",
+        delimiter=",",
+    )
+    y_bin_after = np.genfromtxt(
+        path_root / "fileidx/after/Ybin_split.txt",
+        delimiter=",",
+    )
+    beta_after = np.genfromtxt(
+        path_root / "fileidx/after/beta_split.txt",
+        delimiter=",",
+    )
+    num_good_algos_after = np.genfromtxt(
+        path_root / "fileidx/after/numGoodAlgos_split.txt",
+        delimiter=",",
+    )
+    y_best_after = np.genfromtxt(
+        path_root / "fileidx/after/Ybest_split.txt",
+        delimiter=",",
+    )
+    p_after = np.genfromtxt(path_root / "fileidx/after/P_split.txt", delimiter=",")
+    inst_labels_after = pd.read_csv(
+        path_root / "fileidx/after/instlabels_split.txt",
+        header=None,
+    ).loc[:, 0]
+
+    assert np.array_equal(model.data.x, x_after)
+    assert np.array_equal(model.data.y, y_after)
+    assert np.array_equal(model.data.x_raw, x_raw_after)
+    assert np.array_equal(model.data.y_raw, y_raw_after)
+    assert np.array_equal(model.data.y_bin, y_bin_after)
+    assert np.array_equal(model.data.beta, beta_after)
+    assert np.array_equal(model.data.num_good_algos, num_good_algos_after)
+    assert np.array_equal(model.data.y_best, y_best_after)
+    assert np.array_equal(model.data.p, p_after)
+    assert np.array_equal(model.data.inst_labels, inst_labels_after)
+    print("Fileindexed tests passed!")
 
 
 def test_split_bydensity() -> None:
@@ -589,3 +741,4 @@ if __name__ == "__main__":
     test_remove_bad_instances_3()
     test_split_data()
     test_split_fractional()
+    test_split_fileindexed()
