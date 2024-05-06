@@ -150,3 +150,7 @@ disallow_untyped_defs = 'True'
 [[tool.mypy.overrides]]
 module = 'sklearn'
 ignore_missing_imports = 'True'
+
+[[tool.mypy.overrides]]
+module = 'sklearn.model_selection'
+ignore_missing_imports = 'True'

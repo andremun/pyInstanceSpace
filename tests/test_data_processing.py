@@ -5,12 +5,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from matilda.build import process_data, remove_bad_instances, split_data
 from matilda.data.model import Data, Model
 from matilda.data.option import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,
+    GeneralOptions,
     NormOptions,
     Options,
     OutputOptions,
@@ -22,6 +22,7 @@ from matilda.data.option import (
     SiftedOptions,
     TraceOptions,
 )
+from matilda.stages.build import process_data, remove_bad_instances, split_data
 
 path_root = Path(__file__).parent
 sys.path.append(str(path_root.parent))
@@ -68,6 +69,7 @@ def create_dummy_opt() -> Options:
         ),
         trace=TraceOptions(use_sim=True, PI=0.55),
         outputs=OutputOptions(csv=True, web=False, png=True),
+        general=GeneralOptions(beta_threshold=0.55),
     )
 
 
@@ -416,9 +418,174 @@ def test_split_data() -> None:
     print("Split data tests passed!")
 
 
+def test_split_fractional() -> None:
+    """Test case for the split data function by using fractional option."""
+    # Create options for fractional split
+    opts = Options(
+        parallel=ParallelOptions(flag=False, n_cores=2),
+        perf=PerformanceOptions(
+            max_perf=False,
+            abs_perf=True,
+            epsilon=0.20,
+            beta_threshold=0.55,
+        ),
+        auto=AutoOptions(preproc=True),
+        bound=BoundOptions(flag=True),
+        norm=NormOptions(flag=True),
+        selvars=SelvarsOptions(
+            small_scale_flag=True,  # fractional
+            small_scale=0.50,
+            file_idx_flag=False,
+            file_idx="",
+            type="Ftr&Good",
+            min_distance=0.1,
+            density_flag=False,
+            feats=pd.DataFrame(),
+            algos=pd.DataFrame(),
+        ),
+        sifted=SiftedOptions(
+            flag=True,
+            rho=0.1,
+            k=10,
+            n_trees=50,
+            max_iter=1000,
+            replicates=100,
+        ),
+        pilot=PilotOptions(analytic=False, n_tries=5),
+        cloister=CloisterOptions(p_val=0.05, c_thres=0.7),
+        pythia=PythiaOptions(
+            cv_folds=5,
+            is_poly_krnl=False,
+            use_weights=False,
+            use_lib_svm=False,
+        ),
+        trace=TraceOptions(use_sim=True, PI=0.55),
+        outputs=OutputOptions(csv=True, web=False, png=True),
+        general=GeneralOptions(beta_threshold=0.55),
+    )
+
+    idx = np.genfromtxt(path_root / "fractional/idx.txt", delimiter=",")
+
+    x_before = np.genfromtxt(path_root / "fractional/before/x_split.txt", delimiter=",")
+    y_before = np.genfromtxt(path_root / "fractional/before/Y_split.txt", delimiter=",")
+    x_raw_before = np.genfromtxt(
+        path_root / "fractional/before/Xraw_split.txt",
+        delimiter=",",
+    )
+    y_raw_before = np.genfromtxt(
+        path_root / "fractional/before/Yraw_split.txt",
+        delimiter=",",
+    )
+    y_bin_before = np.genfromtxt(
+        path_root / "fractional/before/Ybin_split.txt",
+        delimiter=",",
+    )
+    beta_before = np.genfromtxt(
+        path_root / "fractional/before/beta_split.txt",
+        delimiter=",",
+    )
+    num_good_algos_before = np.genfromtxt(
+        path_root / "fractional/before/numGoodAlgos_split.txt",
+        delimiter=",",
+    )
+    y_best_before = np.genfromtxt(
+        path_root / "fractional/before/Ybest_split.txt",
+        delimiter=",",
+    )
+    p_before = np.genfromtxt(path_root / "fractional/before/P_split.txt", delimiter=",")
+    inst_labels_before = pd.read_csv(
+        path_root / "fractional/before/instlabels_split.txt",
+        header=None,
+    ).loc[:, 0]
+
+    data = Data(
+        inst_labels=inst_labels_before,
+        feat_labels=None,
+        algo_labels=None,
+        x=x_before,
+        y=y_before,
+        x_raw=x_raw_before,
+        y_raw=y_raw_before,
+        y_bin=y_bin_before,
+        y_best=y_best_before,
+        p=p_before,
+        num_good_algos=num_good_algos_before,
+        beta=beta_before,
+        s=None,
+    )
+
+    model = Model(
+        data=data,
+        opts=opts,
+        feat_sel=None,
+        data_dense=None,
+        prelim=None,
+        sifted=None,
+        pilot=None,
+        cloist=None,
+        pythia=None,
+        trace=None,
+    )
+
+    split_data(idx, model)
+
+    x_after = np.genfromtxt(path_root / "fractional/after/x_split.txt", delimiter=",")
+    y_after = np.genfromtxt(path_root / "fractional/after/Y_split.txt", delimiter=",")
+    x_raw_after = np.genfromtxt(
+        path_root / "fractional/after/Xraw_split.txt",
+        delimiter=",",
+    )
+    y_raw_after = np.genfromtxt(
+        path_root / "fractional/after/Yraw_split.txt",
+        delimiter=",",
+    )
+    y_bin_after = np.genfromtxt(
+        path_root / "fractional/after/Ybin_split.txt",
+        delimiter=",",
+    )
+    beta_after = np.genfromtxt(
+        path_root / "fractional/after/beta_split.txt",
+        delimiter=",",
+    )
+    num_good_algos_after = np.genfromtxt(
+        path_root / "fractional/after/numGoodAlgos_split.txt",
+        delimiter=",",
+    )
+    y_best_after = np.genfromtxt(
+        path_root / "fractional/after/Ybest_split.txt",
+        delimiter=",",
+    )
+    p_after = np.genfromtxt(path_root / "fractional/after/P_split.txt", delimiter=",")
+    inst_labels_after = pd.read_csv(
+        path_root / "fractional/after/instlabels_split.txt",
+        header=None,
+    ).loc[:, 0]
+
+    assert np.array_equal(model.data.x.shape, x_after.shape)
+    assert np.array_equal(model.data.y.shape, y_after.shape)
+    assert np.array_equal(model.data.x_raw.shape, x_raw_after.shape)
+    assert np.array_equal(model.data.y_raw.shape, y_raw_after.shape)
+    assert np.array_equal(model.data.y_bin.shape, y_bin_after.shape)
+    assert np.array_equal(model.data.beta.shape, beta_after.shape)
+    assert np.array_equal(model.data.num_good_algos.shape, num_good_algos_after.shape)
+    assert np.array_equal(model.data.y_best.shape, y_best_after.shape)
+    assert np.array_equal(model.data.p.shape, p_after.shape)
+    assert np.array_equal(model.data.inst_labels.shape, inst_labels_after.shape)
+    print("Fractional tests passed!")
+
+
+def test_split_fileindexed() -> None:
+    """Test case for the split data function by using fileindexed option."""
+
+
+def test_split_bydensity() -> None:
+    """Test case for the split data function by using bydensity option."""
+
+
 if __name__ == "__main__":
     test_process_data()
     test_remove_bad_instances_1()
     test_remove_bad_instances_2()
     test_remove_bad_instances_3()
     test_split_data()
+    test_split_fractional()

@@ -13,7 +13,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from matilda.data.model import Data, PrelimOut
-from matilda.data.option import Options
+from matilda.data.option import PrelimOptions
 
 
 class Prelim:
@@ -23,7 +23,7 @@ class Prelim:
     def run(
         x: NDArray[np.double],
         y: NDArray[np.double],
-        opts: Options,
+        opts: PrelimOptions,
     ) -> tuple[Data, PrelimOut]:
         """Perform preliminary processing on the input data 'x' and 'y'.
 

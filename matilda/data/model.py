@@ -15,7 +15,7 @@ from numpy.typing import NDArray
 from matilda.data.option import Options
 
 
-@dataclass(frozen=True)
+@dataclass
 class Data:
     """Holds initial dataset from metadata and processed data after operations."""
 
@@ -172,7 +172,7 @@ class TraceOut:
     # I decide to use DataFrame
 
 
-@dataclass(frozen=True)
+@dataclass
 class Model:
     """Contain data and output.
 

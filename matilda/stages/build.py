@@ -30,8 +30,8 @@ from sklearn.model_selection import train_test_split
 from matilda.data.metadata import Metadata
 from matilda.data.model import Data, Model
 from matilda.data.option import Options, PrelimOptions
-from matilda.filter import filter_by_us
-from matilda.prelim import prelim
+from matilda.stages.filter import Filter
+from matilda.stages.prelim import Prelim
 
 
 def build_instance_space(metadata: Metadata, options: Options) -> Model:
@@ -75,7 +75,6 @@ def process_data(model: Model) -> PrelimOptions:
     ]
 
     # Running PRELIM as to preprocess the data, including scaling and bounding
-    # model.opts.prelim = model.opts.perf
     return PrelimOptions(
         max_perf=model.opts.perf.max_perf,
         abs_perf=model.opts.perf.abs_perf,
@@ -150,14 +149,14 @@ def split_data(idx: NDArray[np.bool_], model: Model) -> None:
         print(f"-> Creating a small scale experiment for validation. \
               Percentage of subset: \
               {round(100 * model.opts.selvars.small_scale, 2)}%")
-        _, subset_index = train_test_split(
+        _, subset_idx = train_test_split(
             np.arange(ninst),
             test_size=model.opts.selvars.small_scale,
             random_state=0,
         )
         # below are not sure
         subset_index = np.zeros(ninst, dtype=bool)
-        subset_index[idx] = True
+        subset_index[subset_idx] = True
     elif fileindexed:
         print("-> Using a subset of instances.")
         subset_index = np.zeros(ninst, dtype=bool)
@@ -166,10 +165,9 @@ def split_data(idx: NDArray[np.bool_], model: Model) -> None:
         subset_index[aux] = True
     elif bydensity:
         print("-> Creating a small scale experiment for validation based on density.")
-        subset_index, _, _ = filter_by_us(
+        subset_index, _, _ = Filter.run(
             model.data.x,
             model.data.y,
-            model.data.y_bin,
             model.opts.selvars,
         )
         subset_index = ~subset_index
@@ -188,11 +186,11 @@ def split_data(idx: NDArray[np.bool_], model: Model) -> None:
         model.data.x_raw = model.data.x_raw[subset_index, :]
         model.data.y_raw = model.data.y_raw[subset_index, :]
         model.data.y_bin = model.data.y_bin[subset_index, :]
-        model.data.beta = model.data.beta[subset_index, :]
-        model.data.num_good_algos = model.data.num_good_algos[subset_index, :]
-        model.data.y_best = model.data.y_best[subset_index, :]
-        model.data.p = model.data.p[subset_index, :]
-        model.data.inst_labels = model.data.inst_labels[subset_index, :]
+        model.data.beta = model.data.beta[subset_index]
+        model.data.num_good_algos = model.data.num_good_algos[subset_index]
+        model.data.y_best = model.data.y_best[subset_index]
+        model.data.p = model.data.p[subset_index]
+        model.data.inst_labels = model.data.inst_labels[subset_index]
 
         if hasattr(model.data, "S"):
             model.data.S = model.data.S[subset_index, :]
@@ -210,7 +208,7 @@ def data_processing(model: Model) -> int:
     [
         model.data,
         model.prelim,
-    ] = prelim(model.data.x, model.data.y, prelim_opts)
+    ] = Prelim.run(model.data.x, model.data.y, prelim_opts)
 
     idx = remove_bad_instances(model)
 
