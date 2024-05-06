@@ -730,8 +730,8 @@ def test_split_fileindexed() -> None:
     print("Fileindexed tests passed!")
 
 
-def test_split_bydensity() -> None:
-    """Test case for the split data function by using bydensity option."""
+# def test_split_bydensity() -> None:
+#     """Test case for the split data function by using bydensity option."""
 
 
 if __name__ == "__main__":
@@ -741,4 +741,4 @@ if __name__ == "__main__":
     test_remove_bad_instances_3()
     test_split_data()
     test_split_fractional()
-    test_split_fileindexed()
+    # test_split_fileindexed()
