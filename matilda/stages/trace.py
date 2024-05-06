@@ -104,7 +104,7 @@ class Trace:
         ninst = z.shape[0]
         nalgos = y_bin.shape[1]
 
-        space = trace.build(z,np.ones((ninst, 1), dtype=bool), opts)
+        space = trace.build(z,np.ones((ninst, 1), dtype=bool))
 
         good = []
         best = []
@@ -120,9 +120,9 @@ class Trace:
         for i in range(nalgos):
             start_time = time.time()
             print(f"    -> Good performance footprint for '{algo_labels[i]}'")
-            good.append(trace.build(z, y_bin[:, i], opts))
+            good.append(trace.build(z, y_bin[:, i]))
             print(f"    -> Best performance footprint for '{algo_labels[i]}'")
-            best.append(trace.build(z, p == i, opts))
+            best.append(trace.build(z, p == i))
             elapsed_time = time.time() - start_time
             print(f"    -> Algorithm '{algo_labels[i]}' completed. Elapsed time: {elapsed_time:.2f}s")
 
@@ -146,7 +146,7 @@ class Trace:
 
         print("-" * 10)
         print("  -> TRACE is calculating the beta-footprint.")
-        hard = trace.build(z,np.logical_not(beta), opts)
+        hard = trace.build(z,np.logical_not(beta))
 
         print("-" * 10)
         print("  -> TRACE is preparing the summary table.")
@@ -158,9 +158,9 @@ class Trace:
         summary = pd.DataFrame(index=algo_labels, columns=summary_columns)
 
         for i in range(nalgos):
-            summary_good = Trace.summary(footprint=good[i], space_area=space.area,
+            summary_good = trace.summary(footprint=good[i], space_area=space.area,
                                          space_density=space.density)
-            summary_best = Trace.summary(footprint=best[i], space_area=space.area,
+            summary_best = trace.summary(footprint=best[i], space_area=space.area,
                                          space_density=space.density)
 
             # Concatenate summaries for good and best performance
@@ -187,7 +187,6 @@ class Trace:
         self,
         z,
         y_bin,
-        opts,
     ) -> Footprint:
         """Build footprints for good or best performance of algorithms.
 

@@ -68,9 +68,9 @@ class TestTraceRun(unittest.TestCase):
         self.beta = np.genfromtxt(csv_beta,delimiter=",")
         self.algo_labels = pd.read_csv(csv_algo_labels, delimiter=",", header=None,
                                        dtype=str).iloc[0].tolist()
-        self.pi = np.genfromtxt(csv_pi, delimiter=",", dtype=float)
-        self.usesim = np.genfromtxt(csv_usesim)
-        self.opts = TraceOptions(self.pi,self.usesim)
+        self.pi = float(np.genfromtxt(csv_pi, delimiter=",", dtype=float))
+        self.usesim = int(np.genfromtxt(csv_usesim)) != 1
+        self.opts = TraceOptions(PI=self.pi,use_sim=self.usesim)
 
     # TODO: test for tracebuild,tracecontra,tracesummary
     @patch("matilda.stages.trace.Trace.build")
