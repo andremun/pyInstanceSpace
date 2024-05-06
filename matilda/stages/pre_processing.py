@@ -1,3 +1,8 @@
+import numpy as np
+from numpy._typing import NDArray
+
+from matilda.data.model import Data, PrelimOut
+from matilda.data.option import Options
 
 
 class PrePro:
