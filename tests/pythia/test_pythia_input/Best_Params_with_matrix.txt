@@ -1,0 +1,72 @@
+-> PYTHIA has trained a model for 'NB', there are 9 models left to train.
+-> Elapsed time: 16.73s
+66    16    17   113
+
+Best c: 6.2279
+Best gamma: 15.9350
+
+-> PYTHIA has trained a model for 'LDA', there are 8 models left to train.
+-> Elapsed time: 7.41s
+63     9    21   119
+
+Best c: 0.9822
+Best gamma: 0.8601
+
+-> PYTHIA has trained a model for 'LDA', there are 8 models left to train.
+-> Elapsed time: 7.41s
+116    21    21    54
+
+Best c: 11.0150
+Best gamma: 2.4420
+
+-> PYTHIA has trained a model for 'QDA', there are 7 models left to train.
+-> Elapsed time: 4.39s
+55     8     6   143
+
+Best c: 7.1368
+Best gamma: 0.9294
+
+-> PYTHIA has trained a model for 'CART', there are 6 models left to train.
+-> Elapsed time: 3.27s
+49     8     9   146
+
+Best c: 3.4223
+Best gamma: 0.7343
+
+-> PYTHIA has trained a model for 'J48', there are 5 models left to train.
+-> Elapsed time: 3.07s
+49     8     9   146
+
+Best c: 13.7199
+Best gamma: 15.8868
+
+
+-> PYTHIA has trained a model for 'KNN', there are 4 models left to train.
+-> Elapsed time: 3.88s
+54     7     7   144
+
+Best c: 4.6867
+Best gamma: 0.8415
+
+-> PYTHIA has trained a model for 'L_SVM', there are 3 models left to train.
+-> Elapsed time: 5.82s
+86     8    14   104
+
+Best c: 0.9689
+Best gamma: 0.9322
+
+
+-> PYTHIA has trained a model for 'poly_SVM', there are 2 models left to train.
+-> Elapsed time: 2.43s
+56     7     6   143
+
+Best c: 15.8936
+Best gamma: 5.3040
+
+
+-> PYTHIA has trained a model for 'RBF_SVM', there is 1 model left to train.
+-> Elapsed time: 2.85s
+53     8    14   137
+
+Best c: 4.9748
+Best gamma: 0.5954
