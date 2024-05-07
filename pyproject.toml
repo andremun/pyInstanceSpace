@@ -148,5 +148,9 @@ docstring-code-format = true
 disallow_untyped_defs = 'True'
 
 [[tool.mypy.overrides]]
-module = 'sklearn'
+module = [
+    'sklearn',
+    'scipy.spatial',
+    'scipy.stats',
+]
 ignore_missing_imports = 'True'
