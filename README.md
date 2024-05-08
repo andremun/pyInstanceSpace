@@ -1,4 +1,5 @@
 ![Tests](https://github.com/2024-SWN90017-18/MT-Updating-Matilda/actions/workflows/validation-tests.yml/badge.svg)
+![Read the Docs](https://img.shields.io/readthedocs/matilda?link=https%3A%2F%2Fdocs.matilda.neatht.com)
 
 # 2. Updating the MATILDA [code:MT]
 ### (Masters Advanced Software Project SWEN90017)
