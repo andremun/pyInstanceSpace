@@ -5,6 +5,7 @@ of different analytical processes, facilitating a structured and organized appro
 to data analysis and model building.
 """
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -106,13 +107,27 @@ class PilotOut:
 
 
 @dataclass(frozen=True)
+class BoundaryResult:
+    """Results of generating boundaries from Cloister process."""
+
+    x_edge: NDArray[np.double]
+    remove: NDArray[np.double]
+
+    def __iter__(self) -> Iterator[NDArray[np.double]]:
+        """Allow unpacking directly."""
+        return iter((self.x_edge, self.remove))
+
+
+@dataclass(frozen=True)
 class CloisterOut:
     """Results of the Cloister process in the data analysis pipeline."""
 
-    Zedge: NDArray[np.double]
-    Zecorr:NDArray[np.double]
+    z_edge: NDArray[np.double]
+    z_ecorr:NDArray[np.double]
 
-    pass
+    def __iter__(self) -> Iterator[NDArray[np.double]]:
+        """Allow unpacking directly."""
+        return iter((self.z_edge, self.z_ecorr))
 
 
 @dataclass(frozen=True)
