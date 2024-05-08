@@ -63,6 +63,7 @@ class AlgorithmSummary:
 class PrelimOut:
     """Contains preliminary output metrics calculated from the data."""
 
+    data: Data
     med_val: NDArray[np.double]
     iq_range: NDArray[np.double]
     hi_bound: NDArray[np.double]
@@ -81,6 +82,7 @@ class PrelimOut:
 class SiftedOut:
     """Results of the sifting process in the data analysis pipeline."""
 
+    data: Data
     flag: int  # not sure datatype, confirm it later
     rho: np.double
     k: int
@@ -93,6 +95,7 @@ class SiftedOut:
 class PilotOut:
     """Results of the Pilot process in the data analysis pipeline."""
 
+    data: Data
     X0: NDArray[np.double]  # not sure about the dimensions
     alpha: NDArray[np.double]
     eoptim: NDArray[np.double]
@@ -122,6 +125,7 @@ class BoundaryResult:
 class CloisterOut:
     """Results of the Cloister process in the data analysis pipeline."""
 
+    data: Data
     z_edge: NDArray[np.double]
     z_ecorr:NDArray[np.double]
 
@@ -134,6 +138,7 @@ class CloisterOut:
 class PythiaOut:
     """Results of the Pythia process in the data analysis pipeline."""
 
+    data: Data
     mu: list[float]
     sigma: list[float]
     cp: Any  # Change it to proper type
@@ -178,6 +183,7 @@ class Footprint:
 class TraceOut:
     """Results of the Trace process in the data analysis pipeline."""
 
+    data: Data
     space: Footprint
     good: list[Footprint]
     best: list[Footprint]
