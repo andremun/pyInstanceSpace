@@ -1,4 +1,6 @@
 ![Tests](https://github.com/2024-SWN90017-18/MT-Updating-Matilda/actions/workflows/validation-tests.yml/badge.svg)
+[![Static Badge](https://img.shields.io/badge/docs-passing-4c1)](https://docs.matilda.neatht.com)
+
 
 # 2. Updating the MATILDA [code:MT]
 ### (Masters Advanced Software Project SWEN90017)
