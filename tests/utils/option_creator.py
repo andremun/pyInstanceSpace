@@ -42,7 +42,7 @@ default_selvars = SelvarsOptions(
     file_idx="",
     feats=pd.get_dummies(pd.Series(list("abc")), dtype=float),
     algos=pd.get_dummies(pd.Series(list("abc")), dtype=float),
-    type="Ftr&Good",
+    selvars_type="Ftr&Good",
     density_flag=False,
     min_distance=0.1,
 )
@@ -70,7 +70,7 @@ default_pythia = PythiaOptions(
 )
 default_trace = TraceOptions(
     use_sim=True,
-    PI=0.55,
+    pi=0.55,
 )
 default_outputs = OutputOptions(
     csv=True,
