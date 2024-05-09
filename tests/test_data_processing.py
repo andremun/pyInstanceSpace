@@ -190,7 +190,7 @@ def test_remove_bad_instances_1() -> None:
         pythia=None,
         trace=None,
     )
-    idx = remove_bad_instances(model)
+    remove_bad_instances(model)
     assert model.data.y_bin.shape == y_bin.shape
     print("Remove bad instances tests 1 (matlab example) passed!")
 
@@ -243,7 +243,7 @@ def test_remove_bad_instances_2() -> None:
         trace=None,
     )
     with pytest.raises(Exception) as e:
-        idx = remove_bad_instances(model)
+        remove_bad_instances(model)
     assert "no ''good'' algorithms" in str(e.value), "Error message is not as expected."
     print("Remove bad instances tests 2 passed!")
 
@@ -297,7 +297,7 @@ def test_remove_bad_instances_3() -> None:
         pythia=None,
         trace=None,
     )
-    idx = remove_bad_instances(model)
+    remove_bad_instances(model)
     assert model.data.y_bin.shape[1] == NUM_INSTANCES
     print("Remove bad instances tests 3 passed!")
 
@@ -371,7 +371,7 @@ def test_split_data() -> None:
         pythia=None,
         trace=None,
     )
-    split_data(idx, model)
+    split_data(model)
 
     x_after = np.genfromtxt(path_root / "split/after/x_split.txt", delimiter=",")
     y_after = np.genfromtxt(path_root / "split/after/Y_split.txt", delimiter=",")
@@ -527,7 +527,7 @@ def test_split_fractional() -> None:
         trace=None,
     )
 
-    split_data(idx, model)
+    split_data(model)
 
     x_after = np.genfromtxt(path_root / "fractional/after/x_split.txt", delimiter=",")
     y_after = np.genfromtxt(path_root / "fractional/after/Y_split.txt", delimiter=",")
@@ -683,7 +683,7 @@ def test_split_fileindexed() -> None:
         trace=None,
     )
 
-    split_data(idx, model)
+    split_data(model)
 
     x_after = np.genfromtxt(path_root / "fileidx/after/x_split.txt", delimiter=",")
     y_after = np.genfromtxt(path_root / "fileidx/after/Y_split.txt", delimiter=",")

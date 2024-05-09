@@ -112,7 +112,7 @@ the binary performance measure. STOPPING!'",
     return idx
 
 
-def split_data(idx: NDArray[np.bool_], model: Model) -> None:
+def split_data(model: Model) -> None:
     """
     Determine whether and how to split the instance.
 
@@ -153,7 +153,6 @@ def split_data(idx: NDArray[np.bool_], model: Model) -> None:
             test_size=model.opts.selvars.small_scale,
             random_state=0,
         )
-        # below are not sure
         subset_index = np.zeros(ninst, dtype=bool)
         subset_index[subset_idx] = True
     elif fileindexed:
@@ -161,7 +160,7 @@ def split_data(idx: NDArray[np.bool_], model: Model) -> None:
         subset_index = np.zeros(ninst, dtype=bool)
         aux = np.genfromtxt(model.opts.selvars.file_idx, delimiter=",", dtype=int)
         aux = aux[aux < ninst]
-        # for some reason, the indices perform correctly starting from 1
+        # for some reason, this makes the indices perform correctly.
         for i in range(len(aux)):
             aux[i] = aux[i] - 1
         subset_index[aux] = True
@@ -212,8 +211,8 @@ def data_processing(model: Model) -> int:
         model.prelim,
     ] = Prelim.run(model.data.x, model.data.y, prelim_opts)
 
-    idx = remove_bad_instances(model)
+    remove_bad_instances(model)
 
-    split_data(idx, model)
+    split_data(model)
 
     return model.data.x.shape[1]  # nfeats
