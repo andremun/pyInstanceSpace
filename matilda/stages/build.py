@@ -1,16 +1,4 @@
-"""Contains modules for instance space analysis.
-
-The module consists of various algorithms to perform instance space analysis.
-    - build: Perform instance space analysis on given dataset and configuration.
-    - prelim: Performing preliminary data processing.
-    - sifted: Perform feature selection and optimization in data analysis.
-    - pythia: Perform algorithm selection and performance evaluation using SVM.
-    - cloister: Perform correlation analysis to estimate a boundary for the space.
-    - pilot: Obtaining a two-dimensional projection.
-    - trace: Calculating the algorithm footprints.
-    - example: IPython Notebook to run analysis on local machine
-
-Perform instance space analysis on given dataset and configuration.
+"""Perform instance space analysis on given dataset and configuration.
 
 Construct an instance space from data and configuration files located in a specified
 directory. The instance space is represented as a Model object, which encapsulates the
@@ -31,8 +19,10 @@ Example usage:
     python your_module_name.py /path/to/data
 """
 
-from . import data, instance_space, stages
-from .instance_space import InstanceSpace
+from matilda.data.metadata import Metadata
+from matilda.data.model import Data
+from matilda.data.option import Options
 
-__all__ = ["InstanceSpace", "data", "stages", "instance_space"]
 
+def _preprocess_input(metadata: Metadata, options: Options) -> Data:
+    raise NotImplementedError

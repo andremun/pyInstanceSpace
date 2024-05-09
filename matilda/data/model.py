@@ -1,11 +1,11 @@
-"""
-Defines a comprehensive set of data classes used in the instance space analysis.
+"""Defines a comprehensive set of data classes used in the instance space analysis.
 
 These classes are designed to encapsulate various aspects of the data and the results
 of different analytical processes, facilitating a structured and organized approach
 to data analysis and model building.
 """
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,10 +13,10 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from matilda.data.option import Opts
+from matilda.data.option import Options
 
 
-@dataclass
+@dataclass(frozen=True)
 class Data:
     """Holds initial dataset from metadata and processed data after operations."""
 
@@ -35,14 +35,14 @@ class Data:
     s: set[str] | None
 
 
-@dataclass
+@dataclass(frozen=True)
 class FeatSel:
     """Holds indices for feature selection."""
 
     idx: NDArray[np.intc]
 
 
-@dataclass
+@dataclass(frozen=True)
 class AlgorithmSummary:
     """Provides a summary of an algorithm's performance across different metrics."""
 
@@ -59,7 +59,7 @@ class AlgorithmSummary:
     kernel_scale: float | None
 
 
-@dataclass
+@dataclass(frozen=True)
 class PrelimOut:
     """Contains preliminary output metrics calculated from the data."""
 
@@ -77,7 +77,7 @@ class PrelimOut:
     mu_y: float = 0.0
 
 
-@dataclass
+@dataclass(frozen=True)
 class SiftedOut:
     """Results of the sifting process in the data analysis pipeline."""
 
@@ -89,7 +89,7 @@ class SiftedOut:
     replicates: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class PilotOut:
     """Results of the Pilot process in the data analysis pipeline."""
 
@@ -106,18 +106,31 @@ class PilotOut:
     summary: pd.DataFrame
 
 
-@dataclass
+@dataclass(frozen=True)
+class BoundaryResult:
+    """Results of generating boundaries from Cloister process."""
+
+    x_edge: NDArray[np.double]
+    remove: NDArray[np.double]
+
+    def __iter__(self) -> Iterator[NDArray[np.double]]:
+        """Allow unpacking directly."""
+        return iter((self.x_edge, self.remove))
+
+
+@dataclass(frozen=True)
 class CloisterOut:
     """Results of the Cloister process in the data analysis pipeline."""
 
-    Zedge: NDArray[np.double]
-    Zecorr:NDArray[np.double]
+    z_edge: NDArray[np.double]
+    z_ecorr:NDArray[np.double]
 
-    pass
+    def __iter__(self) -> Iterator[NDArray[np.double]]:
+        """Allow unpacking directly."""
+        return iter((self.z_edge, self.z_ecorr))
 
 
-
-@dataclass
+@dataclass(frozen=True)
 class PythiaOut:
     """Results of the Pythia process in the data analysis pipeline."""
 
@@ -140,7 +153,7 @@ class PythiaOut:
     summary: pd.DataFrame
 
 
-@dataclass
+@dataclass(frozen=True)
 class PolyShape:
     """Represent Polygon shape for footprint."""
 
@@ -149,7 +162,7 @@ class PolyShape:
     pass
 
 
-@dataclass
+@dataclass(frozen=True)
 class Footprint:
     """Represent the geometric and quality attributes of a spatial footprint."""
 
@@ -161,7 +174,7 @@ class Footprint:
     purity: float
 
 
-@dataclass
+@dataclass(frozen=True)
 class TraceOut:
     """Results of the Trace process in the data analysis pipeline."""
 
@@ -174,10 +187,9 @@ class TraceOut:
     # I decide to use DataFrame
 
 
-@dataclass
+@dataclass(frozen=True)
 class Model:
-    """
-    Contain data and output.
+    """Contain data and output.
 
     Combines all components into a full model representation, including data and
     analysis results.
@@ -192,4 +204,4 @@ class Model:
     cloist: CloisterOut
     pythia: PythiaOut
     trace: TraceOut
-    opts: Opts
+    opts: Options
