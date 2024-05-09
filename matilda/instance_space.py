@@ -116,6 +116,8 @@ class InstanceSpace:
         """
         self._stages[_Stage.PRELIM] = True
 
+        self._clear_stages_after_prelim()
+
         self._data, self._prelim_out = Prelim.run(
             self._metadata.features,
             self._metadata.algorithms,
@@ -123,6 +125,10 @@ class InstanceSpace:
         )
 
         return self._prelim_out
+
+    def _clear_stages_after_prelim(self) -> None:
+        self._sifted_out = None
+        self._clear_stages_after_sifted()
 
 
     def sifted(self) -> SiftedOut:
@@ -135,19 +141,25 @@ class InstanceSpace:
         -------
             sifted_out: The return of the sifted stage.
         """
-        if not self._stages[_Stage.PRELIM] or self._data is None:
+        if not self._stages[_Stage.PRELIM] or self._prelim_out is None:
             raise StageError
 
         self._stages[_Stage.SIFTED] = True
 
+        self._clear_stages_after_sifted()
+
         something, self._sifted_out = Sifted.run(
-            self._data.x,
-            self._data.y,
-            self._data.y_bin,
+            self._prelim_out.data.x,
+            self._prelim_out.data.y,
+            self._prelim_out.data.y_bin,
             self._options.sifted,
         )
 
         return self._sifted_out
+
+    def _clear_stages_after_sifted(self) -> None:
+        self._pilot_out = None
+        self._clear_stages_after_pilot()
 
 
     def pilot(self) -> PilotOut:
@@ -160,19 +172,26 @@ class InstanceSpace:
         -------
             pilot_out: The return of the pilot stage.
         """
-        if not self._stages[_Stage.SIFTED] or self._data is None:
+        if not self._stages[_Stage.SIFTED] or self._sifted_out is None:
             raise StageError
 
         self._stages[_Stage.PILOT] = True
 
+        self._clear_stages_after_pilot()
+
         self._pilot_out = Pilot.run(
-            self._data.x,
-            self._data.y,
-            self._data.feat_labels,
+            self._sifted_out.data.x,
+            self._sifted_out.data.y,
+            self._sifted_out.data.feat_labels,
             self._options.pilot,
         )
 
         return self._pilot_out
+
+    def _clear_stages_after_pilot(self) -> None:
+        self._cloister_out = None
+        self._trace_out = None
+        self._pythia_out = None
 
 
     def cloister(self) -> CloisterOut:
@@ -185,21 +204,23 @@ class InstanceSpace:
         -------
             cloister_out: The return of the cloister stage.
         """
-        if (
-            not self._stages[_Stage.PILOT] or self._data is None
-            or self._pilot_out is None
-        ):
+        if not self._stages[_Stage.PILOT] or self._pilot_out is None:
             raise StageError
 
         self._stages[_Stage.CLOISTER] = True
 
+        self._clear_stages_after_cloister()
+
         self._cloister_out = Cloister.run(
-            self._data.x,
+            self._pilot_out.data.x,
             self._pilot_out.a,
             self._options,
         )
 
         return self._cloister_out
+
+    def _clear_stages_after_cloister(self) -> None:
+        pass
 
 
     def trace(self) -> TraceOut:
@@ -212,25 +233,26 @@ class InstanceSpace:
         -------
             trace_out: The return of the trace stage.
         """
-        if (
-            not self._stages[_Stage.PILOT] or self._data is None
-            or self._pilot_out is None
-        ):
+        if not self._stages[_Stage.PILOT] or self._pilot_out is None:
             raise StageError
 
         self._stages[_Stage.TRACE] = True
 
+        self._clear_stages_after_trace()
+
         self._trace_out = Trace.run(
             self._pilot_out.z,
-            self._data.y_bin,
-            self._data.p,
-            self._data.beta,
-            self._data.algo_labels,
+            self._pilot_out.data.y_bin,
+            self._pilot_out.data.p,
+            self._pilot_out.data.beta,
+            self._pilot_out.data.algo_labels,
             self._options.trace,
         )
 
         return self._trace_out
 
+    def _clear_stages_after_trace(self) -> None:
+        pass
 
     def pythia(self) -> PythiaOut:
         """Run the pythia stage.
@@ -242,24 +264,26 @@ class InstanceSpace:
         -------
             pythia_out: The return of the pythia stage.
         """
-        if (
-            not self._stages[_Stage.PILOT] or self._data is None
-            or self._pilot_out is None
-        ):
+        if not self._stages[_Stage.PILOT] or self._pilot_out is None:
             raise StageError
 
         self._stages[_Stage.PYTHIA] = True
 
+        self._clear_stages_after_pythia()
+
         self._pythia_out = Pythia.run(
             self._pilot_out.z,
-            self._data.y_raw,
-            self._data.y_bin,
-            self._data.y_best,
-            self._data.algo_labels,
+            self._pilot_out.data.y_raw,
+            self._pilot_out.data.y_bin,
+            self._pilot_out.data.y_best,
+            self._pilot_out.data.algo_labels,
             self._options,
         )
 
         return self._pythia_out
+
+    def _clear_stages_after_pythia(self) -> None:
+        pass
 
 
 def instance_space_from_files(
