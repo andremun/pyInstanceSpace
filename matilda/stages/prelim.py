@@ -9,17 +9,13 @@ outlier detection and removal, and binary performance classification. These task
 guided by the options specified in the `Options` object.
 """
 
-from pathlib import Path
-
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 from scipy import optimize, stats
 
 from matilda.data.model import Data, PrelimOut
 from matilda.data.option import PrelimOptions
 
-script_dir = Path(__file__).parent
 
 class Prelim:
     """See file docstring."""
@@ -36,7 +32,7 @@ class Prelim:
         ----
             x: The feature matrix (instances x features) to process.
             y: The performance matrix (instances x algorithms) to process.
-            opts: Configuration options for the Prelim stage.
+            opts (PrelimOptions): Configuration options for PRELIM.
         """
         self.x = x
         self.y = y
@@ -120,39 +116,17 @@ class Prelim:
 
         print(msg)
 
-        # testing for ties
-        # If there is a tie, we pick an algorithm at random
-
-        y_best = y_best[:, np.newaxis]
-
-        best_algos = np.equal(y_raw, y_best)
-        multiple_best_algos = np.sum(best_algos, axis=1) > 1
-        aidx = np.arange(1, nalgos + 1)
-        # p = np.zeros(y.shape[0], dtype=int)
-
-        for i in range(y.shape[0]):
-            if multiple_best_algos[i].any():
-                aux = aidx[best_algos[i]]
-                # changed to pick the first one for testing purposes
-                # will need to change it back to random after testing complete
-                p[i] = aux[0]
-
-        print("-> For", round(100 * np.mean(multiple_best_algos)), 
-            "% of the instances there is more than one best algorithm.")
-        print("Random selection is used to break ties.")
-
-        num_good_algos = np.sum(y_bin, axis=1)
-        beta = num_good_algos > (opts.beta_threshold * nalgos)
+        num_good_algos, p, beta = prelim.select_best_algorithms(y_raw, y_best, \
+                                                                y, y_bin, nalgos, \
+                                                                opts.beta_threshold, p)
 
         # Auto-Pre-Processing
-
         if opts.bound:
             x, med_val, iq_range, hi_bound, lo_bound = prelim.bound(x)
 
-        x_after_bound = x.copy()
-
         if opts.norm:
-            min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y = prelim.normalise(x, y)
+            min_x, lambda_x, mu_x, sigma_x, \
+            min_y, lambda_y, sigma_y, mu_y = prelim.normalise(x, y)
 
         data = Data(
             inst_labels="",
@@ -187,13 +161,79 @@ class Prelim:
 
         return data, prelim_out
 
-    def bound(self, x: NDArray[np.double]) -> tuple[NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double]]:
-        """Remove extreme outliers from the feature values."""
+    def select_best_algorithms(
+        self,
+        y_raw: NDArray[np.double],
+        y_best: NDArray[np.double],
+        y: NDArray[np.double],
+        y_bin: NDArray[np.double],
+        nalgos: int,
+        beta_threshold: float,
+        p: NDArray[np.double]
+    ) -> tuple[NDArray[np.double], NDArray[np.double], NDArray[np.bool_]]:
+        """Select the best algorithms based on the given criteria.
+
+        Args
+        ----
+            y_raw: Raw algorithm predictions.
+            y_best: Best algorithm predictions.
+            y: True labels.
+            y_bin: Binary labels.
+            nalgos: Number of algorithms.
+            betaThreshold: Beta threshold.
+            p: Placeholder for selected algorithms.
+
+        Returns
+        -------
+            num_good_algos: Number of good algorithms.
+            beta: Beta values.
+            p: Selected algorithms.
+        """
+        # testing for ties
+        # If there is a tie, we pick an algorithm at random
+        y_best = y_best[:, np.newaxis]
+
+        best_algos = np.equal(y_raw, y_best)
+        multiple_best_algos = np.sum(best_algos, axis=1) > 1
+        aidx = np.arange(1, nalgos + 1)
+
+        for i in range(y.shape[0]):
+            if multiple_best_algos[i].any():
+                aux = aidx[best_algos[i]]
+                # changed to pick the first one for testing purposes
+                # will need to change it back to random after testing complete
+                p[i] = aux[0]
+
+        print("-> For", round(100 * np.mean(multiple_best_algos)), 
+            "% of the instances there is more than one best algorithm.")
+        print("Random selection is used to break ties.")
+
+        num_good_algos = np.sum(y_bin, axis=1)
+        beta = num_good_algos > (beta_threshold * nalgos)
+
+        return num_good_algos, p, beta
+
+    def bound(self, x: NDArray[np.double]) -> tuple[NDArray[np.double],\
+                            NDArray[np.double],  NDArray[np.double], \
+                            NDArray[np.double], NDArray[np.double]]:
+        """Remove extreme outliers from the feature values.
+
+        Args
+        ----
+            x: The feature matrix (instances x features) to process.
+
+        Returns
+        -------
+            x: The feature matrix with extreme outliers removed.
+            med_val: The median value of the feature matrix.
+            iq_range: The interquartile range of the feature matrix.
+            hi_bound: The upper bound for the feature values.
+            lo_bound: The lower bound for the feature values.
+        """
         print("-> Removing extreme outliers from the feature values.")
         med_val = np.median(x, axis=0)
 
-        # iq_range = stats.iqr(x, axis=0, interpolation="midpoint")
-        iq_range = np.array([0.022123737,0.131631199,0.1723483295,0.1801352925,1.689832909,0.4533861915,0.7827391025,0.1691318605,0.277548533,0.1804272135])
+        iq_range = stats.iqr(x, axis=0, interpolation="midpoint")
 
         hi_bound = med_val + 5 * iq_range
         lo_bound = med_val - 5 * iq_range
@@ -208,7 +248,24 @@ class Prelim:
         return x, med_val, iq_range, hi_bound, lo_bound
 
     def normalise(self, x: NDArray[np.double], y: NDArray[np.double]) -> tuple[NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], float]:
-        """Normalize the data using Box-Cox and Z transformations."""
+        """Normalize the data using Box-Cox and Z transformations.
+
+        Args
+        ----
+            x: The feature matrix (instances x features) to process.
+            y: The performance matrix (instances x algorithms) to process.
+
+        Returns
+        -------
+            min_x: The minimum value of the feature matrix.
+            lambda_x: The lambda values for the Box-Cox transformation of the feature matrix.
+            mu_x: The mean of the feature matrix.
+            sigma_x: The standard deviation of the feature matrix.
+            min_y: The minimum value of the performance matrix.
+            lambda_y: The lambda values for the Box-Cox transformation of the performance matrix.
+            sigma_y: The standard deviation of the performance matrix.
+            mu_y: The mean of the performance matrix.
+        """
         print("-> Auto-normalizing the data using Box-Cox and Z transformations.")
 
         def boxcox_fmin(
@@ -230,8 +287,17 @@ class Prelim:
 
             """
 
-            # Function to be minimized (negative log-likelihood)
             def neg_log_likelihood(lmbda: NDArray[np.double]) -> float:
+                """Calculate the negative log-likelihood for the Box-Cox transformation.
+
+                Args
+                ----
+                    lmbda: The lambda value for the Box-Cox transformation.
+
+                Returns
+                -------
+                    float: The negative log-likelihood value.
+                """
                 return -stats.boxcox_llf(lmbda, data)
 
             # Find the lambda that minimizes the negative log-likelihood
