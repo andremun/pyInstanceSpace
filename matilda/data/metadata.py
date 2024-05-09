@@ -79,18 +79,18 @@ class Metadata:
         """
         raise NotImplementedError
 
-    @staticmethod
-    #not the method, It's a func
-    def from_file(file_path: Path) -> Metadata | None:
-        try:
-            csv_df = pd.read_csv(file_path)
-        except FileNotFoundError:
-            print(f"The file '{file_path}' does not exist.")
-            return None
-        except pd.errors.EmptyDataError:
-            print(f"The file '{file_path}' is empty.")
-            return None
-        except pd.errors.ParserError:
-            print(f"Error: The file '{file_path}' is not a valid CSV file.")
-            return None
-        return Metadata.from_data_frame(csv_df)
+
+# not the method, It's a func
+def from_csv_file(file_path: Path) -> Metadata | None:
+    try:
+        csv_df = pd.read_csv(file_path)
+    except FileNotFoundError:
+        print(f"The file '{file_path}' does not exist.")
+        return None
+    except pd.errors.EmptyDataError:
+        print(f"The file '{file_path}' is empty.")
+        return None
+    except pd.errors.ParserError:
+        print(f"Error: The file '{file_path}' is not a valid CSV file.")
+        return None
+    return Metadata.from_data_frame(csv_df)

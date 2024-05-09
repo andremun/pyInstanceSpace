@@ -1,11 +1,11 @@
 """TODO: document instance space module."""
-
+import sys
 from collections import defaultdict
 from dataclasses import fields
 from enum import Enum
 from pathlib import Path
 
-from matilda.data.metadata import Metadata
+from matilda.data.metadata import Metadata, from_csv_file
 from matilda.data.model import (
     CloisterOut,
     Data,
@@ -16,7 +16,7 @@ from matilda.data.model import (
     SiftedOut,
     TraceOut,
 )
-from matilda.data.option import Options
+from matilda.data.option import Options, from_json_file
 from matilda.stages.cloister import Cloister
 from matilda.stages.pilot import Pilot
 from matilda.stages.prelim import Prelim
@@ -296,17 +296,25 @@ def instance_space_from_files(
     print("-------------------------------------------------------------------------")
     print("-> Loading the data.")
 
-    metadata = Metadata.from_file(metadata_filepath)
+    metadata = from_csv_file(metadata_filepath)
 
     if metadata is None:
-        #log something
-        exit(1)
+        print("Failed to initialize metadata")
+        sys.exit(1)
 
+    print("-> Successfully loaded the data.")
     print("-------------------------------------------------------------------------")
+    print("-> Loading the options.")
+
+    options = from_json_file(options_filepath)
+
+    if options is None:
+        print("Failed to initialize options")
+        sys.exit(1)
+
+    print("-> Successfully loaded the data.")
+
     print("-> Listing options to be used:")
-
-    options = Options.from_file(options_filepath)
-
     for field_name in fields(Options):
         field_value = getattr(options, field_name.name)
         print(f"{field_name.name}: {field_value}")
@@ -327,12 +335,38 @@ def instance_space_from_directory(directory: Path) -> InstanceSpace:
         metadata and options from the specified directory.
 
     """
-    metadata = Metadata.from_file(directory / "metadata.csv")
+    print("-------------------------------------------------------------------------")
+    print("-> Loading the data.")
+    metadata = from_csv_file(directory / "metadata.csv")
 
-    options = Options.from_file(directory / "options.json")
+    if metadata is None:
+        print("Failed to initialize metadata")
+        sys.exit(1)
+
+    print("-> Successfully loaded the data.")
+    print("-------------------------------------------------------------------------")
+    print("-> Loading the options.")
+
+    options = from_json_file(directory / "options.json")
+
+    if options is None:
+        print("Failed to initialize options")
+        sys.exit(1)
+
+    print("-> Successfully loaded the data.")
+
+    print("-> Listing options to be used:")
+    for field_name in fields(Options):
+        field_value = getattr(options, field_name.name)
+        print(f"{field_name.name}: {field_value}")
 
     return InstanceSpace(metadata, options)
 
+
 if __name__ == "__main__":
-    metadata_filepath = Path()
-    #instance_space_from_files(metadata_filepath,options_filepath)
+    metadata_filepath = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_data/load_file/metadata.csv")
+    #应该添加对sub fields的检查
+    options_filepath = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_data/load_file/options.json")
+    instance_space_from_files(metadata_filepath,options_filepath)
+
+    #instance_space_from_directory(Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_data/load_file"))

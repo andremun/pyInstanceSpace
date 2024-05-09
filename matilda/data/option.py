@@ -188,14 +188,19 @@ class Options:
         # Validate if the top-level fields match those in the Options class
         options_fields = {f.name for f in fields(Options)}
         extra_fields = set(file_contents.keys()) - options_fields
+        lacking_field = options_fields - set(file_contents.keys())
         if extra_fields:
             raise ValueError(f"Extra fields in JSON are not defined in Options:"
                              f" {extra_fields}")
+        if lacking_field :
+            raise ValueError(f"You should also include these field(s) in Options:"
+                             f" {lacking_field}")
 
         # Initialize each part of Options
 
         return Options(
-            parallel=Options._load_dataclass(ParallelOptions, file_contents["parallel"]),
+            parallel=Options._load_dataclass(ParallelOptions,
+                                             file_contents["parallel"]),
             perf=Options._load_dataclass(PerformanceOptions, file_contents["perf"]),
             auto=Options._load_dataclass(AutoOptions, file_contents["auto"]),
             bound=Options._load_dataclass(BoundOptions, file_contents["bound"]),
@@ -205,7 +210,7 @@ class Options:
             pilot=Options._load_dataclass(PilotOptions, file_contents["pilot"]),
             cloister=Options._load_dataclass(
                 CloisterOptions,
-                file_contents["cloister"]
+                file_contents["cloister"],
             ),
             pythia=Options._load_dataclass(PythiaOptions, file_contents["pythia"]),
             trace=Options._load_dataclass(TraceOptions, file_contents["trace"]),
@@ -227,6 +232,7 @@ class Options:
                 SiftedOptions, PilotOptions, CloisterOptions, PythiaOptions,
                 TraceOptions, OutputOptions, GeneralOptions)
 
+
     @staticmethod
     def _validate_fields(data_class: type[T], data: dict) -> None:
         """
@@ -244,13 +250,46 @@ class Options:
         ValueError
             If an undefined field is found in the dictionary.
         """
+        """
         # Get all defined fields in the data class
         known_fields = {f.name for f in fields(data_class)}
         # Check if all fields in the JSON are defined in the data class
         for key in data:
             if key not in known_fields:
                 raise ValueError(f"Field '{key}' in JSON is not defined "
-                                 f"in the dataclass '{data_class.__name__}'")
+                                 f"in the dataclass '{data_class.__name__}'") """
+
+    @staticmethod
+    def _validate_fields(data_class: type[T], data: dict) -> None:
+        """
+        Validate all keys in the provided dictionary are valid fields in dataclass and vice versa.
+
+        Args
+        ----------
+        data_class : type[T]
+            The dataclass type to validate against.
+        data : dict
+            The dictionary whose keys are to be validated.
+
+        Raises
+        ------
+        ValueError
+            If an undefined field is found in the dictionary or if a field from the data class is missing in the dictionary.
+        """
+        # Get all defined fields in the data class
+        known_fields = {f.name for f in fields(data_class)}
+
+        # Check if all fields in the JSON are defined in the data class
+        extra_fields = set(data.keys()) - known_fields
+        if extra_fields:
+            raise ValueError(
+                f"Field(s) '{extra_fields}' in JSON are not defined in the data class '{data_class.__name__}'.")
+
+        # Check if all fields defined in the data class are present in the JSON
+        missing_fields = known_fields - set(data.keys())
+        if missing_fields:
+            raise ValueError(
+                f"Missing required field(s) '{missing_fields}' from the JSON for the data class '{data_class.__name__}'.")
 
     @staticmethod
     def _load_dataclass(data_class: type[T], data: dict) -> T:
@@ -277,26 +316,26 @@ class Options:
         init_args = {f.name: data.get(f.name, None) for f in fields(data_class)}
         return data_class(**init_args)
 
-    @staticmethod
-    def from_file(file_path: Path) -> Options | None:
-        try:
-            with file_path.open() as o:
-                options_contents = o.read()
-            opts_dict = json.loads(options_contents)
-        except FileNotFoundError:
-            print(f"The file '{file_path}' does not exist.")
-            return None
-        except json.JSONDecodeError:
-            print(f"The file '{file_path}' contains invalid JSON.")
-            return None
-        except OSError as e:
-            print(f"Error: An I/O error occurred while reading the file '{file_path}'.")
-            print(f"Error details: {e!s}")
-            return None
 
-        try:
-            return Options.from_dict(opts_dict)
-        except ValueError as e:
-            print(f"Error: Invalid options data in the file '{file_path}'.")
-            print(f"Error details: {e!s}")
-            return None
+def from_json_file(file_path: Path) -> Options | None:
+    try:
+        with file_path.open() as o:
+            options_contents = o.read()
+        opts_dict = json.loads(options_contents)
+    except FileNotFoundError:
+        print(f"The file '{file_path}' does not exist.")
+        return None
+    except json.JSONDecodeError:
+        print(f"The file '{file_path}' contains invalid JSON.")
+        return None
+    except OSError as e:
+        print(f"Error: An I/O error occurred while reading the file '{file_path}'.")
+        print(f"Error details: {e!s}")
+        return None
+
+    try:
+        return Options.from_dict(opts_dict)
+    except ValueError as e:
+        print(f"Error: Invalid options data in the file '{file_path}'.")
+        print(f"Error details: {e!s}")
+        return None
