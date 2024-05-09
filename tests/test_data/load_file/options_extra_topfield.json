@@ -24,7 +24,7 @@
       "min_distance": 0.1,
       "type": "Ftr&Good"
     },
-    "top": {"invalid": 3, "extra": 4},
+    "INTENDED_EXTRA_FIELD_IN_JSON": {"invalid": 3, "extra": 4},
     "sifted": {
       "flag": true,
       "rho": 0.1,

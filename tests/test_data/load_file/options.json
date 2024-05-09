@@ -1,11 +1,12 @@
 {
-    "parallel": { "flag": false, "n_cores": 2 },
+    "parallel": { "flag": false, "n_cores": 2},
     "perf": {
       "max_perf": false,
       "abs_perf": true,
       "epsilon": 0.2,
       "beta_threshold": 0.55
     },
+    "general":{"beta_threshold":0.55},
     "auto": { "preproc": true },
     "bound": { "flag": true },
     "norm": { "flag": true },
