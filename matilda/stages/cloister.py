@@ -12,7 +12,7 @@ from scipy.spatial import ConvexHull, QhullError
 from scipy.stats import pearsonr
 
 from matilda.data.model import BoundaryResult, CloisterOut
-from matilda.data.option import CloisterOptions, Options
+from matilda.data.option import CloisterOptions, MissingOptionsError, Options
 
 
 class Cloister:
@@ -97,6 +97,10 @@ class Cloister:
             NDArray[np.double]: A matrix of Pearson correlation coefficients between
             each pair of features.
         """
+        if self.opts.p_val is None:
+            print("CLOISTER cannot be ran if CloisterOptions.p_val isn't set.")
+            raise MissingOptionsError
+
         rho = np.zeros((self.nfeats, self.nfeats))
         pval = np.zeros((self.nfeats, self.nfeats))
 
@@ -161,6 +165,10 @@ class Cloister:
             BoundaryResult: Contains the coordinates of boundary edges and indicators
             for which should be removed.
         """
+        if self.opts.c_thres is None:
+            print("CLOISTER cannot be ran if CloisterOptions.c_thres isn't set.")
+            raise MissingOptionsError
+
         # if no feature selection. then make a note in the boundary construction
         # that it won't work, because nfeats is so large that decimal to binary matrix
         # conversion wont be able to make a matrix.

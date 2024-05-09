@@ -11,6 +11,15 @@ from dataclasses import dataclass
 import pandas as pd
 
 
+class MissingOptionsError(Exception):
+    """A required option wasn't set.
+
+    An error raised when a stage is ran that requires an option to be set, and the
+    option isn't present.
+    """
+
+    pass
+
 @dataclass(frozen=True)
 class ParallelOptions:
     """Configuration options for parallel computing."""
