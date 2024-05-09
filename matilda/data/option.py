@@ -232,11 +232,9 @@ class Options:
                 SiftedOptions, PilotOptions, CloisterOptions, PythiaOptions,
                 TraceOptions, OutputOptions, GeneralOptions)
 
-
     @staticmethod
     def _validate_fields(data_class: type[T], data: dict) -> None:
-        """
-        Validate all keys in the provided dictionary are valid fields in dataclass.
+        """Validate all keys in the provided dictionary are valid fields in dataclass.
 
         Args
         ----------
@@ -248,33 +246,8 @@ class Options:
         Raises
         ------
         ValueError
-            If an undefined field is found in the dictionary.
-        """
-        """
-        # Get all defined fields in the data class
-        known_fields = {f.name for f in fields(data_class)}
-        # Check if all fields in the JSON are defined in the data class
-        for key in data:
-            if key not in known_fields:
-                raise ValueError(f"Field '{key}' in JSON is not defined "
-                                 f"in the dataclass '{data_class.__name__}'") """
-
-    @staticmethod
-    def _validate_fields(data_class: type[T], data: dict) -> None:
-        """
-        Validate all keys in the provided dictionary are valid fields in dataclass and vice versa.
-
-        Args
-        ----------
-        data_class : type[T]
-            The dataclass type to validate against.
-        data : dict
-            The dictionary whose keys are to be validated.
-
-        Raises
-        ------
-        ValueError
-            If an undefined field is found in the dictionary or if a field from the data class is missing in the dictionary.
+            If an undefined field is found in the dictionary or
+            if a field from the data class is missing in the dictionary.
         """
         # Get all defined fields in the data class
         known_fields = {f.name for f in fields(data_class)}
@@ -283,13 +256,15 @@ class Options:
         extra_fields = set(data.keys()) - known_fields
         if extra_fields:
             raise ValueError(
-                f"Field(s) '{extra_fields}' in JSON are not defined in the data class '{data_class.__name__}'.")
+                f"Field(s) '{extra_fields}' in JSON are not "
+                f"defined in the data class '{data_class.__name__}'.")
 
         # Check if all fields defined in the data class are present in the JSON
         missing_fields = known_fields - set(data.keys())
         if missing_fields:
             raise ValueError(
-                f"Missing required field(s) '{missing_fields}' from the JSON for the data class '{data_class.__name__}'.")
+                f"Missing required field(s) '{missing_fields}' "
+                f"from the JSON for the data class '{data_class.__name__}'.")
 
     @staticmethod
     def _load_dataclass(data_class: type[T], data: dict) -> T:
