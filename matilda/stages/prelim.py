@@ -125,8 +125,8 @@ class Prelim:
             x, med_val, iq_range, hi_bound, lo_bound = prelim.bound(x)
 
         if opts.norm:
-            min_x, lambda_x, mu_x, sigma_x, \
-            min_y, lambda_y, sigma_y, mu_y = prelim.normalise(x, y)
+            x, min_x, lambda_x, mu_x, sigma_x, \
+            y, min_y, lambda_y, sigma_y, mu_y = prelim.normalise(x, y)
 
         data = Data(
             inst_labels="",
@@ -247,7 +247,22 @@ class Prelim:
 
         return x, med_val, iq_range, hi_bound, lo_bound
 
-    def normalise(self, x: NDArray[np.double], y: NDArray[np.double]) -> tuple[NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], float]:
+    def normalise(
+        self,
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+    ) -> tuple[
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        float,
+    ]:
         """Normalize the data using Box-Cox and Z transformations.
 
         Args
@@ -257,10 +272,12 @@ class Prelim:
 
         Returns
         -------
+            x: The normalized feature matrix.
             min_x: The minimum value of the feature matrix.
             lambda_x: The lambda values for the Box-Cox transformation of the feature matrix.
             mu_x: The mean of the feature matrix.
             sigma_x: The standard deviation of the feature matrix.
+            y: The normalized performance matrix.
             min_y: The minimum value of the performance matrix.
             lambda_y: The lambda values for the Box-Cox transformation of the performance matrix.
             sigma_y: The standard deviation of the performance matrix.
@@ -342,4 +359,4 @@ class Prelim:
             aux = stats.zscore(aux, ddof=1)
             y[~idx, i] = aux
 
-        return min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y
+        return x, min_x, lambda_x, mu_x, sigma_x, y, min_y, lambda_y, sigma_y, mu_y
