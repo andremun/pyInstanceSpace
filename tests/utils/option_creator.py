@@ -19,6 +19,7 @@ from matilda.data.option import (
     ParallelOptions,
     PerformanceOptions,
     PilotOptions,
+    PrelimOptions,
     PythiaOptions,
     SelvarsOptions,
     SiftedOptions,
@@ -45,6 +46,14 @@ default_selvars = SelvarsOptions(
     type="Ftr&Good",
     density_flag=False,
     min_distance=0.1,
+)
+default_prelim = PrelimOptions(
+    abs_perf=1,
+    beta_threshold=0.5500,
+    epsilon=0.2000,
+    max_perf=0,
+    bound=1,
+    norm=1,
 )
 default_sifted = SiftedOptions(
     flag=True,
@@ -79,7 +88,6 @@ default_outputs = OutputOptions(
 )
 default_general = GeneralOptions(beta_threshold=0.2)
 
-
 def create_option(
     parallel: ParallelOptions = default_parallel,
     perf: PerformanceOptions = default_perf,
@@ -87,6 +95,7 @@ def create_option(
     bound: BoundOptions = default_bound,
     norm: NormOptions = default_norm,
     selvars: SelvarsOptions = default_selvars,
+    prelim: PrelimOptions = default_prelim,
     sifted: SiftedOptions = default_sifted,
     pilot: PilotOptions = default_pilot,
     cloister: CloisterOptions = default_cloister,
@@ -106,6 +115,7 @@ def create_option(
         bound=bound,
         norm=norm,
         selvars=selvars,
+        prelim=prelim,
         sifted=sifted,
         pilot=pilot,
         cloister=cloister,

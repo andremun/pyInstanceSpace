@@ -150,6 +150,7 @@ class Options:
     norm: NormOptions
     selvars: SelvarsOptions
     sifted: SiftedOptions
+    prelim: PrelimOptions
     pilot: PilotOptions
     cloister: CloisterOptions
     pythia: PythiaOptions
