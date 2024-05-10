@@ -7,7 +7,7 @@ to data analysis and model building.
 
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -33,6 +33,15 @@ class Data:
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
     s: set[str] | None
+
+T = TypeVar("T")
+
+@dataclass(frozen=True)
+class StageState(Generic[T]):
+    """The state of the data at the end of a Stage."""
+
+    out: T
+    data: Data
 
 
 @dataclass(frozen=True)
@@ -63,7 +72,6 @@ class AlgorithmSummary:
 class PrelimOut:
     """Contains preliminary output metrics calculated from the data."""
 
-    data: Data
     med_val: NDArray[np.double]
     iq_range: NDArray[np.double]
     hi_bound: NDArray[np.double]
@@ -79,10 +87,18 @@ class PrelimOut:
 
 
 @dataclass(frozen=True)
+class PrelimDataChanged:
+    """The fields of Data that the Prelim stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
 class SiftedOut:
     """Results of the sifting process in the data analysis pipeline."""
 
-    data: Data
     flag: int  # not sure datatype, confirm it later
     rho: np.double
     k: int
@@ -92,10 +108,18 @@ class SiftedOut:
 
 
 @dataclass(frozen=True)
+class SiftedDataChanged:
+    """The fields of Data that the Sifted stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
 class PilotOut:
     """Results of the Pilot process in the data analysis pipeline."""
 
-    data: Data
     X0: NDArray[np.double]  # not sure about the dimensions
     alpha: NDArray[np.double]
     eoptim: NDArray[np.double]
@@ -107,6 +131,15 @@ class PilotOut:
     error: NDArray[np.double]  # or just the double
     r2: NDArray[np.double]
     summary: pd.DataFrame
+
+
+@dataclass(frozen=True)
+class PilotDataChanged:
+    """The fields of Data that the Pilot stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
@@ -125,7 +158,6 @@ class BoundaryResult:
 class CloisterOut:
     """Results of the Cloister process in the data analysis pipeline."""
 
-    data: Data
     z_edge: NDArray[np.double]
     z_ecorr:NDArray[np.double]
 
@@ -135,10 +167,18 @@ class CloisterOut:
 
 
 @dataclass(frozen=True)
+class CloisterDataChanged:
+    """The fields of Data that the Cloister stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
 class PythiaOut:
     """Results of the Pythia process in the data analysis pipeline."""
 
-    data: Data
     mu: list[float]
     sigma: list[float]
     cp: Any  # Change it to proper type
@@ -156,6 +196,15 @@ class PythiaOut:
     selection0: NDArray[np.double]
     selection1: Any  # Change it to proper type
     summary: pd.DataFrame
+
+
+@dataclass(frozen=True)
+class PythiaDataChanged:
+    """The fields of Data that the Pythia stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
@@ -183,7 +232,6 @@ class Footprint:
 class TraceOut:
     """Results of the Trace process in the data analysis pipeline."""
 
-    data: Data
     space: Footprint
     good: list[Footprint]
     best: list[Footprint]
@@ -191,6 +239,15 @@ class TraceOut:
     summary: pd.DataFrame  # for the dataform that looks like the
     # Excel spreadsheet(rownames and column names are mixed with data),
     # I decide to use DataFrame
+
+
+@dataclass(frozen=True)
+class TraceDataChanged:
+    """The fields of Data that the Trace stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)

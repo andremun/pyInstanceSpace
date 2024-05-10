@@ -102,7 +102,8 @@ def test_run() -> None:
     z_edge_matlab = np.genfromtxt(csv_path_z_edge, delimiter=",")
     z_ecorr_matlab = np.genfromtxt(csv_path_z_ecorr, delimiter=",")
 
-    z_edge, z_ecorr = Cloister.run(input_x, input_a, default_option)
+    _, cloister_out = Cloister.run(input_x, input_a, default_option)
+    z_edge, z_ecorr = cloister_out
 
     assert np.allclose(z_edge_matlab, z_edge)
     assert np.allclose(z_ecorr_matlab, z_ecorr)

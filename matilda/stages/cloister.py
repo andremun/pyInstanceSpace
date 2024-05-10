@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 from scipy.spatial import ConvexHull, QhullError
 from scipy.stats import pearsonr
 
-from matilda.data.model import BoundaryResult, CloisterOut
+from matilda.data.model import BoundaryResult, CloisterDataChanged, CloisterOut
 from matilda.data.option import CloisterOptions, MissingOptionsError, Options
 
 
@@ -47,7 +47,7 @@ class Cloister:
         x: NDArray[np.double],
         a: NDArray[np.double],
         opts: Options,
-    ) -> CloisterOut:
+    ) -> tuple[CloisterDataChanged, CloisterOut]:
         """Estimate a boundary for the space using correlation.
 
         Args
@@ -79,7 +79,7 @@ class Cloister:
         print("-----------------------------------------------------------------------")
         print("  -> CLOISTER has completed.")
 
-        return CloisterOut(z_edge=z_edge, z_ecorr=z_ecorr)
+        return (CloisterDataChanged(), CloisterOut(z_edge=z_edge, z_ecorr=z_ecorr))
 
 
     """

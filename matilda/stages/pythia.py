@@ -3,7 +3,7 @@
 import numpy as np
 from numpy.typing import NDArray
 
-from matilda.data.model import PythiaOut
+from matilda.data.model import PythiaDataChanged, PythiaOut
 from matilda.data.option import Options
 
 
@@ -29,7 +29,7 @@ class Pythia:
         y_best: NDArray[np.double],  # noqa: ARG004
         algo_labels: list[str],  # noqa: ARG004
         opts: Options,  # noqa: ARG004
-    ) -> PythiaOut:
+    ) -> tuple[PythiaDataChanged, PythiaOut]:
         """PYTHIA function for algorithm selection and performance evaluation using SVM.
 
         Args

@@ -13,9 +13,10 @@ from matilda.data.model import (
     PrelimOut,
     PythiaOut,
     SiftedOut,
+    StageState,
     TraceOut,
 )
-from matilda.data.option import Options
+from matilda.data.option import Options, PrelimOptions
 from matilda.stages.cloister import Cloister
 from matilda.stages.pilot import Pilot
 from matilda.stages.prelim import Prelim
@@ -52,12 +53,12 @@ class InstanceSpace:
 
     _data: Data | None
 
-    _prelim_out: PrelimOut | None
-    _sifted_out: SiftedOut | None
-    _pilot_out: PilotOut | None
-    _cloister_out: CloisterOut | None
-    _trace_out: TraceOut | None
-    _pythia_out: PythiaOut | None
+    _prelim_state: StageState[PrelimOut] | None
+    _sifted_state: StageState[SiftedOut] | None
+    _pilot_state: StageState[PilotOut] | None
+    _cloister_state: StageState[CloisterOut] | None
+    _trace_state: StageState[TraceOut] | None
+    _pythia_state: StageState[PythiaOut] | None
 
     _model: Model | None
 
@@ -79,12 +80,12 @@ class InstanceSpace:
 
         self._data = None
 
-        self._prelim_out = None
-        self._sifted_out = None
-        self._pilot_out = None
-        self._cloister_out = None
-        self._trace_out = None
-        self._pythia_out = None
+        self._prelim_state = None
+        self._sifted_state = None
+        self._pilot_state = None
+        self._cloister_state = None
+        self._trace_state = None
+        self._pythia_state = None
 
         self._model = None
 
@@ -103,7 +104,6 @@ class InstanceSpace:
         """
         raise NotImplementedError
 
-
     def prelim(self) -> PrelimOut:
         """Run the prelim stage.
 
@@ -118,16 +118,25 @@ class InstanceSpace:
 
         self._clear_stages_after_prelim()
 
-        self._data, self._prelim_out = Prelim.run(
+        data_changed, prelim_out = Prelim.run(
             self._metadata.features,
             self._metadata.algorithms,
-            self._options,
+            PrelimOptions.from_options(self._options),
         )
 
-        return self._prelim_out
+        if self._data is None:
+            raise NotImplementedError
+
+        self._prelim_state = StageState[PrelimOut](
+            prelim_out,
+            data_changed.merge_with(self._data),
+        )
+
+        return prelim_out
 
     def _clear_stages_after_prelim(self) -> None:
-        self._sifted_out = None
+        self._sifted_state = None
+        self._stages[_Stage.SIFTED] = False
         self._clear_stages_after_sifted()
 
 
@@ -141,24 +150,30 @@ class InstanceSpace:
         -------
             sifted_out: The return of the sifted stage.
         """
-        if not self._stages[_Stage.PRELIM] or self._prelim_out is None:
+        if not self._stages[_Stage.PRELIM] or self._prelim_state is None:
             raise StageError
 
         self._stages[_Stage.SIFTED] = True
 
         self._clear_stages_after_sifted()
 
-        something, self._sifted_out = Sifted.run(
-            self._prelim_out.data.x,
-            self._prelim_out.data.y,
-            self._prelim_out.data.y_bin,
+        data_changed, sifted_out = Sifted.run(
+            self._prelim_state.data.x,
+            self._prelim_state.data.y,
+            self._prelim_state.data.y_bin,
             self._options.sifted,
         )
 
-        return self._sifted_out
+        self._sifted_state = StageState[SiftedOut](
+            sifted_out,
+            data_changed.merge_with(self._prelim_state.data),
+        )
+
+        return sifted_out
 
     def _clear_stages_after_sifted(self) -> None:
-        self._pilot_out = None
+        self._pilot_state = None
+        self._stages[_Stage.PILOT] = False
         self._clear_stages_after_pilot()
 
 
@@ -172,26 +187,37 @@ class InstanceSpace:
         -------
             pilot_out: The return of the pilot stage.
         """
-        if not self._stages[_Stage.SIFTED] or self._sifted_out is None:
+        if not self._stages[_Stage.SIFTED] or self._sifted_state is None:
             raise StageError
 
         self._stages[_Stage.PILOT] = True
 
         self._clear_stages_after_pilot()
 
-        self._pilot_out = Pilot.run(
-            self._sifted_out.data.x,
-            self._sifted_out.data.y,
-            self._sifted_out.data.feat_labels,
+        data_changed, pilot_out = Pilot.run(
+            self._sifted_state.data.x,
+            self._sifted_state.data.y,
+            self._sifted_state.data.feat_labels,
             self._options.pilot,
         )
 
-        return self._pilot_out
+        self._pilot_state = StageState[PilotOut](
+            pilot_out,
+            data_changed.merge_with(self._sifted_state.data),
+        )
+
+        return pilot_out
 
     def _clear_stages_after_pilot(self) -> None:
-        self._cloister_out = None
-        self._trace_out = None
-        self._pythia_out = None
+        self._cloister_state = None
+        self._trace_state = None
+        self._pythia_state = None
+        self._stages[_Stage.CLOISTER] = False
+        self._stages[_Stage.TRACE] = False
+        self._stages[_Stage.PYTHIA] = False
+        self._clear_stages_after_cloister()
+        self._clear_stages_after_trace()
+        self._clear_stages_after_pythia()
 
 
     def cloister(self) -> CloisterOut:
@@ -204,20 +230,25 @@ class InstanceSpace:
         -------
             cloister_out: The return of the cloister stage.
         """
-        if not self._stages[_Stage.PILOT] or self._pilot_out is None:
+        if not self._stages[_Stage.PILOT] or self._pilot_state is None:
             raise StageError
 
         self._stages[_Stage.CLOISTER] = True
 
         self._clear_stages_after_cloister()
 
-        self._cloister_out = Cloister.run(
-            self._pilot_out.data.x,
-            self._pilot_out.a,
+        data_changed, cloister_out = Cloister.run(
+            self._pilot_state.data.x,
+            self._pilot_state.out.a,
             self._options,
         )
 
-        return self._cloister_out
+        self._cloister_state = StageState[CloisterOut](
+            cloister_out,
+            data_changed.merge_with(self._pilot_state.data),
+        )
+
+        return cloister_out
 
     def _clear_stages_after_cloister(self) -> None:
         pass
@@ -233,23 +264,28 @@ class InstanceSpace:
         -------
             trace_out: The return of the trace stage.
         """
-        if not self._stages[_Stage.PILOT] or self._pilot_out is None:
+        if not self._stages[_Stage.PILOT] or self._pilot_state is None:
             raise StageError
 
         self._stages[_Stage.TRACE] = True
 
         self._clear_stages_after_trace()
 
-        self._trace_out = Trace.run(
-            self._pilot_out.z,
-            self._pilot_out.data.y_bin,
-            self._pilot_out.data.p,
-            self._pilot_out.data.beta,
-            self._pilot_out.data.algo_labels,
+        data_changed, trace_out = Trace.run(
+            self._pilot_state.out.z,
+            self._pilot_state.data.y_bin,
+            self._pilot_state.data.p,
+            self._pilot_state.data.beta,
+            self._pilot_state.data.algo_labels,
             self._options.trace,
         )
 
-        return self._trace_out
+        self._trace_state = StageState[TraceOut](
+            trace_out,
+            data_changed.merge_with(self._pilot_state.data),
+        )
+
+        return trace_out
 
     def _clear_stages_after_trace(self) -> None:
         pass
@@ -264,23 +300,28 @@ class InstanceSpace:
         -------
             pythia_out: The return of the pythia stage.
         """
-        if not self._stages[_Stage.PILOT] or self._pilot_out is None:
+        if not self._stages[_Stage.PILOT] or self._pilot_state is None:
             raise StageError
 
         self._stages[_Stage.PYTHIA] = True
 
         self._clear_stages_after_pythia()
 
-        self._pythia_out = Pythia.run(
-            self._pilot_out.z,
-            self._pilot_out.data.y_raw,
-            self._pilot_out.data.y_bin,
-            self._pilot_out.data.y_best,
-            self._pilot_out.data.algo_labels,
+        data_changed, pythia_out = Pythia.run(
+            self._pilot_state.out.z,
+            self._pilot_state.data.y_raw,
+            self._pilot_state.data.y_bin,
+            self._pilot_state.data.y_best,
+            self._pilot_state.data.algo_labels,
             self._options,
         )
 
-        return self._pythia_out
+        self._pythia_state = StageState[PythiaOut](
+            pythia_out,
+            data_changed.merge_with(self._pilot_state.data),
+        )
+
+        return pythia_out
 
     def _clear_stages_after_pythia(self) -> None:
         pass
