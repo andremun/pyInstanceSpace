@@ -26,7 +26,7 @@ class Metadata:
 
 
     @staticmethod
-    def from_csv(file_contents: str) -> Metadata:
+    def from_file(file_contents: str) -> Metadata:
         """Parse metadata from a file, and construct a Metadata object.
 
         Args
@@ -39,12 +39,12 @@ class Metadata:
         """
         raise NotImplementedError
 
-    def to_csv(self) -> str:
-        """Get the contents of metadata in the format of a csv.
+    def to_file(self) -> str:
+        """Store metadata in a file from a Metadata object.
 
         Returns
         -------
-        The metadata object serialised into a csv.
+        The metadata object serialised into a file.
         """
         raise NotImplementedError
 
