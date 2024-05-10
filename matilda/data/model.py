@@ -71,10 +71,10 @@ class PrelimOut:
     lambda_x: NDArray[np.double]
     mu_x: NDArray[np.double]
     sigma_x: NDArray[np.double]
-    min_y: NDArray[np.double]
+    min_y: float
     lambda_y: NDArray[np.double]
     sigma_y: NDArray[np.double]
-    mu_y: float = 0.0
+    mu_y: NDArray[np.double]
 
 
 @dataclass(frozen=True)

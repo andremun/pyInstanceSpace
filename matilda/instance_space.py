@@ -15,7 +15,7 @@ from matilda.data.model import (
     SiftedOut,
     TraceOut,
 )
-from matilda.data.option import Options
+from matilda.data.option import Options, PrelimOptions
 from matilda.stages.cloister import Cloister
 from matilda.stages.pilot import Pilot
 from matilda.stages.prelim import Prelim
@@ -119,7 +119,7 @@ class InstanceSpace:
         self._data, self._prelim_out = Prelim.run(
             self._metadata.features,
             self._metadata.algorithms,
-            self._options,
+            PrelimOptions.from_options(self._options),
         )
 
         return self._prelim_out

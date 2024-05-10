@@ -9,13 +9,37 @@ outlier detection and removal, and binary performance classification. These task
 guided by the options specified in the `Options` object.
 """
 
+from dataclasses import dataclass
+
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
 from scipy import optimize, stats
 
 from matilda.data.model import Data, PrelimOut
 from matilda.data.option import PrelimOptions
 
+
+@dataclass(frozen=True)
+class _BoundOut:
+    x: NDArray[np.double]
+    med_val: NDArray[np.double]
+    iq_range: NDArray[np.double]
+    hi_bound: NDArray[np.double]
+    lo_bound: NDArray[np.double]
+
+@dataclass(frozen=True)
+class _NormaliseOut:
+    x: NDArray[np.double]
+    min_x: NDArray[np.double]
+    lambda_x: NDArray[np.double]
+    mu_x: NDArray[np.double]
+    sigma_x: NDArray[np.double]
+    y: NDArray[np.double]
+    min_y: float
+    lambda_y: NDArray[np.double]
+    sigma_y: NDArray[np.double]
+    mu_y: NDArray[np.double]
 
 class Prelim:
     """See file docstring."""
@@ -122,16 +146,30 @@ class Prelim:
 
         # Auto-Pre-Processing
         if opts.bound:
-            x, med_val, iq_range, hi_bound, lo_bound = prelim.bound(x)
+            bound_out = prelim.bound(x)
+            x = bound_out.x
+            med_val = bound_out.med_val
+            iq_range = bound_out.iq_range
+            hi_bound = bound_out.hi_bound
+            lo_bound = bound_out.lo_bound
 
         if opts.norm:
-            x, min_x, lambda_x, mu_x, sigma_x, \
-            y, min_y, lambda_y, sigma_y, mu_y = prelim.normalise(x, y)
+            normalise_out = prelim._normalise(x, y) # noqa: SLF001
+            x = normalise_out.x
+            min_x = normalise_out.min_x
+            lambda_x = normalise_out.lambda_x
+            mu_x = normalise_out.mu_x
+            sigma_x = normalise_out.sigma_x
+            y = normalise_out.y
+            min_y = normalise_out.min_y
+            lambda_y = normalise_out.lambda_y
+            sigma_y = normalise_out.sigma_y
+            mu_y = normalise_out.mu_y
 
         data = Data(
-            inst_labels="",
-            feat_labels="",
-            algo_labels="",
+            inst_labels=pd.Series([]),
+            feat_labels=[""],
+            algo_labels=[""],
             x=x,
             y=y,
             x_raw=x,
@@ -166,10 +204,10 @@ class Prelim:
         y_raw: NDArray[np.double],
         y_best: NDArray[np.double],
         y: NDArray[np.double],
-        y_bin: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
         nalgos: int,
         beta_threshold: float,
-        p: NDArray[np.double]
+        p: NDArray[np.double],
     ) -> tuple[NDArray[np.double], NDArray[np.double], NDArray[np.bool_]]:
         """Select the best algorithms based on the given criteria.
 
@@ -204,7 +242,7 @@ class Prelim:
                 # will need to change it back to random after testing complete
                 p[i] = aux[0]
 
-        print("-> For", round(100 * np.mean(multiple_best_algos)), 
+        print("-> For", round(100 * np.mean(multiple_best_algos)),
             "% of the instances there is more than one best algorithm.")
         print("Random selection is used to break ties.")
 
@@ -213,9 +251,7 @@ class Prelim:
 
         return num_good_algos, p, beta
 
-    def bound(self, x: NDArray[np.double]) -> tuple[NDArray[np.double],\
-                            NDArray[np.double],  NDArray[np.double], \
-                            NDArray[np.double], NDArray[np.double]]:
+    def bound(self, x: NDArray[np.double]) -> _BoundOut:
         """Remove extreme outliers from the feature values.
 
         Args
@@ -245,24 +281,19 @@ class Prelim:
         x += np.multiply(hi_mask, np.broadcast_to(hi_bound, x.shape))
         x += np.multiply(lo_mask, np.broadcast_to(lo_bound, x.shape))
 
-        return x, med_val, iq_range, hi_bound, lo_bound
+        return _BoundOut(
+            x=x,
+            med_val=med_val,
+            iq_range=iq_range,
+            hi_bound=hi_bound,
+            lo_bound=lo_bound,
+        )
 
-    def normalise(
+    def _normalise(
         self,
         x: NDArray[np.double],
         y: NDArray[np.double],
-    ) -> tuple[
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        float,
-    ]:
+    ) -> _NormaliseOut:
         """Normalize the data using Box-Cox and Z transformations.
 
         Args
@@ -274,12 +305,14 @@ class Prelim:
         -------
             x: The normalized feature matrix.
             min_x: The minimum value of the feature matrix.
-            lambda_x: The lambda values for the Box-Cox transformation of the feature matrix.
+            lambda_x: The lambda values for the Box-Cox transformation of the
+                      feature matrix.
             mu_x: The mean of the feature matrix.
             sigma_x: The standard deviation of the feature matrix.
             y: The normalized performance matrix.
             min_y: The minimum value of the performance matrix.
-            lambda_y: The lambda values for the Box-Cox transformation of the performance matrix.
+            lambda_y: The lambda values for the Box-Cox transformation of the
+                      performance matrix.
             sigma_y: The standard deviation of the performance matrix.
             mu_y: The mean of the performance matrix.
         """
@@ -289,17 +322,18 @@ class Prelim:
                 data: NDArray[np.double],
                 lmbda_init: float = 0,
             ) -> tuple[NDArray[np.double], float]:
-            """
-            Perform Box-Cox transformation on data using fmin to optimize lambda.
+            """Perform Box-Cox transformation on data using fmin to optimize lambda.
 
             Args
             ----
-                data (ArrayLike): The input data array which must contain only positive values.
+                data (ArrayLike): The input data array which must contain only
+                                 positive values.
                 lmbda_init (float): Initial guess for the lambda parameter.
 
             Returns
             -------
-                tuple[np.ndarray, float]: A tuple containing the transformed data and the optimal
+                tuple[np.ndarray, float]: A tuple containing the transformed data
+                                        and the optimal
                 lambda value.
 
             """
@@ -344,8 +378,10 @@ class Prelim:
             aux = stats.zscore(aux, ddof=1)
             x[~idx, i] = aux
 
-        min_y = np.min(y)
+        min_y = float(np.min(y))
+
         y = (y - min_y) + np.finfo(float).eps
+
         lambda_y = np.zeros(nalgos)
         mu_y = np.zeros(nalgos)
         sigma_y = np.zeros(nalgos)
@@ -359,4 +395,15 @@ class Prelim:
             aux = stats.zscore(aux, ddof=1)
             y[~idx, i] = aux
 
-        return x, min_x, lambda_x, mu_x, sigma_x, y, min_y, lambda_y, sigma_y, mu_y
+        return _NormaliseOut(
+            x=x,
+            min_x=min_x,
+            lambda_x=lambda_x,
+            mu_x= mu_x,
+            sigma_x=sigma_x,
+            y = y,
+            min_y= min_y,
+            lambda_y=lambda_y,
+            sigma_y= sigma_y,
+            mu_y= mu_y,
+        )

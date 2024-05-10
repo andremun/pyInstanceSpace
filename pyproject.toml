@@ -16,6 +16,7 @@ pandas = "^2.2.1"
 pandas-stubs = "^2.2.1.240316"
 scikit-learn = "^1.4.2"
 click = "^8.1.7"
+scipy = "^1.13.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.1"
@@ -132,6 +133,9 @@ ignore = [
 
     # Collides with D416
     "D406",
+
+    # Long functions are expected
+    "PLR0915",
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -152,5 +156,6 @@ module = [
     'sklearn',
     'scipy.spatial',
     'scipy.stats',
+    'scipy',
 ]
 ignore_missing_imports = 'True'

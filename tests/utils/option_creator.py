@@ -23,7 +23,6 @@ from matilda.data.option import (
     SelvarsOptions,
     SiftedOptions,
     TraceOptions,
-    PrelimOptions,
 )
 
 default_parallel = ParallelOptions(flag=False, n_cores=2)
@@ -79,14 +78,6 @@ default_outputs = OutputOptions(
     png=True,
 )
 default_general = GeneralOptions(beta_threshold=0.2)
-default_prelim = PrelimOptions(
-    abs_perf=1,
-    beta_threshold=0.5500,
-    epsilon=0.2000,
-    max_perf=0,
-    bound=1,
-    norm=1,
-)
 
 def create_option(
     parallel: ParallelOptions = default_parallel,
@@ -98,7 +89,6 @@ def create_option(
     sifted: SiftedOptions = default_sifted,
     pilot: PilotOptions = default_pilot,
     cloister: CloisterOptions = default_cloister,
-    prelim: PrelimOptions = default_prelim,
     pythia: PythiaOptions = default_pythia,
     trace: TraceOptions = default_trace,
     outputs: OutputOptions = default_outputs,
@@ -122,5 +112,4 @@ def create_option(
         trace=trace,
         outputs=outputs,
         general=general,
-        prelim=prelim,
     )
