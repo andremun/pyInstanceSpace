@@ -16,7 +16,7 @@ from numpy.typing import NDArray
 from matilda.data.option import Options
 
 
-@dataclass
+@dataclass(frozen=True)
 class Data:
     """Holds initial dataset from metadata and processed data after operations."""
 
