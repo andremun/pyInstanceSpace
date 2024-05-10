@@ -20,7 +20,7 @@ from matilda.data.option import Options
 class Data:
     """Holds initial dataset from metadata and processed data after operations."""
 
-    inst_labels: pd.Series[str]
+    inst_labels: pd.Series # type: ignore[empty-body]
     feat_labels: list[str]
     algo_labels: list[str]
     x: NDArray[np.double]

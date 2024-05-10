@@ -19,8 +19,8 @@ class Metadata:
 
     feature_names: list[str]
     algorithm_names: list[str]
-    instance_labels: pd.Series[str]
-    instance_sources: pd.Series[str]
+    instance_labels: pd.Series # type: ignore[type-arg]
+    instance_sources: pd.Series # type: ignore[empty-body]
     features: NDArray[np.double]
     algorithms: NDArray[np.double]
 

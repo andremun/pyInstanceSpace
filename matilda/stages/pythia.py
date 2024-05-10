@@ -4,7 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from matilda.data.model import PythiaDataChanged, PythiaOut
-from matilda.data.option import Options
+from matilda.data.option import PythiaOptions
 
 
 class SvmRes:
@@ -28,7 +28,7 @@ class Pythia:
         y_bin: NDArray[np.bool_],  # noqa: ARG004
         y_best: NDArray[np.double],  # noqa: ARG004
         algo_labels: list[str],  # noqa: ARG004
-        opts: Options,  # noqa: ARG004
+        opts: PythiaOptions,  # noqa: ARG004
     ) -> tuple[PythiaDataChanged, PythiaOut]:
         """PYTHIA function for algorithm selection and performance evaluation using SVM.
 

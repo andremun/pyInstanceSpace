@@ -240,7 +240,7 @@ class InstanceSpace:
         data_changed, cloister_out = Cloister.run(
             self._pilot_state.data.x,
             self._pilot_state.out.a,
-            self._options,
+            self._options.cloister,
         )
 
         self._cloister_state = StageState[CloisterOut](
@@ -313,7 +313,7 @@ class InstanceSpace:
             self._pilot_state.data.y_bin,
             self._pilot_state.data.y_best,
             self._pilot_state.data.algo_labels,
-            self._options,
+            self._options.pythia,
         )
 
         self._pythia_state = StageState[PythiaOut](
