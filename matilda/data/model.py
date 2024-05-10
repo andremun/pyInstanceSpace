@@ -40,8 +40,8 @@ T = TypeVar("T")
 class StageState(Generic[T]):
     """The state of the data at the end of a Stage."""
 
-    out: T
     data: Data
+    out: T
 
 
 @dataclass(frozen=True)

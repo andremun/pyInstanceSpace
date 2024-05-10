@@ -128,8 +128,8 @@ class InstanceSpace:
             raise NotImplementedError
 
         self._prelim_state = StageState[PrelimOut](
-            prelim_out,
             data_changed.merge_with(self._data),
+            prelim_out,
         )
 
         return prelim_out
@@ -165,8 +165,8 @@ class InstanceSpace:
         )
 
         self._sifted_state = StageState[SiftedOut](
-            sifted_out,
             data_changed.merge_with(self._prelim_state.data),
+            sifted_out,
         )
 
         return sifted_out
@@ -202,8 +202,8 @@ class InstanceSpace:
         )
 
         self._pilot_state = StageState[PilotOut](
-            pilot_out,
             data_changed.merge_with(self._sifted_state.data),
+            pilot_out,
         )
 
         return pilot_out
@@ -244,8 +244,8 @@ class InstanceSpace:
         )
 
         self._cloister_state = StageState[CloisterOut](
-            cloister_out,
             data_changed.merge_with(self._pilot_state.data),
+            cloister_out,
         )
 
         return cloister_out
@@ -281,8 +281,8 @@ class InstanceSpace:
         )
 
         self._trace_state = StageState[TraceOut](
-            trace_out,
             data_changed.merge_with(self._pilot_state.data),
+            trace_out,
         )
 
         return trace_out
@@ -317,8 +317,8 @@ class InstanceSpace:
         )
 
         self._pythia_state = StageState[PythiaOut](
-            pythia_out,
             data_changed.merge_with(self._pilot_state.data),
+            pythia_out,
         )
 
         return pythia_out
