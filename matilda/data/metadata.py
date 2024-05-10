@@ -44,7 +44,7 @@ class Metadata:
 
         Returns
         -------
-        The metadata object serialised into a file.
+        The metadata object serialised into a string.
         """
         raise NotImplementedError
 
