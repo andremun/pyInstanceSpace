@@ -63,6 +63,29 @@ class PerformanceOptions:
             beta_threshold=beta_threshold,
         )
 
+@dataclass(frozen=True)
+class PrelimOptions:
+    """Options for running PRELIM."""
+
+    max_perf: bool
+    abs_perf: bool
+    epsilon: float | None
+    beta_threshold: float | None
+    bound: bool
+    norm: bool
+
+    @staticmethod
+    def from_options(options: Options) -> PrelimOptions:
+        """Get a prelim options object from an existing Options object."""
+        return PrelimOptions(
+            max_perf=options.perf.max_perf,
+            abs_perf=options.perf.abs_perf,
+            epsilon=options.perf.epsilon,
+            beta_threshold=options.perf.beta_threshold,
+            bound=options.bound.flag,
+            norm=options.norm.flag,
+        )
+
 
 @dataclass(frozen=True)
 class AutoOptions:
