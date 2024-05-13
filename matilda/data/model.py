@@ -33,6 +33,7 @@ class Data:
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
     s: set[str] | None
+    uniformity: float | None
 
 
 @dataclass(frozen=True)
