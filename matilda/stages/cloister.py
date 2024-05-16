@@ -12,7 +12,7 @@ from scipy.spatial import ConvexHull, QhullError
 from scipy.stats import pearsonr
 
 from matilda.data.model import BoundaryResult, CloisterDataChanged, CloisterOut
-from matilda.data.option import CloisterOptions, MissingOptionsError
+from matilda.data.option import CloisterOptions
 
 
 class Cloister:
