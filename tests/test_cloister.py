@@ -42,7 +42,7 @@ def test_correlation_calculation() -> None:
     csv_path_rho = script_dir / "test_data/cloister/output/rho.csv"
     rho_matlab = np.genfromtxt(csv_path_rho, delimiter=",")
 
-    cloister = Cloister(input_x, input_a, default_option)
+    cloister = Cloister(input_x, input_a, default_option.cloister)
     rho = cloister.compute_correlation()
 
     assert np.allclose(rho_matlab, rho)
@@ -57,7 +57,7 @@ def test_correlation_calculation_boundary() -> None:
     rho_matlab = np.genfromtxt(csv_path_rho, delimiter=",")
 
     option = create_option(cloister=CloisterOptions(p_val=0, c_thres=0.7))
-    cloister = Cloister(input_x, input_a, option)
+    cloister = Cloister(input_x, input_a, option.cloister)
     rho = cloister.compute_correlation()
 
     assert np.allclose(rho_matlab, rho)
@@ -73,7 +73,7 @@ def test_decimal_to_binary() -> None:
     csv_path_index = script_dir / "test_data/cloister/output/index.csv"
     index_matlab = np.genfromtxt(csv_path_index, delimiter=",")
 
-    cloister = Cloister(input_x, input_a, default_option)
+    cloister = Cloister(input_x, input_a, default_option.cloister)
     index = cloister.decimal_to_binary_matrix()
 
     assert np.all(index_matlab == index + 1)
@@ -82,7 +82,7 @@ def test_decimal_to_binary() -> None:
 def test_decimal_to_binary_with_empty_x() -> None:
     """Test generating binary matrix with empty input."""
     empty_x = np.empty((0, 0))
-    cloister = Cloister(empty_x, input_a, default_option)
+    cloister = Cloister(empty_x, input_a, default_option.cloister)
     index = cloister.decimal_to_binary_matrix()
 
     assert index.shape == (1, 1)
@@ -102,7 +102,8 @@ def test_run() -> None:
     z_edge_matlab = np.genfromtxt(csv_path_z_edge, delimiter=",")
     z_ecorr_matlab = np.genfromtxt(csv_path_z_ecorr, delimiter=",")
 
-    z_edge, z_ecorr = Cloister.run(input_x, input_a, default_option)
+    _, cloister_out = Cloister.run(input_x, input_a, default_option.cloister)
+    z_edge, z_ecorr = cloister_out
 
     assert np.allclose(z_edge_matlab, z_edge)
     assert np.allclose(z_ecorr_matlab, z_ecorr)
@@ -111,7 +112,7 @@ def test_run() -> None:
 def test_convex_hull_qhull_error() -> None:
     """Test convex hull function properly handles qhull error."""
     points_collinear = np.array([[0, 0], [1, 1], [2, 2]])
-    cloister = Cloister(input_x, input_a, default_option)
+    cloister = Cloister(input_x, input_a, default_option.cloister)
     output = cloister.compute_convex_hull(points_collinear)
     assert output.size == 0
 
@@ -119,7 +120,7 @@ def test_convex_hull_qhull_error() -> None:
 def test_convex_hull_value_error() -> None:
     """Test convex hull function properly handles value error."""
     points_one_dimension = np.array([[1], [2], [3]])
-    cloister = Cloister(input_x, input_a, default_option)
+    cloister = Cloister(input_x, input_a, default_option.cloister)
     output = cloister.compute_convex_hull(points_one_dimension)
     assert output.size == 0
 
@@ -135,7 +136,7 @@ def test_boundary_generation() -> None:
     x_edge_matlab = np.genfromtxt(csv_path_x_edge, delimiter=",")
     remove_matlab = np.genfromtxt(csv_path_remove, delimiter=",")
 
-    cloister = Cloister(input_x, input_a, default_option)
+    cloister = Cloister(input_x, input_a, default_option.cloister)
     rho = cloister.compute_correlation()
     x_edge, remove = cloister.generate_boundaries(rho)
 
@@ -151,7 +152,7 @@ def test_boundary_generation_cthres_boundary() -> None:
     csv_path_rho = script_dir / "test_data/cloister/input/rho_boundary.csv"
     rho = np.genfromtxt(csv_path_rho, delimiter=",")
 
-    cloister = Cloister(input_x, input_a, default_option)
+    cloister = Cloister(input_x, input_a, default_option.cloister)
     _, remove = cloister.generate_boundaries(rho)
 
     assert np.all(remove_matlab == remove)
