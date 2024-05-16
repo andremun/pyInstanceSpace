@@ -12,7 +12,6 @@ from matilda.data.option import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,
-    GeneralOptions,
     NormOptions,
     Options,
     OutputOptions,
@@ -77,7 +76,6 @@ default_outputs = OutputOptions(
     web=False,
     png=True,
 )
-default_general = GeneralOptions(beta_threshold=0.2)
 
 
 def create_option(
@@ -93,7 +91,6 @@ def create_option(
     pythia: PythiaOptions = default_pythia,
     trace: TraceOptions = default_trace,
     outputs: OutputOptions = default_outputs,
-    general: GeneralOptions = default_general,
 ) -> Options:
     """Create option object based on the argument given.
 
@@ -112,5 +109,4 @@ def create_option(
         pythia=pythia,
         trace=trace,
         outputs=outputs,
-        general=general,
     )
