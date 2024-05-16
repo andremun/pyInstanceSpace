@@ -65,7 +65,7 @@ class Filter:
         y: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         opts: SelvarsOptions,
-    ) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]]:
+    ) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_], float]:
         """Filter instances based on distances and binary relations.
 
         Args
@@ -89,7 +89,7 @@ class Filter:
 
         print(f"Uniformity of the instance subset: {uniformity:.4f}")
 
-        return subset_index, is_dissimilar, is_visa
+        return subset_index, is_dissimilar, is_visa, uniformity
 
     """
     % =========================================================================
