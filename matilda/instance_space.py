@@ -104,6 +104,7 @@ class InstanceSpace:
         """
         raise NotImplementedError
 
+
     def prelim(self) -> PrelimOut:
         """Run the prelim stage.
 

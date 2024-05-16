@@ -10,6 +10,44 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from matilda.data.options_defaults import (
+    DEFAULT_AUTO_PREPROC,
+    DEFAULT_BOUND_FLAG,
+    DEFAULT_CLOISTER_C_THRES,
+    DEFAULT_CLOISTER_P_VAL,
+    DEFAULT_NORM_FLAG,
+    DEFAULT_OUTPUTS_CSV,
+    DEFAULT_OUTPUTS_PNG,
+    DEFAULT_OUTPUTS_WEB,
+    DEFAULT_PARALLEL_FLAG,
+    DEFAULT_PARALLEL_N_CORES,
+    DEFAULT_PERFORMANCE_ABS_PERF,
+    DEFAULT_PERFORMANCE_BETA_THRESHOLD,
+    DEFAULT_PERFORMANCE_EPSILON,
+    DEFAULT_PERFORMANCE_MAX_PERF,
+    DEFAULT_PILOT_ANALYTICS,
+    DEFAULT_PILOT_N_TRIES,
+    DEFAULT_PYTHIA_CV_FOLDS,
+    DEFAULT_PYTHIA_IS_POLY_KRNL,
+    DEFAULT_PYTHIA_USE_LIB_SVM,
+    DEFAULT_PYTHIA_USE_WEIGHTS,
+    DEFAULT_SELVARS_DENSITY_FLAG,
+    DEFAULT_SELVARS_FILE_IDX,
+    DEFAULT_SELVARS_FILE_IDX_FLAG,
+    DEFAULT_SELVARS_MIN_DISTANCE,
+    DEFAULT_SELVARS_SMALL_SCALE,
+    DEFAULT_SELVARS_SMALL_SCALE_FLAG,
+    DEFAULT_SELVARS_TYPE,
+    DEFAULT_SIFTED_FLAG,
+    DEFAULT_SIFTED_K,
+    DEFAULT_SIFTED_MAX_ITER,
+    DEFAULT_SIFTED_NTREES,
+    DEFAULT_SIFTED_REPLICATES,
+    DEFAULT_SIFTED_RHO,
+    DEFAULT_TRACE_PI,
+    DEFAULT_TRACE_USE_SIM,
+)
+
 
 class MissingOptionsError(Exception):
     """A required option wasn't set.
@@ -25,12 +63,12 @@ class ParallelOptions:
     """Configuration options for parallel computing."""
 
     flag: bool
-    n_cores: int | None
+    n_cores: int
 
     @staticmethod
     def default(
-        flag: bool = False,
-        n_cores: int | None = None,
+        flag: bool = DEFAULT_PARALLEL_FLAG,
+        n_cores: int = DEFAULT_PARALLEL_N_CORES,
     ) -> ParallelOptions:
         """Instantiate with default values."""
         return ParallelOptions(
@@ -45,15 +83,15 @@ class PerformanceOptions:
 
     max_perf: bool
     abs_perf: bool
-    epsilon: float | None
-    beta_threshold: float | None
+    epsilon: float
+    beta_threshold: float
 
     @staticmethod
     def default(
-        max_perf: bool = False,
-        abs_perf: bool = False,
-        epsilon: float | None = None,
-        beta_threshold: float | None = None,
+        max_perf: bool = DEFAULT_PERFORMANCE_MAX_PERF,
+        abs_perf: bool = DEFAULT_PERFORMANCE_ABS_PERF,
+        epsilon: float = DEFAULT_PERFORMANCE_EPSILON,
+        beta_threshold: float = DEFAULT_PERFORMANCE_BETA_THRESHOLD,
     ) -> PerformanceOptions:
         """Instantiate with default values."""
         return PerformanceOptions(
@@ -61,29 +99,6 @@ class PerformanceOptions:
             abs_perf=abs_perf,
             epsilon=epsilon,
             beta_threshold=beta_threshold,
-        )
-
-@dataclass(frozen=True)
-class PrelimOptions:
-    """Options for running PRELIM."""
-
-    max_perf: bool
-    abs_perf: bool
-    epsilon: float | None
-    beta_threshold: float | None
-    bound: bool
-    norm: bool
-
-    @staticmethod
-    def from_options(options: Options) -> PrelimOptions:
-        """Get a prelim options object from an existing Options object."""
-        return PrelimOptions(
-            max_perf=options.perf.max_perf,
-            abs_perf=options.perf.abs_perf,
-            epsilon=options.perf.epsilon,
-            beta_threshold=options.perf.beta_threshold,
-            bound=options.bound.flag,
-            norm=options.norm.flag,
         )
 
 
@@ -95,7 +110,7 @@ class AutoOptions:
 
     @staticmethod
     def default(
-        preproc: bool = False,
+        preproc: bool = DEFAULT_AUTO_PREPROC,
     ) -> AutoOptions:
         """Instantiate with default values."""
         return AutoOptions(
@@ -111,7 +126,7 @@ class BoundOptions:
 
     @staticmethod
     def default(
-        flag: bool = False,
+        flag: bool = DEFAULT_BOUND_FLAG,
     ) -> BoundOptions:
         """Instantiate with default values."""
         return BoundOptions(
@@ -127,7 +142,7 @@ class NormOptions:
 
     @staticmethod
     def default(
-        flag: bool = False,
+        flag: bool = DEFAULT_NORM_FLAG,
     ) -> NormOptions:
         """Instantiate with default values."""
         return NormOptions(
@@ -140,26 +155,26 @@ class SelvarsOptions:
     """Options for selecting variables, including criteria and file indices."""
 
     small_scale_flag: bool
-    small_scale: float | None
+    small_scale: float
     file_idx_flag: bool
-    file_idx: str | None
+    file_idx: str
     feats: pd.DataFrame | None
     algos: pd.DataFrame | None
-    selvars_type: str | None
-    min_distance: float | None
+    selvars_type: str
+    min_distance: float
     density_flag: bool
 
     @staticmethod
     def default(
-        small_scale_flag: bool = False,
-        small_scale: float = False,
-        file_idx_flag: bool = False,
-        file_idx: str | None = None,
+        small_scale_flag: bool = DEFAULT_SELVARS_SMALL_SCALE_FLAG,
+        small_scale: float = DEFAULT_SELVARS_SMALL_SCALE,
+        file_idx_flag: bool = DEFAULT_SELVARS_FILE_IDX_FLAG,
+        file_idx: str = DEFAULT_SELVARS_FILE_IDX,
         feats: pd.DataFrame | None = None,
         algos: pd.DataFrame | None = None,
-        selvars_type: str | None = None,
-        min_distance: float | None = None,
-        density_flag: bool = False,
+        selvars_type: str = DEFAULT_SELVARS_TYPE,
+        min_distance: float = DEFAULT_SELVARS_MIN_DISTANCE,
+        density_flag: bool = DEFAULT_SELVARS_DENSITY_FLAG,
     ) -> SelvarsOptions:
         """Instantiate with default values."""
         return SelvarsOptions(
@@ -180,20 +195,20 @@ class SiftedOptions:
     """Options specific to the sifting process in data analysis."""
 
     flag: bool
-    rho: float | None
-    k: int | None
-    n_trees: int | None
-    max_iter: int | None
-    replicates: int | None
+    rho: float
+    k: int
+    n_trees: int
+    max_iter: int
+    replicates: int
 
     @staticmethod
     def default(
-        flag: bool = False,
-        rho: float | None = None,
-        k: int | None = None,
-        n_trees: int | None = None,
-        max_iter: int | None = None,
-        replicates: int | None = None,
+        flag: bool = DEFAULT_SIFTED_FLAG,
+        rho: float = DEFAULT_SIFTED_RHO,
+        k: int = DEFAULT_SIFTED_K,
+        n_trees: int = DEFAULT_SIFTED_NTREES,
+        max_iter: int = DEFAULT_SIFTED_MAX_ITER,
+        replicates: int = DEFAULT_SIFTED_REPLICATES,
     ) -> SiftedOptions:
         """Instantiate with default values."""
         return SiftedOptions(
@@ -211,12 +226,12 @@ class PilotOptions:
     """Options for pilot studies or preliminary analysis phases."""
 
     analytic: bool
-    n_tries: int | None
+    n_tries: int
 
     @staticmethod
     def default(
-        analytic: bool = False,
-        n_tries: int | None = None,
+        analytic: bool = DEFAULT_PILOT_ANALYTICS,
+        n_tries: int = DEFAULT_PILOT_N_TRIES,
     ) -> PilotOptions:
         """Instantiate with default values."""
         return PilotOptions(
@@ -229,13 +244,13 @@ class PilotOptions:
 class CloisterOptions:
     """Options for cloistering in the model."""
 
-    p_val: float | None
-    c_thres: float | None
+    p_val: float
+    c_thres: float
 
     @staticmethod
     def default(
-        p_val: float | None = None,
-        c_thres: float | None = None,
+        p_val: float = DEFAULT_CLOISTER_P_VAL,
+        c_thres: float = DEFAULT_CLOISTER_C_THRES,
     ) -> CloisterOptions:
         """Instantiate with default values."""
         return CloisterOptions(
@@ -248,17 +263,17 @@ class CloisterOptions:
 class PythiaOptions:
     """Configuration for the Pythia component of the model."""
 
-    cv_folds: int | None
+    cv_folds: int
     is_poly_krnl: bool
     use_weights: bool
     use_lib_svm: bool
 
     @staticmethod
     def default(
-        cv_folds: int | None = None,
-        is_poly_krnl: bool = False,
-        use_weights: bool = False,
-        use_lib_svm: bool = False,
+        cv_folds: int = DEFAULT_PYTHIA_CV_FOLDS,
+        is_poly_krnl: bool = DEFAULT_PYTHIA_IS_POLY_KRNL,
+        use_weights: bool = DEFAULT_PYTHIA_USE_WEIGHTS,
+        use_lib_svm: bool = DEFAULT_PYTHIA_USE_LIB_SVM,
     ) -> PythiaOptions:
         """Instantiate with default values."""
         return PythiaOptions(
@@ -274,12 +289,12 @@ class TraceOptions:
     """Options for trace analysis in the model."""
 
     use_sim: bool
-    pi: float | None
+    pi: float
 
     @staticmethod
     def default(
-        use_sim: bool = False,
-        pi: float | None = None,
+        use_sim: bool = DEFAULT_TRACE_USE_SIM,
+        pi: float = DEFAULT_TRACE_PI,
     ) -> TraceOptions:
         """Instantiate with default values."""
         return TraceOptions(
@@ -298,31 +313,15 @@ class OutputOptions:
 
     @staticmethod
     def default(
-        csv: bool = False,
-        web: bool = False,
-        png: bool = False,
+        csv: bool = DEFAULT_OUTPUTS_CSV,
+        web: bool = DEFAULT_OUTPUTS_WEB,
+        png: bool = DEFAULT_OUTPUTS_PNG,
     ) -> OutputOptions:
         """Instantiate with default values."""
         return OutputOptions(
             csv=csv,
             web=web,
             png=png,
-        )
-
-
-@dataclass(frozen=True)
-class GeneralOptions:
-    """General options that affect the whole system."""
-
-    beta_threshold: float | None
-
-    @staticmethod
-    def default(
-        beta_threshold: float | None = None,
-    ) -> GeneralOptions:
-        """Instantiate with default values."""
-        return GeneralOptions(
-            beta_threshold=beta_threshold,
         )
 
 
@@ -342,7 +341,6 @@ class Options:
     pythia: PythiaOptions
     trace: TraceOptions
     outputs: OutputOptions
-    general: GeneralOptions
 
     @staticmethod
     def from_file(file_contents: str) -> Options:
@@ -381,7 +379,6 @@ class Options:
         pythia: PythiaOptions | None,
         trace: TraceOptions | None,
         outputs: OutputOptions | None,
-        general: GeneralOptions | None,
     ) -> Options:
         """Instantiate with default values."""
         return Options(
@@ -397,5 +394,30 @@ class Options:
             pythia= pythia or PythiaOptions.default(),
             trace= trace or TraceOptions.default(),
             outputs= outputs or OutputOptions.default(),
-            general= general or GeneralOptions.default(),
+        )
+
+
+# Options not part of the main Options class
+
+@dataclass(frozen=True)
+class PrelimOptions:
+    """Options for running PRELIM."""
+
+    max_perf: bool
+    abs_perf: bool
+    epsilon: float
+    beta_threshold: float
+    bound: bool
+    norm: bool
+
+    @staticmethod
+    def from_options(options: Options) -> PrelimOptions:
+        """Get a prelim options object from an existing Options object."""
+        return PrelimOptions(
+            max_perf=options.perf.max_perf,
+            abs_perf=options.perf.abs_perf,
+            epsilon=options.perf.epsilon,
+            beta_threshold=options.perf.beta_threshold,
+            bound=options.bound.flag,
+            norm=options.norm.flag,
         )
