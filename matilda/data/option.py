@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from matilda.data.options_defaults import (
+from matilda.data.default_options import (
     DEFAULT_AUTO_PREPROC,
     DEFAULT_BOUND_FLAG,
     DEFAULT_CLOISTER_C_THRES,
