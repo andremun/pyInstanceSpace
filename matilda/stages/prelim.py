@@ -12,8 +12,8 @@ guided by the options specified in the `Options` object.
 import numpy as np
 from numpy.typing import NDArray
 
-from matilda.data.model import Data, PrelimOut
-from matilda.data.option import Options
+from matilda.data.model import PrelimDataChanged, PrelimOut
+from matilda.data.option import PrelimOptions
 
 
 class Prelim:
@@ -23,8 +23,8 @@ class Prelim:
     def run(
         x: NDArray[np.double],
         y: NDArray[np.double],
-        opts: Options,
-    ) -> tuple[Data, PrelimOut]:
+        opts: PrelimOptions,
+    ) -> tuple[PrelimDataChanged, PrelimOut]:
         """Perform preliminary processing on the input data 'x' and 'y'.
 
         Args

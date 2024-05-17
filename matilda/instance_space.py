@@ -14,9 +14,10 @@ from matilda.data.model import (
     PrelimOut,
     PythiaOut,
     SiftedOut,
+    StageState,
     TraceOut,
 )
-from matilda.data.option import Options, from_json_file
+from matilda.data.option import Options, from_json_file, PrelimOptions
 from matilda.stages.cloister import Cloister
 from matilda.stages.pilot import Pilot
 from matilda.stages.prelim import Prelim
@@ -53,12 +54,12 @@ class InstanceSpace:
 
     _data: Data | None
 
-    _prelim_out: PrelimOut | None
-    _sifted_out: SiftedOut | None
-    _pilot_out: PilotOut | None
-    _cloister_out: CloisterOut | None
-    _trace_out: TraceOut | None
-    _pythia_out: PythiaOut | None
+    _prelim_state: StageState[PrelimOut] | None
+    _sifted_state: StageState[SiftedOut] | None
+    _pilot_state: StageState[PilotOut] | None
+    _cloister_state: StageState[CloisterOut] | None
+    _trace_state: StageState[TraceOut] | None
+    _pythia_state: StageState[PythiaOut] | None
 
     _model: Model | None
 
@@ -80,12 +81,12 @@ class InstanceSpace:
 
         self._data = None
 
-        self._prelim_out = None
-        self._sifted_out = None
-        self._pilot_out = None
-        self._cloister_out = None
-        self._trace_out = None
-        self._pythia_out = None
+        self._prelim_state = None
+        self._sifted_state = None
+        self._pilot_state = None
+        self._cloister_state = None
+        self._trace_state = None
+        self._pythia_state = None
 
         self._model = None
 
@@ -115,13 +116,16 @@ class InstanceSpace:
         """
         self._stages[_Stage.PRELIM] = True
 
-        self._data, self._prelim_out = Prelim.run(
+        self._clear_stages_after_prelim()
+
+        data_changed, prelim_out = Prelim.run(
             self._metadata.features,
             self._metadata.algorithms,
-            self._options,
+            PrelimOptions.from_options(self._options),
         )
 
-        return self._prelim_out
+        return prelim_out
+
 
     def sifted(self) -> SiftedOut:
         """Run the sifted stage.
@@ -133,19 +137,31 @@ class InstanceSpace:
         -------
             sifted_out: The return of the sifted stage.
         """
-        if not self._stages[_Stage.PRELIM] or self._data is None:
+        if not self._stages[_Stage.PRELIM] or self._prelim_state is None:
             raise StageError
 
         self._stages[_Stage.SIFTED] = True
 
-        something, self._sifted_out = Sifted.run(
-            self._data.x,
-            self._data.y,
-            self._data.y_bin,
+        self._clear_stages_after_sifted()
+
+        data_changed, sifted_out = Sifted.run(
+            self._prelim_state.data.x,
+            self._prelim_state.data.y,
+            self._prelim_state.data.y_bin,
             self._options.sifted,
         )
 
-        return self._sifted_out
+        self._sifted_state = StageState[SiftedOut](
+            data_changed.merge_with(self._prelim_state.data),
+            sifted_out,
+        )
+
+        return sifted_out
+
+    def _clear_stages_after_sifted(self) -> None:
+        self._pilot_state = None
+        self._stages[_Stage.PILOT] = False
+        self._clear_stages_after_pilot()
 
     def pilot(self) -> PilotOut:
         """Run the pilot stage.
@@ -157,19 +173,21 @@ class InstanceSpace:
         -------
             pilot_out: The return of the pilot stage.
         """
-        if not self._stages[_Stage.SIFTED] or self._data is None:
+        if not self._stages[_Stage.SIFTED] or self._sifted_state is None:
             raise StageError
 
         self._stages[_Stage.PILOT] = True
 
-        self._pilot_out = Pilot.run(
-            self._data.x,
-            self._data.y,
-            self._data.feat_labels,
+        self._clear_stages_after_pilot()
+
+        data_changed, pilot_out = Pilot.run(
+            self._sifted_state.data.x,
+            self._sifted_state.data.y,
+            self._sifted_state.data.feat_labels,
             self._options.pilot,
         )
 
-        return self._pilot_out
+        return pilot_out
 
     def cloister(self) -> CloisterOut:
         """Run the cloister stage.
@@ -181,21 +199,21 @@ class InstanceSpace:
         -------
             cloister_out: The return of the cloister stage.
         """
-        if (
-            not self._stages[_Stage.PILOT] or self._data is None
-            or self._pilot_out is None
-        ):
+        if not self._stages[_Stage.PILOT] or self._pilot_state is None:
             raise StageError
 
         self._stages[_Stage.CLOISTER] = True
 
-        self._cloister_out = Cloister.run(
-            self._data.x,
-            self._pilot_out.a,
-            self._options,
+        self._clear_stages_after_cloister()
+
+        data_changed, cloister_out = Cloister.run(
+            self._pilot_state.data.x,
+            self._pilot_state.out.a,
+            self._options.cloister,
         )
 
-        return self._cloister_out
+        return cloister_out
+
 
     def trace(self) -> TraceOut:
         """Run the trace stage.
@@ -207,24 +225,31 @@ class InstanceSpace:
         -------
             trace_out: The return of the trace stage.
         """
-        if (
-            not self._stages[_Stage.PILOT] or self._data is None
-            or self._pilot_out is None
-        ):
+        if not self._stages[_Stage.PILOT] or self._pilot_state is None:
             raise StageError
 
         self._stages[_Stage.TRACE] = True
 
-        self._trace_out = Trace.run(
-            self._pilot_out.z,
-            self._data.y_bin,
-            self._data.p,
-            self._data.beta,
-            self._data.algo_labels,
+        self._clear_stages_after_trace()
+
+        data_changed, trace_out = Trace.run(
+            self._pilot_state.out.z,
+            self._pilot_state.data.y_bin,
+            self._pilot_state.data.p,
+            self._pilot_state.data.beta,
+            self._pilot_state.data.algo_labels,
             self._options.trace,
         )
 
-        return self._trace_out
+        self._trace_state = StageState[TraceOut](
+            data_changed.merge_with(self._pilot_state.data),
+            trace_out,
+        )
+
+        return trace_out
+
+    def _clear_stages_after_trace(self) -> None:
+        pass
 
     def pythia(self) -> PythiaOut:
         """Run the pythia stage.
@@ -236,24 +261,51 @@ class InstanceSpace:
         -------
             pythia_out: The return of the pythia stage.
         """
-        if (
-            not self._stages[_Stage.PILOT] or self._data is None
-            or self._pilot_out is None
-        ):
+        if not self._stages[_Stage.PILOT] or self._pilot_state is None:
             raise StageError
 
         self._stages[_Stage.PYTHIA] = True
 
-        self._pythia_out = Pythia.run(
-            self._pilot_out.z,
-            self._data.y_raw,
-            self._data.y_bin,
-            self._data.y_best,
-            self._data.algo_labels,
-            self._options,
+        self._clear_stages_after_pythia()
+
+        data_changed, pythia_out = Pythia.run(
+            self._pilot_state.out.z,
+            self._pilot_state.data.y_raw,
+            self._pilot_state.data.y_bin,
+            self._pilot_state.data.y_best,
+            self._pilot_state.data.algo_labels,
+            self._options.pythia,
         )
 
-        return self._pythia_out
+        self._pythia_state = StageState[PythiaOut](
+            data_changed.merge_with(self._pilot_state.data),
+            pythia_out,
+        )
+
+        return pythia_out
+
+    def _clear_stages_after_pythia(self) -> None:
+        pass
+
+    def get_options(self) -> Options:
+        """Get the options for test cases.
+
+        Returns
+        -------
+        Options
+            The options object associated with this instance space.
+        """
+        return self._options
+
+    def get_metadata(self) -> Metadata:
+        """Get the metadata for test cases.
+
+        Returns
+        -------
+        Metadata
+            The metadata object associated with this instance space.
+        """
+        return self._metadata
 
     def get_options(self) -> Options:
         """Get the options for test cases.
