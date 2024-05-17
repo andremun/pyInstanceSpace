@@ -17,7 +17,7 @@ from matilda.data.model import (
     StageState,
     TraceOut,
 )
-from matilda.data.option import Options, from_json_file, PrelimOptions
+from matilda.data.option import Options, PrelimOptions, from_json_file
 from matilda.stages.cloister import Cloister
 from matilda.stages.pilot import Pilot
 from matilda.stages.prelim import Prelim
@@ -90,6 +90,17 @@ class InstanceSpace:
 
         self._model = None
 
+    @property
+    def metadata(self) -> Metadata:
+        """Get metadata."""
+        return self._metadata
+
+    @property
+    def options(self) -> Options:
+        """Get options."""
+        return self._options
+
+
     def build(self) -> Model:
         """Construct and return a Model object after instance space analysis.
 
@@ -103,6 +114,7 @@ class InstanceSpace:
             model: A Model object representing the built instance space.
         """
         raise NotImplementedError
+
 
     def prelim(self) -> PrelimOut:
         """Run the prelim stage.
@@ -124,7 +136,20 @@ class InstanceSpace:
             PrelimOptions.from_options(self._options),
         )
 
+        if self._data is None:
+            raise NotImplementedError
+
+        self._prelim_state = StageState[PrelimOut](
+            data_changed.merge_with(self._data),
+            prelim_out,
+        )
+
         return prelim_out
+
+    def _clear_stages_after_prelim(self) -> None:
+        self._sifted_state = None
+        self._stages[_Stage.SIFTED] = False
+        self._clear_stages_after_sifted()
 
 
     def sifted(self) -> SiftedOut:
@@ -163,6 +188,7 @@ class InstanceSpace:
         self._stages[_Stage.PILOT] = False
         self._clear_stages_after_pilot()
 
+
     def pilot(self) -> PilotOut:
         """Run the pilot stage.
 
@@ -187,7 +213,24 @@ class InstanceSpace:
             self._options.pilot,
         )
 
+        self._pilot_state = StageState[PilotOut](
+            data_changed.merge_with(self._sifted_state.data),
+            pilot_out,
+        )
+
         return pilot_out
+
+    def _clear_stages_after_pilot(self) -> None:
+        self._cloister_state = None
+        self._trace_state = None
+        self._pythia_state = None
+        self._stages[_Stage.CLOISTER] = False
+        self._stages[_Stage.TRACE] = False
+        self._stages[_Stage.PYTHIA] = False
+        self._clear_stages_after_cloister()
+        self._clear_stages_after_trace()
+        self._clear_stages_after_pythia()
+
 
     def cloister(self) -> CloisterOut:
         """Run the cloister stage.
@@ -212,7 +255,15 @@ class InstanceSpace:
             self._options.cloister,
         )
 
+        self._cloister_state = StageState[CloisterOut](
+            data_changed.merge_with(self._pilot_state.data),
+            cloister_out,
+        )
+
         return cloister_out
+
+    def _clear_stages_after_cloister(self) -> None:
+        pass
 
 
     def trace(self) -> TraceOut:
@@ -286,46 +337,6 @@ class InstanceSpace:
 
     def _clear_stages_after_pythia(self) -> None:
         pass
-
-    def get_options(self) -> Options:
-        """Get the options for test cases.
-
-        Returns
-        -------
-        Options
-            The options object associated with this instance space.
-        """
-        return self._options
-
-    def get_metadata(self) -> Metadata:
-        """Get the metadata for test cases.
-
-        Returns
-        -------
-        Metadata
-            The metadata object associated with this instance space.
-        """
-        return self._metadata
-
-    def get_options(self) -> Options:
-        """Get the options for test cases.
-
-        Returns
-        -------
-        Options
-            The options object associated with this instance space.
-        """
-        return self._options
-
-    def get_metadata(self) -> Metadata:
-        """Get the metadata for test cases.
-
-        Returns
-        -------
-        Metadata
-            The metadata object associated with this instance space.
-        """
-        return self._metadata
 
 
 def instance_space_from_files(

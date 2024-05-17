@@ -42,7 +42,7 @@ class TestMetadata:
         """
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
         option_path = script_dir / "test_data/load_file/options.json"
-        return instance_space_from_files(metadata_path, option_path).get_metadata()
+        return instance_space_from_files(metadata_path, option_path).metadata
 
     @pytest.fixture()
     def valid_metadata_with_source(self: Self) -> Metadata:
@@ -56,7 +56,7 @@ class TestMetadata:
         """
         metadata_path = script_dir / "test_data/load_file/metadata_with_source.csv"
         option_path = script_dir / "test_data/load_file/options.json"
-        return instance_space_from_files(metadata_path, option_path).get_metadata()
+        return instance_space_from_files(metadata_path, option_path).metadata
 
     def test_instance_labels_count(self: Self, valid_metadata: Metadata) -> None:
         """Check label count of metadata."""
@@ -99,7 +99,7 @@ class TestMetadata:
         invalid_path = script_dir / "invalid_path"
         option_path = script_dir / "test_data/load_file/options.json"
         with pytest.raises(FileNotFoundError):
-            instance_space_from_files(invalid_path, option_path).get_metadata()
+            instance_space_from_files(invalid_path, option_path).metadata
 
 
 class TestOption:
@@ -110,7 +110,7 @@ class TestOption:
         """Load option json file from path."""
         option_path = script_dir / "test_data/load_file/options.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
-        return instance_space_from_files(metadata_path, option_path).get_options()
+        return instance_space_from_files(metadata_path, option_path).options
 
     @pytest.mark.parametrize(
         ("option_key", "subkey", "expected_value"),
@@ -174,14 +174,14 @@ class TestOption:
         error_msg = "Field 'MaxPerf_invalid' in JSON is " \
                     "not defined in the dataclass 'PerformanceOptions'"
         with pytest.raises(ValueError, match=error_msg):
-            instance_space_from_files(metadata_path, invalid_option_path).get_options()
+            instance_space_from_files(metadata_path, invalid_option_path).options
 
     def test_option_invalid_path(self: Self) -> None:
         """Test FileNotFound exception is thrown with invalid path."""
         path = script_dir / "invalid_path"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
         with pytest.raises(FileNotFoundError):
-            instance_space_from_files(metadata_path, path).get_options()
+            instance_space_from_files(metadata_path, path).options
 
     def test_missing_field(self: Self) -> None:
         """Loading from json, and any top field and sub fields are missing."""
@@ -190,7 +190,7 @@ class TestOption:
         with Path.open(missing_field) as file:
             options_dict = json.load(file)
             loaded_options = instance_space_from_files(metadata_path,
-                                                       missing_field).get_options()
+                                                       missing_field).options
 
         if loaded_options.auto is not None:
             assert loaded_options.auto.preproc == options_dict["auto"]["preproc"], \

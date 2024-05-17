@@ -442,36 +442,10 @@ class Options:
             outputs= outputs or OutputOptions.default(),
         )
 
-
-# Options not part of the main Options class
-
-@dataclass(frozen=True)
-class PrelimOptions:
-    """Options for running PRELIM."""
-
-    max_perf: bool
-    abs_perf: bool
-    epsilon: float
-    beta_threshold: float
-    bound: bool
-    norm: bool
-
-    @staticmethod
-    def from_options(options: Options) -> PrelimOptions:
-        """Get a prelim options object from an existing Options object."""
-        return PrelimOptions(
-            max_perf=options.perf.max_perf,
-            abs_perf=options.perf.abs_perf,
-            epsilon=options.perf.epsilon,
-            beta_threshold=options.perf.beta_threshold,
-            bound=options.bound.flag,
-            norm=options.norm.flag,
-        )
-
     T = TypeVar("T", ParallelOptions, PerformanceOptions,
-                AutoOptions, BoundOptions, NormOptions, SelvarsOptions,
-                SiftedOptions, PilotOptions, CloisterOptions, PythiaOptions,
-                TraceOptions, OutputOptions)
+            AutoOptions, BoundOptions, NormOptions, SelvarsOptions,
+            SiftedOptions, PilotOptions, CloisterOptions, PythiaOptions,
+            TraceOptions, OutputOptions)
 
     @staticmethod
     def _validate_fields(data_class: type[T], data: dict) -> None:
@@ -507,6 +481,7 @@ class PrelimOptions:
                 f"Missing required field(s) '{missing_fields}' "
                 f"from the JSON for the data class '{data_class.__name__}'.")
 
+
     @staticmethod
     def _load_dataclass(data_class: type[T], data: dict) -> T:
         """Load data into a dataclass from a dictionary.
@@ -526,11 +501,38 @@ class PrelimOptions:
         T
             An instance of the dataclass populated with data.
         """
-        Options._validate_fields(data_class, data)  # noqa: SLF001
+        Options._validate_fields(data_class, data)
         # for every subfield, fill in the attribute with the content,
         # return None if can't find the attribute content in the JSON
         init_args = {f.name: data.get(f.name, None) for f in fields(data_class)}
         return data_class(**init_args)
+
+
+# Options not part of the main Options class
+
+@dataclass(frozen=True)
+class PrelimOptions:
+    """Options for running PRELIM."""
+
+    max_perf: bool
+    abs_perf: bool
+    epsilon: float
+    beta_threshold: float
+    bound: bool
+    norm: bool
+
+    @staticmethod
+    def from_options(options: Options) -> PrelimOptions:
+        """Get a prelim options object from an existing Options object."""
+        return PrelimOptions(
+            max_perf=options.perf.max_perf,
+            abs_perf=options.perf.abs_perf,
+            epsilon=options.perf.epsilon,
+            beta_threshold=options.perf.beta_threshold,
+            bound=options.bound.flag,
+            norm=options.norm.flag,
+        )
+
 
 
 def from_json_file(file_path: Path) -> Options | None:
