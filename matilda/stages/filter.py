@@ -17,8 +17,9 @@ class Filter:
     def run(
         x: NDArray[np.double],
         y: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
         opts: SelvarsOptions,
-    ) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]]:
+    ) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_], float]:
         """NOT quite sure where this function was used.
 
         Note that the return value, based on the original Matlab code,

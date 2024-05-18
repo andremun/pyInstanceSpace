@@ -12,11 +12,10 @@ guided by the options specified in the `Options` object.
 from dataclasses import dataclass
 
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 from scipy import optimize, stats
 
-from matilda.data.model import Data, PrelimOut
+from matilda.data.model import PrelimDataChanged, PrelimOut
 from matilda.data.option import PrelimOptions
 
 
@@ -67,7 +66,7 @@ class Prelim:
         x: NDArray[np.double],
         y: NDArray[np.double],
         opts: PrelimOptions,
-    ) -> tuple[Data, PrelimOut]:
+    ) -> tuple[PrelimDataChanged, PrelimOut]:
         """Perform preliminary processing on the input data 'x' and 'y'.
 
         Args
@@ -166,10 +165,7 @@ class Prelim:
             sigma_y = normalise_out.sigma_y
             mu_y = normalise_out.mu_y
 
-        data = Data(
-            inst_labels=pd.Series([]),
-            feat_labels=[""],
-            algo_labels=[""],
+        data = PrelimDataChanged(
             x=x,
             y=y,
             x_raw=x,
@@ -179,7 +175,6 @@ class Prelim:
             p=p,
             num_good_algos=num_good_algos,
             beta=beta,
-            s=None,
         )
 
         prelim_out = PrelimOut(
