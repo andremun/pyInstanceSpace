@@ -165,7 +165,7 @@ class Prelim:
             sigma_y = normalise_out.sigma_y
             mu_y = normalise_out.mu_y
 
-        data = PrelimDataChanged(
+        data_changed = PrelimDataChanged(
             x=x,
             y=y,
             x_raw=x,
@@ -192,7 +192,7 @@ class Prelim:
             mu_y=mu_y,
         )
 
-        return data, prelim_out
+        return data_changed, prelim_out
 
     def select_best_algorithms(
         self,
