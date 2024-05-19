@@ -351,7 +351,8 @@ class Options:
 
         This function reads a JSON file from `filepath`, checks for expected
         top-level fields as defined in Options, initializes each part of the
-        Options with data from the file, and sets missing optional fields to None.
+        Options with data from the file, and sets missing optional fields using
+        their default values.
 
         Args
         ----------
@@ -365,41 +366,32 @@ class Options:
 
         Raises
         ------
-        FileNotFoundError
-            If the JSON file is not found at filepath.
         ValueError
             If the JSON file contains undefined fields.
         """
         # Validate if the top-level fields match those in the Options class
         options_fields = {f.name for f in fields(Options)}
         extra_fields = set(file_contents.keys()) - options_fields
-        lacking_field = options_fields - set(file_contents.keys())
+
+
         if extra_fields:
             raise ValueError(f"Extra fields in JSON are not defined in Options:"
                              f" {extra_fields}")
-        if lacking_field :
-            raise ValueError(f"You should also include these field(s) in Options:"
-                             f" {lacking_field}")
 
-        # Initialize each part of Options
-
+        # Initialize each part of Options, using default values for missing fields
         return Options(
-            parallel=Options._load_dataclass(ParallelOptions,
-                                             file_contents["parallel"]),
-            perf=Options._load_dataclass(PerformanceOptions, file_contents["perf"]),
-            auto=Options._load_dataclass(AutoOptions, file_contents["auto"]),
-            bound=Options._load_dataclass(BoundOptions, file_contents["bound"]),
-            norm=Options._load_dataclass(NormOptions, file_contents["norm"]),
-            selvars=Options._load_dataclass(SelvarsOptions, file_contents["selvars"]),
-            sifted=Options._load_dataclass(SiftedOptions, file_contents["sifted"]),
-            pilot=Options._load_dataclass(PilotOptions, file_contents["pilot"]),
-            cloister=Options._load_dataclass(
-                CloisterOptions,
-                file_contents["cloister"],
-            ),
-            pythia=Options._load_dataclass(PythiaOptions, file_contents["pythia"]),
-            trace=Options._load_dataclass(TraceOptions, file_contents["trace"]),
-            outputs=Options._load_dataclass(OutputOptions, file_contents["outputs"]),
+            parallel=Options._load_dataclass(ParallelOptions, file_contents.get("parallel", {})),
+            perf=Options._load_dataclass(PerformanceOptions, file_contents.get("perf", {})),
+            auto=Options._load_dataclass(AutoOptions, file_contents.get("auto", {})),
+            bound=Options._load_dataclass(BoundOptions, file_contents.get("bound", {})),
+            norm=Options._load_dataclass(NormOptions, file_contents.get("norm", {})),
+            selvars=Options._load_dataclass(SelvarsOptions, file_contents.get("selvars", {})),
+            sifted=Options._load_dataclass(SiftedOptions, file_contents.get("sifted", {})),
+            pilot=Options._load_dataclass(PilotOptions, file_contents.get("pilot", {})),
+            cloister=Options._load_dataclass(CloisterOptions, file_contents.get("cloister", {})),
+            pythia=Options._load_dataclass(PythiaOptions, file_contents.get("pythia", {})),
+            trace=Options._load_dataclass(TraceOptions, file_contents.get("trace", {})),
+            outputs=Options._load_dataclass(OutputOptions, file_contents.get("outputs", {})),
         )
 
     def to_file(self: Self, filepath: Path) -> None:
@@ -474,20 +466,20 @@ class Options:
                 f"Field(s) '{extra_fields}' in JSON are not "
                 f"defined in the data class '{data_class.__name__}'.")
 
-        # Check if all fields defined in the data class are present in the JSON
+        """# Check if all fields defined in the data class are present in the JSON
         missing_fields = known_fields - set(data.keys())
         if missing_fields:
             raise ValueError(
                 f"Missing required field(s) '{missing_fields}' "
-                f"from the JSON for the data class '{data_class.__name__}'.")
-
+                f"from the JSON for the data class '{data_class.__name__}'.")"""
 
     @staticmethod
     def _load_dataclass(data_class: type[T], data: dict) -> T:
         """Load data into a dataclass from a dictionary.
 
         Ensures all dictionary keys match dataclass fields and fills in fields
-        with available data or None.
+        with available data. If a field is missing in the dictionary, the default
+        value from the dataclass is used.
 
         Args
         ----------
@@ -500,11 +492,26 @@ class Options:
         -------
         T
             An instance of the dataclass populated with data.
+
+        Raises
+        ------
+        ValueError
+            If the dictionary contains keys that are not valid fields in the dataclass.
         """
-        Options._validate_fields(data_class, data)
-        # for every subfield, fill in the attribute with the content,
-        # return None if can't find the attribute content in the JSON
-        init_args = {f.name: data.get(f.name, None) for f in fields(data_class)}
+        # Get the default values for the dataclass fields
+        default_values = {
+            f.name: getattr(data_class.default(), f.name) for f in fields(data_class)
+        }
+
+        # Update the default values with the provided data
+        init_args = {**default_values, **data}
+
+        # Check for any keys that are not valid fields in the dataclass
+        valid_fields = {f.name for f in fields(data_class)}
+        invalid_keys = set(init_args.keys()) - valid_fields
+        if invalid_keys:
+            raise ValueError(f"Invalid keys found in the dictionary: {invalid_keys}")
+
         return data_class(**init_args)
 
 
