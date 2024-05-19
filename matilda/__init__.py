@@ -32,7 +32,9 @@ Example usage:
 """
 
 from . import data, instance_space, stages
+from .data.metadata import Metadata
+from .data.option import Options
 from .instance_space import InstanceSpace
 
-__all__ = ["InstanceSpace", "data", "stages", "instance_space"]
+__all__ = ["InstanceSpace", "Options", "Metadata", "data", "stages", "instance_space"]
 

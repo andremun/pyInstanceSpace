@@ -367,18 +367,18 @@ class Options:
 
     @staticmethod
     def default(
-        parallel: ParallelOptions | None,
-        perf: PerformanceOptions | None,
-        auto: AutoOptions | None,
-        bound: BoundOptions | None,
-        norm: NormOptions | None,
-        selvars: SelvarsOptions | None,
-        sifted: SiftedOptions | None,
-        pilot: PilotOptions | None,
-        cloister: CloisterOptions | None,
-        pythia: PythiaOptions | None,
-        trace: TraceOptions | None,
-        outputs: OutputOptions | None,
+        parallel: ParallelOptions | None = None,
+        perf: PerformanceOptions | None = None,
+        auto: AutoOptions | None = None,
+        bound: BoundOptions | None = None,
+        norm: NormOptions | None = None,
+        selvars: SelvarsOptions | None = None,
+        sifted: SiftedOptions | None = None,
+        pilot: PilotOptions | None = None,
+        cloister: CloisterOptions | None = None,
+        pythia: PythiaOptions | None = None,
+        trace: TraceOptions | None = None,
+        outputs: OutputOptions | None = None,
     ) -> Options:
         """Instantiate with default values."""
         return Options(
