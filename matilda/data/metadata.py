@@ -21,8 +21,8 @@ class Metadata:
 
     feature_names: list[str]
     algorithm_names: list[str]
-    instance_labels: pd.Series # type: ignore[type-arg]
-    instance_sources: pd.Series | None # type: ignore[type-arg]
+    instance_labels: pd.Series  # type: ignore[type-arg]
+    instance_sources: pd.Series | None  # type: ignore[type-arg]
     features: NDArray[np.double]
     algorithms: NDArray[np.double]
 
@@ -80,8 +80,29 @@ class Metadata:
         raise NotImplementedError
 
 
-# not the method, It's a func
 def from_csv_file(file_path: Path) -> Metadata | None:
+    """Parse metadata from a CSV file and construct a Metadata object.
+
+    Args
+    ----------
+    file_path : Path
+        The path to the CSV file containing the metadata.
+
+    Returns
+    -------
+    Metadata or None
+        A Metadata object constructed from the parsed CSV data, or None if an
+        error occurred during file reading or parsing.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the specified file does not exist.
+    pandas.errors.EmptyDataError
+        If the specified file is empty.
+    pandas.errors.ParserError
+        If the specified file is not a valid CSV file.
+    """
     try:
         csv_df = pd.read_csv(file_path)
     except FileNotFoundError:

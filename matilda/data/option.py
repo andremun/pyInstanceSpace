@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Self, TypeVar
+from typing import Any, Self, TypeVar
 
 import pandas as pd
 
@@ -347,7 +347,7 @@ class Options:
     outputs: OutputOptions
 
     @staticmethod
-    def from_dict(file_contents: dict) -> Options:
+    def from_dict(file_contents: dict[str, Any]) -> Options:
         """Load configuration options from a JSON file into an Options object.
 
         This function reads a JSON file from `filepath`, checks for expected
@@ -362,13 +362,13 @@ class Options:
 
         Returns
         -------
-        unknown
+        Options
             Options object populated with data from the file.
 
         Raises
         ------
         ValueError
-            If the JSON file contains undefined fields.
+            If the JSON file contains undefined sub options.
         """
         # Validate if the top-level fields match those in the Options class
         options_fields = {f.name for f in fields(Options)}
@@ -447,7 +447,7 @@ class Options:
                 TraceOptions, OutputOptions)
 
     @staticmethod
-    def _validate_fields(data_class: type[T], data: dict) -> None:
+    def _validate_fields(data_class: type[T], data: dict[str, Any]) -> None:
         """Validate all keys in the provided dictionary are valid fields in dataclass.
 
         Args
@@ -461,7 +461,7 @@ class Options:
         ------
         ValueError
             If an undefined field is found in the dictionary or
-            if a field from the data class is missing in the dictionary.
+
         """
         # Get all defined fields in the data class
         known_fields = {f.name for f in fields(data_class)}
@@ -474,7 +474,7 @@ class Options:
                 f"defined in the data class '{data_class.__name__}'.")
 
     @staticmethod
-    def _load_dataclass(data_class: type[T], data: dict) -> T:
+    def _load_dataclass(data_class: type[T], data: dict[str, Any]) -> T:
         """Load data into a dataclass from a dictionary.
 
         Ensures all dictionary keys match dataclass fields and fills in fields
@@ -538,6 +538,30 @@ class PrelimOptions:
 
 
 def from_json_file(file_path: Path) -> Options | None:
+    """Parse options from a JSON file and construct an Options object.
+
+    Args
+    ----
+    file_path : Path
+        The path to the JSON file containing the options.
+
+    Returns
+    -------
+    Options or None
+        An Options object constructed from the parsed JSON data, or None if an
+        error occurred during file reading or parsing.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the specified file does not exist.
+    json.JSONDecodeError
+        If the specified file contains invalid JSON.
+    OSError
+        If an I/O error occurred while reading the file.
+    ValueError
+        If the parsed JSON data contains invalid options.
+    """
     try:
         with file_path.open() as o:
             options_contents = o.read()

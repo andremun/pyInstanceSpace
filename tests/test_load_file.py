@@ -130,7 +130,8 @@ class TestMetadata:
         assert source is not None, "Expected 's' to be not None"
         assert source.count() == self.expected_source
 
-    def test_metadata_invalid_path(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_metadata_invalid_path(self: Self, capsys: pytest.CaptureFixture[str]) \
+            -> None:
         """Test FileNotFound exception is thrown with invalid path."""
         invalid_path = script_dir / "invalid_path"
         option_path = script_dir / "test_data/load_file/options.json"
@@ -142,7 +143,7 @@ class TestMetadata:
         expected_error_msg = " does not exist."
         assert expected_error_msg in captured.out
 
-    def test_Data_empty(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_data_empty(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test dummy exception is thrown with invalid path."""
         data_path = script_dir / "test_data/load_file/dummydata.csv"
         option_path = script_dir / "test_data/load_file/options.json"
@@ -250,7 +251,8 @@ class TestOption:
 
         assert expected_error_msg in captured.out
 
-    def test_option_invalid_path(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_option_invalid_path(self: Self, capsys: pytest.CaptureFixture[str]) \
+            -> None:
         """Test FileNotFound exception is thrown with invalid path."""
         invalid_options_path = script_dir / "invalid_path"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
@@ -277,10 +279,11 @@ class TestOption:
 
         # check the dropped selvars.feats is filled with default value
         assert loaded_options.selvars.feats is None
-        assert loaded_options.selvars.small_scale == 0.8
+        wanted_value = 0.8
+        assert loaded_options.selvars.small_scale == wanted_value
         assert loaded_options.selvars.file_idx_flag is True
 
-    def test_extra_top_fields(self, capsys: pytest.CaptureFixture[str]):
+    def test_extra_top_fields(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Any top field are not defined in the class."""
         path = script_dir / "test_data/load_file/options_extra_topfield.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
@@ -292,7 +295,8 @@ class TestOption:
 
         assert expected_error_msg in captured.out
 
-    def test_Json_with_invalid_content(self, capsys: pytest.CaptureFixture[str]):
+    def test_json_with_invalid_content(self, capsys: pytest.CaptureFixture[str]) \
+            -> None:
         """Any top field are not defined in the class."""
         path = script_dir / "test_data/load_file/illegal.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
