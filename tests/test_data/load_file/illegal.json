@@ -1,7 +1,8 @@
 {
+    "here is illegal": ,
     "parallel": { "flag": false, "n_cores": 2},
     "perf": {
-      "max_perf": false,
+      "max_perf_also_illegal": ,
       "abs_perf": true,
       "epsilon": 0.2,
       "beta_threshold": 0.55
@@ -11,13 +12,17 @@
     "norm": { "flag": true },
     "selvars": {
       "small_scale_flag": false,
-      "small_scale": 0.8,
-      "file_idx_flag": true,
+      "small_scale": 0.5,
+      "file_idx_flag": false,
       "file_idx": "",
       "density_flag": false,
       "min_distance": 0.1,
       "selvars_type": "Ftr&Good",
-
+      "feats": [
+        "feature_Max_Normalized_Entropy_attributes",
+        "feature_Normalized_Entropy_Class_Attribute",
+        "feature_Nonlinearity_Nearest_Neighbor_Classifier_N4"
+      ],
       "algos": ["algo_NB", "algo_CART", "algo_KNN", "algo_RBF_SVM", "algo_RandF"]
     },
     "sifted": {
@@ -31,7 +36,12 @@
     "trace": { "use_sim": true, "pi": 0.55 },
     "pilot": { "analytic": false, "n_tries": 5 },
     "cloister": { "c_thres": 0.7, "p_val": 0.05 },
-
+    "pythia": {
+      "cv_folds": 5,
+      "is_poly_krnl": false,
+      "use_weights": false,
+      "use_lib_svm": false
+    },
     "outputs": { "csv": true, "png": true, "web": false }
   }
   

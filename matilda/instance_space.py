@@ -375,7 +375,7 @@ def instance_space_from_files(
         print("Failed to initialize options")
         sys.exit(1)
 
-    print("-> Successfully loaded the data.")
+    print("-> Successfully loaded the options.")
 
     print("-> Listing options to be used:")
     for field_name in fields(Options):
@@ -416,7 +416,7 @@ def instance_space_from_directory(directory: Path) -> InstanceSpace:
         print("Failed to initialize options")
         sys.exit(1)
 
-    print("-> Successfully loaded the data.")
+    print("-> Successfully loaded the options.")
 
     print("-> Listing options to be used:")
     for field_name in fields(Options):
@@ -426,10 +426,3 @@ def instance_space_from_directory(directory: Path) -> InstanceSpace:
     return InstanceSpace(metadata, options)
 
 
-if __name__ == "__main__":
-    metadata_filepath = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_data/load_file/metadata.csv")
-    #应该添加对sub fields的检查
-    options_filepath = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_data/load_file/options.json")
-    instance_space_from_files(metadata_filepath,options_filepath)
-
-    #instance_space_from_directory(Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_data/load_file"))

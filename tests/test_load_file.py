@@ -4,12 +4,48 @@ Test module to verify the functionality to load file from source.
 The file contains multiple unit test to ensure that metadata is correctly loaded from
 csv file and option is also correctly loaded from json file.
 """
-import json
 from pathlib import Path
 from typing import Self
 
 import pytest
 
+from matilda.data.default_options import (
+    DEFAULT_AUTO_PREPROC,
+    DEFAULT_BOUND_FLAG,
+    DEFAULT_CLOISTER_C_THRES,
+    DEFAULT_CLOISTER_P_VAL,
+    DEFAULT_NORM_FLAG,
+    DEFAULT_OUTPUTS_CSV,
+    DEFAULT_OUTPUTS_PNG,
+    DEFAULT_OUTPUTS_WEB,
+    DEFAULT_PARALLEL_FLAG,
+    DEFAULT_PARALLEL_N_CORES,
+    DEFAULT_PERFORMANCE_ABS_PERF,
+    DEFAULT_PERFORMANCE_BETA_THRESHOLD,
+    DEFAULT_PERFORMANCE_EPSILON,
+    DEFAULT_PERFORMANCE_MAX_PERF,
+    DEFAULT_PILOT_ANALYTICS,
+    DEFAULT_PILOT_N_TRIES,
+    DEFAULT_PYTHIA_CV_FOLDS,
+    DEFAULT_PYTHIA_IS_POLY_KRNL,
+    DEFAULT_PYTHIA_USE_LIB_SVM,
+    DEFAULT_PYTHIA_USE_WEIGHTS,
+    DEFAULT_SELVARS_DENSITY_FLAG,
+    DEFAULT_SELVARS_FILE_IDX,
+    DEFAULT_SELVARS_FILE_IDX_FLAG,
+    DEFAULT_SELVARS_MIN_DISTANCE,
+    DEFAULT_SELVARS_SMALL_SCALE,
+    DEFAULT_SELVARS_SMALL_SCALE_FLAG,
+    DEFAULT_SELVARS_TYPE,
+    DEFAULT_SIFTED_FLAG,
+    DEFAULT_SIFTED_K,
+    DEFAULT_SIFTED_MAX_ITER,
+    DEFAULT_SIFTED_NTREES,
+    DEFAULT_SIFTED_REPLICATES,
+    DEFAULT_SIFTED_RHO,
+    DEFAULT_TRACE_PI,
+    DEFAULT_TRACE_USE_SIM,
+)
 from matilda.data.metadata import Metadata
 from matilda.data.option import Options
 from matilda.instance_space import instance_space_from_files
@@ -94,12 +130,41 @@ class TestMetadata:
         assert source is not None, "Expected 's' to be not None"
         assert source.count() == self.expected_source
 
-    def test_metadata_invalid_path(self: Self) -> None:
+    def test_metadata_invalid_path(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test FileNotFound exception is thrown with invalid path."""
         invalid_path = script_dir / "invalid_path"
         option_path = script_dir / "test_data/load_file/options.json"
-        with pytest.raises(FileNotFoundError):
+
+        with pytest.raises(SystemExit):
             instance_space_from_files(invalid_path, option_path).metadata
+
+        captured = capsys.readouterr()
+        expected_error_msg = " does not exist."
+        assert expected_error_msg in captured.out
+
+    def test_Data_empty(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Test dummy exception is thrown with invalid path."""
+        data_path = script_dir / "test_data/load_file/dummydata.csv"
+        option_path = script_dir / "test_data/load_file/options.json"
+
+        with pytest.raises(SystemExit):
+            instance_space_from_files(data_path, option_path).metadata
+
+        captured = capsys.readouterr()
+        expected_error_msg = "dummydata.csv' is empty."
+        assert expected_error_msg in captured.out
+
+    def test_illegal_csv(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Test dummy exception is thrown with invalid path."""
+        data_path = script_dir / "test_data/load_file/illegal.csv"
+        option_path = script_dir / "test_data/load_file/options.json"
+
+        with pytest.raises(SystemExit):
+            instance_space_from_files(data_path, option_path).metadata
+
+        captured = capsys.readouterr()
+        expected_error_msg = "is not a valid CSV file."
+        assert expected_error_msg in captured.out
 
 
 class TestOption:
@@ -130,7 +195,12 @@ class TestOption:
             ("selvars", "file_idx", ""),
             ("selvars", "density_flag", False),
             ("selvars", "min_distance", 0.1),
-            ("selvars", "type", "Ftr&Good"),
+            ("selvars", "selvars_type", "Ftr&Good"),
+            ("selvars", "feats", [
+                "feature_Max_Normalized_Entropy_attributes",
+                "feature_Normalized_Entropy_Class_Attribute",
+                "feature_Nonlinearity_Nearest_Neighbor_Classifier_N4",
+            ]),
             ("sifted", "flag", True),
             ("sifted", "rho", 0.1),
             ("sifted", "k", 10),
@@ -146,7 +216,7 @@ class TestOption:
             ("pythia", "use_weights", False),
             ("pythia", "use_lib_svm", False),
             ("trace", "use_sim", True),
-            ("trace", "PI", 0.55),
+            ("trace", "pi", 0.55),
             ("outputs", "csv", True),
             ("outputs", "png", True),
             ("outputs", "web", False),
@@ -167,114 +237,129 @@ class TestOption:
         """
         assert getattr(getattr(valid_options, option_key), subkey) == expected_value
 
-    def test_option_value_error(self: Self) -> None:
+    def test_option_value_error(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test loading option with invalid attribute name will raise value error."""
         invalid_option_path = script_dir / "test_data/load_file/options_invalid.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
-        error_msg = "Field 'MaxPerf_invalid' in JSON is " \
-                    "not defined in the dataclass 'PerformanceOptions'"
-        with pytest.raises(ValueError, match=error_msg):
-            instance_space_from_files(metadata_path, invalid_option_path).options
+        with pytest.raises(SystemExit):
+            instance_space_from_files(metadata_path, invalid_option_path)
+        captured = capsys.readouterr()
+        expected_error_msg = "Error details: Field(s) '{'MaxPerf_invalid'}' " \
+                             "in JSON are not defined in the data class " \
+                             "'PerformanceOptions'"
 
-    def test_option_invalid_path(self: Self) -> None:
+        assert expected_error_msg in captured.out
+
+    def test_option_invalid_path(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test FileNotFound exception is thrown with invalid path."""
-        path = script_dir / "invalid_path"
+        invalid_options_path = script_dir / "invalid_path"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
-        with pytest.raises(FileNotFoundError):
-            instance_space_from_files(metadata_path, path).options
+
+        with pytest.raises(SystemExit):
+            instance_space_from_files(metadata_path, invalid_options_path)
+
+        captured = capsys.readouterr()
+        expected_error_msg = " does not exist."
+        assert expected_error_msg in captured.out
 
     def test_missing_field(self: Self) -> None:
         """Loading from json, and any top field and sub fields are missing."""
         missing_field = script_dir / "test_data/load_file/options_dropped.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
-        with Path.open(missing_field) as file:
-            options_dict = json.load(file)
-            loaded_options = instance_space_from_files(metadata_path,
-                                                       missing_field).options
 
-        if loaded_options.auto is not None:
-            assert loaded_options.auto.preproc == options_dict["auto"]["preproc"], \
-                "Auto preproc value mismatch."
-        else:
-            pytest.fail("auto should not be None")
+        loaded_options = instance_space_from_files(metadata_path, missing_field).options
 
-            # Bound Options
-        if loaded_options.bound is not None:
-            assert loaded_options.bound.flag == options_dict["bound"]["flag"], \
-                "Bound flag value mismatch."
-        else:
-            pytest.fail("bound should not be None")
+        # check the dropped pythia is filled with default values
+        assert loaded_options.pythia.cv_folds == DEFAULT_PYTHIA_CV_FOLDS
+        assert loaded_options.pythia.is_poly_krnl == DEFAULT_PYTHIA_IS_POLY_KRNL
+        assert loaded_options.pythia.use_weights == DEFAULT_PYTHIA_USE_WEIGHTS
+        assert loaded_options.pythia.use_lib_svm == DEFAULT_PYTHIA_USE_LIB_SVM
 
-            # Norm Options
-        if loaded_options.norm is not None:
-            assert loaded_options.norm.flag == options_dict["norm"]["flag"], \
-                "Norm flag value mismatch."
-        else:
-            pytest.fail("norm should not be None")
+        # check the dropped selvars.feats is filled with default value
+        assert loaded_options.selvars.feats is None
+        assert loaded_options.selvars.small_scale == 0.8
+        assert loaded_options.selvars.file_idx_flag is True
 
-        # Selvars subfields
-        if loaded_options.selvars is not None:
-            assert loaded_options.selvars.small_scale_flag == options_dict["selvars"][
-                "small_scale_flag"], "Selvars small_scale_flag mismatch."
-            assert loaded_options.selvars.small_scale == options_dict["selvars"][
-                "small_scale"], "Selvars small_scale mismatch."
-            assert loaded_options.selvars.file_idx_flag == options_dict["selvars"][
-                "file_idx_flag"], "Selvars file_idx_flag mismatch."
-            assert loaded_options.selvars.file_idx \
-                   == options_dict["selvars"]["file_idx"], "Selvars file_idx mismatch."
-            assert loaded_options.selvars.density_flag == options_dict["selvars"][
-                "density_flag"], "Selvars density_flag mismatch."
-            assert loaded_options.selvars.min_distance == options_dict["selvars"][
-                "min_distance"], "Selvars min_distance mismatch."
-            assert loaded_options.selvars.type == options_dict["selvars"]["type"], \
-                "Selvars type mismatch."
-        else:
-            pytest.fail("Selvars should not be None")
-
-        # Sifted subfields
-        if loaded_options.sifted is not None:
-            assert loaded_options.sifted.flag == options_dict["sifted"]["flag"], \
-                "Sifted flag mismatch."
-            assert loaded_options.sifted.rho == options_dict["sifted"]["rho"], \
-                "Sifted rho mismatch."
-
-            assert loaded_options.sifted.k is None, "Sifted k mismatch."
-            assert loaded_options.sifted.n_trees is None, "Sifted n_trees mismatch."
-            assert loaded_options.sifted.max_iter == \
-                   options_dict["sifted"]["max_iter"], "Sifted max_iter mismatch."
-            assert loaded_options.sifted.replicates == options_dict["sifted"][
-                "replicates"], "Sifted replicates mismatch."
-        else:
-            pytest.fail("Sifted  should not be None")
-
-        # Other fields
-        assert loaded_options.pilot.analytic == options_dict["pilot"]["analytic"], \
-            "Pilot analytic mismatch."
-        assert loaded_options.pilot.n_tries == options_dict["pilot"]["n_tries"], \
-            "Pilot n_tries mismatch."
-        assert loaded_options.cloister.c_thres == options_dict["cloister"]["c_thres"], \
-            "Cloister c_thres mismatch."
-        assert loaded_options.cloister.p_val == options_dict["cloister"]["p_val"], \
-            "Cloister p_val mismatch."
-        assert loaded_options.pythia.cv_folds == options_dict["pythia"]["cv_folds"], \
-            "Pythia cv_folds mismatch."
-        assert loaded_options.pythia.is_poly_krnl == options_dict["pythia"][
-            "is_poly_krnl"], "Pythia is_poly_krnl mismatch."
-        assert loaded_options.pythia.use_weights == options_dict["pythia"][
-            "use_weights"], "Pythia use_weights mismatch."
-        assert loaded_options.pythia.use_lib_svm == options_dict["pythia"][
-            "use_lib_svm"], "Pythia use_lib_svm mismatch."
-        assert loaded_options.trace.use_sim == options_dict["trace"]["use_sim"], \
-            "Trace use_sim mismatch."
-
-        assert loaded_options.parallel is None, "Parallel should be None"
-        assert loaded_options.perf is None, "Perf should be None"
-        assert loaded_options.general is None, "general should be None"
-
-    def test_extra_top_fields(self: Self) -> None:
+    def test_extra_top_fields(self, capsys: pytest.CaptureFixture[str]):
         """Any top field are not defined in the class."""
         path = script_dir / "test_data/load_file/options_extra_topfield.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
-        error_msg = "Extra fields in JSON are not defined in Options: {'top'}"
-        with pytest.raises(ValueError, match=error_msg):
+        with pytest.raises(SystemExit):
             instance_space_from_files(metadata_path, path)
+        captured = capsys.readouterr()
+        expected_error_msg = "Extra fields in JSON are not defined in Options: " \
+                             "{'INTENDED_EXTRA_FIELD_IN_JSON'}"
+
+        assert expected_error_msg in captured.out
+
+    def test_Json_with_invalid_content(self, capsys: pytest.CaptureFixture[str]):
+        """Any top field are not defined in the class."""
+        path = script_dir / "test_data/load_file/illegal.json"
+        metadata_path = script_dir / "test_data/load_file/metadata.csv"
+        with pytest.raises(SystemExit):
+            instance_space_from_files(metadata_path, path)
+        captured = capsys.readouterr()
+        expected_error_msg = "contains invalid JSON"
+
+        assert expected_error_msg in captured.out
+
+    def dummy_options(self: Self) -> Options:
+        """Load dummy option json file from path."""
+        option_path = script_dir / "test_data/load_file/dummy.json"
+        metadata_path = script_dir / "test_data/load_file/metadata.csv"
+        return instance_space_from_files(metadata_path, option_path).options
+
+    @pytest.mark.parametrize(
+        ("option_key", "subkey", "expected_value"),
+        [
+            ("parallel", "flag", DEFAULT_PARALLEL_FLAG),
+            ("parallel", "n_cores", DEFAULT_PARALLEL_N_CORES),
+            ("perf", "max_perf", DEFAULT_PERFORMANCE_MAX_PERF),
+            ("perf", "abs_perf", DEFAULT_PERFORMANCE_ABS_PERF),
+            ("perf", "epsilon", DEFAULT_PERFORMANCE_EPSILON),
+            ("perf", "beta_threshold", DEFAULT_PERFORMANCE_BETA_THRESHOLD),
+            ("auto", "preproc", DEFAULT_AUTO_PREPROC),
+            ("bound", "flag", DEFAULT_BOUND_FLAG),
+            ("norm", "flag", DEFAULT_NORM_FLAG),
+            ("selvars", "small_scale_flag", DEFAULT_SELVARS_SMALL_SCALE_FLAG),
+            ("selvars", "small_scale", DEFAULT_SELVARS_SMALL_SCALE),
+            ("selvars", "file_idx_flag", DEFAULT_SELVARS_FILE_IDX_FLAG),
+            ("selvars", "file_idx", DEFAULT_SELVARS_FILE_IDX),
+            ("selvars", "density_flag", DEFAULT_SELVARS_DENSITY_FLAG),
+            ("selvars", "min_distance", DEFAULT_SELVARS_MIN_DISTANCE),
+            ("selvars", "selvars_type", DEFAULT_SELVARS_TYPE),
+            ("sifted", "flag", DEFAULT_SIFTED_FLAG),
+            ("sifted", "rho", DEFAULT_SIFTED_RHO),
+            ("sifted", "k", DEFAULT_SIFTED_K),
+            ("sifted", "n_trees", DEFAULT_SIFTED_NTREES),
+            ("sifted", "max_iter", DEFAULT_SIFTED_MAX_ITER),
+            ("sifted", "replicates", DEFAULT_SIFTED_REPLICATES),
+            ("pilot", "analytic", DEFAULT_PILOT_ANALYTICS),
+            ("pilot", "n_tries", DEFAULT_PILOT_N_TRIES),
+            ("cloister", "c_thres", DEFAULT_CLOISTER_C_THRES),
+            ("cloister", "p_val", DEFAULT_CLOISTER_P_VAL),
+            ("pythia", "cv_folds", DEFAULT_PYTHIA_CV_FOLDS),
+            ("pythia", "is_poly_krnl", DEFAULT_PYTHIA_IS_POLY_KRNL),
+            ("pythia", "use_weights", DEFAULT_PYTHIA_USE_WEIGHTS),
+            ("pythia", "use_lib_svm", DEFAULT_PYTHIA_USE_LIB_SVM),
+            ("trace", "use_sim", DEFAULT_TRACE_USE_SIM),
+            ("trace", "pi", DEFAULT_TRACE_PI),
+            ("outputs", "csv", DEFAULT_OUTPUTS_CSV),
+            ("outputs", "png", DEFAULT_OUTPUTS_PNG),
+            ("outputs", "web", DEFAULT_OUTPUTS_WEB),
+        ],
+    )
+    def test_dummy_option_loading(
+            self: Self,
+            valid_options: Options,
+            option_key: str,
+            subkey: str,
+            expected_value: bool | float | int,
+    ) -> None:
+        """
+        Test attributes for each options is loaded.
+
+        The test will iterate over all attributes defined in pytest's mark parametrize
+        to verify that the attributes are correctly loaded.
+        """
+        assert getattr(getattr(valid_options, option_key), subkey) == expected_value
