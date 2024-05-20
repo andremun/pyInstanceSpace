@@ -114,4 +114,5 @@ def from_csv_file(file_path: Path) -> Metadata | None:
     except pd.errors.ParserError:
         print(f"Error: The file '{file_path}' is not a valid CSV file.")
         return None
+
     return Metadata.from_data_frame(csv_df)
