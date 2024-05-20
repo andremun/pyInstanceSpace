@@ -71,8 +71,8 @@ class ParallelOptions:
 
     @staticmethod
     def default(
-            flag: bool = DEFAULT_PARALLEL_FLAG,
-            n_cores: int = DEFAULT_PARALLEL_N_CORES,
+        flag: bool = DEFAULT_PARALLEL_FLAG,
+        n_cores: int = DEFAULT_PARALLEL_N_CORES,
     ) -> ParallelOptions:
         """Instantiate with default values."""
         return ParallelOptions(
@@ -427,18 +427,18 @@ class Options:
     ) -> Options:
         """Instantiate with default values."""
         return Options(
-            parallel=parallel or ParallelOptions.default(),
-            perf=perf or PerformanceOptions.default(),
-            auto=auto or AutoOptions.default(),
-            bound=bound or BoundOptions.default(),
-            norm=norm or NormOptions.default(),
-            selvars=selvars or SelvarsOptions.default(),
-            sifted=sifted or SiftedOptions.default(),
-            pilot=pilot or PilotOptions.default(),
-            cloister=cloister or CloisterOptions.default(),
-            pythia=pythia or PythiaOptions.default(),
-            trace=trace or TraceOptions.default(),
-            outputs=outputs or OutputOptions.default(),
+                parallel=parallel or ParallelOptions.default(),
+                perf=perf or PerformanceOptions.default(),
+                auto=auto or AutoOptions.default(),
+                bound=bound or BoundOptions.default(),
+                norm=norm or NormOptions.default(),
+                selvars=selvars or SelvarsOptions.default(),
+                sifted=sifted or SiftedOptions.default(),
+                pilot=pilot or PilotOptions.default(),
+                cloister=cloister or CloisterOptions.default(),
+                pythia=pythia or PythiaOptions.default(),
+                trace=trace or TraceOptions.default(),
+                outputs=outputs or OutputOptions.default(),
         )
 
     T = TypeVar("T", ParallelOptions, PerformanceOptions,
