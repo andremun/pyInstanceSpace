@@ -81,7 +81,10 @@ class TestMetadata:
         """
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
         option_path = script_dir / "test_data/load_file/options.json"
-        return instance_space_from_files(metadata_path, option_path).metadata
+
+        returned = instance_space_from_files(metadata_path, option_path)
+        assert returned is not None
+        return returned.metadata
 
     @pytest.fixture()
     def directory_metadata(self: Self) -> Metadata:
@@ -94,7 +97,9 @@ class TestMetadata:
 
         """
         directory_path = script_dir / "test_data/load_file"
-        return instance_space_from_directory(directory_path).metadata
+        returned = instance_space_from_directory(directory_path)
+        assert returned is not None, "Expected instance space to be returned"
+        return returned.metadata
 
     @pytest.fixture()
     def valid_metadata_with_source(self: Self) -> Metadata:
@@ -108,7 +113,9 @@ class TestMetadata:
         """
         metadata_path = script_dir / "test_data/load_file/metadata_with_source.csv"
         option_path = script_dir / "test_data/load_file/options.json"
-        return instance_space_from_files(metadata_path, option_path).metadata
+        returned = instance_space_from_files(metadata_path, option_path)
+        assert returned is not None
+        return returned.metadata
 
     def test_instance_labels_count(self: Self, valid_metadata: Metadata,
                                    directory_metadata: Metadata) -> None:
@@ -169,20 +176,23 @@ class TestMetadata:
         invalid_path = script_dir / "invalid_path"
         option_path = script_dir / "test_data/load_file/options.json"
 
-        with pytest.raises(SystemExit):
-            instance_space_from_files(invalid_path, option_path).metadata
+        returned = instance_space_from_files(invalid_path, option_path)
+
+        assert returned is None
 
         captured = capsys.readouterr()
+        output = captured.out
+
         expected_error_msg = " does not exist."
-        assert expected_error_msg in captured.out
+        assert expected_error_msg in output
 
     def test_data_empty(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test dummy exception is thrown with invalid path."""
         data_path = script_dir / "test_data/load_file/dummydata.csv"
         option_path = script_dir / "test_data/load_file/options.json"
 
-        with pytest.raises(SystemExit):
-            instance_space_from_files(data_path, option_path).metadata
+        returned = instance_space_from_files(data_path, option_path)
+        assert returned is None
 
         captured = capsys.readouterr()
         expected_error_msg = "dummydata.csv' is empty."
@@ -193,8 +203,8 @@ class TestMetadata:
         data_path = script_dir / "test_data/load_file/illegal.csv"
         option_path = script_dir / "test_data/load_file/options.json"
 
-        with pytest.raises(SystemExit):
-            instance_space_from_files(data_path, option_path).metadata
+        returned = instance_space_from_files(data_path, option_path)
+        assert returned is None
 
         captured = capsys.readouterr()
         expected_error_msg = "is not a valid CSV file."
@@ -208,14 +218,18 @@ class TestOption:
     def directory_options(self: Self) -> Options:
         """Load option json file from directory."""
         directory_path = script_dir / "test_data/load_file"
-        return instance_space_from_directory(directory_path).options
+        returned = instance_space_from_directory(directory_path)
+        assert returned is not None, "Expected instance space to be returned"
+        return returned.options
 
     @pytest.fixture()
     def valid_options(self: Self) -> Options:
         """Load option json file from path."""
         option_path = script_dir / "test_data/load_file/options.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
-        return instance_space_from_files(metadata_path, option_path).options
+        returned = instance_space_from_files(metadata_path, option_path)
+        assert returned is not None
+        return returned.options
 
     @pytest.mark.parametrize(
         ("option_key", "subkey", "expected_value"),
@@ -279,13 +293,13 @@ class TestOption:
         assert getattr(getattr(valid_options, option_key), subkey) == expected_value
         assert getattr(getattr(directory_options, option_key), subkey) == expected_value
 
-
     def test_option_value_error(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test loading option with invalid attribute name will raise value error."""
         invalid_option_path = script_dir / "test_data/load_file/options_invalid.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
-        with pytest.raises(SystemExit):
-            instance_space_from_files(metadata_path, invalid_option_path)
+
+        returned = instance_space_from_files(metadata_path, invalid_option_path)
+        assert returned is None
         captured = capsys.readouterr()
         expected_error_msg = "Error details: Field(s) '{'MaxPerf_invalid'}' " \
                              "in JSON are not defined in the data class " \
@@ -299,8 +313,8 @@ class TestOption:
         invalid_options_path = script_dir / "invalid_path"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
 
-        with pytest.raises(SystemExit):
-            instance_space_from_files(metadata_path, invalid_options_path)
+        returned = instance_space_from_files(metadata_path, invalid_options_path)
+        assert returned is None
 
         captured = capsys.readouterr()
         expected_error_msg = " does not exist."
@@ -311,7 +325,9 @@ class TestOption:
         missing_field = script_dir / "test_data/load_file/options_dropped.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
 
-        loaded_options = instance_space_from_files(metadata_path, missing_field).options
+        returned = instance_space_from_files(metadata_path, missing_field)
+        assert returned is not None
+        loaded_options = returned.options
 
         # check the dropped pythia is filled with default values
         assert loaded_options.pythia.cv_folds == DEFAULT_PYTHIA_CV_FOLDS
@@ -329,8 +345,9 @@ class TestOption:
         """Any top field are not defined in the class."""
         path = script_dir / "test_data/load_file/options_extra_topfield.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
-        with pytest.raises(SystemExit):
-            instance_space_from_files(metadata_path, path)
+
+        returned = instance_space_from_files(metadata_path, path)
+        assert returned is None
         captured = capsys.readouterr()
         expected_error_msg = "Extra fields in JSON are not defined in Options: " \
                              "{'INTENDED_EXTRA_FIELD_IN_JSON'}"
@@ -342,8 +359,9 @@ class TestOption:
         """Any top field are not defined in the class."""
         path = script_dir / "test_data/load_file/illegal.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
-        with pytest.raises(SystemExit):
-            instance_space_from_files(metadata_path, path)
+
+        returned = instance_space_from_files(metadata_path, path)
+        assert returned is None
         captured = capsys.readouterr()
         expected_error_msg = "contains invalid JSON"
 
@@ -353,7 +371,10 @@ class TestOption:
         """Load dummy option json file from path."""
         option_path = script_dir / "test_data/load_file/dummy.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
-        return instance_space_from_files(metadata_path, option_path).options
+
+        returned = instance_space_from_files(metadata_path, option_path)
+        assert returned is not None
+        return returned.options
 
     @pytest.mark.parametrize(
         ("option_key", "subkey", "expected_value"),

@@ -1,5 +1,4 @@
 """TODO: document instance space module."""
-import sys
 from collections import defaultdict
 from dataclasses import fields
 from enum import Enum
@@ -63,6 +62,7 @@ class InstanceSpace:
 
     _model: Model | None
 
+
     def __init__(self, metadata: Metadata, options: Options) -> None:
         """Create a new InstanceSpace object.
 
@@ -113,6 +113,7 @@ class InstanceSpace:
         """
         raise NotImplementedError
 
+
     def prelim(self) -> PrelimOut:
         """Run the prelim stage.
 
@@ -147,6 +148,7 @@ class InstanceSpace:
         self._sifted_state = None
         self._stages[_Stage.SIFTED] = False
         self._clear_stages_after_sifted()
+
 
     def sifted(self) -> SiftedOut:
         """Run the sifted stage.
@@ -183,6 +185,7 @@ class InstanceSpace:
         self._pilot_state = None
         self._stages[_Stage.PILOT] = False
         self._clear_stages_after_pilot()
+
 
     def pilot(self) -> PilotOut:
         """Run the pilot stage.
@@ -226,6 +229,7 @@ class InstanceSpace:
         self._clear_stages_after_trace()
         self._clear_stages_after_pythia()
 
+
     def cloister(self) -> CloisterOut:
         """Run the cloister stage.
 
@@ -258,6 +262,7 @@ class InstanceSpace:
 
     def _clear_stages_after_cloister(self) -> None:
         pass
+
 
     def trace(self) -> TraceOut:
         """Run the trace stage.
@@ -335,7 +340,7 @@ class InstanceSpace:
 def instance_space_from_files(
     metadata_filepath: Path,
     options_filepath: Path,
-) -> InstanceSpace:
+) -> InstanceSpace | None:
     """Construct an instance space object from 2 files.
 
     Args
@@ -345,8 +350,9 @@ def instance_space_from_files(
 
     Returns
     -------
-        instance_space: A new instance space object instantiated with metadata and
-        options from the specified files.
+        InstanceSpace | None: A new instance space object instantiated
+        with metadata and options from the specified files, or None
+        if the initialization fails.
 
     """
     print("-------------------------------------------------------------------------")
@@ -356,7 +362,7 @@ def instance_space_from_files(
 
     if metadata is None:
         print("Failed to initialize metadata")
-        sys.exit(1)
+        return None
 
     print("-> Successfully loaded the data.")
     print("-------------------------------------------------------------------------")
@@ -366,7 +372,7 @@ def instance_space_from_files(
 
     if options is None:
         print("Failed to initialize options")
-        sys.exit(1)
+        return None
 
     print("-> Successfully loaded the options.")
 
@@ -378,7 +384,7 @@ def instance_space_from_files(
     return InstanceSpace(metadata, options)
 
 
-def instance_space_from_directory(directory: Path) -> InstanceSpace:
+def instance_space_from_directory(directory: Path) -> InstanceSpace | None:
     """Construct an instance space object from 2 files.
 
     Args
@@ -389,12 +395,12 @@ def instance_space_from_directory(directory: Path) -> InstanceSpace:
 
     Returns
     -------
-        instance_space (InstanceSpace): A new instance space object instantiated with
-        metadata and options from the specified directory.
+        InstanceSpace | None: A new instance space
+        object instantiated with metadata and options from
+        the specified directory, or None if the initialization fails.
 
     """
     metadata_path = Path(directory / "metadata.csv")
     options_path = Path(directory / "options.json")
 
     return instance_space_from_files(metadata_path, options_path)
-
