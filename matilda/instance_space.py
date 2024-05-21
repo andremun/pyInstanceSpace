@@ -383,7 +383,9 @@ def instance_space_from_directory(directory: Path) -> InstanceSpace:
 
     Args
     ----
-        directory (str): Path to correctly formatted directory.
+        directory (str): Path to correctly formatted directory,
+        where the .csv file is metadata.csv, and .json file is
+        options.json
 
     Returns
     -------
