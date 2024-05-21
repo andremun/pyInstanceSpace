@@ -48,7 +48,10 @@ from matilda.data.default_options import (
 )
 from matilda.data.metadata import Metadata
 from matilda.data.option import Options
-from matilda.instance_space import instance_space_from_files
+from matilda.instance_space import (
+    instance_space_from_directory,
+    instance_space_from_files,
+)
 
 script_dir = Path(__file__).parent
 
@@ -81,6 +84,19 @@ class TestMetadata:
         return instance_space_from_files(metadata_path, option_path).metadata
 
     @pytest.fixture()
+    def directory_metadata(self: Self) -> Metadata:
+        """
+        Fixture to load metadata from a directory.
+
+        Returns:
+        -------
+            Metadata: An instance loaded from a predefined CSV file without source.
+
+        """
+        directory_path = script_dir / "test_data/load_file"
+        return instance_space_from_directory(directory_path).metadata
+
+    @pytest.fixture()
     def valid_metadata_with_source(self: Self) -> Metadata:
         """
         Fixture to load metadata from a CSV file that includes a 'source' field.
@@ -94,35 +110,52 @@ class TestMetadata:
         option_path = script_dir / "test_data/load_file/options.json"
         return instance_space_from_files(metadata_path, option_path).metadata
 
-    def test_instance_labels_count(self: Self, valid_metadata: Metadata) -> None:
+    def test_instance_labels_count(self: Self, valid_metadata: Metadata,
+                                   directory_metadata: Metadata) -> None:
         """Check label count of metadata."""
+        assert directory_metadata.instance_labels.count() == \
+               valid_metadata.instance_labels.count()
         assert valid_metadata.instance_labels.count() == self.expected_instances
 
-    def test_feature_names_length(self: Self, valid_metadata: Metadata) -> None:
+    def test_feature_names_length(self: Self, valid_metadata: Metadata,
+                                  directory_metadata: Metadata) -> None:
         """Check number of features in metadata."""
         assert len(valid_metadata.feature_names) == self.expected_features
+        assert len(valid_metadata.feature_names) == \
+               len(directory_metadata.feature_names)
 
-    def test_algorithm_names_length(self: Self, valid_metadata: Metadata) -> None:
+    def test_algorithm_names_length(self: Self, valid_metadata: Metadata,
+                                    directory_metadata: Metadata) -> None:
         """Check number of algorithms in metadata."""
         assert len(valid_metadata.algorithm_names) == self.expected_algorithms
+        assert len(valid_metadata.algorithm_names) == \
+               len(directory_metadata.algorithm_names)
 
-    def test_features_dimensions(self: Self, valid_metadata: Metadata) -> None:
+    def test_features_dimensions(self: Self, valid_metadata: Metadata,
+                                 directory_metadata: Metadata) -> None:
         """Check dimension of feature data from metadata."""
         assert valid_metadata.features.shape == (
             self.expected_instances,
             self.expected_features,
         )
 
-    def test_algorithms_dimensions(self: Self, valid_metadata: Metadata) -> None:
+        assert valid_metadata.features.shape == directory_metadata.features.shape
+
+    def test_algorithms_dimensions(self: Self, valid_metadata: Metadata,
+                                   directory_metadata: Metadata) -> None:
         """Check dimension of algorithm data from metadata."""
         assert valid_metadata.algorithms.shape == (
             self.expected_instances,
             self.expected_algorithms,
         )
 
-    def test_s_is_none(self: Self, valid_metadata: Metadata) -> None:
+        assert valid_metadata.algorithms.shape == directory_metadata.algorithms.shape
+
+    def test_s_is_none(self: Self, valid_metadata: Metadata,
+                       directory_metadata: Metadata) -> None:
         """Check source from metadata."""
         assert valid_metadata.instance_sources is None
+        assert directory_metadata.instance_sources is None
 
     def test_s_not_none(self: Self, valid_metadata_with_source: Metadata) -> None:
         """Check source is not none from metadata."""
@@ -170,6 +203,12 @@ class TestMetadata:
 
 class TestOption:
     """Test loading option from json."""
+
+    @pytest.fixture()
+    def directory_options(self: Self) -> Options:
+        """Load option json file from directory."""
+        directory_path = script_dir / "test_data/load_file"
+        return instance_space_from_directory(directory_path).options
 
     @pytest.fixture()
     def valid_options(self: Self) -> Options:
@@ -226,6 +265,7 @@ class TestOption:
     def test_option_loading(
             self: Self,
             valid_options: Options,
+            directory_options: Options,
             option_key: str,
             subkey: str,
             expected_value: bool | float | int,
@@ -237,6 +277,8 @@ class TestOption:
         to verify that the attributes are correctly loaded.
         """
         assert getattr(getattr(valid_options, option_key), subkey) == expected_value
+        assert getattr(getattr(directory_options, option_key), subkey) == expected_value
+
 
     def test_option_value_error(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test loading option with invalid attribute name will raise value error."""

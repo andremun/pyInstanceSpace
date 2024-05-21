@@ -63,7 +63,6 @@ class InstanceSpace:
 
     _model: Model | None
 
-
     def __init__(self, metadata: Metadata, options: Options) -> None:
         """Create a new InstanceSpace object.
 
@@ -100,7 +99,6 @@ class InstanceSpace:
         """Get options."""
         return self._options
 
-
     def build(self) -> Model:
         """Construct and return a Model object after instance space analysis.
 
@@ -114,7 +112,6 @@ class InstanceSpace:
             model: A Model object representing the built instance space.
         """
         raise NotImplementedError
-
 
     def prelim(self) -> PrelimOut:
         """Run the prelim stage.
@@ -151,7 +148,6 @@ class InstanceSpace:
         self._stages[_Stage.SIFTED] = False
         self._clear_stages_after_sifted()
 
-
     def sifted(self) -> SiftedOut:
         """Run the sifted stage.
 
@@ -187,7 +183,6 @@ class InstanceSpace:
         self._pilot_state = None
         self._stages[_Stage.PILOT] = False
         self._clear_stages_after_pilot()
-
 
     def pilot(self) -> PilotOut:
         """Run the pilot stage.
@@ -231,7 +226,6 @@ class InstanceSpace:
         self._clear_stages_after_trace()
         self._clear_stages_after_pythia()
 
-
     def cloister(self) -> CloisterOut:
         """Run the cloister stage.
 
@@ -264,7 +258,6 @@ class InstanceSpace:
 
     def _clear_stages_after_cloister(self) -> None:
         pass
-
 
     def trace(self) -> TraceOut:
         """Run the trace stage.
@@ -340,8 +333,8 @@ class InstanceSpace:
 
 
 def instance_space_from_files(
-    metadata_filepath: Path,
-    options_filepath: Path,
+        metadata_filepath: Path,
+        options_filepath: Path,
 ) -> InstanceSpace:
     """Construct an instance space object from 2 files.
 
@@ -400,29 +393,8 @@ def instance_space_from_directory(directory: Path) -> InstanceSpace:
     """
     print("-------------------------------------------------------------------------")
     print("-> Loading the data.")
-    metadata = from_csv_file(directory / "metadata.csv")
+    metadata_path = Path(directory / "metadata.csv")
+    options_path = Path(directory / "options.json")
 
-    if metadata is None:
-        print("Failed to initialize metadata")
-        sys.exit(1)
-
-    print("-> Successfully loaded the data.")
-    print("-------------------------------------------------------------------------")
-    print("-> Loading the options.")
-
-    options = from_json_file(directory / "options.json")
-
-    if options is None:
-        print("Failed to initialize options")
-        sys.exit(1)
-
-    print("-> Successfully loaded the options.")
-
-    print("-> Listing options to be used:")
-    for field_name in fields(Options):
-        field_value = getattr(options, field_name.name)
-        print(f"{field_name.name}: {field_value}")
-
-    return InstanceSpace(metadata, options)
-
+    return instance_space_from_files(metadata_path, options_path)
 
