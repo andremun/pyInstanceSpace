@@ -146,7 +146,8 @@ class TestMetadata:
             self.expected_features,
         )
 
-        assert test_valid_metadata.features.shape == test_directory_metadata.features.shape
+        assert test_valid_metadata.features.shape == \
+               test_directory_metadata.features.shape
 
     def test_algorithms_dimensions(self: Self, test_valid_metadata: Metadata,
                                    test_directory_metadata: Metadata) -> None:
@@ -156,7 +157,8 @@ class TestMetadata:
             self.expected_algorithms,
         )
 
-        assert test_valid_metadata.algorithms.shape == test_directory_metadata.algorithms.shape
+        assert test_valid_metadata.algorithms.shape == \
+               test_directory_metadata.algorithms.shape
 
     def test_s_is_none(self: Self, test_valid_metadata: Metadata,
                        test_directory_metadata: Metadata) -> None:
@@ -206,14 +208,12 @@ class TestMetadata:
         data_path = script_dir / "test_data/load_file/illegal.csv"
         option_path = script_dir / "test_data/load_file/options.json"
 
-        """
         returned = instance_space_from_files(data_path, option_path)
         assert returned is None
 
         captured = capsys.readouterr()
         expected_error_msg = "Error tokenizing data"
         assert expected_error_msg in captured.out
-        """
 
 
 class TestOption:
@@ -295,8 +295,10 @@ class TestOption:
         The test will iterate over all attributes defined in pytest's mark parametrize
         to verify that the attributes are correctly loaded.
         """
-        assert getattr(getattr(test_valid_options, option_key), subkey) == expected_value
-        assert getattr(getattr(test_directory_options, option_key), subkey) == expected_value
+        assert getattr(getattr(test_valid_options, option_key), subkey) ==\
+               expected_value
+        assert getattr(getattr(test_directory_options, option_key), subkey) == \
+               expected_value
 
     def test_option_value_error(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test loading option with invalid attribute name will raise value error."""
@@ -434,5 +436,6 @@ class TestOption:
         The test will iterate over all attributes defined in pytest's mark parametrize
         to verify that the attributes are correctly loaded.
         """
-        assert getattr(getattr(test_valid_options, option_key), subkey) == expected_value
+        assert getattr(getattr(test_valid_options, option_key), subkey) == \
+               expected_value
 
