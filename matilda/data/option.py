@@ -61,7 +61,6 @@ class MissingOptionsError(Exception):
 
     pass
 
-
 @dataclass(frozen=True)
 class ParallelOptions:
     """Configuration options for parallel computing."""
@@ -114,7 +113,7 @@ class AutoOptions:
 
     @staticmethod
     def default(
-            preproc: bool = DEFAULT_AUTO_PREPROC,
+        preproc: bool = DEFAULT_AUTO_PREPROC,
     ) -> AutoOptions:
         """Instantiate with default values."""
         return AutoOptions(
