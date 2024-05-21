@@ -115,7 +115,7 @@ class Filter:
         is_visa = np.zeros(self.n_insts, dtype=bool)
 
         gamma = np.sqrt(self.n_algos / self.n_feats) * self.opts.min_distance
-        filter_type = _FilterType(self.opts.type)
+        filter_type = _FilterType(self.opts.selvars_type)
 
         for i in range(self.n_insts):
             if subset_index[i]:
@@ -173,4 +173,4 @@ class Filter:
         d = squareform(pdist(self.x[~subset_index, :]))
         np.fill_diagonal(d, np.nan)
         nearest = np.nanmin(d, axis=0)
-        return 1 - (np.std(nearest, ddof=1) / np.mean(nearest))
+        return float(1 - (np.std(nearest, ddof=1) / np.mean(nearest)))
