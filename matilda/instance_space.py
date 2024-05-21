@@ -333,8 +333,8 @@ class InstanceSpace:
 
 
 def instance_space_from_files(
-        metadata_filepath: Path,
-        options_filepath: Path,
+    metadata_filepath: Path,
+    options_filepath: Path,
 ) -> InstanceSpace:
     """Construct an instance space object from 2 files.
 
