@@ -430,3 +430,4 @@ class TestOption:
         to verify that the attributes are correctly loaded.
         """
         assert getattr(getattr(valid_options, option_key), subkey) == expected_value
+        assert valid_options is not None
