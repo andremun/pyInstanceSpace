@@ -71,8 +71,8 @@ class ParallelOptions:
 
     @staticmethod
     def default(
-            flag: bool = DEFAULT_PARALLEL_FLAG,
-            n_cores: int = DEFAULT_PARALLEL_N_CORES,
+        flag: bool = DEFAULT_PARALLEL_FLAG,
+        n_cores: int = DEFAULT_PARALLEL_N_CORES,
     ) -> ParallelOptions:
         """Instantiate with default values."""
         return ParallelOptions(
@@ -92,10 +92,10 @@ class PerformanceOptions:
 
     @staticmethod
     def default(
-            max_perf: bool = DEFAULT_PERFORMANCE_MAX_PERF,
-            abs_perf: bool = DEFAULT_PERFORMANCE_ABS_PERF,
-            epsilon: float = DEFAULT_PERFORMANCE_EPSILON,
-            beta_threshold: float = DEFAULT_PERFORMANCE_BETA_THRESHOLD,
+        max_perf: bool = DEFAULT_PERFORMANCE_MAX_PERF,
+        abs_perf: bool = DEFAULT_PERFORMANCE_ABS_PERF,
+        epsilon: float = DEFAULT_PERFORMANCE_EPSILON,
+        beta_threshold: float = DEFAULT_PERFORMANCE_BETA_THRESHOLD,
     ) -> PerformanceOptions:
         """Instantiate with default values."""
         return PerformanceOptions(
@@ -130,7 +130,7 @@ class BoundOptions:
 
     @staticmethod
     def default(
-            flag: bool = DEFAULT_BOUND_FLAG,
+        flag: bool = DEFAULT_BOUND_FLAG,
     ) -> BoundOptions:
         """Instantiate with default values."""
         return BoundOptions(
@@ -146,7 +146,7 @@ class NormOptions:
 
     @staticmethod
     def default(
-            flag: bool = DEFAULT_NORM_FLAG,
+        flag: bool = DEFAULT_NORM_FLAG,
     ) -> NormOptions:
         """Instantiate with default values."""
         return NormOptions(
@@ -170,15 +170,15 @@ class SelvarsOptions:
 
     @staticmethod
     def default(
-            small_scale_flag: bool = DEFAULT_SELVARS_SMALL_SCALE_FLAG,
-            small_scale: float = DEFAULT_SELVARS_SMALL_SCALE,
-            file_idx_flag: bool = DEFAULT_SELVARS_FILE_IDX_FLAG,
-            file_idx: str = DEFAULT_SELVARS_FILE_IDX,
-            feats: pd.DataFrame | None = None,
-            algos: pd.DataFrame | None = None,
-            selvars_type: str = DEFAULT_SELVARS_TYPE,
-            min_distance: float = DEFAULT_SELVARS_MIN_DISTANCE,
-            density_flag: bool = DEFAULT_SELVARS_DENSITY_FLAG,
+        small_scale_flag: bool = DEFAULT_SELVARS_SMALL_SCALE_FLAG,
+        small_scale: float = DEFAULT_SELVARS_SMALL_SCALE,
+        file_idx_flag: bool = DEFAULT_SELVARS_FILE_IDX_FLAG,
+        file_idx: str = DEFAULT_SELVARS_FILE_IDX,
+        feats: pd.DataFrame | None = None,
+        algos: pd.DataFrame | None = None,
+        selvars_type: str = DEFAULT_SELVARS_TYPE,
+        min_distance: float = DEFAULT_SELVARS_MIN_DISTANCE,
+        density_flag: bool = DEFAULT_SELVARS_DENSITY_FLAG,
     ) -> SelvarsOptions:
         """Instantiate with default values."""
         return SelvarsOptions(
@@ -207,12 +207,12 @@ class SiftedOptions:
 
     @staticmethod
     def default(
-            flag: bool = DEFAULT_SIFTED_FLAG,
-            rho: float = DEFAULT_SIFTED_RHO,
-            k: int = DEFAULT_SIFTED_K,
-            n_trees: int = DEFAULT_SIFTED_NTREES,
-            max_iter: int = DEFAULT_SIFTED_MAX_ITER,
-            replicates: int = DEFAULT_SIFTED_REPLICATES,
+        flag: bool = DEFAULT_SIFTED_FLAG,
+        rho: float = DEFAULT_SIFTED_RHO,
+        k: int = DEFAULT_SIFTED_K,
+        n_trees: int = DEFAULT_SIFTED_NTREES,
+        max_iter: int = DEFAULT_SIFTED_MAX_ITER,
+        replicates: int = DEFAULT_SIFTED_REPLICATES,
     ) -> SiftedOptions:
         """Instantiate with default values."""
         return SiftedOptions(
@@ -234,8 +234,8 @@ class PilotOptions:
 
     @staticmethod
     def default(
-            analytic: bool = DEFAULT_PILOT_ANALYTICS,
-            n_tries: int = DEFAULT_PILOT_N_TRIES,
+        analytic: bool = DEFAULT_PILOT_ANALYTICS,
+        n_tries: int = DEFAULT_PILOT_N_TRIES,
     ) -> PilotOptions:
         """Instantiate with default values."""
         return PilotOptions(
@@ -253,8 +253,8 @@ class CloisterOptions:
 
     @staticmethod
     def default(
-            p_val: float = DEFAULT_CLOISTER_P_VAL,
-            c_thres: float = DEFAULT_CLOISTER_C_THRES,
+        p_val: float = DEFAULT_CLOISTER_P_VAL,
+        c_thres: float = DEFAULT_CLOISTER_C_THRES,
     ) -> CloisterOptions:
         """Instantiate with default values."""
         return CloisterOptions(
@@ -274,10 +274,10 @@ class PythiaOptions:
 
     @staticmethod
     def default(
-            cv_folds: int = DEFAULT_PYTHIA_CV_FOLDS,
-            is_poly_krnl: bool = DEFAULT_PYTHIA_IS_POLY_KRNL,
-            use_weights: bool = DEFAULT_PYTHIA_USE_WEIGHTS,
-            use_lib_svm: bool = DEFAULT_PYTHIA_USE_LIB_SVM,
+        cv_folds: int = DEFAULT_PYTHIA_CV_FOLDS,
+        is_poly_krnl: bool = DEFAULT_PYTHIA_IS_POLY_KRNL,
+        use_weights: bool = DEFAULT_PYTHIA_USE_WEIGHTS,
+        use_lib_svm: bool = DEFAULT_PYTHIA_USE_LIB_SVM,
     ) -> PythiaOptions:
         """Instantiate with default values."""
         return PythiaOptions(
@@ -297,8 +297,8 @@ class TraceOptions:
 
     @staticmethod
     def default(
-            use_sim: bool = DEFAULT_TRACE_USE_SIM,
-            pi: float = DEFAULT_TRACE_PI,
+        use_sim: bool = DEFAULT_TRACE_USE_SIM,
+        pi: float = DEFAULT_TRACE_PI,
     ) -> TraceOptions:
         """Instantiate with default values."""
         return TraceOptions(
@@ -317,9 +317,9 @@ class OutputOptions:
 
     @staticmethod
     def default(
-            csv: bool = DEFAULT_OUTPUTS_CSV,
-            web: bool = DEFAULT_OUTPUTS_WEB,
-            png: bool = DEFAULT_OUTPUTS_PNG,
+        csv: bool = DEFAULT_OUTPUTS_CSV,
+        web: bool = DEFAULT_OUTPUTS_WEB,
+        png: bool = DEFAULT_OUTPUTS_PNG,
     ) -> OutputOptions:
         """Instantiate with default values."""
         return OutputOptions(
@@ -412,18 +412,18 @@ class Options:
 
     @staticmethod
     def default(
-            parallel: ParallelOptions | None,
-            perf: PerformanceOptions | None,
-            auto: AutoOptions | None,
-            bound: BoundOptions | None,
-            norm: NormOptions | None,
-            selvars: SelvarsOptions | None,
-            sifted: SiftedOptions | None,
-            pilot: PilotOptions | None,
-            cloister: CloisterOptions | None,
-            pythia: PythiaOptions | None,
-            trace: TraceOptions | None,
-            outputs: OutputOptions | None,
+        parallel: ParallelOptions | None,
+        perf: PerformanceOptions | None,
+        auto: AutoOptions | None,
+        bound: BoundOptions | None,
+        norm: NormOptions | None,
+        selvars: SelvarsOptions | None,
+        sifted: SiftedOptions | None,
+        pilot: PilotOptions | None,
+        cloister: CloisterOptions | None,
+        pythia: PythiaOptions | None,
+        trace: TraceOptions | None,
+        outputs: OutputOptions | None,
     ) -> Options:
         """Instantiate with default values."""
         return Options(
