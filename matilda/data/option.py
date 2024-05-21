@@ -567,15 +567,8 @@ def from_json_file(file_path: Path) -> Options | None:
         opts_dict = json.loads(options_contents)
 
         return Options.from_dict(opts_dict)
-    except FileNotFoundError:
-        print(f"The file '{file_path}' does not exist.")
-        return None
-    except json.JSONDecodeError:
-        print(f"The file '{file_path}' contains invalid JSON.")
-        return None
-    except OSError as e:
-        print(f"Error: An I/O error occurred while reading the file '{file_path}'.")
-        print(f"Error details: {e!s}")
+    except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
+        print(f"{file_path}: {e!s}")
         return None
     except ValueError as e:
         print(f"Error: Invalid options data in the file '{file_path}'.")

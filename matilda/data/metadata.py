@@ -105,14 +105,11 @@ def from_csv_file(file_path: Path) -> Metadata | None:
     """
     try:
         csv_df = pd.read_csv(file_path)
-    except FileNotFoundError:
-        print(f"The file '{file_path}' does not exist.")
+    except (FileNotFoundError, OSError, pd.errors.ParserError) as e:
+        print(f"{file_path}: {e!s}")
         return None
     except pd.errors.EmptyDataError:
         print(f"The file '{file_path}' is empty.")
-        return None
-    except pd.errors.ParserError:
-        print(f"Error: The file '{file_path}' is not a valid CSV file.")
         return None
 
     return Metadata.from_data_frame(csv_df)

@@ -183,7 +183,7 @@ class TestMetadata:
         captured = capsys.readouterr()
         output = captured.out
 
-        expected_error_msg = " does not exist."
+        expected_error_msg = "[Errno 2] No such file or directory:"
         assert expected_error_msg in output
 
     def test_data_empty(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -195,7 +195,7 @@ class TestMetadata:
         assert returned is None
 
         captured = capsys.readouterr()
-        expected_error_msg = "dummydata.csv' is empty."
+        expected_error_msg = "is empty."
         assert expected_error_msg in captured.out
 
     def test_illegal_csv(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -207,7 +207,7 @@ class TestMetadata:
         assert returned is None
 
         captured = capsys.readouterr()
-        expected_error_msg = "is not a valid CSV file."
+        expected_error_msg = "Error tokenizing data"
         assert expected_error_msg in captured.out
 
 
@@ -317,7 +317,7 @@ class TestOption:
         assert returned is None
 
         captured = capsys.readouterr()
-        expected_error_msg = " does not exist."
+        expected_error_msg = " [Errno 2] No such file or directory: "
         assert expected_error_msg in captured.out
 
     def test_missing_field(self: Self) -> None:
@@ -363,7 +363,7 @@ class TestOption:
         returned = instance_space_from_files(metadata_path, path)
         assert returned is None
         captured = capsys.readouterr()
-        expected_error_msg = "contains invalid JSON"
+        expected_error_msg = "Expecting value: line 2 column 24 (char 25)"
 
         assert expected_error_msg in captured.out
 
