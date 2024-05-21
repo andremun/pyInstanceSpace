@@ -92,10 +92,10 @@ class PerformanceOptions:
 
     @staticmethod
     def default(
-            max_perf: bool = DEFAULT_PERFORMANCE_MAX_PERF,
-            abs_perf: bool = DEFAULT_PERFORMANCE_ABS_PERF,
-            epsilon: float = DEFAULT_PERFORMANCE_EPSILON,
-            beta_threshold: float = DEFAULT_PERFORMANCE_BETA_THRESHOLD,
+        max_perf: bool = DEFAULT_PERFORMANCE_MAX_PERF,
+        abs_perf: bool = DEFAULT_PERFORMANCE_ABS_PERF,
+        epsilon: float = DEFAULT_PERFORMANCE_EPSILON,
+        beta_threshold: float = DEFAULT_PERFORMANCE_BETA_THRESHOLD,
     ) -> PerformanceOptions:
         """Instantiate with default values."""
         return PerformanceOptions(
@@ -427,18 +427,18 @@ class Options:
     ) -> Options:
         """Instantiate with default values."""
         return Options(
-                parallel=parallel or ParallelOptions.default(),
-                perf=perf or PerformanceOptions.default(),
-                auto=auto or AutoOptions.default(),
-                bound=bound or BoundOptions.default(),
-                norm=norm or NormOptions.default(),
-                selvars=selvars or SelvarsOptions.default(),
-                sifted=sifted or SiftedOptions.default(),
-                pilot=pilot or PilotOptions.default(),
-                cloister=cloister or CloisterOptions.default(),
-                pythia=pythia or PythiaOptions.default(),
-                trace=trace or TraceOptions.default(),
-                outputs=outputs or OutputOptions.default(),
+            parallel=parallel or ParallelOptions.default(),
+            perf=perf or PerformanceOptions.default(),
+            auto=auto or AutoOptions.default(),
+            bound=bound or BoundOptions.default(),
+            norm=norm or NormOptions.default(),
+            selvars=selvars or SelvarsOptions.default(),
+            sifted=sifted or SiftedOptions.default(),
+            pilot=pilot or PilotOptions.default(),
+            cloister=cloister or CloisterOptions.default(),
+            pythia=pythia or PythiaOptions.default(),
+            trace=trace or TraceOptions.default(),
+            outputs=outputs or OutputOptions.default(),
         )
 
     T = TypeVar("T", ParallelOptions, PerformanceOptions,
