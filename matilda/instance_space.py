@@ -393,8 +393,6 @@ def instance_space_from_directory(directory: Path) -> InstanceSpace:
         metadata and options from the specified directory.
 
     """
-    print("-------------------------------------------------------------------------")
-    print("-> Loading the data.")
     metadata_path = Path(directory / "metadata.csv")
     options_path = Path(directory / "options.json")
 
