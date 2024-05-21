@@ -11,7 +11,7 @@ from one edge of the space to the opposite.
 import numpy as np
 from numpy.typing import NDArray
 
-from matilda.data.model import PilotOut
+from matilda.data.model import PilotDataChanged, PilotOut
 from matilda.data.option import PilotOptions
 
 
@@ -24,7 +24,7 @@ class Pilot:
         y: NDArray[np.double],
         feat_labels: list[str],
         opts: PilotOptions,
-    ) -> PilotOut:
+    ) -> tuple[PilotDataChanged, PilotOut]:
         """Produce the final subset of features.
 
         opts.pilot.analytic determines whether the analytic (set as TRUE) or the

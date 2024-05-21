@@ -14,7 +14,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from matilda.data.model import Footprint, PolyShape, TraceOut
+from matilda.data.model import Footprint, PolyShape, TraceDataChanged, TraceOut
 from matilda.data.option import TraceOptions
 
 
@@ -64,7 +64,7 @@ class Trace:
         beta: NDArray[np.bool_],
         algo_labels: list[str],
         opts: TraceOptions,
-    ) -> TraceOut:
+    ) -> tuple[TraceDataChanged, TraceOut]:
         """Estimate the good performance area of algorithms within the space.
 
         Parameters
