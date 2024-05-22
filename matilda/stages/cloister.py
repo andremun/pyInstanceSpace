@@ -6,6 +6,8 @@ correlation between the features. The function then uses these edges to construc
 a convex hull, providing a boundary estimate for the dataset.
 """
 
+from dataclasses import dataclass
+
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial import ConvexHull, QhullError
@@ -13,9 +15,21 @@ from scipy.stats import pearsonr
 
 from matilda.data.model import BoundaryResult, CloisterDataChanged, CloisterOut
 from matilda.data.option import CloisterOptions
+from matilda.stage import Stage
 
 
-class Cloister:
+@dataclass(frozen=True)
+class CloisterIn:
+    """Input for Cloister."""
+
+    x: NDArray[np.double]
+    a: NDArray[np.double]
+    opts: CloisterOptions
+
+class Cloister(Stage[
+    CloisterIn,
+    tuple[CloisterDataChanged, CloisterOut],
+]):
     """See file docstring."""
 
     x: NDArray[np.double]
@@ -25,9 +39,7 @@ class Cloister:
 
     def __init__(
         self,
-        x: NDArray[np.double],
-        a: NDArray[np.double],
-        opts: CloisterOptions,
+        cloister_in: CloisterIn,
     ) -> None:
         """Initialize the Cloister stage.
 
@@ -37,16 +49,14 @@ class Cloister:
             a (NDArray): A projection matrix computed from Pilot
             opts (CloisterOptions): Configuration options for CLOISTER
         """
-        self.x = x
-        self.a = a
-        self.opts = opts
-        self.nfeats = x.shape[1]
+        self.x = cloister_in.x
+        self.a = cloister_in.a
+        self.opts = cloister_in.opts
+        self.nfeats = cloister_in.x.shape[1]
 
     @staticmethod
     def run(
-        x: NDArray[np.double],
-        a: NDArray[np.double],
-        opts: CloisterOptions,
+        cloister_in: CloisterIn,
     ) -> tuple[CloisterDataChanged, CloisterOut]:
         """Estimate a boundary for the space using correlation.
 
@@ -64,7 +74,7 @@ class Cloister:
             "  -> CLOISTER is using correlation to estimate a boundary for the space.",
         )
 
-        cloister = Cloister(x, a, opts)
+        cloister = Cloister(cloister_in)
         rho = cloister.compute_correlation()
         x_edge, remove = cloister.generate_boundaries(rho)
         z_edge = cloister.compute_convex_hull(np.dot(x_edge, cloister.a.T))
