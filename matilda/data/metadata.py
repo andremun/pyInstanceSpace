@@ -108,7 +108,8 @@ def from_csv_file(file_path: Path) -> Metadata | None:
     except (FileNotFoundError, OSError, pd.errors.ParserError) as e:
         print(f"{file_path}: {e!s}")
         return None
-    except pd.errors.EmptyDataError:
+    except pd.errors.EmptyDataError as err:
+        print(f"{file_path}: {err!s}")
         print(f"The file '{file_path}' is empty.")
         return None
 
