@@ -1,10 +1,10 @@
 """TODO: document instance space module."""
-
 from collections import defaultdict
+from dataclasses import fields
 from enum import Enum
 from pathlib import Path
 
-from matilda.data.metadata import Metadata
+from matilda.data.metadata import Metadata, from_csv_file
 from matilda.data.model import (
     CloisterOut,
     Data,
@@ -16,7 +16,7 @@ from matilda.data.model import (
     StageState,
     TraceOut,
 )
-from matilda.data.option import Options, PrelimOptions
+from matilda.data.option import Options, PrelimOptions, from_json_file
 from matilda.stages.cloister import Cloister
 from matilda.stages.pilot import Pilot
 from matilda.stages.prelim import Prelim
@@ -89,6 +89,15 @@ class InstanceSpace:
 
         self._model = None
 
+    @property
+    def metadata(self) -> Metadata:
+        """Get metadata."""
+        return self._metadata
+
+    @property
+    def options(self) -> Options:
+        """Get options."""
+        return self._options
 
     def build(self) -> Model:
         """Construct and return a Model object after instance space analysis.
@@ -331,7 +340,7 @@ class InstanceSpace:
 def instance_space_from_files(
     metadata_filepath: Path,
     options_filepath: Path,
-) -> InstanceSpace:
+) -> InstanceSpace | None:
     """Construct an instance space object from 2 files.
 
     Args
@@ -341,36 +350,57 @@ def instance_space_from_files(
 
     Returns
     -------
-        instance_space: A new instance space object instantiated with metadata and
-        options from the specified files.
+        InstanceSpace | None: A new instance space object instantiated
+        with metadata and options from the specified files, or None
+        if the initialization fails.
 
     """
-    metadata_file = Path.open(metadata_filepath)
-    metadata = Metadata.from_file(metadata_file.read())
+    print("-------------------------------------------------------------------------")
+    print("-> Loading the data.")
 
-    options_file = Path.open(options_filepath)
-    options = Options.from_file(options_file.read())
+    metadata = from_csv_file(metadata_filepath)
+
+    if metadata is None:
+        print("Failed to initialize metadata")
+        return None
+
+    print("-> Successfully loaded the data.")
+    print("-------------------------------------------------------------------------")
+    print("-> Loading the options.")
+
+    options = from_json_file(options_filepath)
+
+    if options is None:
+        print("Failed to initialize options")
+        return None
+
+    print("-> Successfully loaded the options.")
+
+    print("-> Listing options to be used:")
+    for field_name in fields(Options):
+        field_value = getattr(options, field_name.name)
+        print(f"{field_name.name}: {field_value}")
 
     return InstanceSpace(metadata, options)
 
 
-def instance_space_from_directory(directory: Path) -> InstanceSpace:
+def instance_space_from_directory(directory: Path) -> InstanceSpace | None:
     """Construct an instance space object from 2 files.
 
     Args
     ----
-        directory (str): Path to correctly formatted directory.
+        directory (str): Path to correctly formatted directory,
+        where the .csv file is metadata.csv, and .json file is
+        options.json
 
     Returns
     -------
-        instance_space (InstanceSpace): A new instance space object instantiated with
-        metadata and options from the specified directory.
+        InstanceSpace | None: A new instance space
+        object instantiated with metadata and options from
+        the specified directory, or None if the initialization fails.
 
     """
-    metadata_file = Path.open(directory / "metadata.csv")
-    metadata = Metadata.from_file(metadata_file.read())
+    metadata_path = Path(directory / "metadata.csv")
+    options_path = Path(directory / "options.json")
 
-    options_file = Path.open(directory / "options.json")
-    options = Options.from_file(options_file.read())
-
-    return InstanceSpace(metadata, options)
+    return instance_space_from_files(metadata_path, options_path)
