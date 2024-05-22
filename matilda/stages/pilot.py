@@ -17,7 +17,7 @@ from scipy.linalg import eig
 from numpy.random import default_rng
 from typing import List
 
-from matilda.data.model import PilotOut
+from matilda.data.model import PilotDataChanged, PilotOut
 from matilda.data.option import PilotOptions
 
 
@@ -29,10 +29,13 @@ class Pilot:
         self.ntries = ntries
 
     @staticmethod
-    def error_function(self, alpha, Xbar, n, m):
-        A = alpha[:2*n].reshape(2, n)
-        B = alpha[2*n:2*n+2*m].reshape(m, 2)
-        return np.nanmean((Xbar - (B @ A @ Xbar[:n, :].T).T) ** 2)
+    def run(
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+        feat_labels: list[str],
+        opts: PilotOptions,
+    ) -> tuple[PilotDataChanged, PilotOut]:
+        """Produce the final subset of features.
 
     def run(self, x: np.ndarray, y: np.ndarray, feat_labels: List[str], opts: PilotOptions) -> PilotOut:
         X = x.T

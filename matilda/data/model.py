@@ -7,7 +7,7 @@ to data analysis and model building.
 
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -20,7 +20,7 @@ from matilda.data.option import Options
 class Data:
     """Holds initial dataset from metadata and processed data after operations."""
 
-    inst_labels: pd.Series
+    inst_labels: pd.Series # type: ignore[type-arg]
     feat_labels: list[str]
     algo_labels: list[str]
     x: NDArray[np.double]
@@ -33,6 +33,16 @@ class Data:
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
     s: set[str] | None
+    uniformity: float | None
+
+T = TypeVar("T")
+
+@dataclass(frozen=True)
+class StageState(Generic[T]):
+    """The state of the data at the end of a Stage."""
+
+    data: Data
+    out: T
 
 
 @dataclass(frozen=True)
@@ -78,6 +88,15 @@ class PrelimOut:
 
 
 @dataclass(frozen=True)
+class PrelimDataChanged:
+    """The fields of Data that the Prelim stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
 class SiftedOut:
     """Results of the sifting process in the data analysis pipeline."""
 
@@ -87,6 +106,15 @@ class SiftedOut:
     n_trees: int
     max_lter: int
     replicates: int
+
+
+@dataclass(frozen=True)
+class SiftedDataChanged:
+    """The fields of Data that the Sifted stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
@@ -104,6 +132,15 @@ class PilotOut:
     error: NDArray[np.double]  # or just the double
     r2: NDArray[np.double]
     summary: pd.DataFrame
+
+
+@dataclass(frozen=True)
+class PilotDataChanged:
+    """The fields of Data that the Pilot stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
@@ -131,6 +168,15 @@ class CloisterOut:
 
 
 @dataclass(frozen=True)
+class CloisterDataChanged:
+    """The fields of Data that the Cloister stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
 class PythiaOut:
     """Results of the Pythia process in the data analysis pipeline."""
 
@@ -151,6 +197,15 @@ class PythiaOut:
     selection0: NDArray[np.double]
     selection1: Any  # Change it to proper type
     summary: pd.DataFrame
+
+
+@dataclass(frozen=True)
+class PythiaDataChanged:
+    """The fields of Data that the Pythia stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
@@ -185,6 +240,15 @@ class TraceOut:
     summary: pd.DataFrame  # for the dataform that looks like the
     # Excel spreadsheet(rownames and column names are mixed with data),
     # I decide to use DataFrame
+
+
+@dataclass(frozen=True)
+class TraceDataChanged:
+    """The fields of Data that the Trace stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
