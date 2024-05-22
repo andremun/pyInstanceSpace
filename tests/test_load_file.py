@@ -220,7 +220,7 @@ class TestOption:
     """Test loading option from json."""
 
     @pytest.fixture()
-    def test_directory_options(self: Self) -> Options:
+    def directory_options(self: Self) -> Options:
         """Load option json file from directory."""
         directory_path = script_dir / "test_data/load_file"
         returned = instance_space_from_directory(directory_path)
@@ -284,7 +284,6 @@ class TestOption:
     def test_option_loading(
             self: Self,
             test_valid_options: Options,
-            test_directory_options: Options,
             option_key: str,
             subkey: str,
             expected_value: bool | float | int,
@@ -297,8 +296,19 @@ class TestOption:
         """
         assert getattr(getattr(test_valid_options, option_key), subkey) ==\
                expected_value
-        assert getattr(getattr(test_directory_options, option_key), subkey) == \
-               expected_value
+
+    def test_dir_loading(
+            self: Self,
+            directory_options: Options,
+            test_valid_options: Options,
+    ) -> None:
+        """
+        Test attributes for each options is loaded.
+
+        The test will iterate over all attributes defined in pytest's mark parametrize
+        to verify that the attributes are correctly loaded.
+        """
+        assert directory_options == test_valid_options
 
     def test_option_value_error(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test loading option with invalid attribute name will raise value error."""
@@ -374,6 +384,7 @@ class TestOption:
 
         assert expected_error_msg in captured.out
 
+    @pytest.fixture()
     def test_dummy_options(self: Self) -> Options:
         """Load dummy option json file from path."""
         option_path = script_dir / "test_data/load_file/dummy.json"
@@ -384,7 +395,7 @@ class TestOption:
         return returned.options
 
     @pytest.mark.parametrize(
-        ("option_key", "subkey", "expected_value"),
+        ("option_key_dummy", "subkey_dummy", "expected_value_dummy"),
         [
             ("parallel", "flag", DEFAULT_PARALLEL_FLAG),
             ("parallel", "n_cores", DEFAULT_PARALLEL_N_CORES),
@@ -402,6 +413,8 @@ class TestOption:
             ("selvars", "density_flag", DEFAULT_SELVARS_DENSITY_FLAG),
             ("selvars", "min_distance", DEFAULT_SELVARS_MIN_DISTANCE),
             ("selvars", "selvars_type", DEFAULT_SELVARS_TYPE),
+            ("selvars", "feats", None),
+            ("selvars", "algos", None),
             ("sifted", "flag", DEFAULT_SIFTED_FLAG),
             ("sifted", "rho", DEFAULT_SIFTED_RHO),
             ("sifted", "k", DEFAULT_SIFTED_K),
@@ -425,10 +438,10 @@ class TestOption:
     )
     def test_dummy_option_loading(
             self: Self,
-            test_valid_options: Options,
-            option_key: str,
-            subkey: str,
-            expected_value: bool | float | int,
+            test_dummy_options: Options,
+            option_key_dummy: str,
+            subkey_dummy: str,
+            expected_value_dummy: bool | float | int,
     ) -> None:
         """
         Test attributes for each options is loaded.
@@ -436,6 +449,6 @@ class TestOption:
         The test will iterate over all attributes defined in pytest's mark parametrize
         to verify that the attributes are correctly loaded.
         """
-        assert getattr(getattr(test_valid_options, option_key), subkey) == \
-               expected_value
+        assert getattr(getattr(test_dummy_options, option_key_dummy), subkey_dummy) == \
+               expected_value_dummy
 
