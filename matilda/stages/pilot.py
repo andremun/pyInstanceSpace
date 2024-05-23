@@ -33,4 +33,6 @@ class Pilot:
         opts.pilot.ntries number of iterations that the numerical solution is attempted.
         """
         # TODO: Rewrite PILOT logic in python
-        raise NotImplementedError
+        #raise NotImplementedError
+        print("-> NOT COMPLETED, PLACEHOLDER USED")
+        return (None, None)

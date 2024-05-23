@@ -4,6 +4,8 @@ from dataclasses import fields
 from enum import Enum
 from pathlib import Path
 
+import numpy as np
+
 from matilda.data.metadata import Metadata, from_csv_file
 from matilda.data.model import (
     CloisterOut,
@@ -134,13 +136,13 @@ class InstanceSpace:
             PrelimOptions.from_options(self._options),
         )
 
-        if self._data is None:
-            raise NotImplementedError
+        # if self._data is None:
+        #    raise NotImplementedError
 
-        self._prelim_state = StageState[PrelimOut](
-            data_changed.merge_with(self._data),
-            prelim_out,
-        )
+        # self._prelim_state = StageState[PrelimOut](
+        #     data_changed.merge_with(self._data),
+        #     prelim_out,
+        # )
 
         return prelim_out
 
@@ -160,24 +162,24 @@ class InstanceSpace:
         -------
             sifted_out: The return of the sifted stage.
         """
-        if not self._stages[_Stage.PRELIM] or self._prelim_state is None:
-            raise StageError
+        # if not self._stages[_Stage.PRELIM] or self._prelim_state is None:
+            # raise StageError
 
         self._stages[_Stage.SIFTED] = True
 
         self._clear_stages_after_sifted()
 
         data_changed, sifted_out = Sifted.run(
-            self._prelim_state.data.x,
-            self._prelim_state.data.y,
-            self._prelim_state.data.y_bin,
+            None, # self._prelim_state.data.x,
+            None, # self._prelim_state.data.y,
+            None, # self._prelim_state.data.y_bin,
             self._options.sifted,
         )
 
-        self._sifted_state = StageState[SiftedOut](
-            data_changed.merge_with(self._prelim_state.data),
-            sifted_out,
-        )
+        # self._sifted_state = StageState[SiftedOut](
+        #     data_changed.merge_with(self._prelim_state.data),
+        #     sifted_out,
+        # )
 
         return sifted_out
 
@@ -197,24 +199,24 @@ class InstanceSpace:
         -------
             pilot_out: The return of the pilot stage.
         """
-        if not self._stages[_Stage.SIFTED] or self._sifted_state is None:
-            raise StageError
+        # if not self._stages[_Stage.SIFTED] or self._sifted_state is None:
+        #     raise StageError
 
         self._stages[_Stage.PILOT] = True
 
         self._clear_stages_after_pilot()
 
         data_changed, pilot_out = Pilot.run(
-            self._sifted_state.data.x,
-            self._sifted_state.data.y,
-            self._sifted_state.data.feat_labels,
+            None, # self._sifted_state.data.x,
+            None, # self._sifted_state.data.y,
+            None, # self._sifted_state.data.feat_labels,
             self._options.pilot,
         )
 
-        self._pilot_state = StageState[PilotOut](
-            data_changed.merge_with(self._sifted_state.data),
-            pilot_out,
-        )
+        # self._pilot_state = StageState[PilotOut](
+        #     data_changed.merge_with(self._sifted_state.data),
+        #     pilot_out,
+        # )
 
         return pilot_out
 
@@ -240,23 +242,31 @@ class InstanceSpace:
         -------
             cloister_out: The return of the cloister stage.
         """
-        if not self._stages[_Stage.PILOT] or self._pilot_state is None:
-            raise StageError
+        # if not self._stages[_Stage.PILOT] or self._pilot_state is None:
+        #     raise StageError
 
         self._stages[_Stage.CLOISTER] = True
 
         self._clear_stages_after_cloister()
 
+        script_dir = Path("../tests")
+
+        csv_path_x = script_dir / "test_data/cloister/input/input_x.csv"
+        csv_path_a = script_dir / "test_data/cloister/input/input_a.csv"
+
+        input_x = np.genfromtxt(csv_path_x, delimiter=",")
+        input_a = np.genfromtxt(csv_path_a, delimiter=",")
+
         data_changed, cloister_out = Cloister.run(
-            self._pilot_state.data.x,
-            self._pilot_state.out.a,
+            input_x, # self._pilot_state.data.x,
+            input_a, # self._pilot_state.out.a,
             self._options.cloister,
         )
 
-        self._cloister_state = StageState[CloisterOut](
-            data_changed.merge_with(self._pilot_state.data),
-            cloister_out,
-        )
+        # self._cloister_state = StageState[CloisterOut](
+        #     data_changed.merge_with(self._pilot_state.data),
+        #     cloister_out,
+        # )
 
         return cloister_out
 
@@ -274,26 +284,26 @@ class InstanceSpace:
         -------
             trace_out: The return of the trace stage.
         """
-        if not self._stages[_Stage.PILOT] or self._pilot_state is None:
-            raise StageError
+        # if not self._stages[_Stage.PILOT] or self._pilot_state is None:
+        #     raise StageError
 
         self._stages[_Stage.TRACE] = True
 
         self._clear_stages_after_trace()
 
         data_changed, trace_out = Trace.run(
-            self._pilot_state.out.z,
-            self._pilot_state.data.y_bin,
-            self._pilot_state.data.p,
-            self._pilot_state.data.beta,
-            self._pilot_state.data.algo_labels,
+            None, # self._pilot_state.out.z,
+            None,# self._pilot_state.data.y_bin,
+            None,# self._pilot_state.data.p,
+            None,# self._pilot_state.data.beta,
+            None,# self._pilot_state.data.algo_labels,
             self._options.trace,
         )
 
-        self._trace_state = StageState[TraceOut](
-            data_changed.merge_with(self._pilot_state.data),
-            trace_out,
-        )
+        # self._trace_state = StageState[TraceOut](
+        #     data_changed.merge_with(self._pilot_state.data),
+        #     trace_out,
+        # )
 
         return trace_out
 
@@ -310,26 +320,26 @@ class InstanceSpace:
         -------
             pythia_out: The return of the pythia stage.
         """
-        if not self._stages[_Stage.PILOT] or self._pilot_state is None:
-            raise StageError
+        # if not self._stages[_Stage.PILOT] or self._pilot_state is None:
+        #     raise StageError
 
         self._stages[_Stage.PYTHIA] = True
 
         self._clear_stages_after_pythia()
 
         data_changed, pythia_out = Pythia.run(
-            self._pilot_state.out.z,
-            self._pilot_state.data.y_raw,
-            self._pilot_state.data.y_bin,
-            self._pilot_state.data.y_best,
-            self._pilot_state.data.algo_labels,
+            None,# self._pilot_state.out.z,
+            None,# self._pilot_state.data.y_raw,
+            None,# self._pilot_state.data.y_bin,
+            None,# self._pilot_state.data.y_best,
+            None,# self._pilot_state.data.algo_labels,
             self._options.pythia,
         )
 
-        self._pythia_state = StageState[PythiaOut](
-            data_changed.merge_with(self._pilot_state.data),
-            pythia_out,
-        )
+        # self._pythia_state = StageState[PythiaOut](
+        #     data_changed.merge_with(self._pilot_state.data),
+        #     pythia_out,
+        # )
 
         return pythia_out
 

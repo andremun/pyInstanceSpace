@@ -64,7 +64,9 @@ class Pythia:
 
         # TODO Section 6: Generate output
 
-        raise NotImplementedError
+        #raise NotImplementedError
+        print("-> NOT COMPLETED, PLACEHOLDER USED")
+        return (None, None)
 
 
     @staticmethod

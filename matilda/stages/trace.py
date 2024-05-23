@@ -90,7 +90,9 @@ class Trace:
         """
         trace = Trace(z, y_bin, p, beta, algo_labels, opts)  # noqa: F841
         # TODO: Rewrite TRACE logic in python
-        raise NotImplementedError
+        #raise NotImplementedError
+        print("-> NOT COMPLETED, PLACEHOLDER USED")
+        return (None, None)
 
 
     """

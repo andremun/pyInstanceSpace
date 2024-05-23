@@ -32,9 +32,18 @@ Example usage:
 """
 
 from . import data, instance_space, stages
-from .data.metadata import Metadata
-from .data.option import Options
+from .data.metadata import Metadata, from_csv_file
+from .data.option import Options, from_json_file
 from .instance_space import InstanceSpace
 
-__all__ = ["InstanceSpace", "Options", "Metadata", "data", "stages", "instance_space"]
+__all__ = [
+    "InstanceSpace",
+    "Options",
+    "Metadata",
+    "data",
+    "stages",
+    "instance_space",
+    "from_csv_file",
+    "from_json_file",
+]
 

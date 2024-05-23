@@ -40,4 +40,6 @@ class Prelim:
             preliminary output information (as 'PrelimOut' object).
         """
         # TODO: Rewrite PRELIM logic in python
-        raise NotImplementedError
+        #raise NotImplementedError
+        print("-> NOT COMPLETED, PLACEHOLDER USED")
+        return (None, None)

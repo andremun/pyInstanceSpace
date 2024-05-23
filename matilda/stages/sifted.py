@@ -40,7 +40,9 @@ class Sifted:
             SiftedOut
         """
         # TODO: rewrite SIFTED logic in python
-        raise NotImplementedError
+        #raise NotImplementedError
+        print("-> NOT COMPLETED, PLACEHOLDER USED")
+        return (None, None)
 
 
     @staticmethod
