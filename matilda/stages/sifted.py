@@ -11,7 +11,7 @@ The SIFTED function performs the following steps:
 import numpy as np
 from numpy.typing import NDArray
 
-from matilda.data.model import SiftedOut
+from matilda.data.model import SiftedDataChanged, SiftedOut
 from matilda.data.option import SiftedOptions
 
 
@@ -24,7 +24,7 @@ class Sifted:
         y: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         opts: SiftedOptions,
-    ) -> tuple[NDArray[np.double], SiftedOut]:
+    ) -> tuple[SiftedDataChanged, SiftedOut]:
         """Process data matrices and options to produce a sifted dataset.
 
         Args
