@@ -17,7 +17,6 @@ from matilda.data.option import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,
-    GeneralOptions,
     NormOptions,
     Options,
     OutputOptions,
@@ -29,7 +28,7 @@ from matilda.data.option import (
     SiftedOptions,
     TraceOptions,
 )
-from matilda.stages.build import select_features_and_algorithms
+from matilda.stages.pre_processing import select_features_and_algorithms
 
 path_root = Path(__file__).parent
 sys.path.append(str(path_root))
