@@ -32,10 +32,9 @@ class PreProcessing:
             A tuple containing the processed data (as 'Data' object) and
             preliminary output information (as 'PrelimOut' object).
         """
-        # TODO: Rewrite PRELIM logic in python
         raise NotImplementedError
 
-    # don't understand why this have to be a static method
+    # don't understand
     @staticmethod
     def process_data(data: Data, opts: Options) -> tuple[Data, PrelimOptions]:
         """
