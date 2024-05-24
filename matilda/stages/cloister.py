@@ -27,7 +27,9 @@ class CloisterIn:
     opts: CloisterOptions
 
 class Cloister(Stage[
-    CloisterIn,
+    NDArray[np.double],
+    NDArray[np.double],
+    CloisterOptions,
     tuple[CloisterDataChanged, CloisterOut],
 ]):
     """See file docstring."""
@@ -49,14 +51,16 @@ class Cloister(Stage[
             a (NDArray): A projection matrix computed from Pilot
             opts (CloisterOptions): Configuration options for CLOISTER
         """
-        self.x = cloister_in.x
-        self.a = cloister_in.a
-        self.opts = cloister_in.opts
-        self.nfeats = cloister_in.x.shape[1]
+        self.x = x
+        self.a = a
+        self.opts = opts
+        self.nfeats = x.shape[1]
 
     @staticmethod
     def run(
-        cloister_in: CloisterIn,
+        x: NDArray[np.double],
+        a: NDArray[np.double],
+        opts: CloisterOptions,
     ) -> tuple[CloisterDataChanged, CloisterOut]:
         """Estimate a boundary for the space using correlation.
 
@@ -74,7 +78,7 @@ class Cloister(Stage[
             "  -> CLOISTER is using correlation to estimate a boundary for the space.",
         )
 
-        cloister = Cloister(cloister_in)
+        cloister = Cloister(x, a, opts)
         rho = cloister.compute_correlation()
         x_edge, remove = cloister.generate_boundaries(rho)
         z_edge = cloister.compute_convex_hull(np.dot(x_edge, cloister.a.T))
