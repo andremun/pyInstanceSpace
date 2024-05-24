@@ -6,8 +6,6 @@ correlation between the features. The function then uses these edges to construc
 a convex hull, providing a boundary estimate for the dataset.
 """
 
-from dataclasses import dataclass
-
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial import ConvexHull, QhullError
@@ -15,23 +13,9 @@ from scipy.stats import pearsonr
 
 from matilda.data.model import BoundaryResult, CloisterDataChanged, CloisterOut
 from matilda.data.option import CloisterOptions
-from matilda.stage import Stage
 
 
-@dataclass(frozen=True)
-class CloisterIn:
-    """Input for Cloister."""
-
-    x: NDArray[np.double]
-    a: NDArray[np.double]
-    opts: CloisterOptions
-
-class Cloister(Stage[
-    NDArray[np.double],
-    NDArray[np.double],
-    CloisterOptions,
-    tuple[CloisterDataChanged, CloisterOut],
-]):
+class Cloister:
     """See file docstring."""
 
     x: NDArray[np.double]
@@ -41,7 +25,9 @@ class Cloister(Stage[
 
     def __init__(
         self,
-        cloister_in: CloisterIn,
+        x: NDArray[np.double],
+        a: NDArray[np.double],
+        opts: CloisterOptions,
     ) -> None:
         """Initialize the Cloister stage.
 
