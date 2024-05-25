@@ -34,7 +34,7 @@ class Data:
     p: NDArray[np.double]
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
-    s: list[str] | None
+    s: pd.Series | None # type: ignore[type-arg]
     uniformity: float | None
 
 T = TypeVar("T")

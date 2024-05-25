@@ -108,7 +108,7 @@ def test_remove_instances_with_3_row_missing() -> None:
     large_y = rng.random((10, 5))
     large_y[4, :] = np.nan  # fifth row all NaN
     large_y[3, :] = np.nan  # forth row all NaN
-    s = ["source" + str(i) for i in range(10)]  # Generate content for s
+    s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
 
     data = Data(
         inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
@@ -165,7 +165,7 @@ def test_remove_instances_with_3_row_missing() -> None:
         "feat_labels content not right"
 
     assert out.s is not None, "s content should be valid"
-    assert out.s == [
+    assert out.s.tolist() == [
         "source0",
         "source1",
         "source5",
@@ -197,7 +197,7 @@ def test_remove_instances_keep_same() -> None:
     large_y = rng.random((10, 5))
     large_y[6, :2] = np.nan  # 7th row first 2columns NaN
 
-    s = ["source" + str(i) for i in range(10)]  # Generate content for s
+    s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
 
     data = Data(
         inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
@@ -247,6 +247,9 @@ def test_remove_instances_keep_same() -> None:
         "feature" + str(i) for i in range(5, 10)
     ], "feat_labels content not right"
 
+    assert out.s is not None, "s content should be valid"
+    assert out.s.tolist() == ["source" + str(i) for i in range(10)], "s content not right"
+
 
 def test_duplicated_data_edge() -> None:
     """
@@ -276,7 +279,7 @@ def test_duplicated_data_edge() -> None:
 
     large_y = rng.random((10, 5))
     large_y[6, :2] = np.nan  # 7th row first 2 columns NaN
-    s = ["source" + str(i) for i in range(10)]  # Generate content for s
+    s = pd.Series(["source" + str(i) for i in range(10)]) # Generate content for s
 
     data = Data(
         inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
@@ -328,7 +331,7 @@ def test_duplicated_data_edge() -> None:
 
     assert out.s is not None, "s content should be valid"
 
-    assert out.s == ["source" + str(i) for i in range(0, 10)], \
+    assert out.s.tolist() == ["source" + str(i) for i in range(0, 10)], \
         "s content not right"
 
 
@@ -368,7 +371,7 @@ def test_duplicated_data() -> None:
     p = rng.random((10, 5))
     num_good_algos = np.array([], dtype=np.double)
     beta = rng.choice([True, False], size=(10, 5))
-    s = ["string" + str(i) for i in range(10)]
+    s = pd.Series(["string" + str(i) for i in range(10)])
 
     data = Data(
         inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
@@ -448,5 +451,5 @@ def test_duplicated_data() -> None:
     assert out.s is not None, "s content should be valid"
 
     # Check s content
-    assert out.s == ["string" + str(i) for i in range(10)], \
+    assert out.s.tolist() == ["string" + str(i) for i in range(10)], \
         "s content not right"
