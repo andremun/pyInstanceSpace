@@ -1,5 +1,4 @@
 import numpy as np
-from numpy._typing import NDArray
 
 from matilda.data.model import Data, PrelimOut
 from matilda.data.option import Options
@@ -10,8 +9,7 @@ class PrePro:
 
     @staticmethod
     def run(
-        x: NDArray[np.double],
-        y: NDArray[np.double],
+        data: Data,
         opts: Options,
     ) -> tuple[Data, PrelimOut]:
         """Perform preliminary processing on the input data 'x' and 'y'.
@@ -51,8 +49,7 @@ class PrePro:
         new_feat_labels = data.feat_labels
         new_y = data.y
         new_algo_labels = data.algo_labels
-        if (opts.selvars is not None) and \
-                (opts.selvars.feats is not None):
+        if opts.selvars.feats is not None:
 
             selected_features = [feat for feat in data.feat_labels
                                  if feat in opts.selvars.feats]
@@ -103,6 +100,7 @@ class PrePro:
             num_good_algos=data.num_good_algos,
             beta=data.beta,
             s=data.s,
+            uniformity = data.uniformity,
         )
 
     @staticmethod
@@ -115,7 +113,7 @@ class PrePro:
             the Data class that contains the content of instances, with
             algorithm and feature labels
 
-        :return Data: the Data class that has been modified based on the Washing criterion
+        :return Data: the Data class that has been updated based on the Washing criterion
 
          Washing criterion:
             1. For any row, if that row in both X and Y are NaN, remove
@@ -174,5 +172,6 @@ class PrePro:
             num_good_algos=data.num_good_algos,
             beta=data.beta,
             s=new_s,
+            uniformity=None,
         )
 

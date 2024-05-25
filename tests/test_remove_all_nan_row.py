@@ -16,7 +16,7 @@ import pandas as pd
 from matilda.data.model import (
     Data,
 )
-from matilda.stages.build import remove_instances_with_many_missing_values
+from matilda.stages.pre_processing import PrePro
 
 path_root = Path(__file__).parents[1]
 sys.path.append(str(path_root))
@@ -56,9 +56,10 @@ def test_remove_instances_with_two_row_missing() -> None:
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
         s=None,
+        uniformity=None,
     )
 
-    out = remove_instances_with_many_missing_values(data)
+    out = PrePro.remove_instances_with_many_missing_values(data)
 
     expected_rows = 8  # two rows (instances) should be removed
     expected_x_columns = 9  # first column should be removed
@@ -123,9 +124,10 @@ def test_remove_instances_with_3_row_missing() -> None:
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
         s=s,
+        uniformity=None,
     )
 
-    out = remove_instances_with_many_missing_values(data)
+    out = PrePro.remove_instances_with_many_missing_values(data)
 
     expected_rows = 7
 
@@ -211,9 +213,10 @@ def test_remove_instances_keep_same() -> None:
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
         s=s,
+        uniformity=None,
     )
 
-    out = remove_instances_with_many_missing_values(data)
+    out = PrePro.remove_instances_with_many_missing_values(data)
 
     expected_rows = 10
     expected_x_columns = 5
@@ -289,9 +292,10 @@ def test_duplicated_data_edge() -> None:
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
         s=s,
+        uniformity=None,
     )
 
-    out = remove_instances_with_many_missing_values(data)
+    out = PrePro.remove_instances_with_many_missing_values(data)
 
     expected_rows = 10
     expected_x_columns = 5
@@ -380,9 +384,10 @@ def test_duplicated_data() -> None:
         num_good_algos=num_good_algos,
         beta=beta,
         s=s,
+        uniformity=None,
     )
 
-    out = remove_instances_with_many_missing_values(data)
+    out = PrePro.remove_instances_with_many_missing_values(data)
 
     expected_rows = 10
     expected_x_columns = 10

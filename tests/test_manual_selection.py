@@ -28,7 +28,7 @@ from matilda.data.option import (
     SiftedOptions,
     TraceOptions,
 )
-from matilda.stages.pre_processing import select_features_and_algorithms
+from matilda.stages.pre_processing import PrePro
 
 path_root = Path(__file__).parent
 sys.path.append(str(path_root))
@@ -60,9 +60,8 @@ def create_dummy_opt(selvars: SelvarsOptions) -> Options:
         cloister=CloisterOptions(p_val=0.05, c_thres=0.5),
         pythia=PythiaOptions(cv_folds=5, is_poly_krnl=False,
                              use_weights=False, use_lib_svm=False),
-        trace=TraceOptions(use_sim=False, PI=0.95),
+        trace=TraceOptions(use_sim=False, pi=0.95),
         outputs=OutputOptions(csv=False, web=False, png=False),
-        general=GeneralOptions(beta_threshold=1.0),
     )
 
 
@@ -90,23 +89,24 @@ def test_manual_selection() -> None:
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
         s=None,
+        uniformity= None,
     )
 
     selvars = SelvarsOptions(
-        feats=["feature1", "feature3", "feature5", "feature7", "feature9"],
-        algos=["algo1", "algo3"],
+        feats= ["feature1", "feature3", "feature5", "feature7", "feature9"],
+        algos= ["algo1", "algo3"],
         small_scale_flag=False,
         small_scale=0.1,
         file_idx_flag=False,
         file_idx="",
-        type="",
+        selvars_type="",
         min_distance=0.0,
         density_flag=False,
     )
 
     opts = create_dummy_opt(selvars)
 
-    out = select_features_and_algorithms(data, opts)
+    out = PrePro.select_features_and_algorithms(data, opts)
 
     assert out.feat_labels == ["feature1", "feature3", "feature5", "feature7",
                                "feature9"], "Feature selection failed"
@@ -145,6 +145,7 @@ def test_manual_wrong_names() -> None:
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
         s=None,
+        uniformity=None,
     )
 
     selvars = SelvarsOptions(
@@ -154,14 +155,15 @@ def test_manual_wrong_names() -> None:
         small_scale=0.1,
         file_idx_flag=False,
         file_idx="",
-        type="",
+        selvars_type="",
         min_distance=0.0,
         density_flag=False,
+
     )
 
     opts = create_dummy_opt(selvars)
 
-    out = select_features_and_algorithms(data, opts)
+    out = PrePro.select_features_and_algorithms(data, opts)
 
     assert out.feat_labels == ["feature1", "feature3", "feature5",
                                "feature9"], "Feature selection failed"
@@ -200,23 +202,24 @@ def test_manual_empty_feats() -> None:
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
         s=None,
+        uniformity=None,
     )
 
     selvars = SelvarsOptions(
-        feats=[],
+        feats=None,
         algos=[],
         small_scale_flag=False,
         small_scale=0.1,
         file_idx_flag=False,
         file_idx="",
-        type="",
+        selvars_type="",
         min_distance=0.0,
         density_flag=False,
     )
 
     opts = create_dummy_opt(selvars)
 
-    out = select_features_and_algorithms(data, opts)
+    out = PrePro.select_features_and_algorithms(data, opts)
 
     assert out.feat_labels == [f"feature{i}" for i in range(10)], \
         "Feature selection failed"

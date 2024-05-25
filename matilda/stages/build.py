@@ -19,7 +19,6 @@ Example usage:
     python your_module_name.py /path/to/data
 """
 
-import numpy as np
 
 from matilda.data.metadata import Metadata
 from matilda.data.model import Data
