@@ -10,6 +10,7 @@ import json
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Self, TypeVar
+import pandas as pd
 
 from matilda.data.default_options import (
     DEFAULT_AUTO_PREPROC,
@@ -375,6 +376,7 @@ class Options:
         if extra_fields:
             raise ValueError(f"Extra fields in JSON are not defined in Options:"
                              f" {extra_fields}")
+
 
         # Initialize each part of Options, using default values for missing fields
         return Options(
