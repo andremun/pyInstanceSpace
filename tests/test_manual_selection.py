@@ -92,16 +92,9 @@ def test_manual_selection() -> None:
         uniformity= None,
     )
 
-    selvars = SelvarsOptions(
+    selvars = SelvarsOptions.default(
         feats= ["feature1", "feature3", "feature5", "feature7", "feature9"],
         algos= ["algo1", "algo3"],
-        small_scale_flag=False,
-        small_scale=0.1,
-        file_idx_flag=False,
-        file_idx="",
-        selvars_type="",
-        min_distance=0.0,
-        density_flag=False,
     )
 
     opts = create_dummy_opt(selvars)
@@ -148,17 +141,9 @@ def test_manual_wrong_names() -> None:
         uniformity=None,
     )
 
-    selvars = SelvarsOptions(
+    selvars = SelvarsOptions.default(
         feats=["feature1", "feature3", "feature5", "featu", "feature9"],
         algos=["al", "algo3"],
-        small_scale_flag=False,
-        small_scale=0.1,
-        file_idx_flag=False,
-        file_idx="",
-        selvars_type="",
-        min_distance=0.0,
-        density_flag=False,
-
     )
 
     opts = create_dummy_opt(selvars)
@@ -178,7 +163,7 @@ def test_manual_wrong_names() -> None:
                                   err_msg="Algorithm data content mismatch")
 
 
-def test_manual_empty_feats() -> None:
+def test_manual_none_feats_empty_algo() -> None:
     """
     The test case for select_features_and_algorithms.
 
@@ -205,16 +190,56 @@ def test_manual_empty_feats() -> None:
         uniformity=None,
     )
 
-    selvars = SelvarsOptions(
-        feats=None,
+    selvars = SelvarsOptions.default(
         algos=[],
-        small_scale_flag=False,
-        small_scale=0.1,
-        file_idx_flag=False,
-        file_idx="",
-        selvars_type="",
-        min_distance=0.0,
-        density_flag=False,
+    )
+
+    opts = create_dummy_opt(selvars)
+
+    out = PrePro.select_features_and_algorithms(data, opts)
+
+    assert out.feat_labels == [f"feature{i}" for i in range(10)], \
+        "Feature selection failed"
+    assert out.algo_labels == [f"algo{i}" for i in range(5)], \
+        "Algorithm selection failed"
+
+    # check the contents
+    expected_x = large_x[:, :]
+    expected_y = large_y[:, :]
+    np.testing.assert_array_equal(out.x, expected_x,
+                                  err_msg="Feature data content mismatch")
+    np.testing.assert_array_equal(out.y, expected_y,
+                                  err_msg="Algorithm data content mismatch")
+
+def test_manual_empty_feats_none_algo() -> None:
+    """
+    The test case for select_features_and_algorithms.
+
+    Main success scenario, no error
+    """
+    rng = np.random.default_rng(33)
+    large_x = rng.random((100, 10))  # 100 rows, 10 features (columns)
+    large_y = rng.random((100, 5))  # 100 rows, 5 features (columns)
+
+    data = Data(
+        inst_labels=pd.Series(),
+        feat_labels=[f"feature{i}" for i in range(10)],
+        algo_labels=[f"algo{i}" for i in range(5)],
+        x=large_x,
+        y=large_y,
+        x_raw=np.array([], dtype=np.double),
+        y_raw=np.array([], dtype=np.double),
+        y_bin=np.array([], dtype=np.bool_),
+        y_best=np.array([], dtype=np.double),
+        p=np.array([], dtype=np.double),
+        num_good_algos=np.array([], dtype=np.double),
+        beta=np.array([], dtype=np.bool_),
+        s=None,
+        uniformity=None,
+    )
+
+    selvars = SelvarsOptions.default(
+        feats=[],
     )
 
     opts = create_dummy_opt(selvars)

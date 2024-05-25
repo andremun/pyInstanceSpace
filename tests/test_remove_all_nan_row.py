@@ -248,7 +248,8 @@ def test_remove_instances_keep_same() -> None:
     ], "feat_labels content not right"
 
     assert out.s is not None, "s content should be valid"
-    assert out.s.tolist() == ["source" + str(i) for i in range(10)], "s content not right"
+    assert out.s.tolist() == ["source" + str(i) for i in range(10)], \
+        "s content not right"
 
 
 def test_duplicated_data_edge() -> None:

@@ -74,8 +74,7 @@ class PrePro:
                       "feats or it was an empty list.")
 
         print("---------------------------------------------------")
-        if (opts.selvars is not None) and \
-                (opts.selvars.algos is not None):
+        if opts.selvars.algos is not None:
             selected_algorithms = [algo for algo in data.algo_labels
                                    if algo in opts.selvars.algos]
 
