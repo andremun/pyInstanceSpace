@@ -34,7 +34,7 @@ class Data:
     p: NDArray[np.double]
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
-    s: set[str] | None
+    s: list[str] | None
     uniformity: float | None
 
 T = TypeVar("T")
@@ -88,6 +88,11 @@ class PrelimOut:
     sigma_y: NDArray[np.double]
     mu_y: float = 0.0
 
+@dataclass(frozen=True)
+class PreprocessOut:
+    """Holds preprocessed data."""
+
+    pass
 
 @dataclass(frozen=True)
 class PrelimDataChanged:

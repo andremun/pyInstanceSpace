@@ -1,6 +1,12 @@
+"""pre_processing: Update the Data class based on the Options.
+
+Preprocessing include reserve the columns based on the specification
+and tick out exactly same rows in Data.
+
+"""
 import numpy as np
 
-from matilda.data.model import Data, PrelimOut
+from matilda.data.model import Data, PreprocessOut
 from matilda.data.option import Options
 
 
@@ -11,13 +17,11 @@ class PrePro:
     def run(
         data: Data,
         opts: Options,
-    ) -> tuple[Data, PrelimOut]:
-        """Perform preliminary processing on the input data 'x' and 'y'.
+    ) -> tuple[Data, PreprocessOut]:
+        """Perform preprocessing based on the Data and Options.
 
         Args
-            x: The feature matrix (instances x features) to process.
-            y: The performance matrix (instances x algorithms) to
-                process.
+            data: Initial dataset from metadata.
             opts: An object of type Options containing options for
                 processing.
 
@@ -113,7 +117,7 @@ class PrePro:
             the Data class that contains the content of instances, with
             algorithm and feature labels
 
-        :return Data: the Data class that has been updated based on the Washing criterion
+        :return Data: Data class that has been updated based on the Washing criterion
 
          Washing criterion:
             1. For any row, if that row in both X and Y are NaN, remove
