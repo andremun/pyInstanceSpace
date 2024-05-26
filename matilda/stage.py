@@ -1,25 +1,10 @@
 """An abstract stage."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Generic, ParamSpec, TypeVar, TypeVarTuple
-
-# T = TypeVar("T")
-# class StageParameter(Generic[T]):
-#     """An input or output for a stage."""
-
-#     _parameter: T
-
-#     @property
-#     def parameter(self) -> T:
-#         """Get the parameter."""
-#         return self._parameter
-
-#     def __init__(self, parameter: T) -> None:
-#         """Initialise a stage parameter."""
-#         self._parameter = parameter
+from typing import Any, Generic, TypeVar, TypeVarTuple
 
 IN = TypeVarTuple("IN")
-OUT = TypeVar("OUT", bound=tuple)
+OUT = TypeVar("OUT", bound=tuple[Any, ...])
 
 class Stage(ABC, Generic[*IN, OUT]):
     """An abstract stage that can be run by the stage runner."""

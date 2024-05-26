@@ -13,9 +13,16 @@ from scipy.stats import pearsonr
 
 from matilda.data.model import BoundaryResult, CloisterDataChanged, CloisterOut
 from matilda.data.option import CloisterOptions
+from matilda.stage import Stage
 
 
-class Cloister:
+class Cloister(Stage[
+    NDArray[np.double],
+    NDArray[np.double],
+    CloisterOptions,
+
+    tuple[CloisterDataChanged, CloisterOut],
+]):
     """See file docstring."""
 
     x: NDArray[np.double]
