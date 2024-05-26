@@ -1,14 +1,19 @@
 """TODO: document instance space module."""
 from collections import defaultdict
+import csv
 from dataclasses import fields
 from enum import Enum
 from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pandas as pd
+from numpy.typing import NDArray
 
 from matilda.data.metadata import Metadata, from_csv_file
 from matilda.data.model import (
     CloisterOut,
     Data,
-    Model,
     PilotOut,
     PrelimOut,
     PythiaOut,
@@ -335,6 +340,185 @@ class InstanceSpace:
 
     def _clear_stages_after_pythia(self) -> None:
         pass
+
+    def save_csv(self, output_directory: Path) -> None:
+        """Save csv outputs to a directory."""
+        print("=========================================================================")
+        print("-> Writing the data on CSV files for posterior analysis.")
+
+        if not output_directory.is_dir():
+            raise ValueError("output_directory isn't a directory.")
+
+        if (
+            not self._stages[_Stage.CLOISTER] or
+            not self._stages[_Stage.TRACE] or
+            not self._stages[_Stage.PYTHIA]
+        ):
+            raise StageError
+
+        # TODO: Placeholder, need to work out how to get the most relevant data
+        # Conductor branch would solve this, needs more thought
+        if self._data is None:
+            raise StageError
+
+        if (
+            self._trace_state is None or
+            self._pilot_state is None or
+            self._prelim_state is None or
+            self._pythia_state is None
+        ):
+            raise StageError
+
+        num_algorithms = self._data.y.shape[1]
+
+        for i in range(num_algorithms):
+
+            best = self._trace_state.out.best[i]
+            if best is not None and best.polygon is not None:
+                best = self._trace_state.out.best[i]
+                algorithm_labels = self._trace_state.data.algo_labels[i]
+                InstanceSpace._write_array_to_csv(
+                    best.polygon.vertices,
+                    pd.Series(["z_1", "z_2"]),
+                    InstanceSpace._make_bind_labels(best.polygon.vertices),
+                    output_directory / f"footprint_{algorithm_labels}_good.csv",
+                )
+
+            good = self._trace_state.out.good[i]
+            if good is not None and good.polygon is not None:
+                algorithm_labels = self._trace_state.data.algo_labels[i]
+                InstanceSpace._write_array_to_csv(
+                    good.polygon.vertices,
+                    pd.Series(["z_1", "z_2"]),
+                    InstanceSpace._make_bind_labels(good.polygon.vertices),
+                    output_directory / f"footprint_{algorithm_labels}_good.csv",
+                )
+
+        InstanceSpace._write_array_to_csv(
+            self._pilot_state.out.z,
+            pd.Series(["z_1", "z_2"]),
+            self._pilot_state.data.inst_labels,
+            output_directory / "coordinates.csv",
+        )
+
+        if self._cloister_state is not None:
+            InstanceSpace._write_array_to_csv(
+                self._cloister_state.out.z_edge,
+                pd.Series(["z_1", "z_2"]),
+                InstanceSpace._make_bind_labels(self._cloister_state.out.z_edge),
+                output_directory / "bounds.csv",
+            )
+            InstanceSpace._write_array_to_csv(
+                self._cloister_state.out.z_ecorr,
+                pd.Series(["z_1", "z_2"]),
+                InstanceSpace._make_bind_labels(self._cloister_state.out.z_ecorr),
+                output_directory / "bounds_prunned.csv",
+            )
+
+        InstanceSpace._write_array_to_csv(
+            self._data.x_raw[:, self._prelim_state.out.idx],
+            pd.Series(self._data.feat_labels),
+            self._data.inst_labels,
+            output_directory / "feature_raw.csv",
+        )
+        InstanceSpace._write_array_to_csv(
+            self._data.x,
+            pd.Series(self._data.feat_labels),
+            self._data.inst_labels,
+            output_directory / "feature_process.csv",
+        )
+        InstanceSpace._write_array_to_csv(
+            self._data.y_raw,
+            pd.Series(self._data.feat_labels),
+            self._data.inst_labels,
+            output_directory / "algorithm_raw.csv",
+        )
+        InstanceSpace._write_array_to_csv(
+            self._data.y,
+            pd.Series(self._data.feat_labels),
+            self._data.inst_labels,
+            output_directory / "algorithm_process.csv",
+        )
+        InstanceSpace._write_array_to_csv(
+            self._data.y_bin,
+            pd.Series(self._data.feat_labels),
+            self._data.inst_labels,
+            output_directory / "algorithm_bin.csv",
+        )
+        InstanceSpace._write_array_to_csv(
+            self._data.num_good_algos,
+            pd.Series(["NumGoodAlgos"]),
+            self._data.inst_labels,
+            output_directory / "good_algos.csv",
+        )
+        InstanceSpace._write_array_to_csv(
+            self._data.beta,
+            pd.Series(["IsBetaEasy"]),
+            self._data.inst_labels,
+            output_directory / "beta_easy.csv",
+        )
+        InstanceSpace._write_array_to_csv(
+            self._data.p,
+            pd.Series(["Best_Algorithm"]),
+            self._data.inst_labels,
+            output_directory / "portfolio.csv",
+        )
+        InstanceSpace._write_array_to_csv(
+            self._pythia_state.out.y_hat,
+            pd.Series(self._data.algo_labels),
+            self._data.inst_labels,
+            output_directory / "algorithm_svm.csv",
+        )
+        InstanceSpace._write_array_to_csv(
+            self._pythia_state.out.selection0,
+            pd.Series(["Best_Algorithm"]),
+            self._data.inst_labels,
+            output_directory / "portfolio_svm.csv",
+        )
+        InstanceSpace._write_cell_to_csv(
+            self._trace_state.out.summary[2:, [3, 5, 6, 8, 10, 11]],
+            self._trace_state.out.summary[1, [3, 5, 6, 8, 10, 11]],
+            self._trace_state.out.summary[2:, 1],
+            output_directory / "footprint_performance.csv",
+        )
+        if self._pilot_state.out.summary is not None:
+            InstanceSpace._write_cell_to_csv(
+                self._pilot_state.out.summary[2:, 2:],
+                self._pilot_state.out.summary[1, 2:],
+                self._pilot_state.out.summary[2:, 1],
+                output_directory / "footprint_performance.csv",
+            )
+        InstanceSpace._write_cell_to_csv(
+            self._pythia_state.out.summary[2:, 2:],
+            self._pythia_state.out.summary[1, 2:],
+            self._pythia_state.out.summary[2:, 1],
+            output_directory / "svm_table.csv",
+        )
+
+    @staticmethod
+    def _write_array_to_csv(
+        data: NDArray[Any], # TODO: Try to unify these
+        column_names: pd.Series, # TODO: Try to unify these
+        row_names: pd.Series, # type: ignore[type-arg]
+        filename: Path,
+    ) -> None:
+        pd.DataFrame(data, index=row_names, columns=column_names).to_csv(filename)
+
+
+    @staticmethod
+    def _write_cell_to_csv(
+        data: pd.Series, # TODO: Try to unify these
+        column_names: pd.Series, # TODO: Try to unify these
+        row_names: pd.Series, # type: ignore[type-arg]
+        filename: Path,
+    ) -> None:
+        pd.DataFrame(data, index=row_names, columns=column_names).to_csv(filename)
+
+    @staticmethod
+    def _make_bind_labels(
+        data: NDArray[Any],
+    ) -> pd.Series:
+        return pd.Series([f"bnd_pnt_{i}" for i in range(data.shape[0])])
 
 
 def instance_space_from_files(

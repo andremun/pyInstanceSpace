@@ -46,13 +46,6 @@ class StageState(Generic[T]):
 
 
 @dataclass(frozen=True)
-class FeatSel:
-    """Holds indices for feature selection."""
-
-    idx: NDArray[np.intc]
-
-
-@dataclass(frozen=True)
 class AlgorithmSummary:
     """Provides a summary of an algorithm's performance across different metrics."""
 
@@ -84,7 +77,11 @@ class PrelimOut:
     min_y: NDArray[np.double]
     lambda_y: NDArray[np.double]
     sigma_y: NDArray[np.double]
+    # REMOVE NOTE BEFORE PR moving
+    idx: NDArray[np.intc]
+
     mu_y: float = 0.0
+
 
 
 @dataclass(frozen=True)
@@ -249,23 +246,3 @@ class TraceDataChanged:
     def merge_with(self, data: Data) -> Data:
         """Merge changed fields of data with a Data object."""
         raise NotImplementedError
-
-
-@dataclass(frozen=True)
-class Model:
-    """Contain data and output.
-
-    Combines all components into a full model representation, including data and
-    analysis results.
-    """
-
-    data: Data
-    data_dense: Data
-    feat_sel: FeatSel
-    prelim: PrelimOut
-    sifted: SiftedOut
-    pilot: PilotOut
-    cloist: CloisterOut
-    pythia: PythiaOut
-    trace: TraceOut
-    opts: Options
