@@ -16,7 +16,7 @@ import pandas as pd
 from matilda.data.model import (
     Data,
 )
-from matilda.stages.pre_processing import PrePro
+from matilda.stages.pre_processing import Preprocessing
 
 path_root = Path(__file__).parents[1]
 sys.path.append(str(path_root))
@@ -59,7 +59,7 @@ def test_remove_instances_with_two_row_missing() -> None:
         uniformity=None,
     )
 
-    out = PrePro.remove_instances_with_many_missing_values(data)
+    out = Preprocessing.remove_instances_with_many_missing_values(data)
 
     expected_rows = 8  # two rows (instances) should be removed
     expected_x_columns = 9  # first column should be removed
@@ -127,7 +127,7 @@ def test_remove_instances_with_3_row_missing() -> None:
         uniformity=None,
     )
 
-    out = PrePro.remove_instances_with_many_missing_values(data)
+    out = Preprocessing.remove_instances_with_many_missing_values(data)
 
     expected_rows = 7
 
@@ -216,7 +216,7 @@ def test_remove_instances_keep_same() -> None:
         uniformity=None,
     )
 
-    out = PrePro.remove_instances_with_many_missing_values(data)
+    out = Preprocessing.remove_instances_with_many_missing_values(data)
 
     expected_rows = 10
     expected_x_columns = 5
@@ -299,7 +299,7 @@ def test_duplicated_data_edge() -> None:
         uniformity=None,
     )
 
-    out = PrePro.remove_instances_with_many_missing_values(data)
+    out = Preprocessing.remove_instances_with_many_missing_values(data)
 
     expected_rows = 10
     expected_x_columns = 5
@@ -391,7 +391,7 @@ def test_duplicated_data() -> None:
         uniformity=None,
     )
 
-    out = PrePro.remove_instances_with_many_missing_values(data)
+    out = Preprocessing.remove_instances_with_many_missing_values(data)
 
     expected_rows = 10
     expected_x_columns = 10

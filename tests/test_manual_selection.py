@@ -28,7 +28,7 @@ from matilda.data.option import (
     SiftedOptions,
     TraceOptions,
 )
-from matilda.stages.pre_processing import PrePro
+from matilda.stages.pre_processing import Preprocessing
 
 path_root = Path(__file__).parent
 sys.path.append(str(path_root))
@@ -99,7 +99,7 @@ def test_manual_selection() -> None:
 
     opts = create_dummy_opt(selvars)
 
-    out = PrePro.select_features_and_algorithms(data, opts)
+    out = Preprocessing.select_features_and_algorithms(data, opts)
 
     assert out.feat_labels == ["feature1", "feature3", "feature5", "feature7",
                                "feature9"], "Feature selection failed"
@@ -148,7 +148,7 @@ def test_manual_wrong_names() -> None:
 
     opts = create_dummy_opt(selvars)
 
-    out = PrePro.select_features_and_algorithms(data, opts)
+    out = Preprocessing.select_features_and_algorithms(data, opts)
 
     assert out.feat_labels == ["feature1", "feature3", "feature5",
                                "feature9"], "Feature selection failed"
@@ -196,7 +196,7 @@ def test_manual_none_feats_empty_algo() -> None:
 
     opts = create_dummy_opt(selvars)
 
-    out = PrePro.select_features_and_algorithms(data, opts)
+    out = Preprocessing.select_features_and_algorithms(data, opts)
 
     assert out.feat_labels == [f"feature{i}" for i in range(10)], \
         "Feature selection failed"
@@ -244,7 +244,7 @@ def test_manual_empty_feats_none_algo() -> None:
 
     opts = create_dummy_opt(selvars)
 
-    out = PrePro.select_features_and_algorithms(data, opts)
+    out = Preprocessing.select_features_and_algorithms(data, opts)
 
     assert out.feat_labels == [f"feature{i}" for i in range(10)], \
         "Feature selection failed"

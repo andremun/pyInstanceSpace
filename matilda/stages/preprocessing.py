@@ -9,7 +9,7 @@ from matilda.data.option import Options, PrelimOptions
 from matilda.stages.filter import Filter
 
 
-class PrePro:
+class Preprocessing:
     """See file docstring."""
 
     @staticmethod
