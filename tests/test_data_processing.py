@@ -66,7 +66,7 @@ def create_dummy_opt() -> Options:
             use_weights=False,
             use_lib_svm=False,
         ),
-        trace=TraceOptions(use_sim=True, PI=0.55),
+        trace=TraceOptions(use_sim=True, pi=0.55),
         outputs=OutputOptions(csv=True, web=False, png=True),
     )
 
