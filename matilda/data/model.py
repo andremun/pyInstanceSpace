@@ -13,8 +13,6 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from matilda.data.option import Options
-
 
 @dataclass(frozen=True)
 class Data:
