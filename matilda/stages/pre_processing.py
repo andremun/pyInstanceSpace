@@ -66,6 +66,7 @@ class Preprocessing:
             num_good_algos=data.num_good_algos,
             beta=data.beta,
             s=data.s,
+            uniformity=data.uniformity,
         )
 
         # Creating a PrelimOptions object for further processing
@@ -121,6 +122,7 @@ class Preprocessing:
                 num_good_algos=data.num_good_algos,
                 beta=data.beta,
                 s=data.s,
+                uniformity=data.uniformity,
             )
         return return_data
 
@@ -184,9 +186,10 @@ class Preprocessing:
             print(
                 "-> Creating a small scale experiment for validation based on density."
             )
-            subset_index, _, _ = Filter.run(
+            subset_index, _, _, _ = Filter.run(
                 data.x,
                 data.y,
+                data.y_bin,
                 opts.selvars,
             )
             subset_index = ~subset_index
@@ -228,6 +231,7 @@ class Preprocessing:
             num_good_algos=num_good_algos,
             beta=beta,
             s=s,
+            uniformity=data.uniformity,
         )
 
         # create a new model object with the processed data
