@@ -10,7 +10,6 @@ import json
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Self, TypeVar
-import pandas as pd
 
 from matilda.data.default_options import (
     DEFAULT_AUTO_PREPROC,

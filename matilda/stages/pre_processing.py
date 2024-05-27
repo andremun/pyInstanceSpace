@@ -4,7 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split
 
-from matilda.data.model import Data, Model, PrelimOut, PreprocessOut
+from matilda.data.model import Data, Model, PrelimOut
 from matilda.data.option import Options, PrelimOptions
 from matilda.stages.filter import Filter
 
@@ -65,7 +65,7 @@ class PrePro:
             if selected_features:
                 print(
                     f"-> Using the following features: "
-                    f"{' '.join(selected_features)}"
+                    f"{' '.join(selected_features)}",
                 )
 
                 # based on manually selected feature to update the data.x
@@ -77,7 +77,7 @@ class PrePro:
             else:
                 print(
                     "No features were specified in opts.selvars."
-                    "feats or it was an empty list."
+                    "feats or it was an empty list.",
                 )
 
         print("---------------------------------------------------")
@@ -89,7 +89,7 @@ class PrePro:
             if selected_algorithms:
                 print(
                     f"-> Using the following algorithms: "
-                    f"{' '.join(selected_algorithms)}"
+                    f"{' '.join(selected_algorithms)}",
                 )
 
                 is_selected_algo = [
@@ -100,7 +100,7 @@ class PrePro:
             else:
                 print(
                     "No algorithms were specified in opts.selvars."
-                    "algos or it was an empty list."
+                    "algos or it was an empty list.",
                 )
         return Data(
             x=new_x,
@@ -145,7 +145,7 @@ class PrePro:
         if np.any(idx):
             print(
                 "-> There are instances with too many missing values. "
-                "They are being removed to increase speed."
+                "They are being removed to increase speed.",
             )
             # Remove instances (rows) where all values are NaN
             new_x = data.x[~idx]
@@ -163,7 +163,7 @@ class PrePro:
         if np.any(idx):
             print(
                 "-> There are features with too many missing values. "
-                "They are being removed to increase speed."
+                "They are being removed to increase speed.",
             )
             new_x = new_x[:, ~idx]
             new_feat_labels = [
@@ -199,10 +199,12 @@ class PrePro:
     # don't understand
     @staticmethod
     def process_data(data: Data, opts: Options) -> tuple[Data, PrelimOptions]:
-        """
-        Store the raw data for further processing and remove the template data.
+        """Store the raw data for further processing and remove the template data.
 
-        :param model: The model object containing the data to be processed.
+        Parameters
+        ----------
+        model
+            The model object containing the data to be processed.
         """
         # Storing the raw data for further processing
         x_raw = data.x.copy()
@@ -244,10 +246,12 @@ class PrePro:
 
     @staticmethod
     def remove_bad_instances(data: Data) -> Data:
-        """
-        Remove algorithms with no "good" instances from the model.
+        """Remove algorithms with no "good" instances from the model.
 
-        :param data: The model object containing the data to be processed.
+        Parameters
+        ----------
+        data
+            The model object containing the data to be processed.
         """
         idx = np.all(~data.y_bin, axis=0)
         if np.any(idx):
@@ -290,11 +294,14 @@ class PrePro:
 
     @staticmethod
     def split_data(data: Data, opts: Options, model: Model) -> Model:
-        """
-        Split the data into training and testing sets.
+        """Split the data into training and testing sets.
 
-        :param idx: The indices of the data to split.
-        :param data: The model object containing the data to be processed.
+        Parameters
+        ----------
+        idx
+            The indices of the data to split.
+        data
+            The model object containing the data to be processed.
         """
         # If we are only meant to take some observations
 
@@ -346,7 +353,7 @@ class PrePro:
             subset_index[aux] = True
         elif bydensity:
             print(
-                "-> Creating a small scale experiment for validation based on density."
+                "-> Creating a small scale experiment for validation based on density.",
             )
             subset_index, _, _, _ = Filter.run(
                 data.x,
