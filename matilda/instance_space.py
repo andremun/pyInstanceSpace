@@ -4,7 +4,7 @@ import csv
 from dataclasses import fields
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -356,6 +356,14 @@ class InstanceSpace:
         ):
             raise StageError
 
+        if (
+            self._trace_state is None or
+            self._pilot_state is None or
+            self._prelim_state is None or
+            self._pythia_state is None
+        ):
+            raise StageError
+
         # TODO: Placeholder, need to work out how to get the most relevant data
         # Conductor branch would solve this, needs more thought
         if self._data is None:
@@ -500,11 +508,70 @@ class InstanceSpace:
         print("=========================================================================")
         print("-> Writing the data for the web interface.")
 
+        if not output_directory.is_dir():
+            raise ValueError("output_directory isn't a directory.")
+
+        if (
+            not self._stages[_Stage.CLOISTER] or
+            not self._stages[_Stage.TRACE] or
+            not self._stages[_Stage.PYTHIA]
+        ):
+            raise StageError
+
+        if (
+            self._trace_state is None or
+            self._pilot_state is None or
+            self._prelim_state is None or
+            self._pythia_state is None
+        ):
+            raise StageError
+
+        # TODO: Placeholder, need to work out how to get the most relevant data
+        # Conductor branch would solve this, needs more thought
+        if self._data is None:
+            raise StageError
+
         _write_array_to_csv(
-            self._pythia_state.out.selection0,
-            pd.Series(["Best_Algorithm"]),
-            self._data.inst_labels,
-            output_directory / "portfolio_svm.csv",
+            _colour_scale(self._prelim_state.data.x_raw[:, self._prelim_state.out.idx]),
+            pd.Series(self._prelim_state.data.feat_labels),
+            self._prelim_state.data.inst_labels,
+            output_directory / "feature_raw_color.csv",
+        )
+        _write_array_to_csv(
+            _colour_scale(self._prelim_state.data.y_raw),
+            pd.Series(self._prelim_state.data.algo_labels),
+            self._prelim_state.data.inst_labels,
+            output_directory / "algorithm_raw_single_color.csv",
+        )
+        _write_array_to_csv(
+            _colour_scale(self._prelim_state.data.x),
+            pd.Series(self._prelim_state.data.feat_labels),
+            self._prelim_state.data.inst_labels,
+            output_directory / "feature_process_color.csv",
+        )
+        _write_array_to_csv(
+            _colour_scale(self._prelim_state.data.y),
+            pd.Series(self._prelim_state.data.algo_labels),
+            self._prelim_state.data.inst_labels,
+            output_directory / "algorithm_process_single_color.csv",
+        )
+        _write_array_to_csv(
+            _colour_scale_g(self._prelim_state.data.y_raw),
+            pd.Series(self._prelim_state.data.algo_labels),
+            self._prelim_state.data.inst_labels,
+            output_directory / "algorithm_raw_color.csv",
+        )
+        _write_array_to_csv(
+            _colour_scale_g(self._prelim_state.data.y),
+            pd.Series(self._prelim_state.data.algo_labels),
+            self._prelim_state.data.inst_labels,
+            output_directory / "algorithm_process_color.csv",
+        )
+        _write_array_to_csv(
+            _colour_scale_g(self._prelim_state.data.num_good_algos),
+            pd.Series(["NumGoodAlgos"]),
+            self._prelim_state.data.inst_labels,
+            output_directory / "good_algos_color.csv",
         )
 
 
@@ -516,8 +583,6 @@ def _write_array_to_csv(
 ) -> None:
     pd.DataFrame(data, index=row_names, columns=column_names).to_csv(filename)
 
-
-
 def _write_cell_to_csv(
     data: pd.Series, # TODO: Try to unify these
     column_names: pd.Series, # TODO: Try to unify these
@@ -526,14 +591,23 @@ def _write_cell_to_csv(
 ) -> None:
     pd.DataFrame(data, index=row_names, columns=column_names).to_csv(filename)
 
-
 def _make_bind_labels(
     data: NDArray[Any],
 ) -> pd.Series:
     return pd.Series([f"bnd_pnt_{i}" for i in range(data.shape[0])])
 
-def colour_scale()
+T = TypeVar("T", bound=np.generic)
+def _colour_scale(
+    data: NDArray[T],
+) -> NDArray[T]:
+    data_range = np.max(data, axis=0) - np.min(data, axis=0)
+    return np.round(255 * (data - np.min(data, axis=0)) / data_range)
 
+def _colour_scale_g(
+    data: NDArray[T],
+) -> NDArray[T]:
+    data_range = np.max(data, axis=0) - np.min(data, axis=0)
+    return np.round(255 * (data - np.min(data, axis=0)) / data_range)
 
 
 def instance_space_from_files(
