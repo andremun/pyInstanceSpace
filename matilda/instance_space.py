@@ -4,7 +4,7 @@ from dataclasses import fields
 from enum import Enum
 from pathlib import Path
 
-from matilda._serializers import save_instance_space_to_csv, save_instance_space_to_web
+from matilda._serializers import save_instance_space_for_web, save_instance_space_to_csv
 from matilda.data.metadata import Metadata, from_csv_file
 from matilda.data.model import (
     CloisterOut,
@@ -401,7 +401,7 @@ class InstanceSpace:
         if self._data is None:
             raise StageError
 
-        save_instance_space_to_web(output_directory, self._prelim_state)
+        save_instance_space_for_web(output_directory, self._prelim_state)
 
 
 

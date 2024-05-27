@@ -156,7 +156,7 @@ def save_instance_space_to_csv(
         output_directory / "svm_table.csv",
     )
 
-def save_instance_space_to_web(
+def save_instance_space_for_web(
     output_directory: Path,
     prelim_state: StageState[PrelimOut],
 ) -> None:
@@ -207,6 +207,28 @@ def save_instance_space_to_web(
         prelim_state.data.inst_labels,
         output_directory / "good_algos_color.csv",
     )
+
+def save_instance_space_graphs(
+    output_directory: Path,
+    data: Data,
+) -> None:
+
+    if not output_directory.is_dir():
+        raise ValueError("output_directory isn't a directory.")
+
+    num_feats = data.x.shape[1]
+    num_algorithms = data.y.shape[1]
+
+    x_range = np.max(data.x, axis=0) - np.min(data.x, axis=0)
+    x_aux = (data.x - np.min(data.x, axis=0)) / x_range
+
+    y_raw_range = np.max(data.y_raw, axis=0) - np.min(data.y_raw, axis=0)
+    y_ind = data.y_raw - np.min(data.y_raw, axis=0) / y_raw_range
+
+    y_glb = np.log10(data.y_raw + 1)
+    y_glb_range = np.max(y_glb, axis=0) - np.min(y_glb, axis=0)
+    y_glb = (y_glb - np.min(y_glb)) / y_glb_range
+
 
 
 def _write_array_to_csv(
