@@ -10,7 +10,6 @@ from matilda.data.option import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,
-    GeneralOptions,
     NormOptions,
     Options,
     OutputOptions,
@@ -22,7 +21,7 @@ from matilda.data.option import (
     SiftedOptions,
     TraceOptions,
 )
-from matilda.stages.build import process_data, remove_bad_instances, split_data
+from matilda.stages.pre_processing import process_data, remove_bad_instances, split_data
 
 path_root = Path(__file__).parent
 sys.path.append(str(path_root.parent))
@@ -45,11 +44,11 @@ def create_dummy_opt() -> Options:
             small_scale=0.50,
             file_idx_flag=False,
             file_idx="",
-            type="Ftr&Good",
+            selvars_type="Ftr&Good",
             min_distance=0.1,
             density_flag=False,
-            feats=pd.DataFrame(),
-            algos=pd.DataFrame(),
+            feats=None,
+            algos=None,
         ),
         sifted=SiftedOptions(
             flag=True,
@@ -69,7 +68,6 @@ def create_dummy_opt() -> Options:
         ),
         trace=TraceOptions(use_sim=True, PI=0.55),
         outputs=OutputOptions(csv=True, web=False, png=True),
-        general=GeneralOptions(beta_threshold=0.55),
     )
 
 
@@ -115,6 +113,7 @@ def test_process_data() -> None:
         num_good_algos=np.array([], dtype=np.double),
         beta=np.array([], dtype=np.bool_),
         s=None,
+        uniformity=None,
     )
 
     opts = create_dummy_opt()
@@ -176,6 +175,7 @@ def test_remove_bad_instances_1() -> None:
         num_good_algos=None,
         beta=None,
         s=None,
+        uniformity=None,
     )
     opts = create_dummy_opt()
     model = Model(
@@ -356,6 +356,7 @@ def test_split_data() -> None:
         num_good_algos=num_good_algos_before,
         beta=beta_before,
         s=None,
+        uniformity=None,
     )
 
     opts = create_dummy_opt()
@@ -437,11 +438,11 @@ def test_split_fractional() -> None:
             small_scale=0.50,
             file_idx_flag=False,
             file_idx="",
-            type="Ftr&Good",
+            selvars_type="Ftr&Good",
             min_distance=0.1,
             density_flag=False,
-            feats=pd.DataFrame(),
-            algos=pd.DataFrame(),
+            feats=None,
+            algos=None,
         ),
         sifted=SiftedOptions(
             flag=True,
@@ -459,9 +460,8 @@ def test_split_fractional() -> None:
             use_weights=False,
             use_lib_svm=False,
         ),
-        trace=TraceOptions(use_sim=True, PI=0.55),
+        trace=TraceOptions(use_sim=True, pi=0.55),
         outputs=OutputOptions(csv=True, web=False, png=True),
-        general=GeneralOptions(beta_threshold=0.55),
     )
 
     idx = np.genfromtxt(path_root / "fractional/idx.txt", delimiter=",")
@@ -512,6 +512,7 @@ def test_split_fractional() -> None:
         num_good_algos=num_good_algos_before,
         beta=beta_before,
         s=None,
+        uniformity=None,
     )
 
     model = Model(
@@ -617,7 +618,6 @@ def test_split_fileindexed() -> None:
         ),
         trace=TraceOptions(use_sim=True, PI=0.55),
         outputs=OutputOptions(csv=True, web=False, png=True),
-        general=GeneralOptions(beta_threshold=0.55),
     )
 
     idx = np.genfromtxt(path_root / "fileidx/idx.txt", delimiter=",")
