@@ -735,12 +735,3 @@ def test_split_fileindexed() -> None:
 #    Since except Filter, there is only one line of the code(negation) that need to be
 #   tested, and the rest part has been tested in other cases therefore I choose not to
 #   test this case.
-
-if __name__ == "__main__":
-    test_process_data()
-    test_remove_bad_instances_1()
-    test_remove_bad_instances_2()
-    test_remove_bad_instances_3()
-    test_split_data()
-    test_split_fractional()
-    # test_split_fileindexed()
