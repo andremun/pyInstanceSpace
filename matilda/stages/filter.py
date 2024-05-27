@@ -19,9 +19,13 @@ from matilda.data.option import SelvarsOptions
 
 
 class _FilterType(Enum):
+    # similarity based on the features
     FTR = "Ftr"
+    # both features and Algorithmic Performances (APs) with Euclidian distance
     FTR_AP = "Ftr&AP"
+    # features with Euclidian distance and APs goodness
     FTR_GOOD = "Ftr&Good"
+    # features with Euclidian distance and APs with both Euclidian distance and goodness
     FTR_AP_GOOD = "Ftr&AP&Good"
 
 
