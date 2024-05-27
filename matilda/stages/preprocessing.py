@@ -193,7 +193,7 @@ class Preprocessing:
             num_good_algos=data.num_good_algos,
             beta=data.beta,
             s=new_s,
-            uniformity=None,
+            uniformity=data.uniformity,
         )
 
     # don't understand
@@ -230,7 +230,7 @@ class Preprocessing:
             num_good_algos=data.num_good_algos,
             beta=data.beta,
             s=data.s,
-            uniformity=None,
+            uniformity=data.uniformity,
         )
 
         # Creating a PrelimOptions object for further processing
@@ -288,7 +288,7 @@ class Preprocessing:
                 num_good_algos=data.num_good_algos,
                 beta=data.beta,
                 s=data.s,
-                uniformity=None,
+                uniformity=data.uniformity,
             )
         return return_data
 
@@ -400,7 +400,7 @@ class Preprocessing:
             num_good_algos=num_good_algos,
             beta=beta,
             s=s,
-            uniformity=None,
+            uniformity=data.uniformity,
         )
 
         # create a new model object with the processed data
