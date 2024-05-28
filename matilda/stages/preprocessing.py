@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import numpy as np
 from numpy.typing import NDArray
@@ -196,15 +196,21 @@ class Preprocessing:
             uniformity=data.uniformity,
         )
 
-    # don't understand
     @staticmethod
     def process_data(data: Data, opts: Options) -> tuple[Data, PrelimOptions]:
         """Store the raw data for further processing and remove the template data.
 
         Parameters
         ----------
-        model
-            The model object containing the data to be processed.
+        data : Data
+            The data object containing the data to be processed.
+        opts : Options
+            The options object containing the options for processing.
+
+        Returns
+        -------
+        tuple[Data, PrelimOptions]
+            A tuple containing the processed data and preliminary options.
         """
         # Storing the raw data for further processing
         x_raw = data.x.copy()
@@ -250,8 +256,13 @@ class Preprocessing:
 
         Parameters
         ----------
-        data
-            The model object containing the data to be processed.
+        data : Data
+            The data object containing the data to be processed.
+
+        Returns
+        -------
+        data : Data
+            The model object containing the data being processed.
         """
         idx = np.all(~data.y_bin, axis=0)
         if np.any(idx):
@@ -298,10 +309,17 @@ class Preprocessing:
 
         Parameters
         ----------
-        idx
-            The indices of the data to split.
-        data
+        data : Data
+            The data object containing the data to be processed.
+        opts : Options
+            The options object containing the options for processing.
+        model : Model
             The model object containing the data to be processed.
+
+        Returns
+        -------
+        Model
+            The model object containing the data has been processed.
         """
         # If we are only meant to take some observations
 
@@ -319,7 +337,8 @@ class Preprocessing:
             and hasattr(opts.selvars, "file_idx_flag")
             and opts.selvars.file_idx_flag
             and hasattr(opts.selvars, "file_idx")
-            and os.path.isfile(opts.selvars.file_idx)
+            and Path(opts.selvars.file_idx).is_file()
+            and Path.isfile(opts.selvars.file_idx)
         )
         bydensity = (
             hasattr(opts, "selvars")

@@ -1,3 +1,5 @@
+"""Containing test cases for the data processing functions."""
+
 import sys
 from pathlib import Path
 
@@ -21,13 +23,20 @@ from matilda.data.option import (
     SiftedOptions,
     TraceOptions,
 )
-from matilda.stages.pre_processing import process_data, remove_bad_instances, split_data
+from matilda.stages.preprocessing import Preprocessing
 
 path_root = Path(__file__).parent
 sys.path.append(str(path_root.parent))
 
 
 def create_dummy_opt() -> Options:
+    """
+    Create a dummy Options object with default values.
+
+    Returns:
+    -------
+        Options: The dummy Options object.
+    """
     return Options(
         parallel=ParallelOptions(flag=False, n_cores=2),
         perf=PerformanceOptions(
@@ -81,16 +90,16 @@ def test_process_data() -> None:
     values that need to be checked:
         model.data.x, model.data.y, opts.prelim, data.featlabels, data.algolabels
     """
-    with open(path_root / "process_Data/featlabels_before.txt") as file:
+    with Path.open(path_root / "process_Data/featlabels_before.txt") as file:
         line = file.readline()
         feat_labels_before = line.strip().split(",")
-    with open(path_root / "process_Data/featlabels_after.txt") as file:
+    with Path.open(path_root / "process_Data/featlabels_after.txt") as file:
         line = file.readline()
         feat_labels_after = line.strip().split(",")
-    with open(path_root / "process_Data/algolabels_before.txt") as file:
+    with Path.open(path_root / "process_Data/algolabels_before.txt") as file:
         line = file.readline()
         algo_labels_before = line.strip().split(",")
-    with open(path_root / "process_Data/algolabels_after.txt") as file:
+    with Path.open(path_root / "process_Data/algolabels_after.txt") as file:
         line = file.readline()
         algo_labels_after = line.strip().split(",")
 
@@ -117,25 +126,13 @@ def test_process_data() -> None:
     )
 
     opts = create_dummy_opt()
-    model = Model(
-        data=data,
-        opts=opts,
-        feat_sel=None,
-        data_dense=None,
-        prelim=None,
-        sifted=None,
-        pilot=None,
-        cloist=None,
-        pythia=None,
-        trace=None,
-    )
 
-    prelim_opts = process_data(model)
+    returned_data, prelim_opts = Preprocessing.process_data(data, opts)
 
-    assert np.array_equal(model.data.x, x_after)
-    assert np.array_equal(model.data.y, y_after)
-    assert np.array_equal(algo_labels_after, model.data.algo_labels)
-    assert np.array_equal(feat_labels_after, model.data.feat_labels)
+    assert np.array_equal(returned_data.x, x_after)
+    assert np.array_equal(returned_data.y, y_after)
+    assert np.array_equal(returned_data.algo_labels, algo_labels_after)
+    assert np.array_equal(returned_data.feat_labels, feat_labels_after)
     # Check if the prelim options are set correctly, the values taken from the
     # prelim_opts should be the same as before.
     assert np.array_equal(prelim_opts.max_perf, False)
@@ -163,35 +160,22 @@ def test_remove_bad_instances_1() -> None:
     y_bin = y_bin.astype(np.bool_)
     data = Data(
         inst_labels=pd.Series(),
-        feat_labels=None,
-        algo_labels=None,
-        x=None,
-        y=None,
-        x_raw=None,
-        y_raw=None,
+        feat_labels=[],
+        algo_labels=[],
+        x=np.array([], dtype=np.double),
+        y=np.array([], dtype=np.double),
+        x_raw=np.array([], dtype=np.double),
+        y_raw=np.array([], dtype=np.double),
         y_bin=y_bin,
-        y_best=None,
-        p=None,
-        num_good_algos=None,
-        beta=None,
+        y_best=np.array([], dtype=np.double),
+        p=np.array([], dtype=np.double),
+        num_good_algos=np.array([], dtype=np.double),
+        beta=np.array([], dtype=np.bool_),
         s=None,
         uniformity=None,
     )
-    opts = create_dummy_opt()
-    model = Model(
-        data=data,
-        opts=opts,
-        feat_sel=None,
-        data_dense=None,
-        prelim=None,
-        sifted=None,
-        pilot=None,
-        cloist=None,
-        pythia=None,
-        trace=None,
-    )
-    remove_bad_instances(model)
-    assert model.data.y_bin.shape == y_bin.shape
+    data = Preprocessing.remove_bad_instances(data)
+    assert data.y_bin.shape == y_bin.shape
     print("Remove bad instances tests 1 (matlab example) passed!")
 
 
@@ -209,48 +193,36 @@ def test_remove_bad_instances_2() -> None:
 
     x = np.genfromtxt(path_root / "process_Data/X_before.csv", delimiter=",")
     y = np.genfromtxt(path_root / "process_Data/Y_before.csv", delimiter=",")
-    with open(path_root / "process_Data/algolabels_after.txt") as file:
+    with Path.open(path_root / "process_Data/algolabels_after.txt") as file:
         line = file.readline()
         algo_labels = line.strip().split(",")
 
     data = Data(
         inst_labels=pd.Series(),
-        feat_labels=None,
+        feat_labels=[],
         algo_labels=algo_labels,
         x=x,
         y=y,
         x_raw=x,
         y_raw=y,
         y_bin=y_bin,
-        y_best=None,
-        p=None,
-        num_good_algos=None,
-        beta=None,
+        y_best=np.array([], dtype=np.double),
+        p=np.array([], dtype=np.double),
+        num_good_algos=np.array([], dtype=np.double),
+        beta=np.array([], dtype=np.bool_),
         s=None,
+        uniformity=None,
     )
 
-    opts = create_dummy_opt()
-    model = Model(
-        data=data,
-        opts=opts,
-        feat_sel=None,
-        data_dense=None,
-        prelim=None,
-        sifted=None,
-        pilot=None,
-        cloist=None,
-        pythia=None,
-        trace=None,
-    )
     with pytest.raises(Exception) as e:
-        remove_bad_instances(model)
+        data = Preprocessing.remove_bad_instances(data)
     assert "no ''good'' algorithms" in str(e.value), "Error message is not as expected."
     print("Remove bad instances tests 2 passed!")
 
 
 def test_remove_bad_instances_3() -> None:
     """
-    In this test case, there are some no good instances in the data, so they should be removed.
+    In this test case, there are some no good instances in the data,so they should be removed.
 
     expected: No assertion errors.
     """
@@ -260,45 +232,33 @@ def test_remove_bad_instances_3() -> None:
     )
     y_bin = np.zeros_like(y_bin, dtype=np.bool_)
     # make the first 3 algorithms good instances
-    NUM_INSTANCES = 3
-    y_bin[:, :NUM_INSTANCES] = True
+    num_instances = 3
+    y_bin[:, :num_instances] = True
 
     x = np.genfromtxt(path_root / "process_Data/X_before.csv", delimiter=",")
     y = np.genfromtxt(path_root / "process_Data/Y_before.csv", delimiter=",")
-    with open(path_root / "process_Data/algolabels_after.txt") as file:
+    with Path.open(path_root / "process_Data/algolabels_after.txt") as file:
         line = file.readline()
         algo_labels = line.strip().split(",")
     data = Data(
         inst_labels=pd.Series(),
-        feat_labels=None,
+        feat_labels=[],
         algo_labels=algo_labels,
         x=x,
         y=y,
         x_raw=x,
         y_raw=y,
         y_bin=y_bin,
-        y_best=None,
-        p=None,
-        num_good_algos=None,
-        beta=None,
+        y_best=np.array([], dtype=np.double),
+        p=np.array([], dtype=np.double),
+        num_good_algos=np.array([], dtype=np.double),
+        beta=np.array([], dtype=np.bool_),
         s=None,
+        uniformity=None,
     )
 
-    opts = create_dummy_opt()
-    model = Model(
-        data=data,
-        opts=opts,
-        feat_sel=None,
-        data_dense=None,
-        prelim=None,
-        sifted=None,
-        pilot=None,
-        cloist=None,
-        pythia=None,
-        trace=None,
-    )
-    remove_bad_instances(model)
-    assert model.data.y_bin.shape[1] == NUM_INSTANCES
+    data = Preprocessing.remove_bad_instances(data)
+    assert data.y_bin.shape[1] == num_instances
     print("Remove bad instances tests 3 passed!")
 
 
@@ -308,7 +268,7 @@ def test_split_data() -> None:
 
     expected: No assertion errors.
     """
-    idx = np.genfromtxt(path_root / "split/idx.txt", delimiter=",")
+    # idx = np.genfromtxt(path_root / "split/idx.txt", delimiter=",")
 
     x_before = np.genfromtxt(path_root / "split/before/x_split.txt", delimiter=",")
     y_before = np.genfromtxt(path_root / "split/before/Y_split.txt", delimiter=",")
@@ -344,8 +304,8 @@ def test_split_data() -> None:
 
     data = Data(
         inst_labels=inst_labels_before,
-        feat_labels=None,
-        algo_labels=None,
+        feat_labels=[],
+        algo_labels=[],
         x=x_before,
         y=y_before,
         x_raw=x_raw_before,
@@ -372,7 +332,7 @@ def test_split_data() -> None:
         pythia=None,
         trace=None,
     )
-    split_data(model)
+    model = Preprocessing.split_data(data, opts, model)
 
     x_after = np.genfromtxt(path_root / "split/after/x_split.txt", delimiter=",")
     y_after = np.genfromtxt(path_root / "split/after/Y_split.txt", delimiter=",")
@@ -464,8 +424,6 @@ def test_split_fractional() -> None:
         outputs=OutputOptions(csv=True, web=False, png=True),
     )
 
-    idx = np.genfromtxt(path_root / "fractional/idx.txt", delimiter=",")
-
     x_before = np.genfromtxt(path_root / "fractional/before/x_split.txt", delimiter=",")
     y_before = np.genfromtxt(path_root / "fractional/before/Y_split.txt", delimiter=",")
     x_raw_before = np.genfromtxt(
@@ -500,8 +458,8 @@ def test_split_fractional() -> None:
 
     data = Data(
         inst_labels=inst_labels_before,
-        feat_labels=None,
-        algo_labels=None,
+        feat_labels=[],
+        algo_labels=[],
         x=x_before,
         y=y_before,
         x_raw=x_raw_before,
@@ -528,7 +486,7 @@ def test_split_fractional() -> None:
         trace=None,
     )
 
-    split_data(model)
+    model = Preprocessing.split_data(data, opts, model)
 
     x_after = np.genfromtxt(path_root / "fractional/after/x_split.txt", delimiter=",")
     y_after = np.genfromtxt(path_root / "fractional/after/Y_split.txt", delimiter=",")
@@ -594,11 +552,11 @@ def test_split_fileindexed() -> None:
             small_scale=0.50,
             file_idx_flag=True,
             file_idx="./fileidx/fileidx.csv",
-            type="Ftr&Good",
+            selvars_type="Ftr&Good",
             min_distance=0.1,
             density_flag=False,
-            feats=pd.DataFrame(),
-            algos=pd.DataFrame(),
+            feats=[],
+            algos=[],
         ),
         sifted=SiftedOptions(
             flag=True,
@@ -616,11 +574,9 @@ def test_split_fileindexed() -> None:
             use_weights=False,
             use_lib_svm=False,
         ),
-        trace=TraceOptions(use_sim=True, PI=0.55),
+        trace=TraceOptions(use_sim=True, pi=0.55),
         outputs=OutputOptions(csv=True, web=False, png=True),
     )
-
-    idx = np.genfromtxt(path_root / "fileidx/idx.txt", delimiter=",")
 
     x_before = np.genfromtxt(path_root / "fileidx/before/x_split.txt", delimiter=",")
     y_before = np.genfromtxt(path_root / "fileidx/before/Y_split.txt", delimiter=",")
@@ -656,8 +612,8 @@ def test_split_fileindexed() -> None:
 
     data = Data(
         inst_labels=inst_labels_before,
-        feat_labels=None,
-        algo_labels=None,
+        feat_labels=[],
+        algo_labels=[],
         x=x_before,
         y=y_before,
         x_raw=x_raw_before,
@@ -668,6 +624,7 @@ def test_split_fileindexed() -> None:
         num_good_algos=num_good_algos_before,
         beta=beta_before,
         s=None,
+        uniformity=None,
     )
 
     model = Model(
@@ -683,7 +640,7 @@ def test_split_fileindexed() -> None:
         trace=None,
     )
 
-    split_data(model)
+    model = Preprocessing.split_data(data, opts, model)
 
     x_after = np.genfromtxt(path_root / "fileidx/after/x_split.txt", delimiter=",")
     y_after = np.genfromtxt(path_root / "fileidx/after/Y_split.txt", delimiter=",")
