@@ -1,8 +1,11 @@
 from pathlib import Path
 from typing import Any, TypeVar
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.axes import Axes
+from matplotlib.colors import Normalize
 from numpy.typing import NDArray
 
 from matilda.data.model import (
@@ -14,6 +17,7 @@ from matilda.data.model import (
     StageState,
     TraceOut,
 )
+from matilda.data.option import Options
 
 
 def save_instance_space_to_csv(
@@ -28,7 +32,6 @@ def save_instance_space_to_csv(
 
     if not output_directory.is_dir():
         raise ValueError("output_directory isn't a directory.")
-
 
     num_algorithms = data.y.shape[1]
 
@@ -211,6 +214,9 @@ def save_instance_space_for_web(
 def save_instance_space_graphs(
     output_directory: Path,
     data: Data,
+    options: Options,
+    pythia_state: StageState[PythiaOut],
+    pilot_state: StageState[PilotOut],
 ) -> None:
 
     if not output_directory.is_dir():
@@ -229,6 +235,21 @@ def save_instance_space_graphs(
     y_glb_range = np.max(y_glb, axis=0) - np.min(y_glb, axis=0)
     y_glb = (y_glb - np.min(y_glb)) / y_glb_range
 
+    if options.trace.use_sim:
+        y_foot = pythia_state.out.y_hat
+        p_foot = pythia_state.out.selection0
+    else:
+        y_foot = data.y_bin
+        p_foot = data.p
+
+    for i in range(num_feats):
+        filename = f"distribution_feature_{data.feat_labels[i]}.png"
+        _draw_scatter(
+            pilot_state.out.z,
+            x_aux[:, i],
+            data.feat_labels[i].replace("_", " "),
+            output_directory / filename,
+        )
 
 
 def _write_array_to_csv(
@@ -266,3 +287,28 @@ def _colour_scale_g(
     data_range: NDArray[T] = np.max(data, axis=0) - np.min(data, axis=0)
     out: NDArray[T] = np.round(255 * (data - np.min(data, axis=0)) / data_range)
     return out
+
+def _draw_scatter(
+    z: NDArray[Any],
+    x: NDArray[Any],
+    title_label: str,
+    output: Path,
+) -> None:
+    upper_bound = np.ceil(np.max(z))
+    lower_bound = np.floor(np.min(z))
+
+    cmap = plt.colormaps["viridis"]
+    fig, ax2 = plt.subplots()
+    ax: Axes = ax2 # TODO: Remove this before PR, just for programming
+    fig.suptitle(title_label, size=14)
+
+    norm = Normalize(lower_bound, upper_bound)
+
+    ax.scatter(z[:, 0], z[:, 1], s=8, c=x, norm=norm, cmap=cmap)
+    ax.set_xlabel("z_{1}")
+    ax.set_ylabel("z_{2}")
+    fig.colorbar(plt.cm.ScalarMappable(
+        norm=norm,
+        cmap=cmap,
+    ))
+
