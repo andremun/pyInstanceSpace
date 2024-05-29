@@ -325,7 +325,6 @@ class Preprocessing:
             The model object containing the data has been processed.
         """
         # If we are only meant to take some observations
-
         print("-------------------------------------------------------------------")
         ninst = data.x.shape[0]
         fractional = (
@@ -410,7 +409,7 @@ class Preprocessing:
 
         if fileindexed or fractional or bydensity:
             if bydensity:
-                data_dense = data_dense
+                data_dense = model.data_dense
 
             x = x[subset_index, :]
             y = y[subset_index, :]
@@ -421,7 +420,6 @@ class Preprocessing:
             num_good_algos = num_good_algos[subset_index]
             y_best = y_best[subset_index]
             p = p[subset_index]
-
             inst_labels = inst_labels[subset_index]
 
             if s is not None:
