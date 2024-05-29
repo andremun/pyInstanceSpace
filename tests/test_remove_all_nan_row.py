@@ -16,7 +16,7 @@ import pandas as pd
 from matilda.data.model import (
     Data,
 )
-from matilda.stages.pre_processing import Preprocessing
+from matilda.stages.preprocessing import Preprocessing
 
 path_root = Path(__file__).parents[1]
 sys.path.append(str(path_root))
@@ -67,13 +67,13 @@ def test_remove_instances_with_two_row_missing() -> None:
 
     # Check instances removal
     assert (
-            out.x.shape[0] == expected_rows
+        out.x.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            out.y.shape[0] == expected_rows
+        out.y.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            out.inst_labels.shape[0] == expected_rows
+        out.inst_labels.shape[0] == expected_rows
     ), "Instance labels not updated after removal"
 
     # Check feature dimensions
@@ -85,8 +85,9 @@ def test_remove_instances_with_two_row_missing() -> None:
         "inst" + str(i) for i in range(2, 10)
     ], "inst_labels content not right"
 
-    assert out.feat_labels == [f"feature{i}" for i in range(1, 10)], \
-        "feat_labels content not right"
+    assert out.feat_labels == [
+        f"feature{i}" for i in range(1, 10)
+    ], "feat_labels content not right"
 
 
 def test_remove_instances_with_3_row_missing() -> None:
@@ -133,13 +134,13 @@ def test_remove_instances_with_3_row_missing() -> None:
 
     # Check instances removal
     assert (
-            out.x.shape[0] == expected_rows
+        out.x.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            out.y.shape[0] == expected_rows
+        out.y.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            out.inst_labels.shape[0] == expected_rows
+        out.inst_labels.shape[0] == expected_rows
     ), "Instance labels not updated after removal"
 
     expected_x_columns = 10
@@ -161,8 +162,9 @@ def test_remove_instances_with_3_row_missing() -> None:
     ], "inst_labels content not right"
 
     # Check feat_labels content
-    assert out.feat_labels == [f"feature{i}" for i in range(10)], \
-        "feat_labels content not right"
+    assert out.feat_labels == [
+        f"feature{i}" for i in range(10)
+    ], "feat_labels content not right"
 
     assert out.s is not None, "s content should be valid"
     assert out.s.tolist() == [
@@ -224,13 +226,13 @@ def test_remove_instances_keep_same() -> None:
 
     # Check instances removal
     assert (
-            out.x.shape[0] == expected_rows
+        out.x.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            out.y.shape[0] == expected_rows
+        out.y.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            out.inst_labels.shape[0] == expected_rows
+        out.inst_labels.shape[0] == expected_rows
     ), "Instance labels not updated after removal"
 
     # Check feature dimensions are unchanged
@@ -248,8 +250,9 @@ def test_remove_instances_keep_same() -> None:
     ], "feat_labels content not right"
 
     assert out.s is not None, "s content should be valid"
-    assert out.s.tolist() == ["source" + str(i) for i in range(10)], \
-        "s content not right"
+    assert out.s.tolist() == [
+        "source" + str(i) for i in range(10)
+    ], "s content not right"
 
 
 def test_duplicated_data_edge() -> None:
@@ -265,22 +268,24 @@ def test_duplicated_data_edge() -> None:
     rng = np.random
 
     # Create sample data with missing values and repeated instances (10 rows)
-    large_x = np.array([
-        [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
-        [np.nan, np.nan, np.nan, np.nan, np.nan, 0.09, 0.76, 0.91, 0.62, 0.17],
-        [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
-        [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
-        [np.nan, np.nan, np.nan, np.nan, np.nan, 0.87, 0.52, 0.63, 0.29, 0.71],
-        [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
-        [0.35, 0.64, 0.97, 0.82, 0.46, 0.30, 0.01, 0.50, 0.28, 0.13],
-        [0.75, 0.89, 0.52, 0.40, 0.60, 0.77, 0.92, 0.34, 0.08, 0.44],
-        [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
-        [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
-    ])
+    large_x = np.array(
+        [
+            [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
+            [np.nan, np.nan, np.nan, np.nan, np.nan, 0.09, 0.76, 0.91, 0.62, 0.17],
+            [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
+            [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
+            [np.nan, np.nan, np.nan, np.nan, np.nan, 0.87, 0.52, 0.63, 0.29, 0.71],
+            [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
+            [0.35, 0.64, 0.97, 0.82, 0.46, 0.30, 0.01, 0.50, 0.28, 0.13],
+            [0.75, 0.89, 0.52, 0.40, 0.60, 0.77, 0.92, 0.34, 0.08, 0.44],
+            [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
+            [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
+        ],
+    )
 
     large_y = rng.random((10, 5))
     large_y[6, :2] = np.nan  # 7th row first 2 columns NaN
-    s = pd.Series(["source" + str(i) for i in range(10)]) # Generate content for s
+    s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
 
     data = Data(
         inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
@@ -307,13 +312,13 @@ def test_duplicated_data_edge() -> None:
 
     # Check instances removal
     assert (
-            out.x.shape[0] == expected_rows
+        out.x.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            out.y.shape[0] == expected_rows
+        out.y.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            out.inst_labels.shape[0] == expected_rows
+        out.inst_labels.shape[0] == expected_rows
     ), "Instance labels not updated after removal"
 
     # Check feature dimensions are unchanged
@@ -332,8 +337,9 @@ def test_duplicated_data_edge() -> None:
 
     assert out.s is not None, "s content should be valid"
 
-    assert out.s.tolist() == ["source" + str(i) for i in range(0, 10)], \
-        "s content not right"
+    assert out.s.tolist() == [
+        "source" + str(i) for i in range(0, 10)
+    ], "s content not right"
 
 
 def test_duplicated_data() -> None:
@@ -349,18 +355,20 @@ def test_duplicated_data() -> None:
     rng = np.random
 
     # Create sample data with missing values and repeated instances (10 rows)
-    large_x = np.array([
-        [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
-        [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
-        [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
-        [0.35, 0.64, 0.97, 0.82, 0.46, 0.30, 0.01, 0.50, 0.28, 0.13],
-        [np.nan, np.nan, np.nan, np.nan, np.nan, 0.87, 0.52, 0.63, 0.29, 0.71],
-        [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
-        [0.35, 0.64, 0.97, 0.82, 0.46, 0.30, 0.01, 0.50, 0.28, 0.13],
-        [0.75, 0.89, 0.52, 0.40, 0.60, 0.77, 0.92, 0.34, 0.08, 0.44],
-        [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
-        [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
-    ])
+    large_x = np.array(
+        [
+            [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
+            [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
+            [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
+            [0.35, 0.64, 0.97, 0.82, 0.46, 0.30, 0.01, 0.50, 0.28, 0.13],
+            [np.nan, np.nan, np.nan, np.nan, np.nan, 0.87, 0.52, 0.63, 0.29, 0.71],
+            [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
+            [0.35, 0.64, 0.97, 0.82, 0.46, 0.30, 0.01, 0.50, 0.28, 0.13],
+            [0.75, 0.89, 0.52, 0.40, 0.60, 0.77, 0.92, 0.34, 0.08, 0.44],
+            [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
+            [0.72, 0.45, 0.18, 0.79, 0.65, 0.33, 0.31, 0.07, 0.54, 0.42],
+        ],
+    )
 
     large_y = rng.random((10, 5))
     large_y[6, :2] = np.nan  # 7th row first 2 columns NaN
@@ -399,13 +407,13 @@ def test_duplicated_data() -> None:
 
     # Check instances removal
     assert (
-            out.x.shape[0] == expected_rows
+        out.x.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            out.y.shape[0] == expected_rows
+        out.y.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-            out.inst_labels.shape[0] == expected_rows
+        out.inst_labels.shape[0] == expected_rows
     ), "Instance labels not updated after removal"
 
     # Check feature dimensions are unchanged
@@ -443,8 +451,9 @@ def test_duplicated_data() -> None:
     assert np.array_equal(out.p, p), "p content not right"
 
     # Check num_good_algos content
-    assert np.array_equal(out.num_good_algos, num_good_algos), \
-        "num_good_algos content not right"
+    assert np.array_equal(
+        out.num_good_algos, num_good_algos,
+    ), "num_good_algos content not right"
 
     # Check beta content
     assert np.array_equal(out.beta, beta), "beta content not right"
@@ -452,5 +461,6 @@ def test_duplicated_data() -> None:
     assert out.s is not None, "s content should be valid"
 
     # Check s content
-    assert out.s.tolist() == ["string" + str(i) for i in range(10)], \
-        "s content not right"
+    assert out.s.tolist() == [
+        "string" + str(i) for i in range(10)
+    ], "s content not right"

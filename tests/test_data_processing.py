@@ -7,7 +7,19 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from matilda.data.model import Data, Model
+from matilda.data.model import (
+    CloisterOut,
+    Data,
+    FeatSel,
+    Footprint,
+    Model,
+    PilotOut,
+    PolyShape,
+    PrelimOut,
+    PythiaOut,
+    SiftedOut,
+    TraceOut,
+)
 from matilda.data.option import (
     AutoOptions,
     BoundOptions,
@@ -77,6 +89,111 @@ def create_dummy_opt() -> Options:
         ),
         trace=TraceOptions(use_sim=True, pi=0.55),
         outputs=OutputOptions(csv=True, web=False, png=True),
+    )
+
+
+def create_dummy_model(data: Data, opts: Options) -> Model:
+    """
+    Create a dummy Model object with default values.
+
+    Returns:
+    -------
+        Model: The dummy Model object.
+    """
+    feat_sel = FeatSel(
+        idx=np.array([], dtype=np.int64),
+    )
+
+    prelim = PrelimOut(
+        med_val=np.array([], dtype=np.double),
+        iq_range=np.array([], dtype=np.double),
+        hi_bound=np.array([], dtype=np.double),
+        lo_bound=np.array([], dtype=np.double),
+        min_x=np.array([], dtype=np.double),
+        lambda_x=np.array([], dtype=np.double),
+        mu_x=np.array([], dtype=np.double),
+        sigma_x=np.array([], dtype=np.double),
+        min_y=np.array([], dtype=np.double),
+        lambda_y=np.array([], dtype=np.double),
+        sigma_y=np.array([], dtype=np.double),
+        mu_y=0.0,
+    )
+
+    sifted = SiftedOut(
+        flag=1,
+        rho=np.double(0.1),
+        k=10,
+        n_trees=50,
+        max_lter=1000,
+        replicates=100,
+    )
+
+    pilot = PilotOut(
+        X0=np.array([], dtype=np.double),
+        alpha=np.array([], dtype=np.double),
+        eoptim=np.array([], dtype=np.double),
+        perf=np.array([], dtype=np.double),
+        a=np.array([], dtype=np.double),
+        z=np.array([], dtype=np.double),
+        c=np.array([], dtype=np.double),
+        b=np.array([], dtype=np.double),
+        error=np.array([], dtype=np.double),
+        r2=np.array([], dtype=np.double),
+        summary=pd.DataFrame(),
+    )
+
+    cloist = CloisterOut(
+        z_edge=np.array([], dtype=np.double),
+        z_ecorr=np.array([], dtype=np.double),
+    )
+
+    pythia = PythiaOut(
+        mu=[],
+        sigma=[],
+        cp=None,
+        svm=None,
+        cvcmat=np.array([], dtype=np.double),
+        y_sub=np.array([], dtype=np.bool_),
+        y_hat=np.array([], dtype=np.bool_),
+        pr0_sub=np.array([], dtype=np.double),
+        pr0_hat=np.array([], dtype=np.double),
+        box_consnt=[],
+        k_scale=[],
+        precision=[],
+        recall=[],
+        accuracy=[],
+        selection0=np.array([], dtype=np.double),
+        selection1=None,
+        summary=pd.DataFrame(),
+    )
+    footprint = Footprint(
+        polygon=PolyShape(),
+        area=0.0,
+        elements=0,
+        good_elements=0,
+        density=0.0,
+        purity=0.0,
+    )
+
+    trace = TraceOut(
+        space=footprint,
+        good=[],
+        best=[],
+        hard=footprint,
+        summary=pd.DataFrame(),
+    )
+
+    return Model(
+        data=data,
+        opts=opts,
+        feat_sel=feat_sel,
+        data_dense=data,
+        prelim=prelim,
+        sifted=sifted,
+        pilot=pilot,
+        cloist=cloist,
+        pythia=pythia,
+        trace=trace,
     )
 
 
@@ -214,7 +331,9 @@ def test_remove_bad_instances_2() -> None:
         uniformity=None,
     )
 
-    with pytest.raises(Exception) as e:
+    error_msg = "'-> There are no ''good'' algorithms. Please verify\
+    the binary performance measure. STOPPING!'"
+    with pytest.raises(ValueError, match=error_msg) as e:
         data = Preprocessing.remove_bad_instances(data)
     assert "no ''good'' algorithms" in str(e.value), "Error message is not as expected."
     print("Remove bad instances tests 2 passed!")
@@ -222,7 +341,7 @@ def test_remove_bad_instances_2() -> None:
 
 def test_remove_bad_instances_3() -> None:
     """
-    In this test case, there are some no good instances in the data,so they should be removed.
+    In this test case, there are some no good instances in the data should be removed.
 
     expected: No assertion errors.
     """
@@ -320,18 +439,8 @@ def test_split_data() -> None:
     )
 
     opts = create_dummy_opt()
-    model = Model(
-        data=data,
-        opts=opts,
-        feat_sel=None,
-        data_dense=None,
-        prelim=None,
-        sifted=None,
-        pilot=None,
-        cloist=None,
-        pythia=None,
-        trace=None,
-    )
+    model = create_dummy_model(data, opts)
+
     model = Preprocessing.split_data(data, opts, model)
 
     x_after = np.genfromtxt(path_root / "split/after/x_split.txt", delimiter=",")
@@ -473,18 +582,7 @@ def test_split_fractional() -> None:
         uniformity=None,
     )
 
-    model = Model(
-        data=data,
-        opts=opts,
-        feat_sel=None,
-        data_dense=None,
-        prelim=None,
-        sifted=None,
-        pilot=None,
-        cloist=None,
-        pythia=None,
-        trace=None,
-    )
+    model = create_dummy_model(data, opts)
 
     model = Preprocessing.split_data(data, opts, model)
 
@@ -627,19 +725,7 @@ def test_split_fileindexed() -> None:
         uniformity=None,
     )
 
-    model = Model(
-        data=data,
-        opts=opts,
-        feat_sel=None,
-        data_dense=None,
-        prelim=None,
-        sifted=None,
-        pilot=None,
-        cloist=None,
-        pythia=None,
-        trace=None,
-    )
-
+    model = create_dummy_model(data, opts)
     model = Preprocessing.split_data(data, opts, model)
 
     x_after = np.genfromtxt(path_root / "fileidx/after/x_split.txt", delimiter=",")

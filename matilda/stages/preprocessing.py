@@ -1,3 +1,5 @@
+"""Process the input data before running the main analysis."""
+
 from pathlib import Path
 
 import numpy as np
@@ -279,7 +281,7 @@ class Preprocessing:
             algo_labels = filtered_algo_labels.tolist()
             nalgos = data.y.shape[1]
             if nalgos == 0:
-                raise Exception(
+                raise ValueError(
                     "'-> There are no ''good'' algorithms. Please verify\
     the binary performance measure. STOPPING!'",
                 )
@@ -405,7 +407,7 @@ class Preprocessing:
             if hasattr(data, "S"):
                 s = data.S[subset_index, :]
         # create a new data object with the processed data
-        data = Data(
+        Data(
             inst_labels=inst_labels,
             feat_labels=data.feat_labels,
             algo_labels=data.algo_labels,
