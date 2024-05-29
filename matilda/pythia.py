@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import logging                                      # Helpful in tracking events in code or debugging
 from numpy.typing import NDArray
 from scipy.stats import zscore
 from pytictoc import TicToc
@@ -36,7 +37,7 @@ def pythia(
     opts.pythia: Params by users to configure identical algorithm selection.
 
     """
-    print("  -> Initializing PYTHIA.")
+    logger.info("  -> Initializing PYTHIA.")
 
     # Initialise data with its structure that can be used in Pythia.py.
     z_norm = (z-np.mean(z, axis=0))/np.std(z, ddof=1, axis=0)
@@ -56,13 +57,19 @@ def pythia(
 
     box_const, k_scale = np.zeros(nalgos), np.zeros(nalgos)
 
+    # configuring the logger to display log message 
+    logging.basicConfig(filename="pythia.log", 
+                    format='%(asctime)s: %(levelname)s: %(message)s', 
+                    level=logging.INFO) 
+    logger = logging.getLogger()
+
     """ 
     Section 2: Configure the SVM training process.
     # (Including kernel function selection, library usage, hyperparameter strategy,
     # and cost-sensitive classification.)
     """
 
-    print("-------------------------------------------------------------------------")
+    logger.info("-------------------------------------------------------------------------")
     # No params in opt in example test case.
     precalcparams = (
         hasattr(opts, 'params') and
@@ -76,50 +83,50 @@ def pythia(
         kernel_fcn = "polynomial"
     else:
         if ninst > 1000:
-           print("  -> For datasets larger than 1K Instances, PYTHIA works better with a Polynomial kernel.")
-           print("  -> Consider changing the kernel if the results are unsatisfactory.")
-           print("-------------------------------------------------------------------------")
+           logger.info("  -> For datasets larger than 1K Instances, PYTHIA works better with a Polynomial kernel.")
+           logger.info("  -> Consider changing the kernel if the results are unsatisfactory.")
+           logger.info("-------------------------------------------------------------------------")
         kernel_fcn = "gaussian"
     
-    print(f"  -> PYTHIA is using a {kernel_fcn} kernel ")
-    print("-------------------------------------------------------------------------")
+    logger.info(f"  -> PYTHIA is using a {kernel_fcn} kernel ")
+    logger.info("-------------------------------------------------------------------------")
     
     if opts.use_lib_svm:
-        print("  -> Using LIBSVM''s libraries.")
+        logger.info("  -> Using LIBSVM''s libraries.")
 
         if precalcparams:
-            print("  -> Using pre-calculated hyper-parameters for the SVM.")
+            logger.info("  -> Using pre-calculated hyper-parameters for the SVM.")
             params = opts.params
         else:
-            print("  -> Search on a latin hyper-cube design will be used for parameter hyper-tunning.")
+            logger.info("  -> Search on a latin hyper-cube design will be used for parameter hyper-tunning.")
     else:
-        print("  -> Using MATLAB''s SVM libraries.")
+        logger.info("  -> Using MATLAB''s SVM libraries.")
 
         if precalcparams:
-            print("  -> Using pre-calculated hyper-parameters for the SVM.")
+            logger.info("  -> Using pre-calculated hyper-parameters for the SVM.")
             params = opts.params
         else:
-            print("    -> Bayesian Optimization will be used for parameter hyper-tunning.")
+            logger.info("    -> Bayesian Optimization will be used for parameter hyper-tunning.")
 
-        print("-------------------------------------------------------------------------")
+        logger.info("-------------------------------------------------------------------------")
     
         if opts.use_weights:
-            print("  -> PYTHIA is using cost-sensitive classification.")
+            logger.info("  -> PYTHIA is using cost-sensitive classification.")
             w = np.abs(y - np.nanmean(y))
             w [w == 0] = np.min(w [w != 0])
             w [np.isnan(w)] = np.max( w [~np.isnan(w)])
             # no need for w_aux?
         else:
-            print("  -> PYTHIA is not using cost-sensitive classification.")
+            logger.info("  -> PYTHIA is not using cost-sensitive classification.")
             w = np.ones((ninst, nalgos))
 
-    print("-------------------------------------------------------------------------")     
+    logger.info("-------------------------------------------------------------------------")     
     
-    print(f"  -> Using a {opts.cv_folds}-fold stratified cross-validation experiment to evaluate the SVMs.")
-    print("-------------------------------------------------------------------------")
+    logger.info(f"  -> Using a {opts.cv_folds}-fold stratified cross-validation experiment to evaluate the SVMs.")
+    logger.info("-------------------------------------------------------------------------")
     
     # Section 3: Train SVM model for each algorithm & Evaluate performance.
-    print('  -> Training has started. PYTHIA may take a while to complete...')
+    logger.info('  -> Training has started. PYTHIA may take a while to complete...')
 
     t = TicToc()
     t.tic()
@@ -157,8 +164,8 @@ def pythia(
             svm_res = None #fit_mat_svm(z_norm, y_b, w[:, i], cp[i], kernel_fcn, params[i])
 
     #     aux = confusion_matrix(y_b, y_sub[i])
-    #     print("------------aux-----------")
-    #     print(aux)
+    #     logger.info("------------aux-----------")
+    #     logger.info(aux)
 
     #     if np.prod(aux.shape) != 4:
     #         caux = aux
@@ -178,22 +185,22 @@ def pythia(
 
     #     cvcmat[:, i] = aux.flatten()
     #     models_left = nalgos - (i + 1)
-    #     print(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are {models_left} models left to train.")
+    #     logger.info(f"    -> PYTHIA has trained a model for {algo_labels[i]}, there are {models_left} models left to train.")
 
-    #     print(f"      -> Elapsed time: {t_inner.tocvalue():.2f}s")
+    #     logger.info(f"      -> Elapsed time: {t_inner.tocvalue():.2f}s")
     
     # tn, fp, fn, tp = cvcmat[:, 0], cvcmat[:, 1], cvcmat[:, 2], cvcmat[:, 3]
     # precision = tp / (tp + fp)
     # recall = tp / (tp + fn)
     # accuracy = (tp + tn) / ninst
 
-    # print(f"Total elapsed time: {t.tocvalue():.2f}s")
-    # print("-------------------------------------------------------------------------")
-    # print("  -> PYTHIA has completed training the models.")
-    # print(f"  -> The average cross validated precision is: {np.round(100 * np.mean(precision), 1)}%")
-    # print(f"  -> The average cross validated accuracy is: {np.round(100 * np.mean(accuracy), 1)}%")
-    # print(f"      -> Elapsed time: {t.tocvalue():.2f}s")
-    # print("-------------------------------------------------------------------------")
+    # logger.info(f"Total elapsed time: {t.tocvalue():.2f}s")
+    # logger.info("-------------------------------------------------------------------------")
+    # logger.info("  -> PYTHIA has completed training the models.")
+    # logger.info(f"  -> The average cross validated precision is: {np.round(100 * np.mean(precision), 1)}%")
+    # logger.info(f"  -> The average cross validated accuracy is: {np.round(100 * np.mean(accuracy), 1)}%")
+    # logger.info(f"      -> Elapsed time: {t.tocvalue():.2f}s")
+    # logger.info("-------------------------------------------------------------------------")
 
     # # """We assume that the most precise SVM (as per CV-Precision) is the most reliable."""
     # best, selection_0
@@ -229,7 +236,7 @@ def pythia(
     # recallsel = tg / (tg + fb)
 
     # # Section 6: Generate output
-    # print("  -> PYTHIA is preparing the summary table.")
+    # logger.info("  -> PYTHIA is preparing the summary table.")
     # summaries: list[AlgorithmSummary] = []
 
     # for i, label in enumerate(algo_labels + ['Oracle', 'Selector']):
@@ -249,11 +256,11 @@ def pythia(
     #     )
 
     #     summaries.append(summary)
-    # print("  -> PYTHIA has completed! Performance of the models:")
-    # print(" ")
+    # logger.info("  -> PYTHIA has completed! Performance of the models:")
+    # logger.info(" ")
 
     # for result in summaries:
-    #     print(result)
+    #     logger.info(result)
 
 class SvmRes:
     """Resent data resulting from SVM."""
@@ -325,8 +332,8 @@ def fit_mat_svm(
 
         # scores = cross_val_score(model, z, y, scoring='accuracy', cv=skf)
         # # for score in scores:
-        # #     print("Accuracy for this al is: ", accuracy)
-        # print("Mean Accuracy for this al is: ", np.mean(scores))
+        # #     logger.info("Accuracy for this al is: ", accuracy)
+        # logger.info("Mean Accuracy for this al is: ", np.mean(scores))
 
 
         # Used for exhaustive search over specified parameter values for the SVM. The param_grid defines 
