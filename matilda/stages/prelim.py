@@ -139,8 +139,8 @@ class Prelim:
 
         print(msg)
 
-        num_good_algos, p, beta = prelim.select_best_algorithms(y_raw, y_best, \
-                                                                y, y_bin, nalgos, \
+        num_good_algos, p, beta = prelim.select_best_algorithms(y_raw, y_best,
+                                                                y, y_bin, nalgos,
                                                                 opts.beta_threshold, p)
 
         # Auto-Pre-Processing
@@ -153,7 +153,7 @@ class Prelim:
             lo_bound = bound_out.lo_bound
 
         if opts.norm:
-            normalise_out = prelim._normalise(x, y) # noqa: SLF001
+            normalise_out = prelim.normalise(x, y)
             x = normalise_out.x
             min_x = normalise_out.min_x
             lambda_x = normalise_out.lambda_x
@@ -168,8 +168,6 @@ class Prelim:
         data_changed = PrelimDataChanged(
             x=x,
             y=y,
-            x_raw=x,
-            y_raw=y_raw,
             y_bin=y_bin,
             y_best=y_best,
             p=p,
@@ -284,7 +282,7 @@ class Prelim:
             lo_bound=lo_bound,
         )
 
-    def _normalise(
+    def normalise(
         self,
         x: NDArray[np.double],
         y: NDArray[np.double],

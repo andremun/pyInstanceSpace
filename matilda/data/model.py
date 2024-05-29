@@ -93,8 +93,6 @@ class PrelimDataChanged:
 
     x: NDArray[np.double]
     y: NDArray[np.double]
-    x_raw: NDArray[np.double]
-    y_raw: NDArray[np.double]
     y_bin: NDArray[np.bool_]
     y_best: NDArray[np.double]
     p: NDArray[np.double]
@@ -108,11 +106,10 @@ class PrelimDataChanged:
             feat_labels=data.feat_labels,
             algo_labels=data.algo_labels,
             uniformity=data.uniformity,
-
             x=self.x,
+            x_raw=data.x_raw,
             y=self.y,
-            x_raw=self.x_raw,
-            y_raw=self.y_raw,
+            y_raw=data.y_raw,
             y_bin=self.y_bin,
             y_best=self.y_best,
             p=self.p,
