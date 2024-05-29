@@ -340,9 +340,9 @@ class Prelim:
 
                 Returns
                 -------
-                    float: The negative log-likelihood value.
+                    Any: The negative log-likelihood value.
                 """
-                return -stats.boxcox_llf(lmbda, data)
+                return -float(stats.boxcox_llf(lmbda, data)[0])
 
             # Find the lambda that minimizes the negative log-likelihood
             # We minimize the negative log-likelihood because fmin performs minimization
