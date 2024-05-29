@@ -279,7 +279,7 @@ class Preprocessing:
             algo_labels_array = np.array(data.algo_labels)
             filtered_algo_labels = algo_labels_array[~idx]
             algo_labels = filtered_algo_labels.tolist()
-            nalgos = data.y.shape[1]
+            nalgos = y.shape[1]
             if nalgos == 0:
                 raise ValueError(
                     "'-> There are no ''good'' algorithms. Please verify\
