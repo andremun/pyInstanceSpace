@@ -287,7 +287,7 @@ class Preprocessing:
                 )
 
             # Creating a new Data object with the processed data
-            return_data = Data(
+            return Data(
                 inst_labels=data.inst_labels,
                 feat_labels=data.feat_labels,
                 algo_labels=algo_labels,
@@ -303,7 +303,8 @@ class Preprocessing:
                 s=data.s,
                 uniformity=data.uniformity,
             )
-        return return_data
+
+        return data
 
     @staticmethod
     def split_data(data: Data, opts: Options, model: Model) -> Model:
@@ -334,13 +335,14 @@ class Preprocessing:
             and hasattr(opts.selvars, "small_scale")
             and isinstance(opts.selvars.small_scale, float)
         )
+        path = Path(opts.selvars.file_idx)
         fileindexed = (
             hasattr(opts, "selvars")
             and hasattr(opts.selvars, "file_idx_flag")
             and opts.selvars.file_idx_flag
             and hasattr(opts.selvars, "file_idx")
             and Path(opts.selvars.file_idx).is_file()
-            and Path.isfile(opts.selvars.file_idx)
+            and Path.is_file(path)
         )
         bydensity = (
             hasattr(opts, "selvars")
@@ -389,28 +391,46 @@ class Preprocessing:
             print("-> Using the complete set of the instances.")
             subset_index = np.ones(ninst, dtype=bool)
 
+        # Get the data from the model
+        inst_labels = data.inst_labels
+        feat_labels = data.feat_labels
+        algo_labels = data.algo_labels
+        x = data.x
+        y = data.y
+        x_raw = data.x_raw
+        y_raw = data.y_raw
+        y_bin = data.y_bin
+        y_best = data.y_best
+        p = data.p
+        num_good_algos = data.num_good_algos
+        beta = data.beta
+        s = data.s
+        uniformity = data.uniformity
+        data_dense = model.data_dense
+
         if fileindexed or fractional or bydensity:
             if bydensity:
-                data_dense = data
+                data_dense = data_dense
 
-            x = data.x[subset_index, :]
-            y = data.y[subset_index, :]
-            x_raw = data.x_raw[subset_index, :]
-            y_raw = data.y_raw[subset_index, :]
-            y_bin = data.y_bin[subset_index, :]
-            beta = data.beta[subset_index]
-            num_good_algos = data.num_good_algos[subset_index]
-            y_best = data.y_best[subset_index]
-            p = data.p[subset_index]
-            inst_labels = data.inst_labels[subset_index]
+            x = x[subset_index, :]
+            y = y[subset_index, :]
+            x_raw = x_raw[subset_index, :]
+            y_raw = y_raw[subset_index, :]
+            y_bin = y_bin[subset_index, :]
+            beta = beta[subset_index]
+            num_good_algos = num_good_algos[subset_index]
+            y_best = y_best[subset_index]
+            p = p[subset_index]
 
-            if hasattr(data, "S"):
-                s = data.S[subset_index, :]
+            inst_labels = inst_labels[subset_index]
+
+            if s is not None:
+                s = s[subset_index]
         # create a new data object with the processed data
-        Data(
+        processed_data = Data(
             inst_labels=inst_labels,
-            feat_labels=data.feat_labels,
-            algo_labels=data.algo_labels,
+            feat_labels=feat_labels,
+            algo_labels=algo_labels,
             x=x,
             y=y,
             x_raw=x_raw,
@@ -421,12 +441,12 @@ class Preprocessing:
             num_good_algos=num_good_algos,
             beta=beta,
             s=s,
-            uniformity=data.uniformity,
+            uniformity=uniformity,
         )
 
         # create a new model object with the processed data
         return Model(
-            data=data,
+            data=processed_data,
             data_dense=data_dense,
             feat_sel=model.feat_sel,
             prelim=model.prelim,
