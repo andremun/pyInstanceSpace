@@ -295,3 +295,6 @@ cython_debug/
 # Mac OS Folder view configuration files
 .DS_Store
 Desktop.ini
+
+# Pycharm
+.idea

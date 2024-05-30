@@ -6,7 +6,10 @@ aspects of the model's execution and behaviour.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, fields
+from pathlib import Path
+from typing import Any, Self, TypeVar
 
 import pandas as pd
 
@@ -343,20 +346,61 @@ class Options:
     outputs: OutputOptions
 
     @staticmethod
-    def from_file(file_contents: str) -> Options:
-        """Parse options from a file, and construct an Options object.
+    def from_dict(file_contents: dict[str, Any]) -> Options:
+        """Load configuration options from a JSON file into an Options object.
+
+        This function reads a JSON file from `filepath`, checks for expected
+        top-level fields as defined in Options, initializes each part of the
+        Options with data from the file, and sets missing optional fields using
+        their default values.
 
         Args
-        ----
-        file_contents (str): The contents of a json file containing the options.
+        ----------
+        file_contents
+            Content of the dict with configuration options.
 
         Returns
         -------
-        An Options object.
-        """
-        raise NotImplementedError
+        Options
+            Options object populated with data from the file.
 
-    def to_file(self) -> str:
+        Raises
+        ------
+        ValueError
+            If the JSON file contains undefined sub options.
+        """
+        # Validate if the top-level fields match those in the Options class
+        options_fields = {f.name for f in fields(Options)}
+        extra_fields = set(file_contents.keys()) - options_fields
+
+        if extra_fields:
+            raise ValueError(f"Extra fields in JSON are not defined in Options:"
+                             f" {extra_fields}")
+
+        # Initialize each part of Options, using default values for missing fields
+        return Options(
+            parallel=Options._load_dataclass(ParallelOptions,
+                                             file_contents.get("parallel", {})),
+            perf=Options._load_dataclass(PerformanceOptions,
+                                         file_contents.get("perf", {})),
+            auto=Options._load_dataclass(AutoOptions, file_contents.get("auto", {})),
+            bound=Options._load_dataclass(BoundOptions, file_contents.get("bound", {})),
+            norm=Options._load_dataclass(NormOptions, file_contents.get("norm", {})),
+            selvars=Options._load_dataclass(SelvarsOptions,
+                                            file_contents.get("selvars", {})),
+            sifted=Options._load_dataclass(SiftedOptions,
+                                           file_contents.get("sifted", {})),
+            pilot=Options._load_dataclass(PilotOptions, file_contents.get("pilot", {})),
+            cloister=Options._load_dataclass(CloisterOptions,
+                                             file_contents.get("cloister", {})),
+            pythia=Options._load_dataclass(PythiaOptions,
+                                           file_contents.get("pythia", {})),
+            trace=Options._load_dataclass(TraceOptions, file_contents.get("trace", {})),
+            outputs=Options._load_dataclass(OutputOptions,
+                                            file_contents.get("outputs", {})),
+        )
+
+    def to_file(self: Self, filepath: Path) -> None:
         """Store options in a file from an Options object.
 
         Returns
@@ -396,6 +440,75 @@ class Options:
             outputs= outputs or OutputOptions.default(),
         )
 
+    T = TypeVar("T", ParallelOptions, PerformanceOptions,
+                AutoOptions, BoundOptions, NormOptions, SelvarsOptions,
+                SiftedOptions, PilotOptions, CloisterOptions, PythiaOptions,
+                TraceOptions, OutputOptions)
+
+    @staticmethod
+    def _validate_fields(data_class: type[T], data: dict[str, Any]) -> None:
+        """Validate all keys in the provided dictionary are valid fields in dataclass.
+
+        Args
+        ----------
+        data_class : type[T]
+            The dataclass type to validate against.
+        data : dict
+            The dictionary whose keys are to be validated.
+
+        Raises
+        ------
+        ValueError
+            If an undefined field is found in the dictionary or
+
+        """
+        # Get all defined fields in the data class
+        known_fields = {f.name for f in fields(data_class)}
+
+        # Check if all fields in the JSON are defined in the data class
+        extra_fields = set(data.keys()) - known_fields
+        if extra_fields:
+            raise ValueError(
+                f"Field(s) '{extra_fields}' in JSON are not "
+                f"defined in the data class '{data_class.__name__}'.")
+
+    @staticmethod
+    def _load_dataclass(data_class: type[T], data: dict[str, Any]) -> T:
+        """Load data into a dataclass from a dictionary.
+
+        Ensures all dictionary keys match dataclass fields and fills in fields
+        with available data. If a field is missing in the dictionary, the default
+        value from the dataclass is used.
+
+        Args
+        ----------
+        data_class : type[T]
+            The dataclass type to populate.
+        data : dict
+            Dictionary containing data to load into the dataclass.
+
+        Returns
+        -------
+        T
+            An instance of the dataclass populated with data.
+
+        Raises
+        ------
+        ValueError
+            If the dictionary contains keys that are not valid fields in the dataclass.
+        """
+        # Get the default values for the dataclass fields
+        default_values = {
+            f.name: getattr(data_class.default(), f.name) for f in fields(data_class)
+        }
+
+        Options._validate_fields(data_class, data)
+
+        # Update the default values with the provided data
+        init_args = {**default_values, **data}
+
+        return data_class(**init_args)
+
 
 # Options not part of the main Options class
 
@@ -421,3 +534,43 @@ class PrelimOptions:
             bound=options.bound.flag,
             norm=options.norm.flag,
         )
+
+
+def from_json_file(file_path: Path) -> Options | None:
+    """Parse options from a JSON file and construct an Options object.
+
+    Args
+    ----
+    file_path : Path
+        The path to the JSON file containing the options.
+
+    Returns
+    -------
+    Options or None
+        An Options object constructed from the parsed JSON data, or None if an
+        error occurred during file reading or parsing.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the specified file does not exist.
+    json.JSONDecodeError
+        If the specified file contains invalid JSON.
+    OSError
+        If an I/O error occurred while reading the file.
+    ValueError
+        If the parsed JSON data contains invalid options.
+    """
+    try:
+        with file_path.open() as o:
+            options_contents = o.read()
+        opts_dict = json.loads(options_contents)
+
+        return Options.from_dict(opts_dict)
+    except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
+        print(f"{file_path}: {e!s}")
+        return None
+    except ValueError as e:
+        print(f"Error: Invalid options data in the file '{file_path}'.")
+        print(f"Error details: {e!s}")
+        return None
