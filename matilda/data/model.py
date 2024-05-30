@@ -74,6 +74,20 @@ class AlgorithmSummary:
 
 
 @dataclass(frozen=True)
+class PreprocessingOut:
+    """Holds preprocessed data."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class PreprocessingDataChanged:
+    """The fields of Data that the Prelim stage changes."""
+
+    pass
+
+
+@dataclass(frozen=True)
 class PrelimOut:
     """Contains preliminary output metrics calculated from the data."""
 
@@ -89,13 +103,6 @@ class PrelimOut:
     lambda_y: NDArray[np.double]
     sigma_y: NDArray[np.double]
     mu_y: float = 0.0
-
-
-@dataclass(frozen=True)
-class PreprocessOut:
-    """Holds preprocessed data."""
-
-    pass
 
 
 @dataclass(frozen=True)

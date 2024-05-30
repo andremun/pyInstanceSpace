@@ -6,6 +6,7 @@ authors = [
     "Your Name <you@example.com>",
     "Kushagra Khare <kharek@student.unimelb.edu.au>",
     "Nathan Harvey <nhharvey@student.unimelb.edu.au>",
+    "Tao Yu <ty2@student.unimelb.edu.au>",
 ]
 readme = "README.md"
 
@@ -132,6 +133,9 @@ ignore = [
 
     # Collides with D416
     "D406",
+
+    # Don't care about too many statements
+    "PLR0915",
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -152,5 +156,6 @@ module = [
     'sklearn',
     'scipy.spatial',
     'scipy.stats',
+    'sklearn.model_selection',
 ]
 ignore_missing_imports = 'True'

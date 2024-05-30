@@ -6,7 +6,12 @@ import numpy as np
 from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split
 
-from matilda.data.model import Data, Model, PrelimOut
+from matilda.data.model import (
+    Data,
+    Model,
+    PreprocessingDataChanged,
+    PreprocessingOut,
+)
 from matilda.data.option import Options, PrelimOptions
 from matilda.stages.filter import Filter
 
@@ -19,7 +24,7 @@ class Preprocessing:
         x: NDArray[np.double],
         y: NDArray[np.double],
         opts: Options,
-    ) -> tuple[Data, PrelimOut]:
+    ) -> tuple[PreprocessingDataChanged, PreprocessingOut]:
         """Perform preliminary processing on the input data 'x' and 'y'.
 
         Args
@@ -424,6 +429,7 @@ class Preprocessing:
 
             if s is not None:
                 s = s[subset_index]
+
         # create a new data object with the processed data
         processed_data = Data(
             inst_labels=inst_labels,
