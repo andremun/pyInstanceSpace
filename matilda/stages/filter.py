@@ -41,12 +41,12 @@ class Filter:
     n_feats: int
 
     def __init__(
-            self,
-            x: NDArray[np.double],
-            y: NDArray[np.double],
-            y_bin: NDArray[np.bool_],
-            opts: SelvarsOptions,
-        ) -> None:
+        self,
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        opts: SelvarsOptions,
+    ) -> None:
         """Initialize the Filter stage.
 
         Args
@@ -102,8 +102,8 @@ class Filter:
     """
 
     def filter_instance(
-            self,
-        ) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]]:
+        self,
+    ) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]]:
         """Filter instances based on distances between feature and response vectors.
 
         Returns
