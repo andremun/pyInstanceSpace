@@ -4,7 +4,7 @@ on:
   push:
     branches: [Staging, main]
   pull_request:
-    branches: [Staging]
+    branches: [Staging, main]
 
   workflow_run:
     workflows: [Automerge]
