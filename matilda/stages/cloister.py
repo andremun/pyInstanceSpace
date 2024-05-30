@@ -108,7 +108,13 @@ class Cloister:
                     rho[i, j] = 0
                     pval[i, j] = 1
 
-        rho[pval > self.opts.p_val] = 0
+        # Create a boolean mask where calculated pval exceeds specified p-value
+        # threshold from the option.
+        insignificant_pvals = pval > self.opts.p_val
+
+        # Set the correlation coefficients to zero where correlations are not
+        # statistically significant
+        rho[insignificant_pvals] = 0
 
         return rho
 
@@ -172,11 +178,13 @@ class Cloister:
         remove = np.zeros(ncomb, dtype=bool)
 
         for i in range(ncomb):
+            # Convert the binary indices to flat indices for the boundary selection
             ind = np.ravel_multi_index(
                 (idx[i], np.arange(self.nfeats)),
                 (2, self.nfeats),
                 order="F",
             )
+            # Select the boundary points corresponding to the flat indices
             x_edge[i, :] = x_bnds.T.flatten()[ind]
             for j in range(self.nfeats):
                 for k in range(j + 1, self.nfeats):
