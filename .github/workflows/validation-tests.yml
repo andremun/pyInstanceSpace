@@ -40,7 +40,7 @@ jobs:
       run: |-
         poetry install
 
-    - name: Check linting with Ruff and static check with Mypy
+    - name: Check formatting with black, linting with Ruff, and static check with Mypy
       run: poetry run poe test
 
     - name: Test with pytest
