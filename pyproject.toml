@@ -150,7 +150,8 @@ disallow_untyped_defs = 'True'
 [[tool.mypy.overrides]]
 module = [
     'sklearn',
-    'scipy.spatial',
     'scipy.stats',
+    'scipy.spatial',
+    'scipy.spatial.distance',
 ]
 ignore_missing_imports = 'True'
