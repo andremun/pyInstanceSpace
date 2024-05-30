@@ -12,7 +12,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from matilda.data.model import SiftedDataChanged, SiftedOut
-from matilda.data.option import SiftedOptions
+from matilda.data.options import SiftedOptions
 
 
 class Sifted:

@@ -15,7 +15,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from matilda.data.model import Footprint, PolyShape, TraceDataChanged, TraceOut
-from matilda.data.option import TraceOptions
+from matilda.data.options import TraceOptions
 
 
 class Trace:

@@ -6,14 +6,14 @@ analysis and modeling.
 The `prelim` function takes feature and performance data matrices along with a set of
 processing options, and performs various preprocessing tasks such as normalization,
 outlier detection and removal, and binary performance classification. These tasks are
-guided by the options specified in the `Options` object.
+guided by the options specified in the `InstanceSpaceOptions` object.
 """
 
 import numpy as np
 from numpy.typing import NDArray
 
 from matilda.data.model import PrelimDataChanged, PrelimOut
-from matilda.data.option import PrelimOptions
+from matilda.data.options import PrelimOptions
 
 
 class Prelim:
@@ -31,7 +31,7 @@ class Prelim:
             x: The feature matrix (instances x features) to process.
             y: The performance matrix (instances x algorithms) to
                 process.
-            opts: An object of type Options containing options for
+            opts: An object of type InstanceSpaceOptions containing options for
                 processing.
 
         Returns

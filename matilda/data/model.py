@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from matilda.data.option import Options
+from matilda.data.options import InstanceSpaceOptions
 
 
 @dataclass(frozen=True)
@@ -270,4 +270,4 @@ class Model:
     cloist: CloisterOut
     pythia: PythiaOut
     trace: TraceOut
-    opts: Options
+    opts: InstanceSpaceOptions

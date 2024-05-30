@@ -4,7 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from matilda.data.model import PythiaDataChanged, PythiaOut
-from matilda.data.option import PythiaOptions
+from matilda.data.options import PythiaOptions
 
 
 class SvmRes:

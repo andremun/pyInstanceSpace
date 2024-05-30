@@ -7,7 +7,7 @@ so I treat x type as NDArray[np.double], rather than Model.data.X.
 import numpy as np
 from numpy._typing import NDArray
 
-from matilda.data.option import SelvarsOptions
+from matilda.data.options import SelvarsOptions
 
 
 class Filter:

@@ -48,7 +48,7 @@ from matilda.data.default_options import (
     DEFAULT_TRACE_USE_SIM,
 )
 from matilda.data.metadata import Metadata
-from matilda.data.option import Options
+from matilda.data.options import InstanceSpaceOptions
 from matilda.instance_space import (
     instance_space_from_directory,
     instance_space_from_files,
@@ -245,7 +245,7 @@ class TestOption:
     """Test loading option from json."""
 
     @pytest.fixture()
-    def directory_options(self: Self) -> Options:
+    def directory_options(self: Self) -> InstanceSpaceOptions:
         """Load option json file from directory."""
         directory_path = script_dir / "test_data/load_file"
         returned = instance_space_from_directory(directory_path)
@@ -253,7 +253,7 @@ class TestOption:
         return returned.options
 
     @pytest.fixture()
-    def test_valid_options(self: Self) -> Options:
+    def test_valid_options(self: Self) -> InstanceSpaceOptions:
         """Load option json file from path."""
         option_path = script_dir / "test_data/load_file/options.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
@@ -312,7 +312,7 @@ class TestOption:
     )
     def test_option_loading(
         self: Self,
-        test_valid_options: Options,
+        test_valid_options: InstanceSpaceOptions,
         option_key: str,
         subkey: str,
         expected_value: bool | float | int,
@@ -329,8 +329,8 @@ class TestOption:
 
     def test_dir_loading(
         self: Self,
-        directory_options: Options,
-        test_valid_options: Options,
+        directory_options: InstanceSpaceOptions,
+        test_valid_options: InstanceSpaceOptions,
     ) -> None:
         """
         Test attributes for each options is loaded.
@@ -401,7 +401,7 @@ class TestOption:
         assert returned is None
         captured = capsys.readouterr()
         expected_error_msg = (
-            "Extra fields in JSON are not defined in Options: "
+            "Extra fields in JSON are not defined in InstanceSpaceOptions: "
             "{'INTENDED_EXTRA_FIELD_IN_JSON'}"
         )
 
@@ -423,7 +423,7 @@ class TestOption:
         assert expected_error_msg in captured.out
 
     @pytest.fixture()
-    def test_dummy_options(self: Self) -> Options:
+    def test_dummy_options(self: Self) -> InstanceSpaceOptions:
         """Load dummy option json file from path."""
         option_path = script_dir / "test_data/load_file/dummy.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
@@ -476,7 +476,7 @@ class TestOption:
     )
     def test_dummy_option_loading(
         self: Self,
-        test_dummy_options: Options,
+        test_dummy_options: InstanceSpaceOptions,
         option_key_dummy: str,
         subkey_dummy: str,
         expected_value_dummy: bool | float | int,
