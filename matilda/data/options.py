@@ -108,7 +108,7 @@ class PerformanceOptions:
 
 @dataclass(frozen=True)
 class AutoOptions:
-    """InstanceSpaceOptions for automatic processing steps in the model pipeline."""
+    """Options for automatic processing steps in the model pipeline."""
 
     preproc: bool
 
@@ -140,7 +140,7 @@ class BoundOptions:
 
 @dataclass(frozen=True)
 class NormOptions:
-    """InstanceSpaceOptions to control normalization processes within the model."""
+    """Options to control normalization processes within the model."""
 
     flag: bool
 
@@ -196,7 +196,7 @@ class SelvarsOptions:
 
 @dataclass(frozen=True)
 class SiftedOptions:
-    """InstanceSpaceOptions specific to the sifting process in data analysis."""
+    """Options specific to the sifting process in data analysis."""
 
     flag: bool
     rho: float
@@ -227,7 +227,7 @@ class SiftedOptions:
 
 @dataclass(frozen=True)
 class PilotOptions:
-    """InstanceSpaceOptions for pilot studies or preliminary analysis phases."""
+    """Options for pilot studies or preliminary analysis phases."""
 
     analytic: bool
     n_tries: int
@@ -246,7 +246,7 @@ class PilotOptions:
 
 @dataclass(frozen=True)
 class CloisterOptions:
-    """InstanceSpaceOptions for cloistering in the model."""
+    """Options for cloistering in the model."""
 
     p_val: float
     c_thres: float
@@ -290,7 +290,7 @@ class PythiaOptions:
 
 @dataclass(frozen=True)
 class TraceOptions:
-    """InstanceSpaceOptions for trace analysis in the model."""
+    """Options for trace analysis in the model."""
 
     use_sim: bool
     pi: float
@@ -309,7 +309,7 @@ class TraceOptions:
 
 @dataclass(frozen=True)
 class OutputOptions:
-    """InstanceSpaceOptions for controlling the output format."""
+    """Options for controlling the output format."""
 
     csv: bool
     web: bool
@@ -560,7 +560,7 @@ class InstanceSpaceOptions:
 
 @dataclass(frozen=True)
 class PrelimOptions:
-    """InstanceSpaceOptions for running PRELIM."""
+    """Options for running PRELIM."""
 
     max_perf: bool
     abs_perf: bool
