@@ -61,6 +61,7 @@ class MissingOptionsError(Exception):
 
     pass
 
+
 @dataclass(frozen=True)
 class ParallelOptions:
     """Configuration options for parallel computing."""
@@ -374,30 +375,45 @@ class Options:
         extra_fields = set(file_contents.keys()) - options_fields
 
         if extra_fields:
-            raise ValueError(f"Extra fields in JSON are not defined in Options:"
-                             f" {extra_fields}")
+            raise ValueError(
+                f"Extra fields in JSON are not defined in Options:" f" {extra_fields}",
+            )
 
         # Initialize each part of Options, using default values for missing fields
         return Options(
-            parallel=Options._load_dataclass(ParallelOptions,
-                                             file_contents.get("parallel", {})),
-            perf=Options._load_dataclass(PerformanceOptions,
-                                         file_contents.get("perf", {})),
+            parallel=Options._load_dataclass(
+                ParallelOptions,
+                file_contents.get("parallel", {}),
+            ),
+            perf=Options._load_dataclass(
+                PerformanceOptions,
+                file_contents.get("perf", {}),
+            ),
             auto=Options._load_dataclass(AutoOptions, file_contents.get("auto", {})),
             bound=Options._load_dataclass(BoundOptions, file_contents.get("bound", {})),
             norm=Options._load_dataclass(NormOptions, file_contents.get("norm", {})),
-            selvars=Options._load_dataclass(SelvarsOptions,
-                                            file_contents.get("selvars", {})),
-            sifted=Options._load_dataclass(SiftedOptions,
-                                           file_contents.get("sifted", {})),
+            selvars=Options._load_dataclass(
+                SelvarsOptions,
+                file_contents.get("selvars", {}),
+            ),
+            sifted=Options._load_dataclass(
+                SiftedOptions,
+                file_contents.get("sifted", {}),
+            ),
             pilot=Options._load_dataclass(PilotOptions, file_contents.get("pilot", {})),
-            cloister=Options._load_dataclass(CloisterOptions,
-                                             file_contents.get("cloister", {})),
-            pythia=Options._load_dataclass(PythiaOptions,
-                                           file_contents.get("pythia", {})),
+            cloister=Options._load_dataclass(
+                CloisterOptions,
+                file_contents.get("cloister", {}),
+            ),
+            pythia=Options._load_dataclass(
+                PythiaOptions,
+                file_contents.get("pythia", {}),
+            ),
             trace=Options._load_dataclass(TraceOptions, file_contents.get("trace", {})),
-            outputs=Options._load_dataclass(OutputOptions,
-                                            file_contents.get("outputs", {})),
+            outputs=Options._load_dataclass(
+                OutputOptions,
+                file_contents.get("outputs", {}),
+            ),
         )
 
     def to_file(self: Self, filepath: Path) -> None:
@@ -426,24 +442,35 @@ class Options:
     ) -> Options:
         """Instantiate with default values."""
         return Options(
-            parallel= parallel or ParallelOptions.default(),
-            perf= perf or PerformanceOptions.default(),
-            auto= auto or AutoOptions.default(),
-            bound= bound or BoundOptions.default(),
-            norm= norm or NormOptions.default(),
-            selvars= selvars or SelvarsOptions.default(),
-            sifted= sifted or SiftedOptions.default(),
-            pilot= pilot or PilotOptions.default(),
-            cloister= cloister or CloisterOptions.default(),
-            pythia= pythia or PythiaOptions.default(),
-            trace= trace or TraceOptions.default(),
-            outputs= outputs or OutputOptions.default(),
+            parallel=parallel or ParallelOptions.default(),
+            perf=perf or PerformanceOptions.default(),
+            auto=auto or AutoOptions.default(),
+            bound=bound or BoundOptions.default(),
+            norm=norm or NormOptions.default(),
+            selvars=selvars or SelvarsOptions.default(),
+            sifted=sifted or SiftedOptions.default(),
+            pilot=pilot or PilotOptions.default(),
+            cloister=cloister or CloisterOptions.default(),
+            pythia=pythia or PythiaOptions.default(),
+            trace=trace or TraceOptions.default(),
+            outputs=outputs or OutputOptions.default(),
         )
 
-    T = TypeVar("T", ParallelOptions, PerformanceOptions,
-                AutoOptions, BoundOptions, NormOptions, SelvarsOptions,
-                SiftedOptions, PilotOptions, CloisterOptions, PythiaOptions,
-                TraceOptions, OutputOptions)
+    T = TypeVar(
+        "T",
+        ParallelOptions,
+        PerformanceOptions,
+        AutoOptions,
+        BoundOptions,
+        NormOptions,
+        SelvarsOptions,
+        SiftedOptions,
+        PilotOptions,
+        CloisterOptions,
+        PythiaOptions,
+        TraceOptions,
+        OutputOptions,
+    )
 
     @staticmethod
     def _validate_fields(data_class: type[T], data: dict[str, Any]) -> None:
@@ -470,7 +497,8 @@ class Options:
         if extra_fields:
             raise ValueError(
                 f"Field(s) '{extra_fields}' in JSON are not "
-                f"defined in the data class '{data_class.__name__}'.")
+                f"defined in the data class '{data_class.__name__}'.",
+            )
 
     @staticmethod
     def _load_dataclass(data_class: type[T], data: dict[str, Any]) -> T:
@@ -511,6 +539,7 @@ class Options:
 
 
 # Options not part of the main Options class
+
 
 @dataclass(frozen=True)
 class PrelimOptions:

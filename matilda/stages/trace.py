@@ -92,13 +92,11 @@ class Trace:
         # TODO: Rewrite TRACE logic in python
         raise NotImplementedError
 
-
     """
     % =========================================================================
     % SUBFUNCTIONS
     % =========================================================================
     """
-
 
     def build(
         self,
@@ -120,7 +118,6 @@ class Trace:
         """
         # TODO: Rewrite TRACEbuild logic in python
         raise NotImplementedError
-
 
     def contra(
         self,
@@ -155,7 +152,6 @@ class Trace:
         # TODO: Rewrite TRACEcontra logic in python
         raise NotImplementedError
 
-
     def tight(
         self,
         polygon: PolyShape,
@@ -180,7 +176,6 @@ class Trace:
         """
         # TODO: Rewrite TRACEtight logic in python
         raise NotImplementedError
-
 
     # note that for polydata, it is  highly probably a 2 dimensional array
     def fitpoly(
@@ -208,7 +203,6 @@ class Trace:
         # TODO: Rewrite TRACEfitpoly logic in python
         raise NotImplementedError
 
-
     def summary(
         self,
         footprint: Footprint,
@@ -235,7 +229,6 @@ class Trace:
         # TODO: Rewrite TRACEsummary logic in python
         raise NotImplementedError
 
-
     def throw(
         self,
     ) -> Footprint:
@@ -249,7 +242,6 @@ class Trace:
         """
         # TODO: Rewrite TRACEthrow logic in python
         raise NotImplementedError
-
 
     def dbscan(
         self,
@@ -281,7 +273,6 @@ class Trace:
 
         raise NotImplementedError
 
-
     def epsilon(
         self,
         x: NDArray[np.double],
@@ -304,7 +295,6 @@ class Trace:
         """
         # TODO: Rewrite epsilon logic in python
         raise NotImplementedError
-
 
     def dist(
         self,

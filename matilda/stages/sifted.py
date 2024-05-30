@@ -42,10 +42,9 @@ class Sifted:
         # TODO: rewrite SIFTED logic in python
         raise NotImplementedError
 
-
     @staticmethod
     def cost_fcn(
-        comb: NDArray[np.double], #not sure about the type
+        comb: NDArray[np.double],  # not sure about the type
         x: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         n_trees: int,
@@ -70,7 +69,6 @@ class Sifted:
         """
         # TODO: rewrite SIFTED logic in python
         raise NotImplementedError
-
 
     @staticmethod
     def fcn_forga(

@@ -1,4 +1,5 @@
 """TODO: document instance space module."""
+
 from collections import defaultdict
 from dataclasses import fields
 from enum import Enum
@@ -62,7 +63,6 @@ class InstanceSpace:
 
     _model: Model | None
 
-
     def __init__(self, metadata: Metadata, options: Options) -> None:
         """Create a new InstanceSpace object.
 
@@ -113,7 +113,6 @@ class InstanceSpace:
         """
         raise NotImplementedError
 
-
     def prelim(self) -> PrelimOut:
         """Run the prelim stage.
 
@@ -148,7 +147,6 @@ class InstanceSpace:
         self._sifted_state = None
         self._stages[_Stage.SIFTED] = False
         self._clear_stages_after_sifted()
-
 
     def sifted(self) -> SiftedOut:
         """Run the sifted stage.
@@ -185,7 +183,6 @@ class InstanceSpace:
         self._pilot_state = None
         self._stages[_Stage.PILOT] = False
         self._clear_stages_after_pilot()
-
 
     def pilot(self) -> PilotOut:
         """Run the pilot stage.
@@ -229,7 +226,6 @@ class InstanceSpace:
         self._clear_stages_after_trace()
         self._clear_stages_after_pythia()
 
-
     def cloister(self) -> CloisterOut:
         """Run the cloister stage.
 
@@ -262,7 +258,6 @@ class InstanceSpace:
 
     def _clear_stages_after_cloister(self) -> None:
         pass
-
 
     def trace(self) -> TraceOut:
         """Run the trace stage.

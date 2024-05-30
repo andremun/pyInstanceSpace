@@ -8,6 +8,7 @@ users are aware of the terms under which the software is provided and how to
 properly acknowledge its use.
 """
 
+
 def script_disc(filename: str) -> None:
     """Display software disclaimer and citation information.
 

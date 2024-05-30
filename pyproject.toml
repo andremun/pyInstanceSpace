@@ -32,15 +32,17 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poe.tasks]
 format_docstrings = "docconvert -o numpy matilda/ --in-place"
+check_black = "black --preview ."
 check_ruff = "ruff check --fix"
 check_mypy = "mypy --strict ."
 
+test_black = "black --preview --check ."
 test_ruff = "ruff check --no-fix"
 
-check.sequence = ["format_docstrings", "check_ruff", "check_mypy"]
+check.sequence = ["format_docstrings", "check_black", "check_ruff", "check_mypy"]
 check.ignore_fail = "return_non_zero"
 
-test.sequence = ["test_ruff", "check_mypy"]
+test.sequence = ["test_black", "test_ruff", "check_mypy"]
 test.ignore_fail = "return_non_zero"
 
 [tool.ruff]

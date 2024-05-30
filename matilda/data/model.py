@@ -20,7 +20,7 @@ from matilda.data.option import Options
 class Data:
     """Holds initial dataset from metadata and processed data after operations."""
 
-    inst_labels: pd.Series # type: ignore[type-arg]
+    inst_labels: pd.Series  # type: ignore[type-arg]
     feat_labels: list[str]
     algo_labels: list[str]
     x: NDArray[np.double]
@@ -35,7 +35,9 @@ class Data:
     s: set[str] | None
     uniformity: float | None
 
+
 T = TypeVar("T")
+
 
 @dataclass(frozen=True)
 class StageState(Generic[T]):
@@ -160,7 +162,7 @@ class CloisterOut:
     """Results of the Cloister process in the data analysis pipeline."""
 
     z_edge: NDArray[np.double]
-    z_ecorr:NDArray[np.double]
+    z_ecorr: NDArray[np.double]
 
     def __iter__(self) -> Iterator[NDArray[np.double]]:
         """Allow unpacking directly."""
