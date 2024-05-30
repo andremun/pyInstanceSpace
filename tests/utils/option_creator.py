@@ -77,7 +77,6 @@ default_outputs = OutputOptions(
     png=True,
 )
 
-
 def create_option(
     parallel: ParallelOptions = default_parallel,
     perf: PerformanceOptions = default_perf,
