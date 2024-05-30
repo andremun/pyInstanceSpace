@@ -140,12 +140,13 @@ class Prelim:
         print(msg)
 
         num_good_algos, p, beta = prelim.select_best_algorithms(
-                                                                    y_raw, y_best,
-                                                                    y_bin,
-                                                                    nalgos,
-                                                                    opts.beta_threshold,
-                                                                    p,
-                                                                )
+            y_raw,
+            y_best,
+            y_bin,
+            nalgos,
+            opts.beta_threshold,
+            p,
+        )
 
         # Auto-Pre-Processing
         if opts.bound:
@@ -301,9 +302,9 @@ class Prelim:
         print("-> Auto-normalizing the data using Box-Cox and Z transformations.")
 
         def boxcox_fmin(
-                data: NDArray[np.double],
-                lmbda_init: float = 0,
-            ) -> tuple[NDArray[np.double], float]:
+            data: NDArray[np.double],
+            lmbda_init: float = 0,
+        ) -> tuple[NDArray[np.double], float]:
             """Perform Box-Cox transformation on data using fmin to optimize lambda.
 
             Args
