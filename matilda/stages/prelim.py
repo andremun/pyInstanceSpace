@@ -139,13 +139,17 @@ class Prelim:
 
         print(msg)
 
-        num_good_algos, p, beta = prelim.select_best_algorithms(y_raw, y_best,
-                                                                y, y_bin, nalgos,
-                                                                opts.beta_threshold, p)
+        num_good_algos, p, beta = prelim.select_best_algorithms(
+                                                                    y_raw, y_best,
+                                                                    y_bin,
+                                                                    nalgos,
+                                                                    opts.beta_threshold,
+                                                                    p,
+                                                                )
 
         # Auto-Pre-Processing
         if opts.bound:
-            bound_out = prelim.bound(x)
+            bound_out = prelim._bound()  # noqa: SLF001
             x = bound_out.x
             med_val = bound_out.med_val
             iq_range = bound_out.iq_range
@@ -153,7 +157,7 @@ class Prelim:
             lo_bound = bound_out.lo_bound
 
         if opts.norm:
-            normalise_out = prelim.normalise(x, y)
+            normalise_out = prelim._normalise()  # noqa: SLF001
             x = normalise_out.x
             min_x = normalise_out.min_x
             lambda_x = normalise_out.lambda_x
@@ -196,7 +200,6 @@ class Prelim:
         self,
         y_raw: NDArray[np.double],
         y_best: NDArray[np.double],
-        y: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         nalgos: int,
         beta_threshold: float,
@@ -208,7 +211,6 @@ class Prelim:
         ----
             y_raw: Raw algorithm predictions.
             y_best: Best algorithm predictions.
-            y: True labels.
             y_bin: Binary labels.
             nalgos: Number of algorithms.
             betaThreshold: Beta threshold.
@@ -228,7 +230,7 @@ class Prelim:
         multiple_best_algos = np.sum(best_algos, axis=1) > 1
         aidx = np.arange(1, nalgos + 1)
 
-        for i in range(y.shape[0]):
+        for i in range(self.y.shape[0]):
             if multiple_best_algos[i].any():
                 aux = aidx[best_algos[i]]
                 # changed to pick the first one for testing purposes
@@ -244,12 +246,8 @@ class Prelim:
 
         return num_good_algos, p, beta
 
-    def bound(self, x: NDArray[np.double]) -> _BoundOut:
+    def _bound(self) -> _BoundOut:
         """Remove extreme outliers from the feature values.
-
-        Args
-        ----
-            x: The feature matrix (instances x features) to process.
 
         Returns
         -------
@@ -260,39 +258,30 @@ class Prelim:
             lo_bound: The lower bound for the feature values.
         """
         print("-> Removing extreme outliers from the feature values.")
-        med_val = np.median(x, axis=0)
+        med_val = np.median(self.x, axis=0)
 
-        iq_range = stats.iqr(x, axis=0, interpolation="midpoint")
+        iq_range = stats.iqr(self.x, axis=0, interpolation="midpoint")
 
         hi_bound = med_val + 5 * iq_range
         lo_bound = med_val - 5 * iq_range
 
-        hi_mask = x > hi_bound
-        lo_mask = x < lo_bound
+        hi_mask = self.x > hi_bound
+        lo_mask = self.x < lo_bound
 
-        x = x * ~(hi_mask | lo_mask)
-        x += np.multiply(hi_mask, np.broadcast_to(hi_bound, x.shape))
-        x += np.multiply(lo_mask, np.broadcast_to(lo_bound, x.shape))
+        self.x = self.x * ~(hi_mask | lo_mask)
+        self.x += np.multiply(hi_mask, np.broadcast_to(hi_bound, self.x.shape))
+        self.x += np.multiply(lo_mask, np.broadcast_to(lo_bound, self.x.shape))
 
         return _BoundOut(
-            x=x,
+            x=self.x,
             med_val=med_val,
             iq_range=iq_range,
             hi_bound=hi_bound,
             lo_bound=lo_bound,
         )
 
-    def normalise(
-        self,
-        x: NDArray[np.double],
-        y: NDArray[np.double],
-    ) -> _NormaliseOut:
+    def _normalise(self) -> _NormaliseOut:
         """Normalize the data using Box-Cox and Z transformations.
-
-        Args
-        ----
-            x: The feature matrix (instances x features) to process.
-            y: The performance matrix (instances x algorithms) to process.
 
         Returns
         -------
@@ -353,48 +342,48 @@ class Prelim:
 
             return transformed_data, optimal_lambda[0]
 
-        nfeats = x.shape[1]
-        nalgos = y.shape[1]
+        nfeats = self.x.shape[1]
+        nalgos = self.y.shape[1]
 
-        min_x = np.min(x, axis=0)
-        x = x - min_x + 1
+        min_x = np.min(self.x, axis=0)
+        self.x = self.x - min_x + 1
         lambda_x = np.zeros(nfeats)
         mu_x = np.zeros(nfeats)
         sigma_x = np.zeros(nfeats)
 
         for i in range(nfeats):
-            aux = x[:, i]
+            aux = self.x[:, i]
             idx = np.isnan(aux)
             aux, lambda_x[i] = boxcox_fmin(aux[~idx])
             mu_x[i] = np.mean(aux)
             sigma_x[i] = np.std(aux, ddof=1)
             aux = stats.zscore(aux, ddof=1)
-            x[~idx, i] = aux
+            self.x[~idx, i] = aux
 
-        min_y = float(np.min(y))
+        min_y = float(np.min(self.y))
 
-        y = (y - min_y) + np.finfo(float).eps
+        self.y = (self.y - min_y) + np.finfo(float).eps
 
         lambda_y = np.zeros(nalgos)
         mu_y = np.zeros(nalgos)
         sigma_y = np.zeros(nalgos)
 
         for i in range(nalgos):
-            aux = y[:, i]
+            aux = self.y[:, i]
             idx = np.isnan(aux)
             aux, lambda_y[i] = boxcox_fmin(aux[~idx])
             mu_y[i] = np.mean(aux)
             sigma_y[i] = np.std(aux, ddof=1)
             aux = stats.zscore(aux, ddof=1)
-            y[~idx, i] = aux
+            self.y[~idx, i] = aux
 
         return _NormaliseOut(
-            x=x,
+            x=self.x,
             min_x=min_x,
             lambda_x=lambda_x,
             mu_x= mu_x,
             sigma_x=sigma_x,
-            y = y,
+            y = self.y,
             min_y= min_y,
             lambda_y=lambda_y,
             sigma_y= sigma_y,

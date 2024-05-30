@@ -110,7 +110,7 @@ def test_bound() -> None:
     prelim_x_after_bound = np.genfromtxt(csv_path_x_output_after_bound, delimiter=",")
 
     prelim = Prelim(x_input, y_input, opts)
-    prelim_bound = prelim.bound(x_input)
+    prelim_bound = prelim._bound()  # noqa: SLF001
     x = prelim_bound.x
     hi_bound = prelim_bound.hi_bound
     lo_bound = prelim_bound.lo_bound
