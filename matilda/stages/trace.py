@@ -97,8 +97,6 @@ class Trace:
             including algorithm footprints and performance summaries.
         """
         # TODO: parallel pool
-        warnings.filterwarnings("ignore")
-
         trace = Trace(z, y_bin, p, beta, algo_labels, opts)
         print("  -> TRACE is calculating the space area and density.")
         ninst = z.shape[0]
@@ -109,8 +107,6 @@ class Trace:
         good = []
         best = []
         summary=pd.DataFrame()
-        # good: List[Optional[Footprint]] = [None] * len(algo_labels)
-        # best: List[Optional[Footprint]] = [None] * len(algo_labels
 
         print(f"    -> Space area: {space.area} | Space density: {space.density}")
 
