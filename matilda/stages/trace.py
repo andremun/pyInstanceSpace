@@ -72,7 +72,7 @@ class Trace:
         beta: NDArray[np.bool_],
         algo_labels: list[str],
         opts: TraceOptions,
-    ) -> TraceOut:
+    ) -> tuple[TraceDataChanged, TraceOut]:
         """Estimate the good performance area of algorithms within the space.
 
         Parameters

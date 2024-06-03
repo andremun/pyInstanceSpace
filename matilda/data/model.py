@@ -5,8 +5,9 @@ of different analytical processes, facilitating a structured and organized appro
 to data analysis and model building.
 """
 
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -19,7 +20,7 @@ from matilda.data.option import Options
 class Data:
     """Holds initial dataset from metadata and processed data after operations."""
 
-    inst_labels: pd.Series
+    inst_labels: pd.Series # type: ignore[type-arg]
     feat_labels: list[str]
     algo_labels: list[str]
     x: NDArray[np.double]
@@ -32,6 +33,16 @@ class Data:
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
     s: set[str] | None
+    uniformity: float | None
+
+T = TypeVar("T")
+
+@dataclass(frozen=True)
+class StageState(Generic[T]):
+    """The state of the data at the end of a Stage."""
+
+    data: Data
+    out: T
 
 
 @dataclass(frozen=True)
@@ -70,10 +81,42 @@ class PrelimOut:
     lambda_x: NDArray[np.double]
     mu_x: NDArray[np.double]
     sigma_x: NDArray[np.double]
-    min_y: NDArray[np.double]
+    min_y: float
     lambda_y: NDArray[np.double]
     sigma_y: NDArray[np.double]
-    mu_y: float = 0.0
+    mu_y: NDArray[np.double]
+
+
+@dataclass(frozen=True)
+class PrelimDataChanged:
+    """The fields of Data that the Prelim stage changes."""
+
+    x: NDArray[np.double]
+    y: NDArray[np.double]
+    y_bin: NDArray[np.bool_]
+    y_best: NDArray[np.double]
+    p: NDArray[np.double]
+    num_good_algos: NDArray[np.double]
+    beta: NDArray[np.bool_]
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        return Data(
+            inst_labels=data.inst_labels,
+            feat_labels=data.feat_labels,
+            algo_labels=data.algo_labels,
+            uniformity=data.uniformity,
+            x=self.x,
+            x_raw=data.x_raw,
+            y=self.y,
+            y_raw=data.y_raw,
+            y_bin=self.y_bin,
+            y_best=self.y_best,
+            p=self.p,
+            num_good_algos=self.num_good_algos,
+            beta=self.beta,
+            s=data.s,
+        )
 
 
 @dataclass(frozen=True)
@@ -86,6 +129,15 @@ class SiftedOut:
     n_trees: int
     max_lter: int
     replicates: int
+
+
+@dataclass(frozen=True)
+class SiftedDataChanged:
+    """The fields of Data that the Sifted stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
@@ -106,13 +158,45 @@ class PilotOut:
 
 
 @dataclass(frozen=True)
+class PilotDataChanged:
+    """The fields of Data that the Pilot stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class BoundaryResult:
+    """Results of generating boundaries from Cloister process."""
+
+    x_edge: NDArray[np.double]
+    remove: NDArray[np.double]
+
+    def __iter__(self) -> Iterator[NDArray[np.double]]:
+        """Allow unpacking directly."""
+        return iter((self.x_edge, self.remove))
+
+
+@dataclass(frozen=True)
 class CloisterOut:
     """Results of the Cloister process in the data analysis pipeline."""
 
-    Zedge: NDArray[np.double]
-    Zecorr:NDArray[np.double]
+    z_edge: NDArray[np.double]
+    z_ecorr:NDArray[np.double]
 
-    pass
+    def __iter__(self) -> Iterator[NDArray[np.double]]:
+        """Allow unpacking directly."""
+        return iter((self.z_edge, self.z_ecorr))
+
+
+@dataclass(frozen=True)
+class CloisterDataChanged:
+    """The fields of Data that the Cloister stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
@@ -136,6 +220,15 @@ class PythiaOut:
     selection0: NDArray[np.double]
     selection1: Any  # Change it to proper type
     summary: pd.DataFrame
+
+
+@dataclass(frozen=True)
+class PythiaDataChanged:
+    """The fields of Data that the Pythia stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
@@ -170,6 +263,15 @@ class TraceOut:
     summary: pd.DataFrame  # for the dataform that looks like the
     # Excel spreadsheet(rownames and column names are mixed with data),
     # I decide to use DataFrame
+
+
+@dataclass(frozen=True)
+class TraceDataChanged:
+    """The fields of Data that the Trace stage changes."""
+
+    def merge_with(self, data: Data) -> Data:
+        """Merge changed fields of data with a Data object."""
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)

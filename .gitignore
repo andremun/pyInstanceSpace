@@ -296,4 +296,8 @@ cython_debug/
 .DS_Store
 Desktop.ini
 
-.ruff_cache/
+# Pycharm
+.idea
+
+# Pycharm
+.idea
