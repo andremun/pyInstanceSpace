@@ -3,34 +3,50 @@
 from pathlib import Path
 
 import numpy as np
-from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split
 
+from matilda.data.metadata import Metadata
 from matilda.data.model import (
     Data,
     Model,
     PreprocessingDataChanged,
     PreprocessingOut,
 )
-from matilda.data.option import Options, PrelimOptions
+from matilda.data.option import Options, PrelimOptions, from_json_file
+from matilda.instance_space import instance_space_from_files
 from matilda.stages.filter import Filter
 
 
 class Preprocessing:
     """See file docstring."""
 
+    def __init__(
+            self,
+            matadata: Metadata,
+            opts: Options,
+    ) -> None:
+        """Initialize the preprocessing stage.
+
+        Args
+        ----
+            matadata: A Metadata object constructed from the parsed CSV data
+            opts (Options): Configuration options.
+        """
+        self.matadata = matadata
+        self.opts = opts
+
     @staticmethod
     def run(
-        x: NDArray[np.double],
-        y: NDArray[np.double],
+        matadata: Metadata,
         opts: Options,
-    ) -> tuple[PreprocessingDataChanged, PreprocessingOut]:
+    ) -> Data:
+            #tuple[PreprocessingDataChanged, PreprocessingOut]:
+
         """Perform preliminary processing on the input data 'x' and 'y'.
 
         Args
-            x: The feature matrix (instances x features) to process.
-            y: The performance matrix (instances x algorithms) to
-                process.
+            matadata: An object of data class that contains data
+            from CSV file.
             opts: An object of type Options containing options for
                 processing.
 
@@ -39,7 +55,27 @@ class Preprocessing:
             A tuple containing the processed data (as 'Data' object) and
             preliminary output information (as 'PrelimOut' object).
         """
-        raise NotImplementedError
+        data = Data(
+            inst_labels=matadata.instance_labels,
+            feat_labels=matadata.feature_names,
+            algo_labels=matadata.algorithm_names,
+            x=matadata.features,
+            y=matadata.algorithms,
+            x_raw=np.array([], dtype=np.double),
+            y_raw=np.array([], dtype=np.double),
+            y_bin=np.array([], dtype=np.double),
+            y_best=np.array([], dtype=np.double),
+            p=np.array([], dtype=np.double),
+            num_good_algos=np.array([], dtype=np.double),
+            beta=np.array([], dtype=np.bool_),
+            s=None,
+            uniformity=None,
+        )
+
+        afterSelection = Preprocessing.select_features_and_algorithms(data, opts)
+        afterWashing = Preprocessing.remove_instances_with_many_missing_values(afterSelection)
+
+        return afterWashing
 
     @staticmethod
     def select_features_and_algorithms(data: Data, opts: Options) -> Data:
@@ -461,3 +497,16 @@ class Preprocessing:
             trace=model.trace,
             opts=model.opts,
         )
+
+
+if __name__ == '__main__':
+    metadata_path = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_integration/metadata.csv")
+    option_path = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_integration/options.json")
+
+    space = instance_space_from_files(metadata_path,option_path)
+
+    Preprocessing.run(space.metadata, space.options)
+
+
+
+
