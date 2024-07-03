@@ -12,7 +12,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from matilda.data.model import SiftedDataChanged, SiftedOut
-from matilda.data.option import SiftedOptions
+from matilda.data.options import SiftedOptions
 
 
 class Sifted:
@@ -42,10 +42,9 @@ class Sifted:
         # TODO: rewrite SIFTED logic in python
         raise NotImplementedError
 
-
     @staticmethod
     def cost_fcn(
-        comb: NDArray[np.double], #not sure about the type
+        comb: NDArray[np.double],  # not sure about the type
         x: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         n_trees: int,
@@ -70,7 +69,6 @@ class Sifted:
         """
         # TODO: rewrite SIFTED logic in python
         raise NotImplementedError
-
 
     @staticmethod
     def fcn_forga(

@@ -6,7 +6,7 @@ analysis and modeling.
 The `prelim` function takes feature and performance data matrices along with a set of
 processing options, and performs various preprocessing tasks such as normalization,
 outlier detection and removal, and binary performance classification. These tasks are
-guided by the options specified in the `Options` object.
+guided by the options specified in the `InstanceSpaceOptions` object.
 """
 
 from dataclasses import dataclass
@@ -16,7 +16,7 @@ from numpy.typing import NDArray
 from scipy import optimize, stats
 
 from matilda.data.model import PrelimDataChanged, PrelimOut
-from matilda.data.option import PrelimOptions
+from matilda.data.options import PrelimOptions
 
 
 @dataclass(frozen=True)
@@ -26,6 +26,7 @@ class _BoundOut:
     iq_range: NDArray[np.double]
     hi_bound: NDArray[np.double]
     lo_bound: NDArray[np.double]
+
 
 @dataclass(frozen=True)
 class _NormaliseOut:
@@ -40,15 +41,16 @@ class _NormaliseOut:
     sigma_y: NDArray[np.double]
     mu_y: NDArray[np.double]
 
+
 class Prelim:
     """See file docstring."""
 
     def __init__(
-            self,
-            x: NDArray[np.double],
-            y: NDArray[np.double],
-            opts: PrelimOptions,
-        ) -> None:
+        self,
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+        opts: PrelimOptions,
+    ) -> None:
         """Initialize the Prelim stage.
 
         Args
@@ -85,7 +87,9 @@ class Prelim:
         y_raw = y.copy()
         nalgos = y.shape[1]
 
-        print("-------------------------------------------------------------------------")
+        print(
+            "-------------------------------------------------------------------------",
+        )
         print("-> Calculating the binary measure of performance")
 
         msg = "An algorithm is good if its performance is "
@@ -107,10 +111,7 @@ class Prelim:
                 y = 1 - y / y_best[:, np.newaxis]
                 y_bin = (1 - y_aux / y_best[:, np.newaxis]) <= opts.epsilon
                 msg = (
-                    msg
-                    + "within "
-                    + str(round(100 * opts.epsilon))
-                    + "% of the best."
+                    msg + "within " + str(round(100 * opts.epsilon)) + "% of the best."
                 )
 
         else:
@@ -131,10 +132,7 @@ class Prelim:
                 y = 1 - y_best[:, np.newaxis] / y
                 y_bin = (1 - y_best[:, np.newaxis] / y_aux) <= opts.epsilon
                 msg = (
-                    msg
-                    + "within "
-                    + str(round(100 * opts.epsilon))
-                    + "% of the worst."
+                    msg + "within " + str(round(100 * opts.epsilon)) + "% of the worst."
                 )
 
         print(msg)
@@ -238,8 +236,11 @@ class Prelim:
                 # will need to change it back to random after testing complete
                 p[i] = aux[0]
 
-        print("-> For", round(100 * np.mean(multiple_best_algos)),
-            "% of the instances there is more than one best algorithm.")
+        print(
+            "-> For",
+            round(100 * np.mean(multiple_best_algos)),
+            "% of the instances there is more than one best algorithm.",
+        )
         print("Random selection is used to break ties.")
 
         num_good_algos = np.sum(y_bin, axis=1)
@@ -382,11 +383,11 @@ class Prelim:
             x=self.x,
             min_x=min_x,
             lambda_x=lambda_x,
-            mu_x= mu_x,
+            mu_x=mu_x,
             sigma_x=sigma_x,
-            y = self.y,
-            min_y= min_y,
+            y=self.y,
+            min_y=min_y,
             lambda_y=lambda_y,
-            sigma_y= sigma_y,
-            mu_y= mu_y,
+            sigma_y=sigma_y,
+            mu_y=mu_y,
         )

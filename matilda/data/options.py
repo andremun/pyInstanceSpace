@@ -61,6 +61,7 @@ class MissingOptionsError(Exception):
 
     pass
 
+
 @dataclass(frozen=True)
 class ParallelOptions:
     """Configuration options for parallel computing."""
@@ -329,7 +330,7 @@ class OutputOptions:
 
 
 @dataclass(frozen=True)
-class Options:
+class InstanceSpaceOptions:
     """Aggregates all options into a single configuration object for the model."""
 
     parallel: ParallelOptions
@@ -346,13 +347,13 @@ class Options:
     outputs: OutputOptions
 
     @staticmethod
-    def from_dict(file_contents: dict[str, Any]) -> Options:
-        """Load configuration options from a JSON file into an Options object.
+    def from_dict(file_contents: dict[str, Any]) -> InstanceSpaceOptions:
+        """Load configuration options from a JSON file into an object.
 
         This function reads a JSON file from `filepath`, checks for expected
-        top-level fields as defined in Options, initializes each part of the
-        Options with data from the file, and sets missing optional fields using
-        their default values.
+        top-level fields as defined in InstanceSpaceOptions, initializes each part of
+        the InstanceSpaceOptions with data from the file, and sets missing optional
+        fields using their default values.
 
         Args
         ----------
@@ -361,47 +362,79 @@ class Options:
 
         Returns
         -------
-        Options
-            Options object populated with data from the file.
+        InstanceSpaceOptions
+            InstanceSpaceOptions object populated with data from the file.
 
         Raises
         ------
         ValueError
             If the JSON file contains undefined sub options.
         """
-        # Validate if the top-level fields match those in the Options class
-        options_fields = {f.name for f in fields(Options)}
+        # Validate if the top-level fields match those in the InstanceSpaceOptions class
+        options_fields = {f.name for f in fields(InstanceSpaceOptions)}
         extra_fields = set(file_contents.keys()) - options_fields
 
         if extra_fields:
-            raise ValueError(f"Extra fields in JSON are not defined in Options:"
-                             f" {extra_fields}")
+            raise ValueError(
+                f"Extra fields in JSON are not defined in InstanceSpaceOptions:"
+                f" {extra_fields}",
+            )
 
-        # Initialize each part of Options, using default values for missing fields
-        return Options(
-            parallel=Options._load_dataclass(ParallelOptions,
-                                             file_contents.get("parallel", {})),
-            perf=Options._load_dataclass(PerformanceOptions,
-                                         file_contents.get("perf", {})),
-            auto=Options._load_dataclass(AutoOptions, file_contents.get("auto", {})),
-            bound=Options._load_dataclass(BoundOptions, file_contents.get("bound", {})),
-            norm=Options._load_dataclass(NormOptions, file_contents.get("norm", {})),
-            selvars=Options._load_dataclass(SelvarsOptions,
-                                            file_contents.get("selvars", {})),
-            sifted=Options._load_dataclass(SiftedOptions,
-                                           file_contents.get("sifted", {})),
-            pilot=Options._load_dataclass(PilotOptions, file_contents.get("pilot", {})),
-            cloister=Options._load_dataclass(CloisterOptions,
-                                             file_contents.get("cloister", {})),
-            pythia=Options._load_dataclass(PythiaOptions,
-                                           file_contents.get("pythia", {})),
-            trace=Options._load_dataclass(TraceOptions, file_contents.get("trace", {})),
-            outputs=Options._load_dataclass(OutputOptions,
-                                            file_contents.get("outputs", {})),
+        # Initialize each part of InstanceSpaceOptions, using default values for missing
+        # fields
+        return InstanceSpaceOptions(
+            parallel=InstanceSpaceOptions._load_dataclass(
+                ParallelOptions,
+                file_contents.get("parallel", {}),
+            ),
+            perf=InstanceSpaceOptions._load_dataclass(
+                PerformanceOptions,
+                file_contents.get("perf", {}),
+            ),
+            auto=InstanceSpaceOptions._load_dataclass(
+                AutoOptions,
+                file_contents.get("auto", {}),
+            ),
+            bound=InstanceSpaceOptions._load_dataclass(
+                BoundOptions,
+                file_contents.get("bound", {}),
+            ),
+            norm=InstanceSpaceOptions._load_dataclass(
+                NormOptions,
+                file_contents.get("norm", {}),
+            ),
+            selvars=InstanceSpaceOptions._load_dataclass(
+                SelvarsOptions,
+                file_contents.get("selvars", {}),
+            ),
+            sifted=InstanceSpaceOptions._load_dataclass(
+                SiftedOptions,
+                file_contents.get("sifted", {}),
+            ),
+            pilot=InstanceSpaceOptions._load_dataclass(
+                PilotOptions,
+                file_contents.get("pilot", {}),
+            ),
+            cloister=InstanceSpaceOptions._load_dataclass(
+                CloisterOptions,
+                file_contents.get("cloister", {}),
+            ),
+            pythia=InstanceSpaceOptions._load_dataclass(
+                PythiaOptions,
+                file_contents.get("pythia", {}),
+            ),
+            trace=InstanceSpaceOptions._load_dataclass(
+                TraceOptions,
+                file_contents.get("trace", {}),
+            ),
+            outputs=InstanceSpaceOptions._load_dataclass(
+                OutputOptions,
+                file_contents.get("outputs", {}),
+            ),
         )
 
     def to_file(self: Self, filepath: Path) -> None:
-        """Store options in a file from an Options object.
+        """Store options in a file from an InstanceSpaceOptions object.
 
         Returns
         -------
@@ -423,27 +456,38 @@ class Options:
         pythia: PythiaOptions | None,
         trace: TraceOptions | None,
         outputs: OutputOptions | None,
-    ) -> Options:
+    ) -> InstanceSpaceOptions:
         """Instantiate with default values."""
-        return Options(
-            parallel= parallel or ParallelOptions.default(),
-            perf= perf or PerformanceOptions.default(),
-            auto= auto or AutoOptions.default(),
-            bound= bound or BoundOptions.default(),
-            norm= norm or NormOptions.default(),
-            selvars= selvars or SelvarsOptions.default(),
-            sifted= sifted or SiftedOptions.default(),
-            pilot= pilot or PilotOptions.default(),
-            cloister= cloister or CloisterOptions.default(),
-            pythia= pythia or PythiaOptions.default(),
-            trace= trace or TraceOptions.default(),
-            outputs= outputs or OutputOptions.default(),
+        return InstanceSpaceOptions(
+            parallel=parallel or ParallelOptions.default(),
+            perf=perf or PerformanceOptions.default(),
+            auto=auto or AutoOptions.default(),
+            bound=bound or BoundOptions.default(),
+            norm=norm or NormOptions.default(),
+            selvars=selvars or SelvarsOptions.default(),
+            sifted=sifted or SiftedOptions.default(),
+            pilot=pilot or PilotOptions.default(),
+            cloister=cloister or CloisterOptions.default(),
+            pythia=pythia or PythiaOptions.default(),
+            trace=trace or TraceOptions.default(),
+            outputs=outputs or OutputOptions.default(),
         )
 
-    T = TypeVar("T", ParallelOptions, PerformanceOptions,
-                AutoOptions, BoundOptions, NormOptions, SelvarsOptions,
-                SiftedOptions, PilotOptions, CloisterOptions, PythiaOptions,
-                TraceOptions, OutputOptions)
+    T = TypeVar(
+        "T",
+        ParallelOptions,
+        PerformanceOptions,
+        AutoOptions,
+        BoundOptions,
+        NormOptions,
+        SelvarsOptions,
+        SiftedOptions,
+        PilotOptions,
+        CloisterOptions,
+        PythiaOptions,
+        TraceOptions,
+        OutputOptions,
+    )
 
     @staticmethod
     def _validate_fields(data_class: type[T], data: dict[str, Any]) -> None:
@@ -470,7 +514,8 @@ class Options:
         if extra_fields:
             raise ValueError(
                 f"Field(s) '{extra_fields}' in JSON are not "
-                f"defined in the data class '{data_class.__name__}'.")
+                f"defined in the data class '{data_class.__name__}'.",
+            )
 
     @staticmethod
     def _load_dataclass(data_class: type[T], data: dict[str, Any]) -> T:
@@ -502,7 +547,7 @@ class Options:
             f.name: getattr(data_class.default(), f.name) for f in fields(data_class)
         }
 
-        Options._validate_fields(data_class, data)
+        InstanceSpaceOptions._validate_fields(data_class, data)
 
         # Update the default values with the provided data
         init_args = {**default_values, **data}
@@ -510,7 +555,8 @@ class Options:
         return data_class(**init_args)
 
 
-# Options not part of the main Options class
+# InstanceSpaceOptions not part of the main InstanceSpaceOptions class
+
 
 @dataclass(frozen=True)
 class PrelimOptions:
@@ -524,8 +570,8 @@ class PrelimOptions:
     norm: bool
 
     @staticmethod
-    def from_options(options: Options) -> PrelimOptions:
-        """Get a prelim options object from an existing Options object."""
+    def from_options(options: InstanceSpaceOptions) -> PrelimOptions:
+        """Get a prelim options object from an existing InstanceSpaceOptions object."""
         return PrelimOptions(
             max_perf=options.perf.max_perf,
             abs_perf=options.perf.abs_perf,
@@ -536,8 +582,8 @@ class PrelimOptions:
         )
 
 
-def from_json_file(file_path: Path) -> Options | None:
-    """Parse options from a JSON file and construct an Options object.
+def from_json_file(file_path: Path) -> InstanceSpaceOptions | None:
+    """Parse options from a JSON file and construct an InstanceSpaceOptions object.
 
     Args
     ----
@@ -546,9 +592,9 @@ def from_json_file(file_path: Path) -> Options | None:
 
     Returns
     -------
-    Options or None
-        An Options object constructed from the parsed JSON data, or None if an
-        error occurred during file reading or parsing.
+    InstanceSpaceOptions or None
+        An InstanceSpaceOptions object constructed from the parsed JSON data, or None
+        if an error occurred during file reading or parsing.
 
     Raises
     ------
@@ -566,7 +612,7 @@ def from_json_file(file_path: Path) -> Options | None:
             options_contents = o.read()
         opts_dict = json.loads(options_contents)
 
-        return Options.from_dict(opts_dict)
+        return InstanceSpaceOptions.from_dict(opts_dict)
     except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
         print(f"{file_path}: {e!s}")
         return None

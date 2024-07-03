@@ -21,8 +21,8 @@ Example usage:
 
 from matilda.data.metadata import Metadata
 from matilda.data.model import Data
-from matilda.data.option import Options
+from matilda.data.options import InstanceSpaceOptions
 
 
-def _preprocess_input(metadata: Metadata, options: Options) -> Data:
+def _preprocess_input(metadata: Metadata, options: InstanceSpaceOptions) -> Data:
     raise NotImplementedError

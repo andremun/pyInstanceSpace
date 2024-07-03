@@ -12,7 +12,7 @@ from scipy.spatial import ConvexHull, QhullError
 from scipy.stats import pearsonr
 
 from matilda.data.model import BoundaryResult, CloisterDataChanged, CloisterOut
-from matilda.data.option import CloisterOptions
+from matilda.data.options import CloisterOptions
 
 
 class Cloister:
@@ -81,13 +81,11 @@ class Cloister:
 
         return (CloisterDataChanged(), CloisterOut(z_edge=z_edge, z_ecorr=z_ecorr))
 
-
     """
     % =========================================================================
     % SUBFUNCTIONS
     % =========================================================================
     """
-
 
     def compute_correlation(self) -> NDArray[np.double]:
         """Calculate the Pearson correlation coefficient for the dataset.
@@ -190,10 +188,11 @@ class Cloister:
                 for k in range(j + 1, self.nfeats):
                     # Check for valid points give the correlation trend
                     if (
-                        (rho[j, k] > self.opts.c_thres
-                        and np.sign(x_edge[i, j]) != np.sign(x_edge[i, k]))
-                        or (rho[j, k] < -self.opts.c_thres
-                        and np.sign(x_edge[i, j]) == np.sign(x_edge[i, k]))
+                        rho[j, k] > self.opts.c_thres
+                        and np.sign(x_edge[i, j]) != np.sign(x_edge[i, k])
+                    ) or (
+                        rho[j, k] < -self.opts.c_thres
+                        and np.sign(x_edge[i, j]) == np.sign(x_edge[i, k])
                     ):
                         remove[i] = True
                     if remove[i]:

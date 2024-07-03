@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from matilda.data.option import SelvarsOptions
+from matilda.data.options import SelvarsOptions
 from matilda.stages.filter import Filter
 
 script_dir = Path(__file__).parent
@@ -70,16 +70,18 @@ class TestFtr:
         csv_path_is_dissimilar = (
             script_dir / "test_data/filter/output/ftr/isDissimilar.csv"
         )
-        csv_path_is_visa = (
-            script_dir / "test_data/filter/output/ftr/isVISA.csv"
-        )
+        csv_path_is_visa = script_dir / "test_data/filter/output/ftr/isVISA.csv"
 
-        subset_index_ml = (
-            pd.read_csv(csv_path_subset_index, header=None, dtype=bool).to_numpy()
-        )
-        is_dissimilar_ml = (
-            pd.read_csv(csv_path_is_dissimilar, header=None, dtype=bool).to_numpy()
-        )
+        subset_index_ml = pd.read_csv(
+            csv_path_subset_index,
+            header=None,
+            dtype=bool,
+        ).to_numpy()
+        is_dissimilar_ml = pd.read_csv(
+            csv_path_is_dissimilar,
+            header=None,
+            dtype=bool,
+        ).to_numpy()
         is_visa_ml = pd.read_csv(csv_path_is_visa, header=None, dtype=bool).to_numpy()
 
         subset_index, is_dissimilar, is_visa, _ = Filter.run(
@@ -103,9 +105,7 @@ class TestFtr:
         ----
             ftr_options (SelvarsOptions): SelvarsOption with type equals to "Ftr"
         """
-        csv_path_uniformity = (
-            script_dir / "test_data/filter/output/ftr/uniformity.csv"
-        )
+        csv_path_uniformity = script_dir / "test_data/filter/output/ftr/uniformity.csv"
 
         uniformity_ml = (
             pd.read_csv(csv_path_uniformity, header=None, dtype=float).to_numpy().item()
@@ -157,16 +157,18 @@ class TestFtrAp:
         csv_path_is_dissimilar = (
             script_dir / "test_data/filter/output/ftr_ap/isDissimilar.csv"
         )
-        csv_path_is_visa = (
-            script_dir / "test_data/filter/output/ftr_ap/isVISA.csv"
-        )
+        csv_path_is_visa = script_dir / "test_data/filter/output/ftr_ap/isVISA.csv"
 
-        subset_index_ml = (
-            pd.read_csv(csv_path_subset_index, header=None, dtype=bool).to_numpy()
-        )
-        is_dissimilar_ml = (
-            pd.read_csv(csv_path_is_dissimilar, header=None, dtype=bool).to_numpy()
-        )
+        subset_index_ml = pd.read_csv(
+            csv_path_subset_index,
+            header=None,
+            dtype=bool,
+        ).to_numpy()
+        is_dissimilar_ml = pd.read_csv(
+            csv_path_is_dissimilar,
+            header=None,
+            dtype=bool,
+        ).to_numpy()
         is_visa_ml = pd.read_csv(csv_path_is_visa, header=None, dtype=bool).to_numpy()
 
         subset_index, is_dissimilar, is_visa, _ = Filter.run(
@@ -245,16 +247,18 @@ class TestFtrApGood:
         csv_path_is_dissimilar = (
             script_dir / "test_data/filter/output/ftr_ap_good/isDissimilar.csv"
         )
-        csv_path_is_visa = (
-            script_dir / "test_data/filter/output/ftr_ap_good/isVISA.csv"
-        )
+        csv_path_is_visa = script_dir / "test_data/filter/output/ftr_ap_good/isVISA.csv"
 
-        subset_index_ml = (
-            pd.read_csv(csv_path_subset_index, header=None, dtype=bool).to_numpy()
-        )
-        is_dissimilar_ml = (
-            pd.read_csv(csv_path_is_dissimilar, header=None, dtype=bool).to_numpy()
-        )
+        subset_index_ml = pd.read_csv(
+            csv_path_subset_index,
+            header=None,
+            dtype=bool,
+        ).to_numpy()
+        is_dissimilar_ml = pd.read_csv(
+            csv_path_is_dissimilar,
+            header=None,
+            dtype=bool,
+        ).to_numpy()
         is_visa_ml = pd.read_csv(csv_path_is_visa, header=None, dtype=bool).to_numpy()
 
         subset_index, is_dissimilar, is_visa, _ = Filter.run(
@@ -333,16 +337,18 @@ class TestFtrGood:
         csv_path_is_dissimilar = (
             script_dir / "test_data/filter/output/ftr_good/isDissimilar.csv"
         )
-        csv_path_is_visa = (
-            script_dir / "test_data/filter/output/ftr_good/isVISA.csv"
-        )
+        csv_path_is_visa = script_dir / "test_data/filter/output/ftr_good/isVISA.csv"
 
-        subset_index_ml = (
-            pd.read_csv(csv_path_subset_index, header=None, dtype=bool).to_numpy()
-        )
-        is_dissimilar_ml = (
-            pd.read_csv(csv_path_is_dissimilar, header=None, dtype=bool).to_numpy()
-        )
+        subset_index_ml = pd.read_csv(
+            csv_path_subset_index,
+            header=None,
+            dtype=bool,
+        ).to_numpy()
+        is_dissimilar_ml = pd.read_csv(
+            csv_path_is_dissimilar,
+            header=None,
+            dtype=bool,
+        ).to_numpy()
         is_visa_ml = pd.read_csv(csv_path_is_visa, header=None, dtype=bool).to_numpy()
 
         subset_index, is_dissimilar, is_visa, _ = Filter.run(

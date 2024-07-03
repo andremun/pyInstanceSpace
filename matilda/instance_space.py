@@ -1,4 +1,5 @@
 """TODO: document instance space module."""
+
 from collections import defaultdict
 from dataclasses import fields
 from enum import Enum
@@ -16,7 +17,7 @@ from matilda.data.model import (
     StageState,
     TraceOut,
 )
-from matilda.data.option import Options, PrelimOptions, from_json_file
+from matilda.data.options import InstanceSpaceOptions, PrelimOptions, from_json_file
 from matilda.stages.cloister import Cloister
 from matilda.stages.pilot import Pilot
 from matilda.stages.prelim import Prelim
@@ -49,7 +50,7 @@ class InstanceSpace:
 
     _stages: dict[_Stage, bool]
     _metadata: Metadata
-    _options: Options
+    _options: InstanceSpaceOptions
 
     _data: Data | None
 
@@ -62,8 +63,7 @@ class InstanceSpace:
 
     _model: Model | None
 
-
-    def __init__(self, metadata: Metadata, options: Options) -> None:
+    def __init__(self, metadata: Metadata, options: InstanceSpaceOptions) -> None:
         """Create a new InstanceSpace object.
 
         TODO: Fill in the docstring here. This will be the most enduser visible version
@@ -72,7 +72,7 @@ class InstanceSpace:
         Args
         ----
             metadata (Metadata): _description_
-            options (Options): _description_
+            options (InstanceSpaceOptions): _description_
         """
         self._stages = defaultdict(lambda: False)
         self._metadata = metadata
@@ -95,7 +95,7 @@ class InstanceSpace:
         return self._metadata
 
     @property
-    def options(self) -> Options:
+    def options(self) -> InstanceSpaceOptions:
         """Get options."""
         return self._options
 
@@ -112,7 +112,6 @@ class InstanceSpace:
             model: A Model object representing the built instance space.
         """
         raise NotImplementedError
-
 
     def prelim(self) -> PrelimOut:
         """Run the prelim stage.
@@ -149,7 +148,6 @@ class InstanceSpace:
         self._stages[_Stage.SIFTED] = False
         self._clear_stages_after_sifted()
 
-
     def sifted(self) -> SiftedOut:
         """Run the sifted stage.
 
@@ -185,7 +183,6 @@ class InstanceSpace:
         self._pilot_state = None
         self._stages[_Stage.PILOT] = False
         self._clear_stages_after_pilot()
-
 
     def pilot(self) -> PilotOut:
         """Run the pilot stage.
@@ -229,7 +226,6 @@ class InstanceSpace:
         self._clear_stages_after_trace()
         self._clear_stages_after_pythia()
 
-
     def cloister(self) -> CloisterOut:
         """Run the cloister stage.
 
@@ -262,7 +258,6 @@ class InstanceSpace:
 
     def _clear_stages_after_cloister(self) -> None:
         pass
-
 
     def trace(self) -> TraceOut:
         """Run the trace stage.
@@ -377,7 +372,7 @@ def instance_space_from_files(
     print("-> Successfully loaded the options.")
 
     print("-> Listing options to be used:")
-    for field_name in fields(Options):
+    for field_name in fields(InstanceSpaceOptions):
         field_value = getattr(options, field_name.name)
         print(f"{field_name.name}: {field_value}")
 
