@@ -12,7 +12,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from matilda.data.model import PilotDataChanged, PilotOut
-from matilda.data.option import PilotOptions
+from matilda.data.options import PilotOptions
 
 
 class Pilot:

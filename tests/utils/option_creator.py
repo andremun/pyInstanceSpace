@@ -8,12 +8,12 @@ Examples
 
 import pandas as pd
 
-from matilda.data.option import (
+from matilda.data.options import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,
+    InstanceSpaceOptions,
     NormOptions,
-    Options,
     OutputOptions,
     ParallelOptions,
     PerformanceOptions,
@@ -77,6 +77,7 @@ default_outputs = OutputOptions(
     png=True,
 )
 
+
 def create_option(
     parallel: ParallelOptions = default_parallel,
     perf: PerformanceOptions = default_perf,
@@ -90,12 +91,13 @@ def create_option(
     pythia: PythiaOptions = default_pythia,
     trace: TraceOptions = default_trace,
     outputs: OutputOptions = default_outputs,
-) -> Options:
+) -> InstanceSpaceOptions:
     """Create option object based on the argument given.
 
-    Options that is not specified will use corresponding default option object.
+    InstanceSpaceOptions that is not specified will use corresponding default option
+    object.
     """
-    return Options(
+    return InstanceSpaceOptions(
         parallel=parallel,
         perf=perf,
         auto=auto,

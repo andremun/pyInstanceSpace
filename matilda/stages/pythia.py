@@ -4,7 +4,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from matilda.data.model import PythiaDataChanged, PythiaOut
-from matilda.data.option import PythiaOptions
+from matilda.data.options import PythiaOptions
 
 
 class SvmRes:
@@ -17,6 +17,7 @@ class SvmRes:
     Phat: NDArray[np.double]
     C: float
     g: float
+
 
 class Pythia:
     """See file docstring."""
@@ -66,7 +67,6 @@ class Pythia:
 
         raise NotImplementedError
 
-
     @staticmethod
     def fitlibsvm(
         z: NDArray[np.double],
@@ -78,13 +78,12 @@ class Pythia:
         """Train a SVM model using the LIBSVM library."""
         raise NotImplementedError
 
-
     @staticmethod
     def fitmatsvm(
         z: NDArray[np.double],
         y_bin: NDArray[np.double],
         w: NDArray[np.double],
-        cp: NDArray[np.double], # Actually its an array and the type is dynamic
+        cp: NDArray[np.double],  # Actually its an array and the type is dynamic
         k: str,
         params: NDArray[np.double],
     ) -> SvmRes:

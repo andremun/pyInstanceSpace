@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from matilda.data.option import PrelimOptions
+from matilda.data.options import PrelimOptions
 from matilda.stages.prelim import Prelim
 
 script_dir = Path(__file__).parent
@@ -27,66 +27,52 @@ csv_path_y_input = script_dir / "test_data/prelim/input/model-data-y.csv"
 
 csv_path_beta = script_dir / "test_data/prelim/output/model-data-beta.csv"
 csv_path_num_good_algos = (
-    script_dir /
-    "test_data/prelim/output/model-data-numGoodAlgos.csv"
-    )
+    script_dir / "test_data/prelim/output/model-data-numGoodAlgos.csv"
+)
 csv_path_p = script_dir / "test_data/prelim/output/model-data-p.csv"
 csv_path_ybest = script_dir / "test_data/prelim/output/model-data-ybest.csv"
 csv_path_ybin = script_dir / "test_data/prelim/output/model-data-ybin.csv"
 csv_path_x_output = script_dir / "test_data/prelim/output/model-data-x.csv"
 csv_path_y_output = script_dir / "test_data/prelim/output/model-data-y.csv"
 csv_path_x_output_after_bound = (
-    script_dir /
-    "test_data/prelim/output/model-data-x-after-bound.csv"
-    )
+    script_dir / "test_data/prelim/output/model-data-x-after-bound.csv"
+)
 csv_path_prelim_output_hi_bound = (
-    script_dir /
-    "test_data/prelim/output/model-prelim-hibound.csv"
-    )
+    script_dir / "test_data/prelim/output/model-prelim-hibound.csv"
+)
 csv_path_prelim_output_iq_range = (
-    script_dir /
-    "test_data/prelim/output/model-prelim-iqrange.csv"
-    )
+    script_dir / "test_data/prelim/output/model-prelim-iqrange.csv"
+)
 csv_path_prelim_output_med_val = (
-    script_dir /
-    "test_data/prelim/output/model-prelim-medval.csv"
-    )
+    script_dir / "test_data/prelim/output/model-prelim-medval.csv"
+)
 csv_path_prelim_output_lo_bound = (
-    script_dir /
-    "test_data/prelim/output/model-prelim-lobound.csv"
-    )
+    script_dir / "test_data/prelim/output/model-prelim-lobound.csv"
+)
 csv_path_prelim_output_lambda_x = (
-    script_dir /
-     "test_data/prelim/output/model-prelim-lambdaX.csv"
-     )
+    script_dir / "test_data/prelim/output/model-prelim-lambdaX.csv"
+)
 csv_path_prelim_output_min_x = (
-    script_dir /
-     "test_data/prelim/output/model-prelim-minX.csv"
-     )
+    script_dir / "test_data/prelim/output/model-prelim-minX.csv"
+)
 csv_path_prelim_output_lambda_y = (
-    script_dir /
-     "test_data/prelim/output/model-prelim-lambdaY.csv"
-     )
+    script_dir / "test_data/prelim/output/model-prelim-lambdaY.csv"
+)
 csv_path_prelim_output_min_y = (
-    script_dir /
-     "test_data/prelim/output/model-prelim-minY.csv"
-     )
+    script_dir / "test_data/prelim/output/model-prelim-minY.csv"
+)
 csv_path_prelim_output_mu_x = (
-    script_dir /
-     "test_data/prelim/output/model-prelim-muX.csv"
-     )
+    script_dir / "test_data/prelim/output/model-prelim-muX.csv"
+)
 csv_path_prelim_output_mu_y = (
-    script_dir /
-     "test_data/prelim/output/model-prelim-muY.csv"
-     )
+    script_dir / "test_data/prelim/output/model-prelim-muY.csv"
+)
 csv_path_prelim_output_sigma_x = (
-    script_dir /
-     "test_data/prelim/output/model-prelim-sigmaX.csv"
-     )
+    script_dir / "test_data/prelim/output/model-prelim-sigmaX.csv"
+)
 csv_path_prelim_output_sigma_y = (
-    script_dir /
-     "test_data/prelim/output/model-prelim-sigmaY.csv"
-     )
+    script_dir / "test_data/prelim/output/model-prelim-sigmaY.csv"
+)
 
 # input data
 x_input = pd.read_csv(csv_path_x_input, header=None).to_numpy()
@@ -100,6 +86,7 @@ opts = PrelimOptions(
     bound=True,
     norm=True,
 )
+
 
 def test_bound() -> None:
     """Test the removal of outliers from the feature matrix."""
@@ -123,6 +110,7 @@ def test_bound() -> None:
     assert np.allclose(med_val, prelim_med_val)
     assert np.allclose(iq_range, prelim_iq_range)
 
+
 def test_normalise() -> None:
     """Test the normalisation of the feature matrix and performance matrix."""
     prelim_lambda_x = np.genfromtxt(csv_path_prelim_output_lambda_x, delimiter=",")
@@ -145,6 +133,7 @@ def test_normalise() -> None:
     assert np.allclose(prelim_out.mu_y, prelim_mu_y)
     assert np.allclose(prelim_out.sigma_y, prelim_sigma_y)
 
+
 def test_prelim() -> None:
     """Test the Prelim run method for the values of the data.model."""
     beta_output = pd.read_csv(csv_path_beta, sep=",", header=None).iloc[:, 0].values
@@ -160,8 +149,10 @@ def test_prelim() -> None:
     assert np.allclose(data.x, x_output)
     assert np.allclose(data.y, y_output)
     assert np.allclose(data.y_bin, ybin_output)
-    assert np.allclose(np.array(data.y_best).flatten(), np.array(ybest_output,
-                                                                 dtype=np.float64))
+    assert np.allclose(
+        np.array(data.y_best).flatten(),
+        np.array(ybest_output, dtype=np.float64),
+    )
     assert np.allclose(data.p, np.array(p_output, dtype=np.float64))
     assert np.allclose(data.num_good_algos, num_good_algos_output.values.flatten())
     assert np.allclose(data.beta, np.array(beta_output, dtype=bool))
