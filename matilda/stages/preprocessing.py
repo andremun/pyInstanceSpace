@@ -12,8 +12,7 @@ from matilda.data.model import (
     PreprocessingDataChanged,
     PreprocessingOut,
 )
-from matilda.data.option import Options, PrelimOptions, from_json_file
-from matilda.instance_space import instance_space_from_files
+from matilda.data.option import Options, PrelimOptions
 from matilda.stages.filter import Filter
 
 
@@ -39,9 +38,7 @@ class Preprocessing:
     def run(
         matadata: Metadata,
         opts: Options,
-    ) -> Data:
-            #tuple[PreprocessingDataChanged, PreprocessingOut]:
-
+    ) -> tuple[PreprocessingDataChanged, PreprocessingOut]:
         """Perform preliminary processing on the input data 'x' and 'y'.
 
         Args
@@ -72,10 +69,11 @@ class Preprocessing:
             uniformity=None,
         )
 
-        afterSelection = Preprocessing.select_features_and_algorithms(data, opts)
-        afterWashing = Preprocessing.remove_instances_with_many_missing_values(afterSelection)
+        after_selection = Preprocessing.select_features_and_algorithms(data, opts)
+        after_washing = Preprocessing.\
+            remove_instances_with_many_missing_values(after_selection)
 
-        return afterWashing
+        raise NotImplementedError
 
     @staticmethod
     def select_features_and_algorithms(data: Data, opts: Options) -> Data:
@@ -499,14 +497,10 @@ class Preprocessing:
         )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    # for testing purpose
     metadata_path = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_integration/metadata.csv")
     option_path = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_integration/options.json")
-
-    space = instance_space_from_files(metadata_path,option_path)
-
-    Preprocessing.run(space.metadata, space.options)
-
 
 
 
