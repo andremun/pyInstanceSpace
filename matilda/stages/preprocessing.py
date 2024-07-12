@@ -14,15 +14,16 @@ from matilda.data.model import (
 )
 from matilda.data.option import Options, PrelimOptions
 from matilda.stages.filter import Filter
+from matilda.stages.prelim import Prelim
 
 
 class Preprocessing:
     """See file docstring."""
 
     def __init__(
-            self,
-            matadata: Metadata,
-            opts: Options,
+        self,
+        matadata: Metadata,
+        opts: Options,
     ) -> None:
         """Initialize the preprocessing stage.
 
@@ -70,8 +71,22 @@ class Preprocessing:
         )
 
         after_selection = Preprocessing.select_features_and_algorithms(data, opts)
-        after_washing = Preprocessing.\
-            remove_instances_with_many_missing_values(after_selection)
+        after_washing = Preprocessing.remove_instances_with_many_missing_values(
+            after_selection,
+        )
+        after_process, prelim_opts = Preprocessing.process_data(after_washing, opts)
+
+        # call Prelim
+        prelim_data, prelim_out = Prelim.run(
+            after_process.x,
+            after_process.y,
+            prelim_opts,
+        )
+
+        bad_instances_removed = Preprocessing.remove_bad_instances(prelim_data)
+
+        # Where is the model created?
+        # Preprocessing.split_data(bad_instances_removed, opts, model)
 
         raise NotImplementedError
 
@@ -499,8 +514,9 @@ class Preprocessing:
 
 if __name__ == "__main__":
     # for testing purpose
-    metadata_path = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_integration/metadata.csv")
-    option_path = Path("/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_integration/options.json")
-
-
-
+    metadata_path = Path(
+        "/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_integration/metadata.csv"
+    )
+    option_path = Path(
+        "/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_integration/options.json"
+    )
