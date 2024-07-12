@@ -16,5 +16,7 @@ def test_assertions() -> None:
         None
 
     """
-    assert True, "Something is wrong with the Github Workflow - " \
-                 "please contact kharek@student.unimelb.edu.au"
+    assert True, (
+        "Something is wrong with the Github Workflow - "
+        "please contact kharek@student.unimelb.edu.au"
+    )

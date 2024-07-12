@@ -6,12 +6,14 @@ Examples
 >>> options = create_option(cloister=cloister_opt)
 """
 
-from matilda.data.option import (
+import pandas as pd
+
+from matilda.data.options import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,
+    InstanceSpaceOptions,
     NormOptions,
-    Options,
     OutputOptions,
     ParallelOptions,
     PerformanceOptions,
@@ -89,12 +91,13 @@ def create_option(
     pythia: PythiaOptions = default_pythia,
     trace: TraceOptions = default_trace,
     outputs: OutputOptions = default_outputs,
-) -> Options:
+) -> InstanceSpaceOptions:
     """Create option object based on the argument given.
 
-    Options that is not specified will use corresponding default option object.
+    InstanceSpaceOptions that is not specified will use corresponding default option
+    object.
     """
-    return Options(
+    return InstanceSpaceOptions(
         parallel=parallel,
         perf=perf,
         auto=auto,

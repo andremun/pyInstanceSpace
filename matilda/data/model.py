@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from matilda.data.option import Options
+from matilda.data.options import InstanceSpaceOptions
 
 
 @dataclass
@@ -99,19 +99,42 @@ class PrelimOut:
     lambda_x: NDArray[np.double]
     mu_x: NDArray[np.double]
     sigma_x: NDArray[np.double]
-    min_y: NDArray[np.double]
+    min_y: float
     lambda_y: NDArray[np.double]
     sigma_y: NDArray[np.double]
-    mu_y: float = 0.0
+    mu_y: NDArray[np.double]
 
 
 @dataclass(frozen=True)
 class PrelimDataChanged:
     """The fields of Data that the Prelim stage changes."""
 
+    x: NDArray[np.double]
+    y: NDArray[np.double]
+    y_bin: NDArray[np.bool_]
+    y_best: NDArray[np.double]
+    p: NDArray[np.double]
+    num_good_algos: NDArray[np.double]
+    beta: NDArray[np.bool_]
+
     def merge_with(self, data: Data) -> Data:
         """Merge changed fields of data with a Data object."""
-        raise NotImplementedError
+        return Data(
+            inst_labels=data.inst_labels,
+            feat_labels=data.feat_labels,
+            algo_labels=data.algo_labels,
+            uniformity=data.uniformity,
+            x=self.x,
+            x_raw=data.x_raw,
+            y=self.y,
+            y_raw=data.y_raw,
+            y_bin=self.y_bin,
+            y_best=self.y_best,
+            p=self.p,
+            num_good_algos=self.num_good_algos,
+            beta=self.beta,
+            s=data.s,
+        )
 
 
 @dataclass(frozen=True)
@@ -286,4 +309,4 @@ class Model:
     cloist: CloisterOut
     pythia: PythiaOut
     trace: TraceOut
-    opts: Options
+    opts: InstanceSpaceOptions

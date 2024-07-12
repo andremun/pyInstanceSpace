@@ -35,4 +35,3 @@ from . import data, instance_space, stages
 from .instance_space import InstanceSpace
 
 __all__ = ["InstanceSpace", "data", "stages", "instance_space"]
-
