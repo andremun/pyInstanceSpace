@@ -83,7 +83,9 @@ class Preprocessing:
             prelim_opts,
         )
 
-        bad_instances_removed = Preprocessing.remove_bad_instances(prelim_data)
+        bad_instances_removed = Preprocessing.remove_bad_instances(
+            prelim_data.merge_with(data),
+        )
 
         # Where is the model created?
         # Preprocessing.split_data(bad_instances_removed, opts, model)
