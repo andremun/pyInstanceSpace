@@ -12,7 +12,7 @@ from matilda.data.model import (
     PreprocessingDataChanged,
     PreprocessingOut,
 )
-from matilda.data.option import Options, PrelimOptions
+from matilda.data.options import InstanceSpaceOptions, PrelimOptions
 from matilda.stages.filter import Filter
 from matilda.stages.prelim import Prelim
 
@@ -23,7 +23,7 @@ class Preprocessing:
     def __init__(
         self,
         matadata: Metadata,
-        opts: Options,
+        opts: InstanceSpaceOptions,
     ) -> None:
         """Initialize the preprocessing stage.
 
@@ -38,7 +38,7 @@ class Preprocessing:
     @staticmethod
     def run(
         matadata: Metadata,
-        opts: Options,
+        opts: InstanceSpaceOptions,
     ) -> tuple[PreprocessingDataChanged, PreprocessingOut]:
         """Perform preliminary processing on the input data 'x' and 'y'.
 
@@ -91,7 +91,7 @@ class Preprocessing:
         raise NotImplementedError
 
     @staticmethod
-    def select_features_and_algorithms(data: Data, opts: Options) -> Data:
+    def select_features_and_algorithms(data: Data, opts: InstanceSpaceOptions) -> Data:
         """Select features and algorithms based on options provided in opts.
 
         Remove instances with too many missing values.
@@ -253,7 +253,9 @@ class Preprocessing:
         )
 
     @staticmethod
-    def process_data(data: Data, opts: Options) -> tuple[Data, PrelimOptions]:
+    def process_data(
+        data: Data, opts: InstanceSpaceOptions
+    ) -> tuple[Data, PrelimOptions]:
         """Store the raw data for further processing and remove the template data.
 
         Parameters
@@ -361,7 +363,7 @@ class Preprocessing:
         return data
 
     @staticmethod
-    def split_data(data: Data, opts: Options, model: Model) -> Model:
+    def split_data(data: Data, opts: InstanceSpaceOptions, model: Model) -> Model:
         """Split the data into training and testing sets.
 
         Parameters
