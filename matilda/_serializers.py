@@ -217,6 +217,7 @@ def save_instance_space_graphs(
     options: Options,
     pythia_state: StageState[PythiaOut],
     pilot_state: StageState[PilotOut],
+    trace_state: StageState[TraceOut],
 ) -> None:
 
     if not output_directory.is_dir():
@@ -250,6 +251,99 @@ def save_instance_space_graphs(
             data.feat_labels[i].replace("_", " "),
             output_directory / filename,
         )
+
+    for i in range(num_algorithms):
+
+        algo_label = data.algo_labels[i]
+
+        filename = f"distribution_performance_global_normalized_{algo_label}.png"
+        _draw_scatter(
+            pilot_state.out.z,
+            y_glb[:, i],
+            algo_label.replace("_", " "),
+            output_directory / filename,
+        )
+
+        filename = f"distribution_performance_individual_normalized_{algo_label}.png"
+        _draw_scatter(
+            pilot_state.out.z,
+            y_ind[:, i],
+            algo_label.replace("_", " "),
+            output_directory / filename,
+        )
+
+        _draw_binary_performance(
+            pilot_state.out.z,
+            data.y_bin[:, i],
+            algo_label.replace("_", " "),
+            output_directory / f"binary_performance_{algo_label}.png",
+        )
+
+        # TODO: MATLAB has a try catch for this one, when pythia is done maybe make
+        # optional? in model?
+        _draw_binary_performance(
+            pilot_state.out.z,
+            pythia_state.out.y_hat,
+            algo_label.replace("_", " "),
+            output_directory / f"binary_svm_{algo_label}.png",
+        )
+
+        # TODO: Same as above
+        _draw_good_bad_footprint(
+            pilot_state.out.z,
+            trace_state.out.good[i],
+            y_foot,
+            algo_label.replace("_", " "),
+            output_directory / f"footprint_{algo_label}.png",
+        )
+
+    _draw_scatter(
+        pilot_state.out.z,
+        data.num_good_algos / num_algorithms,
+        "Percentage of good algorithms",
+        output_directory / "distribution_number_good_algos.png",
+    )
+
+    _draw_portfolio_selections(
+        pilot_state.out.z,
+        data.p,
+        data.algo_labels,
+        "Best algorithm",
+        output_directory / "distribution_portfolio.png",
+    )
+
+    _draw_portfolio_selections(
+        pilot_state.out.z,
+        pythia_state.out.selection0,
+        data.algo_labels,
+        "Predicted best algorithm",
+        output_directory / "distribution_svm_portfolio.png",
+    )
+
+    _draw_portfolio_footprint(
+        pilot_state.out.z,
+        trace_state.out.best,
+        p_foot,
+        data.algo_labels,
+        output_directory / "footprint_portfolio.png",
+    )
+
+    _draw_binary_performance(
+        pilot_state.out.z,
+        data.beta,
+        "Beta score",
+        output_directory / "distribution_beta_score.png",
+    )
+
+    if data.s is not None:
+        _draw_sources(
+            pilot_state.out.z,
+            data.s,
+            output_directory / "distribution_sources.png",
+        )
+
+
+
 
 
 def _write_array_to_csv(
@@ -288,6 +382,44 @@ def _colour_scale_g(
     out: NDArray[T] = np.round(255 * (data - np.min(data, axis=0)) / data_range)
     return out
 
+def _draw_sources(
+    z: NDArray[Any],
+    s: NDArray[np.str_],
+    output: Path,
+) -> None:
+    upper_bound = np.ceil(np.max(z))
+    lower_bound = np.floor(np.min(z))
+    source_labels = np.unique(s)
+    num_sources = len(source_labels)
+    colours = [1, 1, 1] # TODO: This
+
+    cmap = plt.colormaps["viridis"]
+    fig, ax2 = plt.subplots()
+    ax: Axes = ax2 # TODO: Remove this before PR, just for programming
+    fig.suptitle("Sources")
+
+    norm = Normalize(lower_bound, upper_bound)
+
+    for i in reversed(range(num_sources)):
+        ax.scatter(
+            z[s==source_labels[i], 0],
+            z[s==source_labels[i], 1],
+            s=8,
+            c=source_labels[i],
+            norm=norm,
+            cmap=cmap,
+        )
+
+    ax.set_xlabel("z_{1}")
+    ax.set_ylabel("z_{2}")
+    fig.colorbar(plt.cm.ScalarMappable(
+        norm=norm,
+        cmap=cmap,
+    ))
+    ax.legend()
+
+    fig.savefig(output)
+
 def _draw_scatter(
     z: NDArray[Any],
     x: NDArray[Any],
@@ -312,3 +444,33 @@ def _draw_scatter(
         cmap=cmap,
     ))
 
+    fig.savefig(output)
+
+def _draw_portfolio_selections(
+    z: NDArray[Any],
+    p: NDArray[Any],
+    algorithm_labels: NDArray[np.str_],
+    title_label: str,
+    output: Path,
+) -> None:
+    upper_bound = np.ceil(np.max(z))
+    lower_bound = np.floor(np.min(z))
+    num_algorithms = len(algorithm_labels)
+    actual_algorithm_labels = []
+    h = np.zeros((1, num_algorithms+1))
+    is_worthy = sum(bsxf) # TODO: this
+
+def _draw_binary_performance(
+
+) -> None:
+    pass
+
+def _draw_good_bad_footprint(
+
+) -> None:
+    pass
+
+def _draw_portfolio_footprint(
+
+) -> None:
+    pass
