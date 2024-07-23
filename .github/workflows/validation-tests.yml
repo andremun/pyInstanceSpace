@@ -1,0 +1,48 @@
+name: Validation Tests
+
+on:
+  push:
+    branches: [Staging, main]
+  pull_request:
+    branches: [Staging, main]
+
+  workflow_run:
+    workflows: [Automerge]
+    branches: [main]
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+jobs:
+  merge_requirements_tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        poetry-version: ["1.8.2"]
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.12"
+
+    - name: Poetry install
+      uses: abatilo/actions-poetry@v2
+      with:
+        poetry-version: ${{ matrix.poetry-version }}
+
+    - name: Install dependancies
+      run: |-
+        poetry install
+
+    - name: Check formatting with black, linting with Ruff, and static check with Mypy
+      run: poetry run poe test
+
+    - name: Test with pytest
+      run: poetry run pytest
+

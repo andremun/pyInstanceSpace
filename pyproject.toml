@@ -4,6 +4,7 @@ version = "0.1.0"
 description = ""
 authors = [
     "Your Name <you@example.com>",
+    "Kushagra Khare <kharek@student.unimelb.edu.au>",
     "Nathan Harvey <nhharvey@student.unimelb.edu.au>",
 ]
 readme = "README.md"
@@ -13,30 +14,37 @@ python = "^3.12"
 numpy = "^1.26.4"
 pandas = "^2.2.1"
 pandas-stubs = "^2.2.1.240316"
-scikit-learn = "^1.4.1.post1"
-
-[tool.poetry.group.backend]
-optional = true
-
-[tool.poetry.group.backend.dependencies]
-fastapi = "^0.110.0"
-uvicorn = {extras = ["standard"], version = "^0.29.0"}
+scikit-learn = "^1.4.2"
+click = "^8.1.7"
+black = "^24.4.2"
+scipy = "^1.13.0"
 
 [tool.poetry.group.dev.dependencies]
+pytest = "^8.1.1"
 poethepoet = "^0.25.0"
 ruff = "^0.3.4"
 mypy = "^1.9.0"
+pdoc = "^14.4.0"
+docconvert = "^2.1.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poe.tasks]
+format_docstrings = "docconvert -o numpy matilda/ --in-place"
+check_black = "black --preview ."
 check_ruff = "ruff check --fix"
-check_mypy = "mypy ."
+check_mypy = "mypy --strict ."
 
-check.sequence = ["check_ruff", "check_mypy"]
+test_black = "black --preview --check ."
+test_ruff = "ruff check --no-fix"
+
+check.sequence = ["format_docstrings", "check_black", "check_ruff", "check_mypy"]
 check.ignore_fail = "return_non_zero"
+
+test.sequence = ["test_black", "test_ruff", "check_mypy"]
+test.ignore_fail = "return_non_zero"
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
@@ -76,6 +84,7 @@ indent-width = 4
 # Assume Python 3.12
 target-version = "py312"
 
+
 [tool.ruff.lint]
 extend-select = [
     "F",
@@ -102,6 +111,14 @@ extend-select = [
     "PL",
     "NPY",
     "RUF",
+
+    "D107",
+    "D211",
+    "D212",
+    "D402",
+    "D410",
+    "D415",
+    "D417",
 ]
 
 ignore = [
@@ -113,11 +130,36 @@ ignore = [
 
     # Temporary, while we are doing stubs
     "ARG001",
+
+    # Deprecated, type annotation on self is unneeded
+    "ANN101",
+
+    # Collides with D416
+    "D406",
+
+    # Long functions are expected
+    "PLR0915",
 ]
+
+[tool.ruff.lint.pydocstyle]
+# Use google style docstrings
+convention = "numpy"
+
+[tool.ruff.format]
+# Enable reformatting of code snippets in docstrings.
+docstring-code-format = true
+
+
 
 [tool.mypy]
 disallow_untyped_defs = 'True'
 
 [[tool.mypy.overrides]]
-module = 'sklearn'
+module = [
+    'sklearn',
+    'scipy.stats',
+    'scipy',
+    'scipy.spatial',
+    'scipy.spatial.distance',
+]
 ignore_missing_imports = 'True'
