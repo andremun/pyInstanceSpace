@@ -53,6 +53,7 @@ class Sifted:
         """Compute the cost function for a given combination of features or parameters.
 
         Args
+        ----
             comb: Array representing the combination of parameters to
                 evaluate.
             x: The feature matrix (instances x features).
@@ -82,6 +83,7 @@ class Sifted:
         """Evaluate the fitness of each individual instance in a genetic algorithm.
 
         Args
+        ----
             idx: An array of indices specifying the instances to be
                 evaluated.
             x: The feature matrix (instances x features).
