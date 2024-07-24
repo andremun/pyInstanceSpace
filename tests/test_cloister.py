@@ -18,7 +18,7 @@ from pathlib import Path
 
 import numpy as np
 
-from matilda.data.option import CloisterOptions
+from matilda.data.options import CloisterOptions
 from matilda.stages.cloister import Cloister
 from tests.utils.option_creator import create_option
 

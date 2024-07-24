@@ -16,6 +16,8 @@ pandas = "^2.2.1"
 pandas-stubs = "^2.2.1.240316"
 scikit-learn = "^1.4.2"
 click = "^8.1.7"
+black = "^24.4.2"
+scipy = "^1.13.0"
 matplotlib = "^3.9.0"
 
 [tool.poetry.group.dev.dependencies]
@@ -32,15 +34,17 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poe.tasks]
 format_docstrings = "docconvert -o numpy matilda/ --in-place"
+check_black = "black --preview ."
 check_ruff = "ruff check --fix"
 check_mypy = "mypy --strict ."
 
+test_black = "black --preview --check ."
 test_ruff = "ruff check --no-fix"
 
-check.sequence = ["format_docstrings", "check_ruff", "check_mypy"]
+check.sequence = ["format_docstrings", "check_black", "check_ruff", "check_mypy"]
 check.ignore_fail = "return_non_zero"
 
-test.sequence = ["test_ruff", "check_mypy"]
+test.sequence = ["test_black", "test_ruff", "check_mypy"]
 test.ignore_fail = "return_non_zero"
 
 [tool.ruff]
@@ -133,6 +137,9 @@ ignore = [
 
     # Collides with D416
     "D406",
+
+    # Long functions are expected
+    "PLR0915",
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -151,7 +158,9 @@ disallow_untyped_defs = 'True'
 [[tool.mypy.overrides]]
 module = [
     'sklearn',
-    'scipy.spatial',
     'scipy.stats',
+    'scipy',
+    'scipy.spatial',
+    'scipy.spatial.distance',
 ]
 ignore_missing_imports = 'True'

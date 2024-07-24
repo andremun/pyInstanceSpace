@@ -373,6 +373,7 @@ def _colour_scale(
 ) -> NDArray[T]:
     data_range: NDArray[T] = np.max(data, axis=0) - np.min(data, axis=0)
     out: NDArray[T] = np.round(255 * (data - np.min(data, axis=0)) / data_range)
+
     return out
 
 def _colour_scale_g(
@@ -380,6 +381,7 @@ def _colour_scale_g(
 ) -> NDArray[T]:
     data_range: NDArray[T] = np.max(data, axis=0) - np.min(data, axis=0)
     out: NDArray[T] = np.round(255 * (data - np.min(data, axis=0)) / data_range)
+
     return out
 
 def _draw_sources(
@@ -391,7 +393,6 @@ def _draw_sources(
     lower_bound = np.floor(np.min(z))
     source_labels = np.unique(s)
     num_sources = len(source_labels)
-    colours = [1, 1, 1] # TODO: This
 
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
@@ -456,9 +457,21 @@ def _draw_portfolio_selections(
     upper_bound = np.ceil(np.max(z))
     lower_bound = np.floor(np.min(z))
     num_algorithms = len(algorithm_labels)
-    actual_algorithm_labels = []
-    h = np.zeros((1, num_algorithms+1))
-    is_worthy = sum(bsxf) # TODO: this
+    # actual_algorithm_labels = []
+    h = np.zeros((1, num_algorithms + 1))
+
+    bsxfun_result = np.array([
+        [x == j for j in range(num_algorithms + 1)] for i, x in enumerate(p)
+    ])
+    is_worthy = np.sum(bsxfun_result) != 0
+
+    cmap = plt.colormaps["viridis"]
+
+    for i in range(num_algorithms):
+        if not is_worthy[i]:
+            continue
+
+
 
 def _draw_binary_performance(
 
