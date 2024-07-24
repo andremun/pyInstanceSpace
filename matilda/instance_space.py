@@ -61,7 +61,6 @@ class InstanceSpace:
     _trace_state: StageState[TraceOut] | None
     _pythia_state: StageState[PythiaOut] | None
 
-
     def __init__(self, metadata: Metadata, options: InstanceSpaceOptions) -> None:
         """Create a new InstanceSpace object.
 
@@ -332,21 +331,23 @@ class InstanceSpace:
 
     def save_to_csv(self, output_directory: Path) -> None:
         """Save csv outputs to a directory."""
-        print("=========================================================================")
+        print(
+            "=========================================================================",
+        )
         print("-> Writing the data on CSV files for posterior analysis.")
 
         if (
-            not self._stages[_Stage.CLOISTER] or
-            not self._stages[_Stage.TRACE] or
-            not self._stages[_Stage.PYTHIA]
+            not self._stages[_Stage.CLOISTER]
+            or not self._stages[_Stage.TRACE]
+            or not self._stages[_Stage.PYTHIA]
         ):
             raise StageError
 
         if (
-            self._trace_state is None or
-            self._pilot_state is None or
-            self._prelim_state is None or
-            self._pythia_state is None
+            self._trace_state is None
+            or self._pilot_state is None
+            or self._prelim_state is None
+            or self._pythia_state is None
         ):
             raise StageError
 
@@ -356,11 +357,11 @@ class InstanceSpace:
             raise StageError
 
         if (
-            self._trace_state is None or
-            self._pilot_state is None or
-            self._prelim_state is None or
-            self._pythia_state is None or
-            self._cloister_state is None
+            self._trace_state is None
+            or self._pilot_state is None
+            or self._prelim_state is None
+            or self._pythia_state is None
+            or self._cloister_state is None
         ):
             raise StageError
 
@@ -374,17 +375,17 @@ class InstanceSpace:
             self._pythia_state,
         )
 
-
-
     def save_to_web(self, output_directory: Path) -> None:
         """Save csv outputs used for the web frontend to a directory."""
-        print("=========================================================================")
+        print(
+            "=========================================================================",
+        )
         print("-> Writing the data for the web interface.")
 
         if (
-            not self._stages[_Stage.CLOISTER] or
-            not self._stages[_Stage.TRACE] or
-            not self._stages[_Stage.PYTHIA]
+            not self._stages[_Stage.CLOISTER]
+            or not self._stages[_Stage.TRACE]
+            or not self._stages[_Stage.PYTHIA]
         ):
             raise StageError
 
@@ -397,7 +398,6 @@ class InstanceSpace:
             raise StageError
 
         save_instance_space_for_web(output_directory, self._prelim_state)
-
 
 
 def instance_space_from_files(

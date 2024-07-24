@@ -8,7 +8,7 @@ from matplotlib.axes import Axes
 from matplotlib.colors import Normalize
 from numpy.typing import NDArray
 
-from matilda.data.model import (
+from .data.model import (
     CloisterOut,
     Data,
     PilotOut,
@@ -17,7 +17,7 @@ from matilda.data.model import (
     StageState,
     TraceOut,
 )
-from matilda.data.option import Options
+from .data.options import InstanceSpaceOptions
 
 
 def save_instance_space_to_csv(
@@ -159,6 +159,7 @@ def save_instance_space_to_csv(
         output_directory / "svm_table.csv",
     )
 
+
 def save_instance_space_for_web(
     output_directory: Path,
     prelim_state: StageState[PrelimOut],
@@ -166,7 +167,6 @@ def save_instance_space_for_web(
 
     if not output_directory.is_dir():
         raise ValueError("output_directory isn't a directory.")
-
 
     _write_array_to_csv(
         _colour_scale(prelim_state.data.x_raw[:, prelim_state.out.idx]),
@@ -211,10 +211,11 @@ def save_instance_space_for_web(
         output_directory / "good_algos_color.csv",
     )
 
+
 def save_instance_space_graphs(
     output_directory: Path,
     data: Data,
-    options: Options,
+    options: InstanceSpaceOptions,
     pythia_state: StageState[PythiaOut],
     pilot_state: StageState[PilotOut],
     trace_state: StageState[TraceOut],
@@ -343,31 +344,33 @@ def save_instance_space_graphs(
         )
 
 
-
-
-
 def _write_array_to_csv(
-    data: NDArray[Any], # TODO: Try to unify these
-    column_names: pd.Series, # TODO: Try to unify these
-    row_names: pd.Series, # type: ignore[type-arg]
+    data: NDArray[Any],  # TODO: Try to unify these
+    column_names: pd.Series,  # TODO: Try to unify these
+    row_names: pd.Series,  # type: ignore[type-arg]
     filename: Path,
 ) -> None:
     pd.DataFrame(data, index=row_names, columns=column_names).to_csv(filename)
+
 
 def _write_cell_to_csv(
-    data: pd.Series, # TODO: Try to unify these
-    column_names: pd.Series, # TODO: Try to unify these
-    row_names: pd.Series, # type: ignore[type-arg]
+    data: pd.Series,  # TODO: Try to unify these
+    column_names: pd.Series,  # TODO: Try to unify these
+    row_names: pd.Series,  # type: ignore[type-arg]
     filename: Path,
 ) -> None:
     pd.DataFrame(data, index=row_names, columns=column_names).to_csv(filename)
+
 
 def _make_bind_labels(
     data: NDArray[Any],
 ) -> pd.Series:
     return pd.Series([f"bnd_pnt_{i}" for i in range(data.shape[0])])
 
+
 T = TypeVar("T", bound=np.generic)
+
+
 def _colour_scale(
     data: NDArray[T],
 ) -> NDArray[T]:
@@ -376,6 +379,7 @@ def _colour_scale(
 
     return out
 
+
 def _colour_scale_g(
     data: NDArray[T],
 ) -> NDArray[T]:
@@ -383,6 +387,7 @@ def _colour_scale_g(
     out: NDArray[T] = np.round(255 * (data - np.min(data, axis=0)) / data_range)
 
     return out
+
 
 def _draw_sources(
     z: NDArray[Any],
@@ -396,15 +401,15 @@ def _draw_sources(
 
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
-    ax: Axes = ax2 # TODO: Remove this before PR, just for programming
+    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
     fig.suptitle("Sources")
 
     norm = Normalize(lower_bound, upper_bound)
 
     for i in reversed(range(num_sources)):
         ax.scatter(
-            z[s==source_labels[i], 0],
-            z[s==source_labels[i], 1],
+            z[s == source_labels[i], 0],
+            z[s == source_labels[i], 1],
             s=8,
             c=source_labels[i],
             norm=norm,
@@ -413,13 +418,10 @@ def _draw_sources(
 
     ax.set_xlabel("z_{1}")
     ax.set_ylabel("z_{2}")
-    fig.colorbar(plt.cm.ScalarMappable(
-        norm=norm,
-        cmap=cmap,
-    ))
     ax.legend()
 
     fig.savefig(output)
+
 
 def _draw_scatter(
     z: NDArray[Any],
@@ -432,7 +434,7 @@ def _draw_scatter(
 
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
-    ax: Axes = ax2 # TODO: Remove this before PR, just for programming
+    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
     fig.suptitle(title_label, size=14)
 
     norm = Normalize(lower_bound, upper_bound)
@@ -440,12 +442,15 @@ def _draw_scatter(
     ax.scatter(z[:, 0], z[:, 1], s=8, c=x, norm=norm, cmap=cmap)
     ax.set_xlabel("z_{1}")
     ax.set_ylabel("z_{2}")
-    fig.colorbar(plt.cm.ScalarMappable(
-        norm=norm,
-        cmap=cmap,
-    ))
+    fig.colorbar(
+        plt.cm.ScalarMappable(
+            norm=norm,
+            cmap=cmap,
+        ),
+    )
 
     fig.savefig(output)
+
 
 def _draw_portfolio_selections(
     z: NDArray[Any],
@@ -457,33 +462,180 @@ def _draw_portfolio_selections(
     upper_bound = np.ceil(np.max(z))
     lower_bound = np.floor(np.min(z))
     num_algorithms = len(algorithm_labels)
-    # actual_algorithm_labels = []
-    h = np.zeros((1, num_algorithms + 1))
+    # labels: list[str] = []
+    # h = np.zeros((1, num_algorithms + 1))
 
-    bsxfun_result = np.array([
-        [x == j for j in range(num_algorithms + 1)] for i, x in enumerate(p)
-    ])
+    bsxfun_result = np.array(
+        [[x == j for j in range(num_algorithms + 1)] for i, x in enumerate(p)],
+    )
     is_worthy = np.sum(bsxfun_result) != 0
 
     cmap = plt.colormaps["viridis"]
+    fig, ax2 = plt.subplots()
+    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    fig.suptitle(title_label)
+
+    norm = Normalize(lower_bound, upper_bound)
 
     for i in range(num_algorithms):
         if not is_worthy[i]:
             continue
 
+        ax.scatter(
+            z[p == i, 0],
+            z[p == i, 1],
+            s=8,
+            c=i,
+            norm=norm,
+            cmap=cmap,
+            label="None" if i == 0 else algorithm_labels[i - 1].replace("_", " "),
+        )
+
+    ax.set_xlabel("z_{1}")
+    ax.set_ylabel("z_{2}")
+    ax.legend()
+
+    fig.savefig(output)
+
+
+def _draw_portfolio_footprint(
+    z: NDArray[Any],
+    best: NDArray[Any],
+    p: NDArray[Any],
+    algorithm_labels: NDArray[np.str_],
+    output: Path,
+) -> None:
+    upper_bound = np.ceil(np.max(z))
+    lower_bound = np.floor(np.min(z))
+    num_algorithms = len(algorithm_labels)
+
+    bsxfun_result = np.array(
+        [[x == j for j in range(num_algorithms + 1)] for i, x in enumerate(p)],
+    )
+    is_worthy = np.sum(bsxfun_result) != 0
+
+    cmap = plt.colormaps["viridis"]
+    fig, ax2 = plt.subplots()
+    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    fig.suptitle("Portfolio footprints")
+
+    norm = Normalize(lower_bound, upper_bound)
+
+    for i in range(num_algorithms):
+        if not is_worthy[i]:
+            continue
+
+        ax.scatter(
+            z[p == i, 0],
+            z[p == i, 1],
+            s=8,
+            c=i,
+            norm=norm,
+            cmap=cmap,
+            label="None" if i == 0 else algorithm_labels[i - 1].replace("_", " "),
+        )
+
+        _draw_footprint(ax, best[i], cmap(norm(i)), 0.3)
+
+    ax.set_xlabel("z_{1}")
+    ax.set_ylabel("z_{2}")
+    ax.legend()
+
+    fig.savefig(output)
+
+
+def _draw_good_bad_footprint(
+    z: NDArray[Any],
+    good: NDArray[Any],
+    y_bin: NDArray[Any],
+    title_label: str,
+    output: Path,
+) -> None:
+    upper_bound = np.ceil(np.max(z))
+    lower_bound = np.floor(np.min(z))
+
+    orange = (1.0, 0.6471, 0.0, 1.)
+    blue = (0.0, 0.0, 1.0, 1.)
+
+    labels = ["GOOD", "BAD"]
+
+    cmap = plt.colormaps["viridis"]
+    fig, ax2 = plt.subplots()
+    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    fig.suptitle(title_label)
+
+    if np.any(not y_bin):
+        ax.scatter(
+            z[not y_bin, 0],
+            z[not y_bin, 1],
+            s=8,
+            c=orange,
+        )
+
+    if np.any(y_bin):
+        ax.scatter(
+            z[y_bin, 0],
+            z[y_bin, 1],
+            s=8,
+            c=blue,
+        )
+        _draw_footprint(ax, good, blue, 0.3)
+
+    ax.set_xlabel("z_{1}")
+    ax.set_ylabel("z_{2}")
+    ax.legend()
+
+    fig.savefig(output)
+
+
+
+def _draw_footprint(
+    ax: Axes,
+    footprint: Any,
+    colour: tuple[float, float, float, float],
+    alpha: float,
+) -> None:
+    # TODO: Blockered on TRACE
+    pass
 
 
 def _draw_binary_performance(
-
+    z: NDArray[Any],
+    y_bin: NDArray[Any],
+    title_label: str,
+    output: Path,
 ) -> None:
-    pass
+    upper_bound = np.ceil(np.max(z))
+    lower_bound = np.floor(np.min(z))
 
-def _draw_good_bad_footprint(
+    orange = (1.0, 0.6471, 0.0, 1.)
+    blue = (0.0, 0.0, 1.0, 1.)
 
-) -> None:
-    pass
+    labels = ["GOOD", "BAD"]
 
-def _draw_portfolio_footprint(
+    cmap = plt.colormaps["viridis"]
+    fig, ax2 = plt.subplots()
+    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    fig.suptitle(title_label)
 
-) -> None:
-    pass
+    if np.any(not y_bin):
+        ax.scatter(
+            z[not y_bin, 0],
+            z[not y_bin, 1],
+            s=8,
+            c=orange,
+        )
+
+    if np.any(y_bin):
+        ax.scatter(
+            z[y_bin, 0],
+            z[y_bin, 1],
+            s=8,
+            c=blue,
+        )
+
+    ax.set_xlabel("z_{1}")
+    ax.set_ylabel("z_{2}")
+    ax.legend()
+
+    fig.savefig(output)

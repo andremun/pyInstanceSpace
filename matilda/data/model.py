@@ -13,8 +13,6 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from matilda.data.options import InstanceSpaceOptions
-
 
 @dataclass(frozen=True)
 class Data:
@@ -80,7 +78,6 @@ class PrelimOut:
     lambda_y: NDArray[np.double]
     sigma_y: NDArray[np.double]
     mu_y: NDArray[np.double]
-
 
 
 @dataclass(frozen=True)
