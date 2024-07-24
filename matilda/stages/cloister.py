@@ -12,7 +12,7 @@ from scipy.spatial import ConvexHull, QhullError
 from scipy.stats import pearsonr
 
 from matilda.data.model import BoundaryResult, CloisterDataChanged, CloisterOut
-from matilda.data.option import CloisterOptions
+from matilda.data.options import CloisterOptions
 from matilda.stage import Stage
 
 
@@ -88,13 +88,11 @@ class Cloister(Stage[
 
         return (CloisterDataChanged(), CloisterOut(z_edge=z_edge, z_ecorr=z_ecorr))
 
-
     """
     % =========================================================================
     % SUBFUNCTIONS
     % =========================================================================
     """
-
 
     def compute_correlation(self) -> NDArray[np.double]:
         """Calculate the Pearson correlation coefficient for the dataset.
@@ -115,7 +113,13 @@ class Cloister(Stage[
                     rho[i, j] = 0
                     pval[i, j] = 1
 
-        rho[pval > self.opts.p_val] = 0
+        # Create a boolean mask where calculated pval exceeds specified p-value
+        # threshold from the option.
+        insignificant_pvals = pval > self.opts.p_val
+
+        # Set the correlation coefficients to zero where correlations are not
+        # statistically significant
+        rho[insignificant_pvals] = 0
 
         return rho
 
@@ -179,20 +183,23 @@ class Cloister(Stage[
         remove = np.zeros(ncomb, dtype=bool)
 
         for i in range(ncomb):
+            # Convert the binary indices to flat indices for the boundary selection
             ind = np.ravel_multi_index(
                 (idx[i], np.arange(self.nfeats)),
                 (2, self.nfeats),
                 order="F",
             )
+            # Select the boundary points corresponding to the flat indices
             x_edge[i, :] = x_bnds.T.flatten()[ind]
             for j in range(self.nfeats):
                 for k in range(j + 1, self.nfeats):
                     # Check for valid points give the correlation trend
                     if (
-                        (rho[j, k] > self.opts.c_thres
-                        and np.sign(x_edge[i, j]) != np.sign(x_edge[i, k]))
-                        or (rho[j, k] < -self.opts.c_thres
-                        and np.sign(x_edge[i, j]) == np.sign(x_edge[i, k]))
+                        rho[j, k] > self.opts.c_thres
+                        and np.sign(x_edge[i, j]) != np.sign(x_edge[i, k])
+                    ) or (
+                        rho[j, k] < -self.opts.c_thres
+                        and np.sign(x_edge[i, j]) == np.sign(x_edge[i, k])
                     ):
                         remove[i] = True
                     if remove[i]:
