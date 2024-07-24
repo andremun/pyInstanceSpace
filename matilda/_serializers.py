@@ -554,8 +554,8 @@ def _draw_good_bad_footprint(
     upper_bound = np.ceil(np.max(z))
     lower_bound = np.floor(np.min(z))
 
-    orange = (1.0, 0.6471, 0.0, 1.)
-    blue = (0.0, 0.0, 1.0, 1.)
+    orange = (1.0, 0.6471, 0.0, 1.0)
+    blue = (0.0, 0.0, 1.0, 1.0)
 
     labels = ["GOOD", "BAD"]
 
@@ -588,7 +588,6 @@ def _draw_good_bad_footprint(
     fig.savefig(output)
 
 
-
 def _draw_footprint(
     ax: Axes,
     footprint: Any,
@@ -608,8 +607,8 @@ def _draw_binary_performance(
     upper_bound = np.ceil(np.max(z))
     lower_bound = np.floor(np.min(z))
 
-    orange = (1.0, 0.6471, 0.0, 1.)
-    blue = (0.0, 0.0, 1.0, 1.)
+    orange = (1.0, 0.6471, 0.0, 1.0)
+    blue = (0.0, 0.0, 1.0, 1.0)
 
     labels = ["GOOD", "BAD"]
 
