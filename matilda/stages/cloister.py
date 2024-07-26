@@ -6,6 +6,8 @@ correlation between the features. The function then uses these edges to construc
 a convex hull, providing a boundary estimate for the dataset.
 """
 
+from typing import Any
+
 import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial import ConvexHull, QhullError
@@ -16,13 +18,14 @@ from matilda.data.options import CloisterOptions
 from matilda.stage import Stage
 
 
-class Cloister(Stage[
-    NDArray[np.double],
-    NDArray[np.double],
-    CloisterOptions,
-
-    tuple[CloisterDataChanged, CloisterOut],
-]):
+class Cloister(
+    Stage[
+        NDArray[np.double],
+        NDArray[np.double],
+        CloisterOptions,
+        tuple[CloisterDataChanged, CloisterOut],
+    ],
+):
     """See file docstring."""
 
     x: NDArray[np.double]
@@ -48,6 +51,10 @@ class Cloister(Stage[
         self.a = a
         self.opts = opts
         self.nfeats = x.shape[1]
+
+    @staticmethod
+    def _inputs() -> list[type[Any]]:
+        return [NDArray[np.double], NDArray[np.double], CloisterOptions]
 
     @staticmethod
     def run(
