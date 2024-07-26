@@ -12,7 +12,8 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
-from scipy.optimize import fmin_l_bfgs_b, minimize
+from scipy.optimize import minimize
+from scipy.stats import pearsonr
 from scipy.linalg import eig
 from numpy.random import default_rng
 from typing import List
@@ -27,7 +28,7 @@ class Pilot:
     def __init__(self):
         pass
 
-    def error_function(self, alpha: NDArray[np.float64], x_bar: NDArray[np.float64], n: int, m: int) -> float:
+    def error_function(alpha: NDArray[np.float64], x_bar: NDArray[np.float64], n: int, m: int) -> float:
         """
         Error function used for numerical optimization in the PILOT algorithm.
         
@@ -69,22 +70,25 @@ class Pilot:
         """
 
         n = x.shape[1]
-        x_bar = np.hstack([x, y])
+        x_bar = np.concatenate((x, y), axis=1)
         m = x_bar.shape[1]
-        hd = pdist(x.T)
+        hd = pdist(x).T
+        print(hd)
 
         if opts.analytic:
             print("Solving analytically...")
-            x_bar_t = x_bar.T
-            covariance_matrix = x_bar_t @ x_bar_t.T
+            x_bar = x_bar.T
+            x = x.T
+            covariance_matrix = x_bar @ x_bar.T
             eigenvalues, eigenvectors = eig(covariance_matrix)
             indices = np.argsort(-np.abs(eigenvalues))
+            indices = indices[::-1]
             v = eigenvectors[:, indices[:2]]
 
             out_b = v[:n, :]
             out_c = v[n:, :].T
             x_r = np.linalg.pinv(x @ x.T)
-            out_a = v.T @ x_bar_t @ x_r
+            out_a = v.T @ x_bar @ x_r
             out_z = out_a @ x
 
             # Correct dimensions for x_hat computation
@@ -106,37 +110,56 @@ class Pilot:
                     np.random.seed(0)
                     x0 = 2 * np.random.rand(2 * m + 2 * n, opts.n_tries) - 1
                 
-                results = [minimize(lambda a: Pilot.error_function(Pilot, a, x_bar, n, m), x0[:, i], method='BFGS') for i in range(x0.shape[1])]
-                alphas = np.array([res.x for res in results])
-                eoptim = np.array([res.fun for res in results])
-                perf = np.array([np.corrcoef(hd, pdist(x @ res.x[:2 * n].reshape(2, n)))[0, 1] for res in results])
+                alpha = np.zeros((2 * m + 2 * n, opts.n_tries))
+                eoptim = np.zeros(opts.n_tries)
+                perf = np.zeros(opts.n_tries)
 
-                best_index = np.argmax(perf)
-                alpha = alphas[:, best_index]
+                for i in range(opts.n_tries):
+                    initial_guess = x0[:, i]
+                    result = minimize(Pilot.error_function, initial_guess, args=(x_bar, n, m), method='BFGS', options={'disp': False})
+                    alpha[:, i] = result.x
+                    eoptim[i] = result.fun
+
+                    aux = alpha[:, i]
+                    # print(aux)
+                    A = aux[0:2*n].reshape(2, n)
+                    Z = np.dot(x, A.T)
+                    # norm_z = (Z - Z.mean(axis=0))/Z.std(axis=0)
+                    # norm_hd = (hd - hd.mean(axis=0))/hd.std(axis=0)
+                    # perf[i] = (np.dot(norm_hd.T, norm_z)/norm_hd.shape[0])[0]
+                    # perf[i] = np.corrcoef(np.hstack((hd,pdist(Z).T)), rowvar=False)[0,1:]
+
+                    perf[i], _ = pearsonr(hd, pdist(Z))
+
+
+                    idx = np.argmax(perf)
+                    print(f'Pilot has completed trial {i + 1}')            
+                
             
-            out_a = alpha[:2 * n].reshape(2, n)
+            out_a = alpha[:2 * n, idx].reshape(2, n)
             out_z = x @ out_a.T
-            b = alpha[2 * n:].reshape(m, 2)
+            b = alpha[2 * n:, idx].reshape(m, 2)
 
-            x_hat = out_z.T @ np.vstack([out_b, out_c])
-            x_hat = x_hat.T
+            x_hat = out_z @ b.T
 
-
+            out_c = b[n+1:m, :].T
             out_b = b[:n, :]
-            out_c = b[n:, :].T
             error = np.sum((x_bar - x_hat)**2)
-            r2 = (np.diag(np.corrcoef(x_bar, x_hat, rowvar=False)[:m, m:]) ** 2).astype(np.float64)
+            r2 = np.diag(np.corrcoef(x_bar, x_hat) ** 2)
 
         # Ensure r2 is of floating type
         if r2.dtype != np.float64:
             r2 = r2.astype(np.float64)
 
-        summary = pd.DataFrame(
-            data=np.vstack([["Z_1", "Z_2"], np.round(out_a, 4)]),
-            columns=["Feature"] + feat_labels
-        )
+        data = np.round(out_a, 4)
+        row_labels = ['Z_{1}','Z_{2}']
+        summary = pd.DataFrame(index=[None] + row_labels, columns=[None] + feat_labels)
 
-        pout = PilotOut(X0=x0, alpha=alpha, eoptim=eoptim, perf=perf, a=out_a, z=out_z, c=out_c, b=out_b, error=error, r2=r2, summary=summary)
+        summary.iloc[1:, 0] = row_labels
+        summary.iloc[0, 1:] = feat_labels
+        summary.iloc[1:, 1:] = data
+
+        pout = PilotOut(X0=x0, alpha=alpha, eoptim=[eoptim], perf=[perf], a=out_a, z=out_z, c=out_c, b=out_b, error=error, r2=r2, summary=summary)
         pda = PilotDataChanged()
 
         return [pout, pda]
