@@ -87,16 +87,21 @@ class Pilot:
 
             D, V = la.eig(covariance_matrix)
 
-            print(V.T)
-
 
             indices = np.argsort(np.abs(D))
             indices = indices[::-1]
-            v = V[:, indices[:2]]
+            v = -1*V[:, indices[:2]]
 
             out_b = v[:n, :]
+
             out_c = v[n:, :].T
-            x_r = np.linalg.pinv(x @ x.T)
+
+            x_T = x.T
+            xx_T = np.dot(x, x.T)
+            xx_T_inv = np.linalg.inv(xx_T)
+
+            x_r = np.dot(x_T, xx_T_inv)
+
             out_a = v.T @ x_bar @ x_r
             out_z = out_a @ x
 
