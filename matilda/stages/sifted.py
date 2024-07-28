@@ -8,15 +8,74 @@ The SIFTED function performs the following steps:
     model performance.
 """
 
+from pathlib import Path
+
 import numpy as np
 from numpy.typing import NDArray
+from scipy.stats import pearsonr
 
 from matilda.data.model import SiftedDataChanged, SiftedOut
 from matilda.data.options import SiftedOptions
 
+script_dir = Path(__file__).parent
+
+class NotEnoughFeatureError(Exception):
+    """Raised when there is not enough feature to continue feature selection."""
+
+    def __init__(self, msg: str) -> None:
+        """Initialise the NotEnoughFeatureError.
+
+        Args:
+            msg (str): error message to be displayed.
+        """
+        super().__init__(msg)
+
 
 class Sifted:
     """See file docstring."""
+
+    MIN_FEAT_REQUIRED: int = 3
+    PVAL_THRESHOLD = 0.05
+
+    x: NDArray[np.double]
+    y: NDArray[np.double]
+    y_bin: NDArray[np.bool_]
+    opts: SiftedOptions
+
+    rho: NDArray[np.double] | None
+    pval: NDArray[np.double] | None
+    selvars: NDArray[np.intc] | None
+    #eva: ___ | None
+    clust: NDArray[np.bool_] | None
+    ooberr: NDArray[np.double] | None
+
+    def __init__(
+        self,
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        opts: SiftedOptions,
+    ) -> None:
+        """Initialize the Sifted stage.
+
+        Args
+        ----
+            x (NDarray): The feature matrix (instances x features) to process.
+            y (NDArray): The algorithm matrix (instances x algorithm performances).
+            y_bin (NDArray): Binary labels for algorithm perfromance from prelim.
+            opts (SiftedOptions): Sifted options.
+        """
+        self.x = x
+        self.y = y
+        self.y_bin = y_bin
+        self.opts = opts
+
+        self.rho = None
+        self.pval = None
+        self.selvars = None
+        self.eva = None
+        self.clust = None
+        self.ooberr = None
 
     @staticmethod
     def run(
@@ -39,8 +98,30 @@ class Sifted:
             A tuple containing the processed feature matrix and
             SiftedOut
         """
-        # TODO: rewrite SIFTED logic in python
-        raise NotImplementedError
+        # TODO: Multiprocessing setup
+
+        sifted = Sifted(x=x, y=y, y_bin=y_bin, opts=opts)
+
+        nfeats = x.shape[1]
+
+        if nfeats <= 1:
+            raise NotEnoughFeatureError(
+                "-> There is only 1 feature. Stopping space construction.",
+            )
+
+        if nfeats <= Sifted.MIN_FEAT_REQUIRED:
+            print(
+                "-> There are 3 or less features to do selection. \
+                Skipping feature selection.",
+            )
+            sifted.selvars = np.arange(nfeats)
+            return sifted.get_output()
+
+        x_aux = sifted.select_features_by_performance()
+
+        np.savetxt(script_dir / "tmp_data/clustering_output/Xaux.csv", x_aux, delimiter=",")
+
+        return sifted.get_output()
 
     @staticmethod
     def cost_fcn(
@@ -100,3 +181,117 @@ class Sifted:
             An array representing the fitness score for each instance.
         """
         raise NotImplementedError
+
+    def compute_correlation(self) -> tuple[NDArray[np.double], NDArray[np.double]]:
+        """Calculate the Pearson correlation coefficient for the dataset by row.
+
+        Returns:
+        -------
+            tuple(NDArray[np.double], NDArray[np.double]: rho and p value calculated
+                by Pearson correlation.
+        """
+        rows = self.x.shape[1]
+        cols = self.y.shape[1]
+
+        rho = np.zeros((rows, cols))
+        pval = np.zeros((rows, cols))
+
+        for i in range(rows):
+            for j in range(cols):
+                x_col = self.x[:, i]
+                y_col = self.y[:, j]
+
+                valid_indices = ~np.isnan(x_col) & ~np.isnan(y_col)
+
+                if np.any(valid_indices):
+                    rho[i, j], pval[i, j] = pearsonr(
+                        x_col[valid_indices],
+                        y_col[valid_indices],
+                    )
+                else:
+                    rho[i, j], pval[i,j] = np.nan, np.nan
+
+        return (rho, pval)
+
+    def select_features_by_performance(self) -> NDArray[np.double]:
+        """Select features based on correlation with performance.
+
+        Returns
+        -------
+            NDArray[np.double]: Auxillary matrix of x which contains features selected
+                based on correlation with performance.
+        """
+        print("-> Selecting features based on correlation with performance.")
+
+        self.rho, self.pval = self.compute_correlation()
+
+        insignificant_pval = self.pval > Sifted.PVAL_THRESHOLD
+
+        rho = self.rho
+        rho[np.isnan(self.rho) | insignificant_pval] = 0
+        rho = np.abs(rho)
+        row = np.argsort(-rho, axis=0)
+        sorted_rho = np.take_along_axis(rho, row, axis=0)
+
+        np.savetxt(script_dir / "tmp_data/clustering_output/rho.csv", self.rho, delimiter=",")
+        np.savetxt(script_dir / "tmp_data/clustering_output/rho_sorted.csv", sorted_rho, delimiter=",")
+
+        nfeats = self.x.shape[1]
+        selvars = np.zeros(nfeats, dtype=bool)
+
+        # Always take the most correlated feature for each algorithm
+        selvars[np.unique(row[0, :])] = True
+
+        # Now take any feature that has correlation at least equal to opts.rho
+        for i in range(nfeats):
+            selvars[np.unique(row[i, rho[i, :] >= self.opts.rho])] = True
+
+        self.selvars = np.where(selvars)[0]
+
+        return self.x[:,self.selvars]
+
+    def select_features_by_clustering(self, x_aux: NDArray[np.double]) -> None:
+        raise NotImplementedError
+
+    def cluster_dataset(self, x_aux: NDArray[np.double]) -> None:
+        raise NotImplementedError
+
+    def find_all_combination(self) -> None:
+        raise NotImplementedError
+
+    def find_best_combination(self, x_aux: NDArray[np.double]) -> None:
+        raise NotImplementedError
+
+    def get_output(self) -> tuple[SiftedDataChanged, SiftedOut]:
+        """Generate outputs of Sifted stage.
+
+        Returns
+        -------
+            tuple[SiftedDataChanged, SiftedOut]: SiftedDataChanged contains data that
+                is changed during the Sifted stage and SiftedOut contains data generated
+                from Sifted stage.
+        """
+        data_changed = SiftedDataChanged(x=self.x)
+        output = SiftedOut(
+            rho=self.rho,
+            pval=self.pval,
+            selvars=self.selvars,
+            #eva=self.eva,
+            clust=self.clust,
+            ooberr=self.ooberr,
+        )
+        return (data_changed, output)
+
+
+if __name__ == "__main__":
+    csv_path_x = script_dir / "tmp_data/clustering/0-input_X.csv"
+    csv_path_y = script_dir / "tmp_data/clustering/0-input_Y.csv"
+    csv_path_ybin = script_dir / "tmp_data/clustering/0-input_Ybin.csv"
+
+    input_x = np.genfromtxt(csv_path_x, delimiter=",")
+    input_y = np.genfromtxt(csv_path_y, delimiter=",")
+    input_ybin = np.genfromtxt(csv_path_ybin, delimiter=",")
+
+    opts = SiftedOptions.default()
+
+    data_change, sifted_output = Sifted.run(input_x, input_y, input_ybin, opts)
