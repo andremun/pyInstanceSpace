@@ -125,21 +125,38 @@ class PrelimDataChanged:
 class SiftedOut:
     """Results of the sifting process in the data analysis pipeline."""
 
-    flag: int  # not sure datatype, confirm it later
-    rho: np.double
-    k: int
-    n_trees: int
-    max_lter: int
-    replicates: int
+    rho: NDArray[np.double] | None
+    pval: NDArray[np.double] | None
+    selvars: NDArray[np.intc] | None
+    #eva: ___ | None
+    clust: NDArray[np.bool_] | None
+    ooberr: NDArray[np.double] | None
 
 
 @dataclass(frozen=True)
 class SiftedDataChanged:
     """The fields of Data that the Sifted stage changes."""
 
+    x: NDArray[np.double]
+
     def merge_with(self, data: Data) -> Data:
         """Merge changed fields of data with a Data object."""
-        raise NotImplementedError
+        return Data(
+            inst_labels=data.inst_labels,
+            feat_labels=data.feat_labels,
+            algo_labels=data.algo_labels,
+            uniformity=data.uniformity,
+            x=self.x,
+            x_raw=data.x_raw,
+            y=data.y,
+            y_raw=data.y_raw,
+            y_bin=data.y_bin,
+            y_best=data.y_best,
+            p=data.p,
+            num_good_algos=data.num_good_algos,
+            beta=data.beta,
+            s=data.s,
+        )
 
 
 @dataclass(frozen=True)
