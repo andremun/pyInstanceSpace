@@ -201,14 +201,17 @@ class Sifted:
                 x_col = self.x[:, i]
                 y_col = self.y[:, j]
 
+                # Filter out NaN values of pairs
                 valid_indices = ~np.isnan(x_col) & ~np.isnan(y_col)
 
                 if np.any(valid_indices):
+                    # Compute Pearson correlation for valid pairs
                     rho[i, j], pval[i, j] = pearsonr(
                         x_col[valid_indices],
                         y_col[valid_indices],
                     )
                 else:
+                    # Set value to Nan if there is no valid pairs
                     rho[i, j], pval[i,j] = np.nan, np.nan
 
         return (rho, pval)
@@ -225,11 +228,15 @@ class Sifted:
 
         self.rho, self.pval = self.compute_correlation()
 
+        # Create a boolean mask where calculated pval exceeds threshold
         insignificant_pval = self.pval > Sifted.PVAL_THRESHOLD
 
+        # Filter out insignificant correlations and take absolute values of correlations
         rho = self.rho
         rho[np.isnan(self.rho) | insignificant_pval] = 0
         rho = np.abs(rho)
+
+        # Sort the correlations in descending order
         row = np.argsort(-rho, axis=0)
         sorted_rho = np.take_along_axis(rho, row, axis=0)
 
@@ -246,6 +253,7 @@ class Sifted:
         for i in range(nfeats):
             selvars[np.unique(row[i, rho[i, :] >= self.opts.rho])] = True
 
+        # Get indices of selected features
         self.selvars = np.where(selvars)[0]
 
         return self.x[:,self.selvars]
