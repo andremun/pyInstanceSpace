@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
-from scipy.optimize import minimize
+import scipy.optimize as optim
 from scipy.stats import pearsonr
 from scipy.linalg import eig
 from numpy.random import default_rng
@@ -127,14 +127,21 @@ class Pilot:
 
                 for i in range(opts.n_tries):
                     initial_guess = x0[:, i]
-                    result = minimize(Pilot.error_function, initial_guess,
-                                      args=(x_bar, n, m), method="BFGS",
-                                      options={"disp": False})
-                    alpha[:, i] = result.x
-                    eoptim[i] = result.fun
+                    result = optim.fmin_bfgs(Pilot.error_function, initial_guess,
+                                            args=(x_bar, n, m), full_output=True,
+                                            disp=False)
+                    print(len(result))
+                    (xopts, fopts, _, _, _, _, _) = result
+                    alpha[:, i] = xopts
+                    eoptim[i] = fopts
+
+                    print(Pilot.error_function(xopts,x_bar,n,m))
+
+
                     aux = alpha[:, i]
                     A = aux[0:2*n].reshape(2, n)
                     Z = np.dot(x, A.T)
+
                     perf[i], _ = pearsonr(hd, pdist(Z))
                     idx = np.argmax(perf)
                     print(f"Pilot has completed trial {i + 1}")
