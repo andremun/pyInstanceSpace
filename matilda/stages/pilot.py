@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
 import scipy.optimize as optim
 from scipy.stats import pearsonr
-from scipy.linalg import eig
+import scipy.linalg as la
 from numpy.random import default_rng
 from typing import List
 
@@ -73,17 +73,26 @@ class Pilot:
         x_bar = np.concatenate((x, y), axis=1)
         m = x_bar.shape[1]
         hd = pdist(x).T
-        print(hd)
 
         if opts.analytic:
             print("Solving analytically...")
             x_bar = x_bar.T
+            print(x_bar[0, 0])
+
             x = x.T
-            covariance_matrix = x_bar @ x_bar.T
-            eigenvalues, eigenvectors = eig(covariance_matrix)
-            indices = np.argsort(-np.abs(eigenvalues))
+            print(x[0, 0])
+
+            covariance_matrix = np.dot(x_bar, x_bar.T)
+            print(covariance_matrix[0, 0])
+
+            D, V = la.eig(covariance_matrix)
+
+            print(V.T)
+
+
+            indices = np.argsort(np.abs(D))
             indices = indices[::-1]
-            v = eigenvectors[:, indices[:2]]
+            v = V[:, indices[:2]]
 
             out_b = v[:n, :]
             out_c = v[n:, :].T
