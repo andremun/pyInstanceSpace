@@ -31,27 +31,27 @@ class Pilot:
     def error_function(alpha: NDArray[np.float64], x_bar: NDArray[np.float64], n: int, m: int) -> float:
         """
         Error function used for numerical optimization in the PILOT algorithm.
-        
+
         Args:
         alpha : NDArray[np.float64] -- Flattened parameter vector containing both A (2*n size)
                                     and B (m*2 size) matrices.
         x_bar : NDArray[np.float64] -- Combined matrix of X and Y.
         n : int -- Number of original features.
         m : int -- Total number of features including appended Y.
-        
+
         Returns:
         float -- The mean squared error between x_bar and its low-dimensional approximation.
         """
         A = alpha[:2 * n].reshape(2, n)
         B = alpha[2 * n:].reshape(m, 2)
-        
+
         # Compute the approximation of x_bar
         x_bar_approx = x_bar[:, :n].T
         X_bar_approx = (B @ A @ x_bar_approx).T
-        
+
         # Calculate the mean squared error
         mse = np.nanmean(np.nanmean((x_bar - X_bar_approx) ** 2, axis=1), axis=0)
-        
+
         return mse
 
     @staticmethod
@@ -98,56 +98,56 @@ class Pilot:
 
             error = np.sum((x_bar - x_hat)**2)
             r2 = np.diag(np.corrcoef(x_bar, x_hat, rowvar=False)[:m, m:])**2
-        
+
+        # Numerical solution
         else:
-            print("Solving numerically...")
-            if hasattr(opts, 'alpha') and opts.alpha is not None and opts.alpha.shape == (2 * m + 2 * n,):
+            if (hasattr(opts, "alpha") and opts.alpha is not None
+                and opts.alpha.shape == (2 * m + 2 * n, 1)):
+                print(" -> PILOT is using a pre-calculated solution.")
                 alpha = opts.alpha
             else:
-                if hasattr(opts, 'x0') and opts.x0 is not None:
+                if hasattr(opts, "x0") and opts.x0 is not None:
+                    print("  -> PILOT is using a user defined starting points"
+                        " for BFGS.")
                     x0 = opts.x0
                 else:
-                    np.random.seed(0)
-                    x0 = 2 * np.random.rand(2 * m + 2 * n, opts.n_tries) - 1
-                
+                    print("  -> PILOT is using random starting points for BFGS.")
+                    rng = np.random.default_rng(0)
+                    x0 = 2 * rng.random((2 * m + 2 * n, opts.n_tries)) - 1
+
                 alpha = np.zeros((2 * m + 2 * n, opts.n_tries))
                 eoptim = np.zeros(opts.n_tries)
                 perf = np.zeros(opts.n_tries)
 
+                print("-------------------------------------------------------------------------")
+                print("  -> PILOT is solving numerically the projection problem.")
+                print("  -> This may take a while. Trials will not be"
+                      "run sequentially.")
+                print("-------------------------------------------------------------------------")
+
                 for i in range(opts.n_tries):
                     initial_guess = x0[:, i]
-                    result = minimize(Pilot.error_function, initial_guess, args=(x_bar, n, m), method='BFGS', options={'disp': False})
+                    result = minimize(Pilot.error_function, initial_guess,
+                                      args=(x_bar, n, m), method="BFGS",
+                                      options={"disp": False})
                     alpha[:, i] = result.x
                     eoptim[i] = result.fun
-
                     aux = alpha[:, i]
-                    # print(aux)
                     A = aux[0:2*n].reshape(2, n)
                     Z = np.dot(x, A.T)
-                    # norm_z = (Z - Z.mean(axis=0))/Z.std(axis=0)
-                    # norm_hd = (hd - hd.mean(axis=0))/hd.std(axis=0)
-                    # perf[i] = (np.dot(norm_hd.T, norm_z)/norm_hd.shape[0])[0]
-                    # perf[i] = np.corrcoef(np.hstack((hd,pdist(Z).T)), rowvar=False)[0,1:]
-
                     perf[i], _ = pearsonr(hd, pdist(Z))
-
-
                     idx = np.argmax(perf)
-                    print(f'Pilot has completed trial {i + 1}')            
-                
-            
+                    print(f"Pilot has completed trial {i + 1}")
+
             out_a = alpha[:2 * n, idx].reshape(2, n)
             out_z = x @ out_a.T
             b = alpha[2 * n:, idx].reshape(m, 2)
-
             x_hat = out_z @ b.T
-
             out_c = b[n+1:m, :].T
             out_b = b[:n, :]
             error = np.sum((x_bar - x_hat)**2)
             r2 = np.diag(np.corrcoef(x_bar, x_hat) ** 2)
 
-        # Ensure r2 is of floating type
         if r2.dtype != np.float64:
             r2 = r2.astype(np.float64)
 
@@ -163,5 +163,3 @@ class Pilot:
         pda = PilotDataChanged()
 
         return [pout, pda]
-
-    

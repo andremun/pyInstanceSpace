@@ -14,53 +14,52 @@ Tests include:
 """
 from pathlib import Path
 
-import pytest
 import numpy as np
 from scipy.io import loadmat
+
 from matilda.data.option import PilotOptions
-from matilda.data.model import PilotOut
 from matilda.stages.pilot import Pilot
 
 script_dir = Path(__file__).parent
 
-class SampleData():
+class SampleData:
     def __init__(self):
-        fp_sampledata = script_dir / 'test_data/pilot/input/test_analytic.mat'
+        fp_sampledata = script_dir / "test_data/pilot/input/test_analytic.mat"
         data = loadmat(fp_sampledata)
-        self.X_sample = data['X_test']
-        self.Y_sample = data['Y_test']
-        feat_labels_sample = data['featlabels'][0]
+        self.X_sample = data["X_test"]
+        self.Y_sample = data["Y_test"]
+        feat_labels_sample = data["featlabels"][0]
         self.feat_labels_sample = [str(label[0]) for label in feat_labels_sample]
-        analytic = data['optsPilot'][0,0]['analytic'][0,0]
-        n_tries = int(data['optsPilot'][0,0]['ntries'][0,0])
+        analytic = data["optsPilot"][0,0]["analytic"][0,0]
+        n_tries = int(data["optsPilot"][0,0]["ntries"][0,0])
         self.opts_sample = PilotOptions(analytic, n_tries)
 
-class SampleDataNum():
+class SampleDataNum:
     def __init__(self):
-        fp_sampledata = script_dir / 'test_data/pilot/input/test_numerical.mat'
+        fp_sampledata = script_dir / "test_data/pilot/input/test_numerical.mat"
         data = loadmat(fp_sampledata)
-        self.X_sample = data['X_test']
-        self.Y_sample = data['Y_test']
-        feat_labels = data['featlabels'][0]
+        self.X_sample = data["X_test"]
+        self.Y_sample = data["Y_test"]
+        feat_labels = data["featlabels"][0]
         self.feat_labels_sample = [str(label[0]) for label in feat_labels]
-        analytic = data['optsPilot'][0,0]['analytic'][0,0]
-        n_tries = int(data['optsPilot'][0,0]['ntries'][0,0])
+        analytic = data["optsPilot"][0,0]["analytic"][0,0]
+        n_tries = int(data["optsPilot"][0,0]["ntries"][0,0])
         self.opts_sample = PilotOptions(analytic, n_tries)
-        
 
-class MatlabResults():
+
+class MatlabResults:
     def __init__(self):
-        fp_outdata = script_dir / 'test_data/pilot/output/matlab_results_ana.mat'
+        fp_outdata = script_dir / "test_data/pilot/output/matlab_results_ana.mat"
         self.data = loadmat(fp_outdata)
 
-class MatlabResultsNum():
+class MatlabResultsNum:
     def __init__(self):
-        fp_outdata = script_dir / 'test_data/pilot/output/matlab_results_num.mat'
+        fp_outdata = script_dir / "test_data/pilot/output/matlab_results_num.mat"
         self.data = loadmat(fp_outdata)
 
 # def test_error_function():
 #     sd = SampleDataNum()
-    
+
 #     mtr = MatlabResultsNum()
 
 #     X_sample = sd.X_sample
@@ -112,12 +111,12 @@ def test_run_numerical():
     pilot = Pilot()
     result = pilot.run(X_sample, Y_sample, feat_labels_sample, opts)[0]
 
-    np.testing.assert_almost_equal(result.eoptim, mtr.data['eoptim'], decimal=6)
-    np.testing.assert_almost_equal(result.r2, mtr.data['R2'], decimal=6)
-    np.testing.assert_almost_equal(result.a, mtr.data['A'], decimal=6)
-    np.testing.assert_almost_equal(result.z, mtr.data['Z'], decimal=6)
-    np.testing.assert_almost_equal(result.b, mtr.data['B'], decimal=6)
-    np.testing.assert_almost_equal(result.c, mtr.data['C'], decimal=6)
-    np.testing.assert_almost_equal(result.perf, mtr.data['perf'], decimal=6)
-    np.testing.assert_almost_equal(result.error, mtr.data['error'], decimal=6)
-    
+    np.testing.assert_almost_equal(result.eoptim, mtr.data["eoptim"], decimal=6)
+    np.testing.assert_almost_equal(result.r2, mtr.data["R2"], decimal=6)
+    np.testing.assert_almost_equal(result.a, mtr.data["A"], decimal=6)
+    np.testing.assert_almost_equal(result.z, mtr.data["Z"], decimal=6)
+    np.testing.assert_almost_equal(result.b, mtr.data["B"], decimal=6)
+    np.testing.assert_almost_equal(result.c, mtr.data["C"], decimal=6)
+    np.testing.assert_almost_equal(result.perf, mtr.data["perf"], decimal=6)
+    np.testing.assert_almost_equal(result.error, mtr.data["error"], decimal=6)
+

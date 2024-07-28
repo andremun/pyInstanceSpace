@@ -1,5 +1,4 @@
-"""
-PILOT: Obtaining a two-dimensional projection.
+"""PILOT: Obtaining a two-dimensional projection.
 
 Projecting Instances with Linearly Observable Trends (PILOT)
 is a dimensionality reduction algorithm which aims to facilitate
@@ -11,9 +10,9 @@ from one edge of the space to the opposite.
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.spatial.distance import pdist, squareform
-from scipy.optimize import minimize
 from scipy.linalg import eig
+from scipy.optimize import minimize
+from scipy.spatial.distance import pdist
 
 from matilda.data.model import PilotOut
 from matilda.data.option import PilotOptions
@@ -25,8 +24,7 @@ def pilot(
     feat_labels: list[str],
     opts: PilotOptions,
 ) -> PilotOut:
-    """
-    Produce the final subset of features using a two-dimensional projection
+    """Produce the final subset of features using a two-dimensional projection
     to uncover linear trends in the data.
 
     Args:
@@ -38,9 +36,9 @@ def pilot(
                            for the numerical solution.
 
     Returns:
+    -------
     PilotOut -- A custom data class instance containing the output of the PILOT algorithm.
     """
-
     n = x.shape[1]
     x_bar = np.hstack([x, y])
     m = x_bar.shape[1]
@@ -63,25 +61,25 @@ def pilot(
 
         error = np.sum((x_bar - x_hat)**2)
         r2 = np.diag(np.corrcoef(x_bar, x_hat, rowvar=False)[:m, m:])**2
-    
+
     else:
         print("Solving numerically...")
-        if hasattr(opts.pilot, 'alpha') and opts.pilot.alpha is not None and opts.pilot.alpha.shape == (2 * m + 2 * n,):
+        if hasattr(opts.pilot, "alpha") and opts.pilot.alpha is not None and opts.pilot.alpha.shape == (2 * m + 2 * n,):
             alpha = opts.pilot.alpha
         else:
-            if hasattr(opts.pilot, 'x0') and opts.pilot.x0 is not None:
+            if hasattr(opts.pilot, "x0") and opts.pilot.x0 is not None:
                 x0 = opts.pilot.x0
             else:
                 np.random.seed(0)
                 x0 = 2 * np.random(2 * m + 2 * n, opts.pilot.ntries) - 1
-            
-            results = [minimize(lambda a: error_function(a, x_bar, n, m), x0[:, i], method='BFGS') for i in range(x0.shape[1])]
+
+            results = [minimize(lambda a: error_function(a, x_bar, n, m), x0[:, i], method="BFGS") for i in range(x0.shape[1])]
             alphas = np.array([res.x for res in results])
             errors = np.array([res.fun for res in results])
 
             best_index = np.argmin(errors)
             alpha = alphas[:, best_index]
-        
+
         out_a = alpha[:2 * n].reshape(2, n)
         out_z = x @ out_a.T
         b = alpha[2 * n:].reshape(m, 2)
@@ -92,24 +90,23 @@ def pilot(
         error = np.sum((x_bar - x_hat)**2)
         r2 = np.diag(np.corrcoef(x_bar, x_hat, rowvar=False)[:m, m:]) ** 2
 
-    
+
     return PilotOut(A=out_a, B=out_b, C=out_c, Z=out_z, error=error, R2=r2)
 
 def error_function(alpha: NDArray[np.float64], x_bar: NDArray[np.float64], n: int, m: int) -> float:
-    """
-    Error function used for numerical optimization in the PILOT algorithm.
-    
+    """Error function used for numerical optimization in the PILOT algorithm.
+
     Args:
     alpha : NDArray[np.float64] -- Flattened parameter vector containing both A (2*n size)
                                    and B (m*2 size) matrices.
     x_bar : NDArray[np.float64] -- Combined matrix of X and Y.
     n : int -- Number of original features.
     m : int -- Total number of features including appended Y.
-    
+
     Returns:
+    -------
     float -- The mean squared error between x_bar and its low-dimensional approximation.
     """
-
     a = alpha[:2 * n].reshape(2, n)
     b = alpha[2 * n:].reshape(m, 2)
     x_bar_approx = b @ a @ x_bar[:, :n].T
