@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
-from scipy.optimize import minimize
+import scipy.optimize as optim
 from scipy.stats import pearsonr
 from scipy.linalg import eig
 from numpy.random import default_rng
@@ -107,7 +107,7 @@ class Pilot:
                 if hasattr(opts, 'x0') and opts.x0 is not None:
                     x0 = opts.x0
                 else:
-                    np.random.seed(0)
+                    # np.random.seed(0)
                     x0 = 2 * np.random.rand(2 * m + 2 * n, opts.n_tries) - 1
                 
                 alpha = np.zeros((2 * m + 2 * n, opts.n_tries))
@@ -116,9 +116,14 @@ class Pilot:
 
                 for i in range(opts.n_tries):
                     initial_guess = x0[:, i]
-                    result = minimize(Pilot.error_function, initial_guess, args=(x_bar, n, m), method='BFGS', options={'disp': False})
-                    alpha[:, i] = result.x
-                    eoptim[i] = result.fun
+                    result = optim.fmin_bfgs(Pilot.error_function, initial_guess, args=(x_bar, n, m), full_output=True, disp=False)
+                    print(len(result))
+                    (xopts, fopts, _, _, _, _, _) = result
+                    alpha[:, i] = xopts
+                    eoptim[i] = fopts
+
+                    print(Pilot.error_function(xopts,x_bar,n,m))
+
 
                     aux = alpha[:, i]
                     # print(aux)
@@ -127,8 +132,9 @@ class Pilot:
                     # norm_z = (Z - Z.mean(axis=0))/Z.std(axis=0)
                     # norm_hd = (hd - hd.mean(axis=0))/hd.std(axis=0)
                     # perf[i] = (np.dot(norm_hd.T, norm_z)/norm_hd.shape[0])[0]
+                    # print(hd, pdist(Z).T)
                     # perf[i] = np.corrcoef(np.hstack((hd,pdist(Z).T)), rowvar=False)[0,1:]
-
+                    # print(perf[i])
                     perf[i], _ = pearsonr(hd, pdist(Z))
 
 

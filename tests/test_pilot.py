@@ -46,7 +46,7 @@ class SampleDataNum():
         analytic = data['optsPilot'][0,0]['analytic'][0,0]
         n_tries = int(data['optsPilot'][0,0]['ntries'][0,0])
         self.opts_sample = PilotOptions(analytic, n_tries)
-        
+
 
 class MatlabResults():
     def __init__(self):
@@ -60,7 +60,7 @@ class MatlabResultsNum():
 
 # def test_error_function():
 #     sd = SampleDataNum()
-    
+
 #     mtr = MatlabResultsNum()
 
 #     X_sample = sd.X_sample
@@ -112,12 +112,13 @@ def test_run_numerical():
     pilot = Pilot()
     result = pilot.run(X_sample, Y_sample, feat_labels_sample, opts)[0]
 
+
     np.testing.assert_almost_equal(result.eoptim, mtr.data['eoptim'], decimal=6)
-    np.testing.assert_almost_equal(result.r2, mtr.data['R2'], decimal=6)
+    np.testing.assert_almost_equal(result.perf, mtr.data['perf'], decimal=1)
     np.testing.assert_almost_equal(result.a, mtr.data['A'], decimal=6)
     np.testing.assert_almost_equal(result.z, mtr.data['Z'], decimal=6)
     np.testing.assert_almost_equal(result.b, mtr.data['B'], decimal=6)
     np.testing.assert_almost_equal(result.c, mtr.data['C'], decimal=6)
-    np.testing.assert_almost_equal(result.perf, mtr.data['perf'], decimal=6)
+    np.testing.assert_almost_equal(result.r2, mtr.data['R2'], decimal=6)
     np.testing.assert_almost_equal(result.error, mtr.data['error'], decimal=6)
-    
+
