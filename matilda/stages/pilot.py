@@ -94,7 +94,8 @@ class Pilot:
 
             out_b = v[:n, :]
 
-            out_c = v[n:, :].T
+            out_c = v[n:m, :].T
+            print(out_c)
 
             x_T = x.T
             xx_T = np.dot(x, x.T)
@@ -106,12 +107,19 @@ class Pilot:
             out_z = out_a @ x
 
             # Correct dimensions for x_hat computation
-            x_hat = out_z.T @ np.vstack([out_b, out_c])
-            x_hat = x_hat.T
+            bz = np.dot(out_b, out_z)
+            cz = np.dot(out_c.T, out_z)
+            x_hat = np.vstack((bz, cz))
 
 
             error = np.sum((x_bar - x_hat)**2)
             r2 = np.diag(np.corrcoef(x_bar, x_hat, rowvar=False)[:m, m:])**2
+
+            # Following parameters are not generated in the matlab code when solving analytically
+            x0 = None
+            alpha = None
+            eoptim = None
+            perf = None
 
         # Numerical solution
         else:
@@ -176,9 +184,9 @@ class Pilot:
         row_labels = ['Z_{1}','Z_{2}']
         summary = pd.DataFrame(index=[None] + row_labels, columns=[None] + feat_labels)
 
-        summary.iloc[1:, 0] = row_labels
-        summary.iloc[0, 1:] = feat_labels
-        summary.iloc[1:, 1:] = data
+        # summary.iloc[1:, 0] = row_labels
+        # summary.iloc[0, 1:] = feat_labels
+        # summary.iloc[1:, 1:] = data
 
         pout = PilotOut(X0=x0, alpha=alpha, eoptim=[eoptim], perf=[perf], a=out_a, z=out_z, c=out_c, b=out_b, error=error, r2=r2, summary=summary)
         pda = PilotDataChanged()
