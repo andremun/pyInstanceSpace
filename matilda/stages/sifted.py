@@ -13,6 +13,8 @@ from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 from scipy.stats import pearsonr
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 
 from matilda.data.model import SiftedDataChanged, SiftedOut
 from matilda.data.options import SiftedOptions
@@ -118,6 +120,31 @@ class Sifted:
             return sifted.get_output()
 
         x_aux = sifted.select_features_by_performance()
+
+        nfeats = x_aux.shape[1]
+
+        if nfeats <= 1:
+            raise NotEnoughFeatureError(
+                "-> There is only 1 feature. Stopping space construction.",
+            )
+
+        if nfeats <= Sifted.MIN_FEAT_REQUIRED:
+            print(
+                "-> There are 3 or less features to do selection. \
+                    Skipping correlation clustering selection.",
+            )
+            sifted.x = x_aux
+            return sifted.get_output()
+
+        if nfeats <= opts.k:
+            print(
+                "-> There are less features than clusters. \
+                    Skipping correlation clustering selection.",
+            )
+            sifted.x =x_aux
+            return sifted.get_output()
+
+        sifted.select_features_by_clustering(x_aux)
 
         np.savetxt(script_dir / "tmp_data/clustering_output/Xaux.csv", x_aux, delimiter=",")
 
@@ -259,7 +286,33 @@ class Sifted:
         return self.x[:,self.selvars]
 
     def select_features_by_clustering(self, x_aux: NDArray[np.double]) -> None:
-        raise NotImplementedError
+        """Select features based on correlation clustering.
+
+        Args
+        ----
+            x_aux (NDArray[np.double]): feature matrix that contains values selected
+                based on correlation with performance.
+        """
+        print("-> Selecting features based on correlation clustering.")
+
+        rng = np.random.default_rng(seed=0)
+        min_clusters = 2
+        max_clusters = x_aux.shape[1]
+
+        silhouette_scores = {}
+
+        for n in range(min_clusters, max_clusters):
+            kmeans = KMeans(n_clusters=n, n_init="auto", random_state=rng.integers(1000))
+            cluster_labels = kmeans.fit_predict(x_aux.T)
+            # print(cluster_labels)
+            silhouette_scores[n] = silhouette_score(
+                x_aux.T,
+                cluster_labels,
+                metric="correlation",
+            )
+
+        print(silhouette_scores)
+
 
     def cluster_dataset(self, x_aux: NDArray[np.double]) -> None:
         raise NotImplementedError
