@@ -54,28 +54,6 @@ class MatlabResultsNum:
         fp_outdata = script_dir / "test_data/pilot/output/matlab_results_num.mat"
         self.data = loadmat(fp_outdata)
 
-# def test_error_function():
-#     sd = SampleDataNum()
-
-#     mtr = MatlabResultsNum()
-
-#     X_sample = sd.X_sample
-#     Y_sample = sd.Y_sample
-#     n = X_sample.shape[1]
-#     m = X_sample.shape[1] + Y_sample.shape[1]  # Total number of features including appended Y
-
-#     # alpha_sample = mtr.data['X0']
-#     alpha_sample = mtr.data['alpha'][:, 0]
-#     x_bar_sample = np.hstack([X_sample, Y_sample])
-#     n = X_sample.shape[1]
-#     m = x_bar_sample.shape[1]
-
-#     pilot = Pilot()
-#     error = pilot.error_function(alpha_sample, x_bar_sample, n, m)
-
-
-#     matlab_error = mtr.data['eoptim'][0, 0]
-#     assert (error == matlab_error)
 
 def test_run_analytic():
     sd = SampleData()
@@ -93,7 +71,6 @@ def test_run_analytic():
     np.testing.assert_almost_equal(result.c, mtr.data['C'], decimal=6)
     np.testing.assert_almost_equal(result.z, mtr.data['Z'], decimal=6)
     np.testing.assert_almost_equal(result.error, mtr.data['error'], decimal=6)
-    #np.testing.assert_almost_equal(result.r2, mtr.data['R2'], decimal=6)
 
 def test_run_numerical():
     sd = SampleDataNum()
@@ -109,11 +86,5 @@ def test_run_numerical():
 
 
     np.testing.assert_almost_equal(result.eoptim, mtr.data['eoptim'], decimal=6)
-    # np.testing.assert_almost_equal(result.perf, mtr.data['perf'], decimal=1)
-    # np.testing.assert_almost_equal(result.a, mtr.data['A'], decimal=6)
-    # np.testing.assert_almost_equal(result.z, mtr.data['Z'], decimal=6)
-    # np.testing.assert_almost_equal(result.b, mtr.data['B'], decimal=6)
-    # np.testing.assert_almost_equal(result.c, mtr.data['C'], decimal=6)
-    # np.testing.assert_almost_equal(result.r2, mtr.data['R2'], decimal=6)
-    # np.testing.assert_almost_equal(result.error, mtr.data['error'], decimal=6)
+    np.testing.assert_almost_equal(result.perf, mtr.data['perf'], decimal=1)
 

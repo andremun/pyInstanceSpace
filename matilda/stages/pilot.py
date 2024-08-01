@@ -77,31 +77,27 @@ class Pilot:
         if opts.analytic:
             print("Solving analytically...")
             x_bar = x_bar.T
-            print(x_bar[0, 0])
 
             x = x.T
-            print(x[0, 0])
 
             covariance_matrix = np.dot(x_bar, x_bar.T)
-            print(covariance_matrix[0, 0])
 
-            D, V = la.eig(covariance_matrix)
+            d, v = la.eig(covariance_matrix)
 
 
-            indices = np.argsort(np.abs(D))
+            indices = np.argsort(np.abs(d))
             indices = indices[::-1]
-            v = -1*V[:, indices[:2]]
+            v = -1*v[:, indices[:2]]
 
             out_b = v[:n, :]
 
             out_c = v[n:m, :].T
-            print(out_c)
 
-            x_T = x.T
-            xx_T = np.dot(x, x.T)
-            xx_T_inv = np.linalg.inv(xx_T)
+            x_transpose = x.T
+            xx_transpose = np.dot(x, x.T)
+            xx_transpose_inv = np.linalg.inv(xx_transpose)
 
-            x_r = np.dot(x_T, xx_T_inv)
+            x_r = np.dot(x_transpose, xx_transpose_inv)
 
             out_a = v.T @ x_bar @ x_r
             out_z = out_a @ x
@@ -111,9 +107,11 @@ class Pilot:
             cz = np.dot(out_c.T, out_z)
             x_hat = np.vstack((bz, cz))
 
+            out_z = out_z.T
+
 
             error = np.sum((x_bar - x_hat)**2)
-            r2 = np.diag(np.corrcoef(x_bar, x_hat, rowvar=False)[:m, m:])**2
+            r2 = np.diag(np.corrcoef(x_bar.T, x_hat.T, rowvar=False)[:m, m:])**2
 
             # Following parameters are not generated in the matlab code when solving analytically
             x0 = None
@@ -152,19 +150,16 @@ class Pilot:
                     result = optim.fmin_bfgs(Pilot.error_function, initial_guess,
                                             args=(x_bar, n, m), full_output=True,
                                             disp=False)
-                    print(len(result))
+                    
                     (xopts, fopts, _, _, _, _, _) = result
                     alpha[:, i] = xopts
                     eoptim[i] = fopts
 
-                    print(Pilot.error_function(xopts,x_bar,n,m))
-
-
                     aux = alpha[:, i]
-                    A = aux[0:2*n].reshape(2, n)
-                    Z = np.dot(x, A.T)
+                    a = aux[0:2*n].reshape(2, n)
+                    z = np.dot(x, a.T)
 
-                    perf[i], _ = pearsonr(hd, pdist(Z))
+                    perf[i], _ = pearsonr(hd, pdist(z))
                     idx = np.argmax(perf)
                     print(f"Pilot has completed trial {i + 1}")
 
