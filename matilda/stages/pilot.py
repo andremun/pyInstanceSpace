@@ -8,67 +8,74 @@ from one edge of the space to the opposite.
 
 """
 
+
 import numpy as np
 import pandas as pd
+import scipy.linalg as la
+import scipy.optimize as optim
 from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
-import scipy.optimize as optim
 from scipy.stats import pearsonr
-import scipy.linalg as la
-from numpy.random import default_rng
-from typing import List
 
 from matilda.data.model import PilotDataChanged, PilotOut
 from matilda.data.option import PilotOptions
 
 
 class Pilot:
-    """See file docstring."""
+    """See file docstring.
 
-    def __init__(self):
+    Class for projection of instances into a low-dimensional space
+    """
+
+    def __init__(self) -> None:
+        """Initialize the Pilot stage.
+
+        The Initialize function does nothing.
+        """
         pass
 
-    def error_function(alpha: NDArray[np.float64], x_bar: NDArray[np.float64], n: int, m: int) -> float:
-        """
-        Error function used for numerical optimization in the PILOT algorithm.
+
+    @staticmethod
+    def error_function(
+        alpha: NDArray[np.float64],
+        x_bar: NDArray[np.float64],
+        n: int, m: int) -> float:
+        """Error function used for numerical optimization in the PILOT algorithm.
 
         Args:
-        alpha : NDArray[np.float64] -- Flattened parameter vector containing both A (2*n size)
-                                    and B (m*2 size) matrices.
+        alpha : NDArray[np.float64] -- Flattened parameter vector containing
+                                        both A (2*n size)
+                                        and B (m*2 size) matrices.
         x_bar : NDArray[np.float64] -- Combined matrix of X and Y.
         n : int -- Number of original features.
         m : int -- Total number of features including appended Y.
 
         Returns:
-        float -- The mean squared error between x_bar and its low-dimensional approximation.
+        -------
+        float -- The mean squared error between x_bar and its
+                    low-dimensional approximation.
         """
-        A = alpha[:2 * n].reshape(2, n)
-        B = alpha[2 * n:].reshape(m, 2)
+        a = alpha[:2 * n].reshape(2, n)
+        b = alpha[2 * n:].reshape(m, 2)
 
         # Compute the approximation of x_bar
         x_bar_approx = x_bar[:, :n].T
-        X_bar_approx = (B @ A @ x_bar_approx).T
+        x_bar_approx = (b @ a @ x_bar_approx).T
 
-        # Calculate the mean squared error
-        mse = np.nanmean(np.nanmean((x_bar - X_bar_approx) ** 2, axis=1), axis=0)
-
-        return mse
+        return np.nanmean(np.nanmean((x_bar - x_bar_approx) ** 2, axis=1), axis=0)
 
     @staticmethod
-    def run(
-        x: NDArray[np.double],
-        y: NDArray[np.double],
-        feat_labels: list[str],
-        opts: PilotOptions,
+    def run( x: NDArray[np.double], y: NDArray[np.double], feat_labels: list[str],
+            opts: PilotOptions,
     ) -> tuple[PilotDataChanged, PilotOut]:
         """Produce the final subset of features.
 
         opts.pilot.analytic determines whether the analytic (set as TRUE) or the
         numerical (set as FALSE) solution to be adopted.
 
-        opts.pilot.n_tries number of iterations that the numerical solution is attempted.
+        opts.pilot.n_tries number of iterations that the numerical solution is
+        attempted.
         """
-
         n = x.shape[1]
         x_bar = np.concatenate((x, y), axis=1)
         m = x_bar.shape[1]
@@ -113,7 +120,8 @@ class Pilot:
             error = np.sum((x_bar - x_hat)**2)
             r2 = np.diag(np.corrcoef(x_bar.T, x_hat.T, rowvar=False)[:m, m:])**2
 
-            # Following parameters are not generated in the matlab code when solving analytically
+            # Following parameters are not generated in the matlab code
+            # when solving analytically
             x0 = None
             alpha = None
             eoptim = None
@@ -150,7 +158,7 @@ class Pilot:
                     result = optim.fmin_bfgs(Pilot.error_function, initial_guess,
                                             args=(x_bar, n, m), full_output=True,
                                             disp=False)
-                    
+
                     (xopts, fopts, _, _, _, _, _) = result
                     alpha[:, i] = xopts
                     eoptim[i] = fopts
@@ -175,12 +183,12 @@ class Pilot:
         if r2.dtype != np.float64:
             r2 = r2.astype(np.float64)
 
-        data = np.round(out_a, 4)
-        row_labels = ['Z_{1}','Z_{2}']
-        summary = pd.DataFrame(index=[None] + row_labels, columns=[None] + feat_labels)
+        # data = np.round(out_a, 4)
+        row_labels = ["Z_{1}","Z_{2}"]
+        summary = pd.DataFrame(index=[None, *row_labels], columns=[None, *feat_labels])
 
         # summary.iloc[1:, 0] = row_labels
-        # summary.iloc[0, 1:] = feat_labels
+        summary.iloc[0, 1:] = feat_labels
         # summary.iloc[1:, 1:] = data
 
         pout = PilotOut(X0=x0, alpha=alpha, eoptim=[eoptim], perf=[perf], a=out_a, z=out_z, c=out_c, b=out_b, error=error, r2=r2, summary=summary)

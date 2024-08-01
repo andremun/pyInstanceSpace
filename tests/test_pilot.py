@@ -23,20 +23,32 @@ from matilda.stages.pilot import Pilot
 script_dir = Path(__file__).parent
 
 class SampleData:
-    def __init__(self):
+    """Data class for testing the Pilot stage for analytic purposes.
+
+    This class contains the data used for testing the Pilot stage for analytic purposes.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the sample data for the Pilot stage."""
         fp_sampledata = script_dir / "test_data/pilot/input/test_analytic.mat"
         data = loadmat(fp_sampledata)
-        self.X_sample = data["X"]
-        self.Y_sample = data["Y"]
+        self.x_sample = data["X"]
+        self.y_sample = data["Y"]
         feat_labels_sample = data["featlabels"][0]
         self.feat_labels_sample = [str(label[0]) for label in feat_labels_sample]
-        
+
 class SampleDataNum:
-    def __init__(self):
+    """Data class for testing the Pilot stage for numerical purposes.
+
+    This class contains the data used for testing the Pilot stage for numerical purposes.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the sample data for the Pilot stage."""
         fp_sampledata = script_dir / "test_data/pilot/input/test_numerical.mat"
         data = loadmat(fp_sampledata)
-        self.X_sample = data["X_test"]
-        self.Y_sample = data["Y_test"]
+        self.x_sample = data["X_test"]
+        self.y_sample = data["Y_test"]
         feat_labels = data["featlabels"][0]
         self.feat_labels_sample = [str(label[0]) for label in feat_labels]
         analytic = data["optsPilot"][0,0]["analytic"][0,0]
@@ -45,46 +57,67 @@ class SampleDataNum:
 
 
 class MatlabResults:
-    def __init__(self):
+    """Data class for verifying the output of the Pilot analytical method.
+    
+    This class contains the data used for verifying the output of the analytical Pilot stage.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the sample data for the Pilot stage."""
         fp_outdata = script_dir / "test_data/pilot/output/matlab_results_ana.mat"
         self.data = loadmat(fp_outdata)
 
 class MatlabResultsNum:
-    def __init__(self):
+    """Data class for verifying the output of the Pilot numerical method.
+    
+    This class contains the data used for verifying the output of the numerical Pilot stage.
+    """
+
+    def __init__(self) -> None:
+        """Initialize the sample data for the Pilot stage."""
         fp_outdata = script_dir / "test_data/pilot/output/matlab_results_num.mat"
         self.data = loadmat(fp_outdata)
 
 
-def test_run_analytic():
+def test_run_analytic() -> None:
+    """Test the run function for the Pilot stage for analytic purposes."""
     sd = SampleData()
     mtr = MatlabResults()
 
-    X_sample = sd.X_sample
-    Y_sample = sd.Y_sample
+    x_sample = sd.x_sample
+    y_sample = sd.y_sample
     feat_labels_sample = sd.feat_labels_sample
     opts = PilotOptions(True, 5)
     pilot = Pilot()
-    result = pilot.run(X_sample, Y_sample, feat_labels_sample, opts)[0]
+    result = pilot.run(x_sample, y_sample, feat_labels_sample, opts)[0]
+    a = result.a
+    b = result.b
+    c = result.c
+    z = result.z
+    error = result.error
 
-    np.testing.assert_almost_equal(result.a, mtr.data['A'], decimal=6)
-    np.testing.assert_almost_equal(result.b, mtr.data['B'], decimal=6)
-    np.testing.assert_almost_equal(result.c, mtr.data['C'], decimal=6)
-    np.testing.assert_almost_equal(result.z, mtr.data['Z'], decimal=6)
-    np.testing.assert_almost_equal(result.error, mtr.data['error'], decimal=6)
+    np.testing.assert_almost_equal(a, mtr.data["A"], decimal=6)
+    np.testing.assert_almost_equal(b, mtr.data["B"], decimal=6)
+    np.testing.assert_almost_equal(c, mtr.data["C"], decimal=6)
+    np.testing.assert_almost_equal(z, mtr.data["Z"], decimal=6)
+    np.testing.assert_almost_equal(error, mtr.data["error"], decimal=6)
 
-def test_run_numerical():
+def test_run_numerical() -> None:
+    """Test the run function for the Pilot stage for numerical purposes."""
     sd = SampleDataNum()
     mtr = MatlabResultsNum()
 
-    X_sample = sd.X_sample
-    Y_sample = sd.Y_sample
+    x_sample = sd.x_sample
+    y_sample = sd.y_sample
     feat_labels_sample = sd.feat_labels_sample
     opts_sample = sd.opts_sample
     opts = PilotOptions(opts_sample.analytic, opts_sample.n_tries)
     pilot = Pilot()
-    result = pilot.run(X_sample, Y_sample, feat_labels_sample, opts)[0]
+    result = pilot.run(x_sample, y_sample, feat_labels_sample, opts)[0]
+    eoptim = result.eoptim
+    perf = result.perf
 
 
-    np.testing.assert_almost_equal(result.eoptim, mtr.data['eoptim'], decimal=6)
-    np.testing.assert_almost_equal(result.perf, mtr.data['perf'], decimal=1)
+    np.testing.assert_almost_equal(eoptim, mtr.data["eoptim"], decimal=6)
+    np.testing.assert_almost_equal(perf, mtr.data["perf"], decimal=1)
 
