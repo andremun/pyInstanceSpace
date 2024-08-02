@@ -161,5 +161,7 @@ module = [
     'scipy',
     'scipy.spatial',
     'scipy.spatial.distance',
+    'scipy.linalg',
+    'scipy.optimize'
 ]
 ignore_missing_imports = 'True'

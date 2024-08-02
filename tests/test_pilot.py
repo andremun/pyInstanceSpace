@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 from scipy.io import loadmat
 
-from matilda.data.option import PilotOptions
+from matilda.data.options import PilotOptions
 from matilda.stages.pilot import Pilot
 
 script_dir = Path(__file__).parent

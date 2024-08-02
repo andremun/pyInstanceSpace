@@ -35,7 +35,10 @@ class Pilot:
 
     @staticmethod
     def error_function(
-        alpha: NDArray[np.float64], x_bar: NDArray[np.float64], n: int, m: int,
+        alpha: NDArray[np.float64],
+        x_bar: NDArray[np.float64],
+        n: int,
+        m: int,
     ) -> float:
         """Error function used for numerical optimization in the PILOT algorithm.
 
@@ -157,7 +160,8 @@ class Pilot:
                 )
                 print("  -> PILOT is solving numerically the projection problem.")
                 print(
-                    "  -> This may take a while. Trials will not be" "run sequentially.",
+                    "  -> This may take a while. Trials will not be"
+                    "run sequentially.",
                 )
                 print(
                     "-------------------------------------------------------------------------",
@@ -197,13 +201,26 @@ class Pilot:
         if r2.dtype != np.float64:
             r2 = r2.astype(np.float64)
 
-        # data = np.round(out_a, 4)
+        if opts.analytic:
+            summary = pd.DataFrame(out_a)
+            summary.shape
+            print(summary)
+            print(len(feat_labels))
+            prit
+
         row_labels = ["Z_{1}", "Z_{2}"]
-        summary = pd.DataFrame(index=[None, *row_labels], columns=[None, *feat_labels])
+        summary = pd.DataFrame(out_a, columns=feat_labels)
+        rldf = pd.DataFrame(row_labels)
+        summary = rldf.join(summary)
+
 
         # summary.iloc[1:, 0] = row_labels
-        summary.iloc[0, 1:] = feat_labels
-        # summary.iloc[1:, 1:] = data
+        # summary.iloc[0, 1:] = feat_labels
+        # summary.to_csv("summary.csv")
+        # summary.iloc[1:, 1:] = np.round(out_a, 4)
+
+        if x0 is not None:
+            x0 = x0.astype(np.double)
 
         pout = PilotOut(
             X0=x0,
