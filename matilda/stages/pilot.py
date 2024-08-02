@@ -8,7 +8,6 @@ from one edge of the space to the opposite.
 
 """
 
-
 import numpy as np
 import pandas as pd
 import scipy.linalg as la
@@ -34,12 +33,10 @@ class Pilot:
         """
         pass
 
-
     @staticmethod
     def error_function(
-        alpha: NDArray[np.float64],
-        x_bar: NDArray[np.float64],
-        n: int, m: int) -> float:
+        alpha: NDArray[np.float64], x_bar: NDArray[np.float64], n: int, m: int,
+    ) -> float:
         """Error function used for numerical optimization in the PILOT algorithm.
 
         Args:
@@ -55,19 +52,23 @@ class Pilot:
         float -- The mean squared error between x_bar and its
                     low-dimensional approximation.
         """
-        a = alpha[:2 * n].reshape(2, n)
-        b = alpha[2 * n:].reshape(m, 2)
+        a = alpha[: 2 * n].reshape(2, n)
+        b = alpha[2 * n :].reshape(m, 2)
 
         # Compute the approximation of x_bar
         x_bar_approx = x_bar[:, :n].T
         x_bar_approx = (b @ a @ x_bar_approx).T
 
-        return float(np.nanmean(np.nanmean(
-            (x_bar - x_bar_approx) ** 2, axis=1), axis=0))
+        return float(
+            np.nanmean(np.nanmean((x_bar - x_bar_approx) ** 2, axis=1), axis=0),
+        )
 
     @staticmethod
-    def run( x: NDArray[np.double], y: NDArray[np.double], feat_labels: list[str],
-            opts: PilotOptions,
+    def run(
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+        feat_labels: list[str],
+        opts: PilotOptions,
     ) -> tuple[PilotDataChanged, PilotOut]:
         """Produce the final subset of features.
 
@@ -92,10 +93,9 @@ class Pilot:
 
             d, v = la.eig(covariance_matrix)
 
-
             indices = np.argsort(np.abs(d))
             indices = indices[::-1]
-            v = -1*v[:, indices[:2]]
+            v = -1 * v[:, indices[:2]]
 
             out_b = v[:n, :]
 
@@ -117,9 +117,8 @@ class Pilot:
 
             out_z = out_z.T
 
-
-            error = np.sum((x_bar - x_hat)**2)
-            r2 = np.diag(np.corrcoef(x_bar.T, x_hat.T, rowvar=False)[:m, m:])**2
+            error = np.sum((x_bar - x_hat) ** 2)
+            r2 = np.diag(np.corrcoef(x_bar.T, x_hat.T, rowvar=False)[:m, m:]) ** 2
 
             # Following parameters are not generated in the matlab code
             # when solving analytically
@@ -130,14 +129,19 @@ class Pilot:
 
         # Numerical solution
         else:
-            if (hasattr(opts, "alpha") and opts.alpha is not None
-                and opts.alpha.shape == (2 * m + 2 * n, 1)):
+            if (
+                hasattr(opts, "alpha")
+                and opts.alpha is not None
+                and opts.alpha.shape == (2 * m + 2 * n, 1)
+            ):
                 print(" -> PILOT is using a pre-calculated solution.")
                 alpha = opts.alpha
             else:
                 if hasattr(opts, "x0") and opts.x0 is not None:
-                    print("  -> PILOT is using a user defined starting points"
-                        " for BFGS.")
+                    print(
+                        "  -> PILOT is using a user defined starting points"
+                        " for BFGS.",
+                    )
                     x0 = opts.x0
                 else:
                     print("  -> PILOT is using random starting points for BFGS.")
@@ -148,54 +152,72 @@ class Pilot:
                 eoptim = np.zeros(opts.n_tries)
                 perf = np.zeros(opts.n_tries)
 
-                print("-------------------------------------------------------------------------")
+                print(
+                    "-------------------------------------------------------------------------",
+                )
                 print("  -> PILOT is solving numerically the projection problem.")
-                print("  -> This may take a while. Trials will not be"
-                      "run sequentially.")
-                print("-------------------------------------------------------------------------")
+                print(
+                    "  -> This may take a while. Trials will not be" "run sequentially.",
+                )
+                print(
+                    "-------------------------------------------------------------------------",
+                )
 
                 for i in range(opts.n_tries):
                     initial_guess = x0[:, i]
-                    result = optim.fmin_bfgs(Pilot.error_function, initial_guess,
-                                            args=(x_bar, n, m), full_output=True,
-                                            disp=False)
+                    result = optim.fmin_bfgs(
+                        Pilot.error_function,
+                        initial_guess,
+                        args=(x_bar, n, m),
+                        full_output=True,
+                        disp=False,
+                    )
 
                     (xopts, fopts, _, _, _, _, _) = result
                     alpha[:, i] = xopts
                     eoptim[i] = fopts
 
                     aux = alpha[:, i]
-                    a = aux[0:2*n].reshape(2, n)
+                    a = aux[0 : 2 * n].reshape(2, n)
                     z = np.dot(x, a.T)
 
                     perf[i], _ = pearsonr(hd, pdist(z))
                     idx = np.argmax(perf)
                     print(f"Pilot has completed trial {i + 1}")
 
-            out_a = alpha[:2 * n, idx].reshape(2, n)
+            out_a = alpha[: 2 * n, idx].reshape(2, n)
             out_z = x @ out_a.T
-            b = alpha[2 * n:, idx].reshape(m, 2)
+            b = alpha[2 * n :, idx].reshape(m, 2)
             x_hat = out_z @ b.T
-            out_c = b[n+1:m, :].T
+            out_c = b[n + 1 : m, :].T
             out_b = b[:n, :]
-            error = np.sum((x_bar - x_hat)**2)
+            error = np.sum((x_bar - x_hat) ** 2)
             r2 = np.diag(np.corrcoef(x_bar, x_hat) ** 2)
 
         if r2.dtype != np.float64:
             r2 = r2.astype(np.float64)
 
         # data = np.round(out_a, 4)
-        row_labels = ["Z_{1}","Z_{2}"]
+        row_labels = ["Z_{1}", "Z_{2}"]
         summary = pd.DataFrame(index=[None, *row_labels], columns=[None, *feat_labels])
 
         # summary.iloc[1:, 0] = row_labels
         summary.iloc[0, 1:] = feat_labels
         # summary.iloc[1:, 1:] = data
 
-        pout = PilotOut(X0=x0, alpha=alpha, eoptim=[eoptim],
-                        perf=[perf], a=out_a, z=out_z,
-                        c=out_c, b=out_b, error=error,
-                        r2=r2, summary=summary)
+        pout = PilotOut(
+            X0=x0,
+            alpha=alpha,
+            eoptim=[eoptim],
+            perf=[perf],
+            a=out_a,
+            z=out_z,
+            c=out_c,
+            b=out_b,
+            error=error,
+            r2=r2,
+            summary=summary,
+        )
         pda = PilotDataChanged()
 
         return [pda, pout]

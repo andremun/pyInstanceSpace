@@ -12,6 +12,7 @@ Tests include:
 - Analytic option is correctly detected
 - Error handling from convex hull calculation
 """
+
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +22,7 @@ from matilda.data.option import PilotOptions
 from matilda.stages.pilot import Pilot
 
 script_dir = Path(__file__).parent
+
 
 class SampleData:
     """Data class for testing the Pilot stage for analytic purposes.
@@ -37,6 +39,7 @@ class SampleData:
         feat_labels_sample = data["featlabels"][0]
         self.feat_labels_sample = [str(label[0]) for label in feat_labels_sample]
 
+
 class SampleDataNum:
     """Data class for testing the Pilot stage for numerical purposes.
 
@@ -52,8 +55,8 @@ class SampleDataNum:
         self.y_sample = data["Y_test"]
         feat_labels = data["featlabels"][0]
         self.feat_labels_sample = [str(label[0]) for label in feat_labels]
-        analytic = data["optsPilot"][0,0]["analytic"][0,0]
-        n_tries = int(data["optsPilot"][0,0]["ntries"][0,0])
+        analytic = data["optsPilot"][0, 0]["analytic"][0, 0]
+        n_tries = int(data["optsPilot"][0, 0]["ntries"][0, 0])
         self.opts_sample = PilotOptions(analytic, n_tries)
 
 
@@ -68,6 +71,7 @@ class MatlabResults:
         """Initialize the sample data for the Pilot stage."""
         fp_outdata = script_dir / "test_data/pilot/output/matlab_results_ana.mat"
         self.data = loadmat(fp_outdata)
+
 
 class MatlabResultsNum:
     """Data class for verifying the output of the Pilot numerical method.
@@ -105,6 +109,7 @@ def test_run_analytic() -> None:
     np.testing.assert_almost_equal(z, mtr.data["Z"], decimal=6)
     np.testing.assert_almost_equal(error, mtr.data["error"], decimal=6)
 
+
 def test_run_numerical() -> None:
     """Test the run function for the Pilot stage for numerical purposes."""
     sd = SampleDataNum()
@@ -120,7 +125,5 @@ def test_run_numerical() -> None:
     eoptim = result.eoptim
     perf = result.perf
 
-
     np.testing.assert_almost_equal(eoptim, mtr.data["eoptim"], decimal=6)
     np.testing.assert_almost_equal(perf, mtr.data["perf"], decimal=1)
-
