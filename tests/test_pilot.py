@@ -97,7 +97,7 @@ def test_run_analytic() -> None:
     opts = PilotOptions(True, 5)
     pilot = Pilot()
     result = pilot.run(x_sample, y_sample, feat_labels_sample, opts)[1]
-    
+
     a = result.a
     b = result.b
     c = result.c
