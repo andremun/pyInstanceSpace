@@ -18,7 +18,7 @@ from scipy.spatial.distance import pdist
 from scipy.stats import pearsonr
 
 from matilda.data.model import PilotDataChanged, PilotOut
-from matilda.data.option import PilotOptions
+from matilda.data.options import PilotOptions
 
 
 class Pilot:

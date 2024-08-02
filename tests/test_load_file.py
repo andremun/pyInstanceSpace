@@ -4,6 +4,7 @@ Test module to verify the functionality to load file from source.
 The file contains multiple unit test to ensure that metadata is correctly loaded from
 csv file and option is also correctly loaded from json file.
 """
+
 from pathlib import Path
 from typing import Self
 
@@ -47,7 +48,7 @@ from matilda.data.default_options import (
     DEFAULT_TRACE_USE_SIM,
 )
 from matilda.data.metadata import Metadata
-from matilda.data.option import Options
+from matilda.data.options import InstanceSpaceOptions
 from matilda.instance_space import (
     instance_space_from_directory,
     instance_space_from_files,
@@ -117,51 +118,76 @@ class TestMetadata:
         assert returned is not None
         return returned.metadata
 
-    def test_instance_labels_count(self: Self, test_valid_metadata: Metadata,
-                                   test_directory_metadata: Metadata) -> None:
+    def test_instance_labels_count(
+        self: Self,
+        test_valid_metadata: Metadata,
+        test_directory_metadata: Metadata,
+    ) -> None:
         """Check label count of metadata."""
-        assert test_directory_metadata.instance_labels.count() == \
-               test_valid_metadata.instance_labels.count()
+        assert (
+            test_directory_metadata.instance_labels.count()
+            == test_valid_metadata.instance_labels.count()
+        )
         assert test_valid_metadata.instance_labels.count() == self.expected_instances
 
-    def test_feature_names_length(self: Self, test_valid_metadata: Metadata,
-                                  test_directory_metadata: Metadata) -> None:
+    def test_feature_names_length(
+        self: Self,
+        test_valid_metadata: Metadata,
+        test_directory_metadata: Metadata,
+    ) -> None:
         """Check number of features in metadata."""
         assert len(test_valid_metadata.feature_names) == self.expected_features
-        assert len(test_valid_metadata.feature_names) == \
-               len(test_directory_metadata.feature_names)
+        assert len(test_valid_metadata.feature_names) == len(
+            test_directory_metadata.feature_names,
+        )
 
-    def test_algorithm_names_length(self: Self, test_valid_metadata: Metadata,
-                                    test_directory_metadata: Metadata) -> None:
+    def test_algorithm_names_length(
+        self: Self,
+        test_valid_metadata: Metadata,
+        test_directory_metadata: Metadata,
+    ) -> None:
         """Check number of algorithms in metadata."""
         assert len(test_valid_metadata.algorithm_names) == self.expected_algorithms
-        assert len(test_valid_metadata.algorithm_names) == \
-               len(test_directory_metadata.algorithm_names)
+        assert len(test_valid_metadata.algorithm_names) == len(
+            test_directory_metadata.algorithm_names,
+        )
 
-    def test_features_dimensions(self: Self, test_valid_metadata: Metadata,
-                                 test_directory_metadata: Metadata) -> None:
+    def test_features_dimensions(
+        self: Self,
+        test_valid_metadata: Metadata,
+        test_directory_metadata: Metadata,
+    ) -> None:
         """Check dimension of feature data from metadata."""
         assert test_valid_metadata.features.shape == (
             self.expected_instances,
             self.expected_features,
         )
 
-        assert test_valid_metadata.features.shape == \
-               test_directory_metadata.features.shape
+        assert (
+            test_valid_metadata.features.shape == test_directory_metadata.features.shape
+        )
 
-    def test_algorithms_dimensions(self: Self, test_valid_metadata: Metadata,
-                                   test_directory_metadata: Metadata) -> None:
+    def test_algorithms_dimensions(
+        self: Self,
+        test_valid_metadata: Metadata,
+        test_directory_metadata: Metadata,
+    ) -> None:
         """Check dimension of algorithm data from metadata."""
         assert test_valid_metadata.algorithms.shape == (
             self.expected_instances,
             self.expected_algorithms,
         )
 
-        assert test_valid_metadata.algorithms.shape == \
-               test_directory_metadata.algorithms.shape
+        assert (
+            test_valid_metadata.algorithms.shape
+            == test_directory_metadata.algorithms.shape
+        )
 
-    def test_s_is_none(self: Self, test_valid_metadata: Metadata,
-                       test_directory_metadata: Metadata) -> None:
+    def test_s_is_none(
+        self: Self,
+        test_valid_metadata: Metadata,
+        test_directory_metadata: Metadata,
+    ) -> None:
         """Check source from metadata."""
         assert test_valid_metadata.instance_sources is None
         assert test_directory_metadata.instance_sources is None
@@ -172,8 +198,10 @@ class TestMetadata:
         assert source is not None, "Expected 's' to be not None"
         assert source.count() == self.expected_source
 
-    def test_metadata_invalid_path(self: Self, capsys: pytest.CaptureFixture[str]) \
-            -> None:
+    def test_metadata_invalid_path(
+        self: Self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
         """Test FileNotFound exception is thrown with invalid path."""
         invalid_path = script_dir / "invalid_path"
         option_path = script_dir / "test_data/load_file/options.json"
@@ -188,12 +216,10 @@ class TestMetadata:
         expected_error_msg = "[Errno 2] No such file or directory:"
         assert expected_error_msg in output
 
-
     def test_data_empty(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test dummy exception is thrown with invalid path."""
         data_path = script_dir / "test_data/load_file/dummydata.csv"
         option_path = script_dir / "test_data/load_file/options.json"
-
 
         returned = instance_space_from_files(data_path, option_path)
         assert returned is None
@@ -201,7 +227,6 @@ class TestMetadata:
         captured = capsys.readouterr()
         expected_error_msg = "is empty."
         assert expected_error_msg in captured.out
-
 
     def test_illegal_csv(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
         """Test dummy exception is thrown with invalid path."""
@@ -220,7 +245,7 @@ class TestOption:
     """Test loading option from json."""
 
     @pytest.fixture()
-    def directory_options(self: Self) -> Options:
+    def directory_options(self: Self) -> InstanceSpaceOptions:
         """Load option json file from directory."""
         directory_path = script_dir / "test_data/load_file"
         returned = instance_space_from_directory(directory_path)
@@ -228,7 +253,7 @@ class TestOption:
         return returned.options
 
     @pytest.fixture()
-    def test_valid_options(self: Self) -> Options:
+    def test_valid_options(self: Self) -> InstanceSpaceOptions:
         """Load option json file from path."""
         option_path = script_dir / "test_data/load_file/options.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
@@ -255,11 +280,15 @@ class TestOption:
             ("selvars", "density_flag", False),
             ("selvars", "min_distance", 0.1),
             ("selvars", "selvars_type", "Ftr&Good"),
-            ("selvars", "feats", [
-                "feature_Max_Normalized_Entropy_attributes",
-                "feature_Normalized_Entropy_Class_Attribute",
-                "feature_Nonlinearity_Nearest_Neighbor_Classifier_N4",
-            ]),
+            (
+                "selvars",
+                "feats",
+                [
+                    "feature_Max_Normalized_Entropy_attributes",
+                    "feature_Normalized_Entropy_Class_Attribute",
+                    "feature_Nonlinearity_Nearest_Neighbor_Classifier_N4",
+                ],
+            ),
             ("sifted", "flag", True),
             ("sifted", "rho", 0.1),
             ("sifted", "k", 10),
@@ -282,11 +311,11 @@ class TestOption:
         ],
     )
     def test_option_loading(
-            self: Self,
-            test_valid_options: Options,
-            option_key: str,
-            subkey: str,
-            expected_value: bool | float | int,
+        self: Self,
+        test_valid_options: InstanceSpaceOptions,
+        option_key: str,
+        subkey: str,
+        expected_value: bool | float | int,
     ) -> None:
         """
         Test attributes for each options is loaded.
@@ -294,13 +323,14 @@ class TestOption:
         The test will iterate over all attributes defined in pytest's mark parametrize
         to verify that the attributes are correctly loaded.
         """
-        assert getattr(getattr(test_valid_options, option_key), subkey) ==\
-               expected_value
+        assert (
+            getattr(getattr(test_valid_options, option_key), subkey) == expected_value
+        )
 
     def test_dir_loading(
-            self: Self,
-            directory_options: Options,
-            test_valid_options: Options,
+        self: Self,
+        directory_options: InstanceSpaceOptions,
+        test_valid_options: InstanceSpaceOptions,
     ) -> None:
         """
         Test attributes for each options is loaded.
@@ -318,14 +348,18 @@ class TestOption:
         returned = instance_space_from_files(metadata_path, invalid_option_path)
         assert returned is None
         captured = capsys.readouterr()
-        expected_error_msg = "Error details: Field(s) '{'MaxPerf_invalid'}' " \
-                             "in JSON are not defined in the data class " \
-                             "'PerformanceOptions'"
+        expected_error_msg = (
+            "Error details: Field(s) '{'MaxPerf_invalid'}' "
+            "in JSON are not defined in the data class "
+            "'PerformanceOptions'"
+        )
 
         assert expected_error_msg in captured.out
 
-    def test_option_invalid_path(self: Self, capsys: pytest.CaptureFixture[str]) \
-            -> None:
+    def test_option_invalid_path(
+        self: Self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
         """Test FileNotFound exception is thrown with invalid path."""
         invalid_options_path = script_dir / "invalid_path"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
@@ -366,13 +400,17 @@ class TestOption:
         returned = instance_space_from_files(metadata_path, path)
         assert returned is None
         captured = capsys.readouterr()
-        expected_error_msg = "Extra fields in JSON are not defined in Options: " \
-                             "{'INTENDED_EXTRA_FIELD_IN_JSON'}"
+        expected_error_msg = (
+            "Extra fields in JSON are not defined in InstanceSpaceOptions: "
+            "{'INTENDED_EXTRA_FIELD_IN_JSON'}"
+        )
 
         assert expected_error_msg in captured.out
 
-    def test_json_with_invalid_content(self, capsys: pytest.CaptureFixture[str]) \
-            -> None:
+    def test_json_with_invalid_content(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
         """Any top field are not defined in the class."""
         path = script_dir / "test_data/load_file/illegal.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
@@ -385,7 +423,7 @@ class TestOption:
         assert expected_error_msg in captured.out
 
     @pytest.fixture()
-    def test_dummy_options(self: Self) -> Options:
+    def test_dummy_options(self: Self) -> InstanceSpaceOptions:
         """Load dummy option json file from path."""
         option_path = script_dir / "test_data/load_file/dummy.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
@@ -437,11 +475,11 @@ class TestOption:
         ],
     )
     def test_dummy_option_loading(
-            self: Self,
-            test_dummy_options: Options,
-            option_key_dummy: str,
-            subkey_dummy: str,
-            expected_value_dummy: bool | float | int,
+        self: Self,
+        test_dummy_options: InstanceSpaceOptions,
+        option_key_dummy: str,
+        subkey_dummy: str,
+        expected_value_dummy: bool | float | int,
     ) -> None:
         """
         Test attributes for each options is loaded.
@@ -449,6 +487,7 @@ class TestOption:
         The test will iterate over all attributes defined in pytest's mark parametrize
         to verify that the attributes are correctly loaded.
         """
-        assert getattr(getattr(test_dummy_options, option_key_dummy), subkey_dummy) == \
-               expected_value_dummy
-
+        assert (
+            getattr(getattr(test_dummy_options, option_key_dummy), subkey_dummy)
+            == expected_value_dummy
+        )
