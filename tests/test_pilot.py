@@ -40,7 +40,8 @@ class SampleData:
 class SampleDataNum:
     """Data class for testing the Pilot stage for numerical purposes.
 
-    This class contains the data used for testing the Pilot stage for numerical purposes.
+    This class contains the data used for testing the Pilot stage for
+    numerical purposes.
     """
 
     def __init__(self) -> None:
@@ -58,8 +59,9 @@ class SampleDataNum:
 
 class MatlabResults:
     """Data class for verifying the output of the Pilot analytical method.
-    
-    This class contains the data used for verifying the output of the analytical Pilot stage.
+
+    This class contains the data used for verifying the output of the
+    analytical Pilot stage.
     """
 
     def __init__(self) -> None:
@@ -69,8 +71,9 @@ class MatlabResults:
 
 class MatlabResultsNum:
     """Data class for verifying the output of the Pilot numerical method.
-    
-    This class contains the data used for verifying the output of the numerical Pilot stage.
+
+    This class contains the data used for verifying the output of the
+    numerical Pilot stage.
     """
 
     def __init__(self) -> None:
@@ -89,7 +92,7 @@ def test_run_analytic() -> None:
     feat_labels_sample = sd.feat_labels_sample
     opts = PilotOptions(True, 5)
     pilot = Pilot()
-    result = pilot.run(x_sample, y_sample, feat_labels_sample, opts)[0]
+    result = pilot.run(x_sample, y_sample, feat_labels_sample, opts)[1]
     a = result.a
     b = result.b
     c = result.c
@@ -113,7 +116,7 @@ def test_run_numerical() -> None:
     opts_sample = sd.opts_sample
     opts = PilotOptions(opts_sample.analytic, opts_sample.n_tries)
     pilot = Pilot()
-    result = pilot.run(x_sample, y_sample, feat_labels_sample, opts)[0]
+    result = pilot.run(x_sample, y_sample, feat_labels_sample, opts)[1]
     eoptim = result.eoptim
     perf = result.perf
 

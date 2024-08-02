@@ -62,7 +62,8 @@ class Pilot:
         x_bar_approx = x_bar[:, :n].T
         x_bar_approx = (b @ a @ x_bar_approx).T
 
-        return np.nanmean(np.nanmean((x_bar - x_bar_approx) ** 2, axis=1), axis=0)
+        return float(np.nanmean(np.nanmean(
+            (x_bar - x_bar_approx) ** 2, axis=1), axis=0))
 
     @staticmethod
     def run( x: NDArray[np.double], y: NDArray[np.double], feat_labels: list[str],
@@ -191,7 +192,10 @@ class Pilot:
         summary.iloc[0, 1:] = feat_labels
         # summary.iloc[1:, 1:] = data
 
-        pout = PilotOut(X0=x0, alpha=alpha, eoptim=[eoptim], perf=[perf], a=out_a, z=out_z, c=out_c, b=out_b, error=error, r2=r2, summary=summary)
+        pout = PilotOut(X0=x0, alpha=alpha, eoptim=[eoptim],
+                        perf=[perf], a=out_a, z=out_z,
+                        c=out_c, b=out_b, error=error,
+                        r2=r2, summary=summary)
         pda = PilotDataChanged()
 
-        return [pout, pda]
+        return [pda, pout]
