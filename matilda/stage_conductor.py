@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from matilda.stage import Stage
+from matilda.conductor_types import Stage
 
 
 class StageConductor:

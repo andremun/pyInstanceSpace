@@ -3,7 +3,7 @@ from inspect import signature
 import numpy as np
 from numpy.typing import NDArray
 
-from matilda.conductor import Conductor
+from matilda.conductor_types import Conductor
 from matilda.data.options import CloisterOptions
 from matilda.stages.cloister import Cloister
 
