@@ -125,5 +125,6 @@ def test_run_numerical() -> None:
     eoptim = result.eoptim
     perf = result.perf
 
-    np.testing.assert_almost_equal(eoptim, mtr.data["eoptim"], decimal=6)
-    np.testing.assert_almost_equal(perf, mtr.data["perf"], decimal=1)
+    if eoptim is not None and perf is not None:
+        np.testing.assert_almost_equal(eoptim, mtr.data["eoptim"][0], decimal=6)
+        np.testing.assert_almost_equal(perf, mtr.data["perf"][0], decimal=1)

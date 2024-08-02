@@ -196,37 +196,38 @@ class Pilot:
             out_c = b[n + 1 : m, :].T
             out_b = b[:n, :]
             error = np.sum((x_bar - x_hat) ** 2)
-            r2 = np.diag(np.corrcoef(x_bar, x_hat) ** 2)
-
-        if r2.dtype != np.float64:
-            r2 = r2.astype(np.float64)
+            r2 = np.diag(np.corrcoef(x_bar, x_hat) ** 2).astype(np.double)
 
         if opts.analytic:
             summary = pd.DataFrame(out_a)
-            summary.shape
-            print(summary)
-            print(len(feat_labels))
-            prit
+            summary.rename(
+                columns={
+                    summary.columns[num]: feat_labels[num]
+                    for num in range(len(feat_labels))
+                },
+                inplace=True,
+            )
+        else:
+            summary = pd.DataFrame(out_a, columns=feat_labels)
 
         row_labels = ["Z_{1}", "Z_{2}"]
-        summary = pd.DataFrame(out_a, columns=feat_labels)
         rldf = pd.DataFrame(row_labels)
         summary = rldf.join(summary)
-
-
-        # summary.iloc[1:, 0] = row_labels
-        # summary.iloc[0, 1:] = feat_labels
-        # summary.to_csv("summary.csv")
-        # summary.iloc[1:, 1:] = np.round(out_a, 4)
 
         if x0 is not None:
             x0 = x0.astype(np.double)
 
+        if eoptim is not None:
+            eoptim = eoptim.astype(float)
+
+        if perf is not None:
+            perf = perf.astype(float)
+
         pout = PilotOut(
             X0=x0,
             alpha=alpha,
-            eoptim=[eoptim],
-            perf=[perf],
+            eoptim=eoptim,
+            perf=perf,
             a=out_a,
             z=out_z,
             c=out_c,
@@ -237,4 +238,4 @@ class Pilot:
         )
         pda = PilotDataChanged()
 
-        return [pda, pout]
+        return (pda, pout)
