@@ -452,7 +452,8 @@ def test_duplicated_data() -> None:
 
     # Check num_good_algos content
     assert np.array_equal(
-        out.num_good_algos, num_good_algos,
+        out.num_good_algos,
+        num_good_algos,
     ), "num_good_algos content not right"
 
     # Check beta content

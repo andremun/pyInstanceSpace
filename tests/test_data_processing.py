@@ -20,12 +20,12 @@ from matilda.data.model import (
     SiftedOut,
     TraceOut,
 )
-from matilda.data.option import (
+from matilda.data.options import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,
+    InstanceSpaceOptions,
     NormOptions,
-    Options,
     OutputOptions,
     ParallelOptions,
     PerformanceOptions,
@@ -41,7 +41,7 @@ path_root = Path(__file__).parent
 sys.path.append(str(path_root.parent))
 
 
-def create_dummy_opt() -> Options:
+def create_dummy_opt() -> InstanceSpaceOptions:
     """
     Create a dummy Options object with default values.
 
@@ -49,7 +49,7 @@ def create_dummy_opt() -> Options:
     -------
         Options: The dummy Options object.
     """
-    return Options(
+    return InstanceSpaceOptions(
         parallel=ParallelOptions(flag=False, n_cores=2),
         perf=PerformanceOptions(
             max_perf=False,
@@ -92,7 +92,7 @@ def create_dummy_opt() -> Options:
     )
 
 
-def create_dummy_model(data: Data, opts: Options) -> Model:
+def create_dummy_model(data: Data, opts: InstanceSpaceOptions) -> Model:
     """
     Create a dummy Model object with default values.
 
@@ -113,10 +113,10 @@ def create_dummy_model(data: Data, opts: Options) -> Model:
         lambda_x=np.array([], dtype=np.double),
         mu_x=np.array([], dtype=np.double),
         sigma_x=np.array([], dtype=np.double),
-        min_y=np.array([], dtype=np.double),
+        min_y=0.0,
         lambda_y=np.array([], dtype=np.double),
         sigma_y=np.array([], dtype=np.double),
-        mu_y=0.0,
+        mu_y=np.array([], dtype=np.double),
     )
 
     sifted = SiftedOut(
@@ -491,7 +491,7 @@ def test_split_data() -> None:
 def test_split_fractional() -> None:
     """Test case for the split data function by using fractional option."""
     # Create options for fractional split
-    opts = Options(
+    opts = InstanceSpaceOptions(
         parallel=ParallelOptions(flag=False, n_cores=2),
         perf=PerformanceOptions(
             max_perf=False,
@@ -634,7 +634,7 @@ def test_split_fractional() -> None:
 def test_split_fileindexed() -> None:
     """Test case for the split data function by using fileindexed option."""
     # Create options for fileindexed split
-    opts = Options(
+    opts = InstanceSpaceOptions(
         parallel=ParallelOptions(flag=False, n_cores=2),
         perf=PerformanceOptions(
             max_perf=False,

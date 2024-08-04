@@ -6,8 +6,6 @@ Examples
 >>> options = create_option(cloister=cloister_opt)
 """
 
-import pandas as pd
-
 from matilda.data.options import (
     AutoOptions,
     BoundOptions,

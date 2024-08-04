@@ -14,12 +14,12 @@ import numpy as np
 import pandas as pd
 
 from matilda.data.model import Data
-from matilda.data.option import (
+from matilda.data.options import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,
+    InstanceSpaceOptions,
     NormOptions,
-    Options,
     OutputOptions,
     ParallelOptions,
     PerformanceOptions,
@@ -35,7 +35,7 @@ path_root = Path(__file__).parent
 sys.path.append(str(path_root))
 
 
-def create_dummy_opt(selvars: SelvarsOptions) -> Options:
+def create_dummy_opt(selvars: SelvarsOptions) -> InstanceSpaceOptions:
     """
     Create a dummy model with the given data and selection variables.
 
@@ -47,22 +47,33 @@ def create_dummy_opt(selvars: SelvarsOptions) -> Options:
 
 
     """
-    return Options(
+    return InstanceSpaceOptions(
         parallel=ParallelOptions(flag=False, n_cores=1),
         perf=PerformanceOptions(
-            max_perf=False, abs_perf=False, epsilon=0.1, beta_threshold=0.5,
+            max_perf=False,
+            abs_perf=False,
+            epsilon=0.1,
+            beta_threshold=0.5,
         ),
         auto=AutoOptions(preproc=False),
         bound=BoundOptions(flag=False),
         norm=NormOptions(flag=False),
         selvars=selvars,
         sifted=SiftedOptions(
-            flag=False, rho=0.5, k=10, n_trees=100, max_iter=100, replicates=10,
+            flag=False,
+            rho=0.5,
+            k=10,
+            n_trees=100,
+            max_iter=100,
+            replicates=10,
         ),
         pilot=PilotOptions(analytic=False, n_tries=10),
         cloister=CloisterOptions(p_val=0.05, c_thres=0.5),
         pythia=PythiaOptions(
-            cv_folds=5, is_poly_krnl=False, use_weights=False, use_lib_svm=False,
+            cv_folds=5,
+            is_poly_krnl=False,
+            use_weights=False,
+            use_lib_svm=False,
         ),
         trace=TraceOptions(use_sim=False, pi=0.95),
         outputs=OutputOptions(csv=False, web=False, png=False),
@@ -118,10 +129,14 @@ def test_manual_selection() -> None:
     expected_x = large_x[:, [1, 3, 5, 7, 9]]
     expected_y = large_y[:, [1, 3]]
     np.testing.assert_array_equal(
-        out.x, expected_x, err_msg="Feature data content mismatch",
+        out.x,
+        expected_x,
+        err_msg="Feature data content mismatch",
     )
     np.testing.assert_array_equal(
-        out.y, expected_y, err_msg="Algorithm data content mismatch",
+        out.y,
+        expected_y,
+        err_msg="Algorithm data content mismatch",
     )
 
 
@@ -173,10 +188,14 @@ def test_manual_wrong_names() -> None:
     expected_x = large_x[:, [1, 3, 5, 9]]
     expected_y = large_y[:, [3]]
     np.testing.assert_array_equal(
-        out.x, expected_x, err_msg="Feature data content mismatch",
+        out.x,
+        expected_x,
+        err_msg="Feature data content mismatch",
     )
     np.testing.assert_array_equal(
-        out.y, expected_y, err_msg="Algorithm data content mismatch",
+        out.y,
+        expected_y,
+        err_msg="Algorithm data content mismatch",
     )
 
 
@@ -226,10 +245,14 @@ def test_manual_none_feats_empty_algo() -> None:
     expected_x = large_x[:, :]
     expected_y = large_y[:, :]
     np.testing.assert_array_equal(
-        out.x, expected_x, err_msg="Feature data content mismatch",
+        out.x,
+        expected_x,
+        err_msg="Feature data content mismatch",
     )
     np.testing.assert_array_equal(
-        out.y, expected_y, err_msg="Algorithm data content mismatch",
+        out.y,
+        expected_y,
+        err_msg="Algorithm data content mismatch",
     )
 
 
@@ -279,8 +302,12 @@ def test_manual_empty_feats_none_algo() -> None:
     expected_x = large_x[:, :]
     expected_y = large_y[:, :]
     np.testing.assert_array_equal(
-        out.x, expected_x, err_msg="Feature data content mismatch",
+        out.x,
+        expected_x,
+        err_msg="Feature data content mismatch",
     )
     np.testing.assert_array_equal(
-        out.y, expected_y, err_msg="Algorithm data content mismatch",
+        out.y,
+        expected_y,
+        err_msg="Algorithm data content mismatch",
     )

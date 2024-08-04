@@ -14,7 +14,6 @@ from matilda.data.model import (
 )
 from matilda.data.options import InstanceSpaceOptions, PrelimOptions
 from matilda.stages.filter import Filter
-from matilda.stages.prelim import Prelim
 
 
 class Preprocessing:
@@ -76,19 +75,19 @@ class Preprocessing:
         after_washing = Preprocessing.remove_instances_with_many_missing_values(
             after_selection,
         )
-        after_process, prelim_opts = Preprocessing.process_data(after_washing, opts)
 
-        #From here return the tuple[PreprocessingDataChanged, PreprocessingOut(dummy)]
+        # From here return the tuple[PreprocessingDataChanged, PreprocessingOut(dummy)]
 
-        #these stuff will be moved into PRILIM
-
-        """prelim_data, prelim_out = Prelim.run(
+        # these stuff will be moved into PRILIM
+        """after_process, prelim_opts = Preprocessing.process_data(after_washing, opts)
+        prelim_data, prelim_out = Prelim.run(
             after_process.x,
             after_process.y,
             prelim_opts,
-        )"""
+        )
+        """
 
-        #These should be a part of FILTRER, leave it not delete
+        # These should be a part of FILTRER, leave it not delete
 
         """bad_instances_removed = Preprocessing.remove_bad_instances(
             prelim_data.merge_with(data),
@@ -262,7 +261,8 @@ class Preprocessing:
 
     @staticmethod
     def process_data(
-        data: Data, opts: InstanceSpaceOptions
+        data: Data,
+        opts: InstanceSpaceOptions,
     ) -> tuple[Data, PrelimOptions]:
         """Store the raw data for further processing and remove the template data.
 
@@ -418,9 +418,11 @@ class Preprocessing:
         )
 
         if fractional:
-            print(f"-> Creating a small scale experiment for validation. \
+            print(
+                f"-> Creating a small scale experiment for validation. \
                 Percentage of subset: \
-                {round(100 * opts.selvars.small_scale, 2)}%")
+                {round(100 * opts.selvars.small_scale, 2)}%",
+            )
             _, subset_idx = train_test_split(
                 np.arange(ninst),
                 test_size=opts.selvars.small_scale,
@@ -448,8 +450,10 @@ class Preprocessing:
                 opts.selvars,
             )
             subset_index = ~subset_index
-            print(f"-> Percentage of instances retained: \
-                {round(100 * np.mean(subset_index), 2)}%")
+            print(
+                f"-> Percentage of instances retained: \
+                {round(100 * np.mean(subset_index), 2)}%",
+            )
         else:
             print("-> Using the complete set of the instances.")
             subset_index = np.ones(ninst, dtype=bool)
@@ -525,8 +529,8 @@ class Preprocessing:
 if __name__ == "__main__":
     # for testing purpose
     metadata_path = Path(
-        "/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_integration/metadata.csv"
+        "/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_integration/metadata.csv",
     )
     option_path = Path(
-        "/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_integration/options.json"
+        "/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_integration/options.json",
     )
