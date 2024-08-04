@@ -59,6 +59,8 @@ class Preprocessing:
             algo_labels=matadata.algorithm_names,
             x=matadata.features,
             y=matadata.algorithms,
+            # if I do not fill them at the end of the preprocessing stage,
+            # get rid of those dummy ones (just the preprocessing changed data)
             x_raw=np.array([], dtype=np.double),
             y_raw=np.array([], dtype=np.double),
             y_bin=np.array([], dtype=np.double),
@@ -76,19 +78,23 @@ class Preprocessing:
         )
         after_process, prelim_opts = Preprocessing.process_data(after_washing, opts)
 
-        # call Prelim
-        prelim_data, prelim_out = Prelim.run(
+        #From here return the tuple[PreprocessingDataChanged, PreprocessingOut(dummy)]
+
+        #these stuff will be moved into PRILIM
+
+        """prelim_data, prelim_out = Prelim.run(
             after_process.x,
             after_process.y,
             prelim_opts,
-        )
+        )"""
 
-        bad_instances_removed = Preprocessing.remove_bad_instances(
+        #These should be a part of FILTRER, leave it not delete
+
+        """bad_instances_removed = Preprocessing.remove_bad_instances(
             prelim_data.merge_with(data),
         )
-
         # Where is the model created?
-        # Preprocessing.split_data(bad_instances_removed, opts, model)
+        # Preprocessing.split_data(bad_instances_removed, opts, model)"""
 
         raise NotImplementedError
 
