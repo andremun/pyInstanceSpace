@@ -296,7 +296,7 @@ class Sifted:
         print("-> Selecting features based on correlation clustering.")
 
         rng = np.random.default_rng(seed=0)
-        min_clusters = 2
+        min_clusters = 3
         max_clusters = x_aux.shape[1]
 
         silhouette_scores = {}
@@ -304,14 +304,17 @@ class Sifted:
         for n in range(min_clusters, max_clusters):
             kmeans = KMeans(n_clusters=n, n_init="auto", random_state=rng.integers(1000))
             cluster_labels = kmeans.fit_predict(x_aux.T)
-            # print(cluster_labels)
             silhouette_scores[n] = silhouette_score(
                 x_aux.T,
                 cluster_labels,
                 metric="correlation",
             )
 
-        print(silhouette_scores)
+        # suggest k value that has highest silhoulette score if k is not the default value and not the maximum nth cluster
+        max_k_silhoulette = max(silhouette_scores, key=silhouette_scores.get)
+        if max_k_silhoulette != self.opts.k and max_k_silhoulette != max_clusters:
+            print(f' Suggested k value {max_k_silhoulette} with silhoulette score of {silhouette_scores[max_k_silhoulette]}')
+        
 
 
     def cluster_dataset(self, x_aux: NDArray[np.double]) -> None:
