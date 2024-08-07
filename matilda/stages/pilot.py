@@ -338,7 +338,6 @@ class Pilot:
             idx = np.argmax(perf)
             print(f"Pilot has completed trial {i + 1}")
 
-
             alpha = alpha.astype(np.double)
             eoptim = eoptim.astype(np.double)
             perf = perf.astype(np.double)
