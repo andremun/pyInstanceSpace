@@ -86,49 +86,15 @@ class Pilot:
         m = x_bar.shape[1]
         hd = pdist(x).T
 
+        # Following parameters are not generated in the matlab code
+        # when solving analytically
+        x0 = None
+        alpha = None
+        eoptim = None
+        perf = None
+
         if opts.analytic:
-            print("Solving analytically...")
-            x_bar = x_bar.T
-
-            x = x.T
-
-            covariance_matrix = np.dot(x_bar, x_bar.T)
-
-            d, v = la.eig(covariance_matrix)
-
-            indices = np.argsort(np.abs(d))
-            indices = indices[::-1]
-            v = -1 * v[:, indices[:2]]
-
-            out_b = v[:n, :]
-
-            out_c = v[n:m, :].T
-
-            x_transpose = x.T
-            xx_transpose = np.dot(x, x.T)
-            xx_transpose_inv = np.linalg.inv(xx_transpose)
-
-            x_r = np.dot(x_transpose, xx_transpose_inv)
-
-            out_a = v.T @ x_bar @ x_r
-            out_z = out_a @ x
-
-            # Correct dimensions for x_hat computation
-            bz = np.dot(out_b, out_z)
-            cz = np.dot(out_c.T, out_z)
-            x_hat = np.vstack((bz, cz))
-
-            out_z = out_z.T
-
-            error = np.sum((x_bar - x_hat) ** 2)
-            r2 = np.diag(np.corrcoef(x_bar.T, x_hat.T, rowvar=False)[:m, m:]) ** 2
-
-            # Following parameters are not generated in the matlab code
-            # when solving analytically
-            x0 = None
-            alpha = None
-            eoptim = None
-            perf = None
+            out_a,out_z, out_c, out_b, error, r2 = Pilot.analytic_solve(x, x_bar, n, m)
 
         # Numerical solution
         else:
@@ -155,39 +121,18 @@ class Pilot:
                 eoptim = np.zeros(opts.n_tries)
                 perf = np.zeros(opts.n_tries)
 
-                print(
-                    "-------------------------------------------------------------------------",
+                idx, alpha, eoptim, perf = Pilot.numerical_solve(
+                    x,
+                    hd,
+                    x0,
+                    x_bar,
+                    n,
+                    m,
+                    alpha,
+                    eoptim,
+                    perf,
+                    opts,
                 )
-                print("  -> PILOT is solving numerically the projection problem.")
-                print(
-                    "  -> This may take a while. Trials will not be"
-                    "run sequentially.",
-                )
-                print(
-                    "-------------------------------------------------------------------------",
-                )
-
-                for i in range(opts.n_tries):
-                    initial_guess = x0[:, i]
-                    result = optim.fmin_bfgs(
-                        Pilot.error_function,
-                        initial_guess,
-                        args=(x_bar, n, m),
-                        full_output=True,
-                        disp=False,
-                    )
-
-                    (xopts, fopts, _, _, _, _, _) = result
-                    alpha[:, i] = xopts
-                    eoptim[i] = fopts
-
-                    aux = alpha[:, i]
-                    a = aux[0 : 2 * n].reshape(2, n)
-                    z = np.dot(x, a.T)
-
-                    perf[i], _ = pearsonr(hd, pdist(z))
-                    idx = np.argmax(perf)
-                    print(f"Pilot has completed trial {i + 1}")
 
             out_a = alpha[: 2 * n, idx].reshape(2, n)
             out_z = x @ out_a.T
@@ -239,3 +184,172 @@ class Pilot:
         pda = PilotDataChanged()
 
         return (pda, pout)
+
+    @staticmethod
+    def analytic_solve(
+        x: NDArray[np.double],
+        x_bar: NDArray[np.double],
+        n: int, m: int) -> tuple[NDArray[np.double],
+                                 NDArray[np.double],
+                                 NDArray[np.double],
+                                 NDArray[np.double],
+                                 NDArray[np.double],
+                                 NDArray[np.double]]:
+        """Solve the projection problem analytically.
+
+        Args:
+        x : NDArray[np.double] -- The feature matrix (instances x features) to process.
+        x_bar : NDArray[np.double] -- Combined matrix of X and Y.
+        n : int -- Number of original features.
+        m : int -- Total number of features including appended Y.
+
+        Returns:
+        -------
+        out_a : NDArray[np.double] -- A matrix.
+        out_b : NDArray[np.double] -- B matrix.
+        out_c : NDArray[np.double] -- C matrix.
+        out_z : NDArray[np.double] -- Z matrix.
+        error : NDArray[np.double] -- The mean squared error between x_bar and its
+                            low-dimensional approximation.
+        r2 : NDArray[np.double] -- The coefficient of determination between x_bar
+                                    and its low-dimensional approximation.
+        """
+        print(
+                    "-------------------------------------------------------------------------",
+                )
+        print("  -> PILOT is solving analytically the projection problem.")
+        print(
+                    "-------------------------------------------------------------------------",
+                )
+        x_bar = x_bar.T
+
+        x = x.T
+
+        covariance_matrix = np.dot(x_bar, x_bar.T)
+
+        d, v = la.eig(covariance_matrix)
+
+        indices = np.argsort(np.abs(d))
+        indices = indices[::-1]
+        v = -1 * v[:, indices[:2]]
+
+        out_b = v[:n, :]
+
+        out_c = v[n:m, :].T
+
+        x_transpose = x.T
+        xx_transpose = np.dot(x, x.T)
+        xx_transpose_inv = np.linalg.inv(xx_transpose)
+
+        x_r = np.dot(x_transpose, xx_transpose_inv)
+
+        out_a = v.T @ x_bar @ x_r
+        out_z = out_a @ x
+
+        # Correct dimensions for x_hat computation
+        bz = np.dot(out_b, out_z)
+        cz = np.dot(out_c.T, out_z)
+        x_hat = np.vstack((bz, cz))
+
+        out_z = out_z.T
+
+        error = np.sum((x_bar - x_hat) ** 2)
+        r2 = np.diag(np.corrcoef(x_bar.T, x_hat.T, rowvar=False)[:m, m:]) ** 2
+
+        out_a = out_a.astype(np.double)
+        out_z = out_z.astype(np.double)
+        out_c = out_c.astype(np.double)
+        out_b = out_b.astype(np.double)
+        error = error.astype(np.double)
+        r2 = r2.astype(np.double)
+
+        return out_a, out_z, out_c, out_b, error, r2
+
+    @staticmethod
+    def numerical_solve(
+        x: NDArray[np.double],
+        hd: NDArray[np.double],
+        x0: NDArray[np.double],
+        x_bar: NDArray[np.double],
+        n: int,
+        m: int,
+        alpha: NDArray[np.double],
+        eoptim: NDArray[np.double],
+        perf: NDArray[np.double],
+        opts: PilotOptions) -> tuple[NDArray[np.double],
+               NDArray[np.double],
+               NDArray[np.double],
+               NDArray[np.double]]:
+        """Solve the projection problem numerically.
+
+        Args:
+        x : NDArray[np.double] -- The feature matrix (instances x features)
+                                    to process.
+        x0 : NDArray[np.double] -- Initial guess for the solution.
+        x_bar : NDArray[np.double] -- Combined matrix of X and Y.
+        n : int -- Number of original features.
+        m : int -- Total number of features including appended Y.
+        alpha : NDArray[np.double] -- Flattened parameter vector containing
+                                    both A (2*n size) and B (m*2 size) matrices.
+        eoptim : NDArray[np.double] -- Optimized error function.
+        perf : NDArray[np.double] -- Optimized performance matrix.
+        opts : PilotOptions -- Configuration options for PILOT.
+
+        Returns:
+        -------
+        alpha : NDArray[np.double] -- Flattened parameter vector containing
+                                        both A (2*n size) and B (m*2 size) matrices.
+        eoptim : NDArray[np.double] -- Optimized error function.
+        perf : NDArray[np.double] -- Optimized performance matrix.
+        error : NDArray[np.double] -- The mean squared error between x_bar
+                                        and its low-dimensional approximation.
+        r2 : NDArray[np.double] -- The coefficient of determination between x_bar and
+                                    its low-dimensional approximation.
+        """
+        print(
+                    "-------------------------------------------------------------------------",
+                )
+        print("  -> PILOT is solving numerically the projection problem.")
+        print(
+                    "  -> This may take a while. Trials will not be"
+                    "run sequentially.",
+                )
+        print(
+                    "-------------------------------------------------------------------------",
+                )
+
+        for i in range(opts.n_tries):
+            initial_guess = x0[:, i]
+            result = optim.fmin_bfgs(
+                Pilot.error_function,
+                initial_guess,
+                args=(x_bar, n, m),
+                full_output=True,
+                disp=False,
+            )
+
+            (xopts, fopts, _, _, _, _, _) = result
+            alpha[:, i] = xopts
+            eoptim[i] = fopts
+
+            aux = alpha[:, i]
+            a = aux[0 : 2 * n].reshape(2, n)
+            z = np.dot(x, a.T)
+
+            perf[i], _ = pearsonr(hd, pdist(z))
+            idx = np.argmax(perf)
+            print(f"Pilot has completed trial {i + 1}")
+
+            idx = idx.astype(np.double)
+            alpha = alpha.astype(np.double)
+            eoptim = eoptim.astype(np.double)
+            perf = perf.astype(np.double)
+
+        return idx, alpha, eoptim, perf
+
+
+
+
+
+
+
