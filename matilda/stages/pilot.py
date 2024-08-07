@@ -138,8 +138,6 @@ class Pilot:
 
             alpha.astype(np.double)
 
-            idx = np.argmin(eoptim)
-
             out_a = alpha[: 2 * n, idx].reshape(2, n)
             out_z = x @ out_a.T
             b = alpha[2 * n :, idx].reshape(m, 2)
@@ -340,7 +338,7 @@ class Pilot:
             idx = np.argmax(perf)
             print(f"Pilot has completed trial {i + 1}")
 
-            
+
             alpha = alpha.astype(np.double)
             eoptim = eoptim.astype(np.double)
             perf = perf.astype(np.double)
