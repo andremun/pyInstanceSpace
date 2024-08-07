@@ -17,7 +17,7 @@ pandas-stubs = "^2.2.1.240316"
 scikit-learn = "^1.4.2"
 click = "^8.1.7"
 black = "^24.4.2"
-scipy = "^1.13.0"
+scipy = "^1.14.0"
 matplotlib = "^3.9.0"
 
 [tool.poetry.group.dev.dependencies]
@@ -162,5 +162,6 @@ module = [
     'scipy',
     'scipy.spatial',
     'scipy.spatial.distance',
+    'scipy.io',
 ]
 ignore_missing_imports = 'True'
