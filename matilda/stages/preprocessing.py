@@ -78,6 +78,17 @@ class Preprocessing:
 
         # From here return the tuple[PreprocessingDataChanged, PreprocessingOut(dummy)]
 
+        pre_data_changed = PreprocessingDataChanged(
+            inst_labels=after_washing.inst_labels,
+            feat_labels=after_washing.feat_labels,
+            algo_labels=after_washing.algo_labels,
+            x=after_washing.x,
+            y=after_washing.y,
+            s=after_washing.s,
+        )
+
+        preprocess_out = PreprocessingOut()
+
         # these stuff will be moved into PRILIM
         """after_process, prelim_opts = Preprocessing.process_data(after_washing, opts)
         prelim_data, prelim_out = Prelim.run(
@@ -95,7 +106,7 @@ class Preprocessing:
         # Where is the model created?
         # Preprocessing.split_data(bad_instances_removed, opts, model)"""
 
-        raise NotImplementedError
+        return pre_data_changed, preprocess_out
 
     @staticmethod
     def select_features_and_algorithms(data: Data, opts: InstanceSpaceOptions) -> Data:
