@@ -9,6 +9,7 @@ from matilda.data.metadata import Metadata, from_csv_file
 from matilda.data.model import (
     CloisterOut,
     Data,
+    FeatSel,
     Model,
     PilotOut,
     PrelimOut,
@@ -111,7 +112,36 @@ class InstanceSpace:
         -------
             model: A Model object representing the built instance space.
         """
-        raise NotImplementedError
+        self.prelim()
+        self.sifted()
+        self.pilot()
+        self.cloister()
+        self.trace()
+        self.pythia()
+
+        if (
+            self._data is None
+            or self._prelim_state is None
+            or self._sifted_state is None
+            or self._pilot_state is None
+            or self._cloister_state is None
+            or self._pythia_state is None
+            or self._trace_state is None
+        ):
+            raise StageError
+
+        return Model(
+            self._data,
+            self._data,  # TODO: Work out what this is
+            feat_sel=FeatSel.__new__(FeatSel),  # TODO: Work out what this is
+            prelim=self._prelim_state.out,
+            sifted=self._sifted_state.out,
+            pilot=self._pilot_state.out,
+            cloist=self._cloister_state.out,
+            pythia=self._pythia_state.out,
+            trace=self._trace_state.out,
+            opts=self.options,
+        )
 
     def prelim(self) -> PrelimOut:
         """Run the prelim stage.
