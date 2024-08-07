@@ -144,7 +144,7 @@ class Sifted:
             sifted.x =x_aux
             return sifted.get_output()
 
-        sifted.select_features_by_clustering(x_aux)
+        labels = sifted.select_features_by_clustering(x_aux)
 
         np.savetxt(script_dir / "tmp_data/clustering_output/Xaux.csv", x_aux, delimiter=",")
 
@@ -299,11 +299,12 @@ class Sifted:
         min_clusters = 3
         max_clusters = x_aux.shape[1]
 
-        silhouette_scores = {}
+        silhouette_scores, labels = {}, {}
 
         for n in range(min_clusters, max_clusters):
             kmeans = KMeans(n_clusters=n, n_init="auto", random_state=rng.integers(1000))
             cluster_labels = kmeans.fit_predict(x_aux.T)
+            labels[n] = cluster_labels
             silhouette_scores[n] = silhouette_score(
                 x_aux.T,
                 cluster_labels,
@@ -313,9 +314,12 @@ class Sifted:
         # suggest k value that has highest silhoulette score if k is not the default value and not the maximum nth cluster
         max_k_silhoulette = max(silhouette_scores, key=silhouette_scores.get)
         if max_k_silhoulette != self.opts.k and max_k_silhoulette != max_clusters:
-            print(f' Suggested k value {max_k_silhoulette} with silhoulette score of {silhouette_scores[max_k_silhoulette]}')
+            print(f'    Suggested k value {max_k_silhoulette} with silhoulette score of {silhouette_scores[max_k_silhoulette]:.4f}')
         
 
+        # matlab returning numOfObservation, inspected K value, criterion values, and optimal K, but in python lets do k value first
+        # need to deal with, if user choose optimal silhouette value, should change the output
+        return labels[self.opts.k]
 
     def cluster_dataset(self, x_aux: NDArray[np.double]) -> None:
         raise NotImplementedError
