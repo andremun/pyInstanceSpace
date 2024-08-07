@@ -136,6 +136,10 @@ class Pilot:
                     opts,
                 )
 
+            alpha.astype(np.double)
+
+            idx = np.argmin(eoptim)
+
             out_a = alpha[: 2 * n, idx].reshape(2, n)
             out_z = x @ out_a.T
             b = alpha[2 * n :, idx].reshape(m, 2)
@@ -193,7 +197,7 @@ class Pilot:
         x_bar: NDArray[np.double],
         n: int,
         m: int,
-    ) -> tuple[Any, Any, Any, Any, Any, NDArray[np.int128]]:
+    ) -> tuple[Any, Any, Any, Any, Any, NDArray[np.int16]]:
         """Solve the projection problem analytically.
 
         Args:
@@ -336,7 +340,7 @@ class Pilot:
             idx = np.argmax(perf)
             print(f"Pilot has completed trial {i + 1}")
 
-            idx = idx.astype(np.double)
+            
             alpha = alpha.astype(np.double)
             eoptim = eoptim.astype(np.double)
             perf = perf.astype(np.double)
