@@ -2,15 +2,9 @@ name: Validation Tests
 
 on:
   push:
-    branches: [Staging, main]
+    branches: [development, main, "*-candidate"]
   pull_request:
-    branches: [Staging, main]
-
-  workflow_run:
-    workflows: [Automerge]
-    branches: [main]
-    types:
-      - completed
+    branches: [development, main, "*-candidate"]
 
 permissions:
   contents: read
