@@ -1,8 +1,10 @@
 """Test module for serialisers."""
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
+import pandas as pd
 from scipy.io import loadmat
 
 from matilda.data.metadata import Metadata
@@ -31,9 +33,15 @@ from matilda.data.options import (
     SiftedOptions,
     TraceOptions,
 )
-from matilda.instance_space import _Stage, InstanceSpace
+from matilda.instance_space import InstanceSpace, _Stage
 
 script_dir = Path(__file__).parent
+
+# Clear the output before running the test
+for directory in ["csv", "web", "png"]:
+    output_directory = script_dir / "test_data/serializers/actual_output" / directory
+    for file in os.listdir(output_directory):
+        Path(output_directory / file).unlink()
 
 
 @dataclass
@@ -125,9 +133,9 @@ class _MatlabResults:
             pi=opts["trace"]["PI"],
         )
         output_options = OutputOptions(
-            csv=opts["output"]["csv"],
-            web=opts["output"]["web"],
-            png=opts["output"]["png"],
+            csv=opts["outputs"]["csv"],
+            web=opts["outputs"]["web"],
+            png=opts["outputs"]["png"],
         )
 
         options = InstanceSpaceOptions(
@@ -186,7 +194,7 @@ class _MatlabResults:
         sifted_state = StageState[SiftedOut](
             data=data,
             out=SiftedOut(
-                flag=self.workspace_data["model"]["sifted"]["flag"],
+                flag=-1,  # TODO: Find where this comes from
                 rho=self.workspace_data["model"]["sifted"]["rho"],
                 k=-1,  # TODO: Find where this comes from
                 n_trees=-1,  # TODO: Find where this comes from
@@ -247,8 +255,8 @@ class _MatlabResults:
                 cvcmat=self.workspace_data["model"]["pythia"]["cvcmat"],
                 y_sub=self.workspace_data["model"]["pythia"]["Ysub"],
                 y_hat=self.workspace_data["model"]["pythia"]["Yhat"],
-                pr0_sub=self.workspace_data["model"]["pythia"]["pr0sub"],
-                pr0_hat=self.workspace_data["model"]["pythia"]["pr0hat"],
+                pr0_sub=self.workspace_data["model"]["pythia"]["Pr0sub"],
+                pr0_hat=self.workspace_data["model"]["pythia"]["Pr0hat"],
                 box_consnt=self.workspace_data["model"]["pythia"]["boxcosnt"],
                 k_scale=self.workspace_data["model"]["pythia"]["kscale"],
                 precision=self.workspace_data["model"]["pythia"]["precision"],
@@ -266,17 +274,68 @@ class _MatlabResults:
 
 def test_save_to_csv() -> None:
     """Test saving information from a completed instance space to CSVs."""
+    instance_space = _MatlabResults().get_instance_space()
 
-    workspace_data = _MatlabResults().get_instance_space()
+    instance_space.save_to_csv(script_dir / "test_data/serializers/actual_output/csv")
+
+    test_data_dir = script_dir / "test_data/serializers"
+
+    for csv_file in os.listdir(
+        test_data_dir / "expected_output/csv",
+    ):
+        expected_file_path = test_data_dir / "expected_output/csv" / csv_file
+        actual_file_path = test_data_dir / "actual_output/csv" / csv_file
+
+        # Expected file isn't a directory, and actual file exists
+        assert Path.is_file(expected_file_path)
+        assert Path.is_file(actual_file_path)
+
+        expected_data = pd.read_csv(expected_file_path)
+        actual_data = pd.read_csv(actual_file_path)
+
+        pd.testing.assert_frame_equal(expected_data, actual_data)
 
 
 def test_save_for_web() -> None:
     """Test saving information for export to the web frontend."""
-    pass
+    instance_space = _MatlabResults().get_instance_space()
+
+    instance_space.save_for_web(script_dir / "test_data/serializers/actual_output/web")
+
+    test_data_dir = script_dir / "test_data/serializers"
+
+    for csv_file in os.listdir(
+        test_data_dir / "expected_output/web",
+    ):
+        expected_file_path = test_data_dir / "expected_output/web" / csv_file
+        actual_file_path = test_data_dir / "actual_output/web" / csv_file
+
+        # Expected file isn't a directory, and actual file exists
+        assert Path.is_file(expected_file_path)
+        assert Path.is_file(actual_file_path)
+
+        expected_data = pd.read_csv(expected_file_path)
+        actual_data = pd.read_csv(actual_file_path)
+
+        pd.testing.assert_frame_equal(expected_data, actual_data)
 
 
 def test_save_graphs() -> None:
     """Test saving graphs from a completed instance space."""
-    pass
+    instance_space = _MatlabResults().get_instance_space()
 
-test_save_to_csv()
+    instance_space.save_for_web(script_dir / "test_data/serializers/actual_output/web")
+
+    test_data_dir = script_dir / "test_data/serializers"
+
+    for csv_file in os.listdir(
+        test_data_dir / "expected_output/web",
+    ):
+        expected_file_path = test_data_dir / "expected_output/web" / csv_file
+        actual_file_path = test_data_dir / "actual_output/web" / csv_file
+
+        # Expected file isn't a directory, and actual file exists
+        assert Path.is_file(expected_file_path)
+        assert Path.is_file(actual_file_path)
+
+        # We can't test the images, so we must check visually that they are consistant
