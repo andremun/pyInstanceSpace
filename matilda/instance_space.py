@@ -5,7 +5,11 @@ from dataclasses import fields
 from enum import Enum
 from pathlib import Path
 
-from matilda._serializers import save_instance_space_for_web, save_instance_space_to_csv
+from matilda._serializers import (
+    save_instance_space_for_web,
+    save_instance_space_graphs,
+    save_instance_space_to_csv,
+)
 from matilda.data.metadata import Metadata, from_csv_file
 from matilda.data.model import (
     CloisterOut,
@@ -375,7 +379,7 @@ class InstanceSpace:
             self._pythia_state,
         )
 
-    def save_to_web(self, output_directory: Path) -> None:
+    def save_for_web(self, output_directory: Path) -> None:
         """Save csv outputs used for the web frontend to a directory."""
         print(
             "=========================================================================",
@@ -398,6 +402,9 @@ class InstanceSpace:
             raise StageError
 
         save_instance_space_for_web(output_directory, self._prelim_state)
+
+    def save_graphs(self, output_directory: Path) -> None:
+        save_instance_space_graphs()
 
 
 def instance_space_from_files(
