@@ -8,6 +8,8 @@ from one edge of the space to the opposite.
 
 """
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import scipy.linalg as la
@@ -94,7 +96,7 @@ class Pilot:
         perf = None
 
         if opts.analytic:
-            out_a,out_z, out_c, out_b, error, r2 = Pilot.analytic_solve(x, x_bar, n, m)
+            out_a, out_z, out_c, out_b, error, r2 = Pilot.analytic_solve(x, x_bar, n, m)
 
         # Numerical solution
         else:
@@ -189,12 +191,9 @@ class Pilot:
     def analytic_solve(
         x: NDArray[np.double],
         x_bar: NDArray[np.double],
-        n: int, m: int) -> tuple[NDArray[np.double],
-                                 NDArray[np.double],
-                                 NDArray[np.double],
-                                 NDArray[np.double],
-                                 NDArray[np.double],
-                                 NDArray[np.double]]:
+        n: int,
+        m: int,
+    ) -> tuple[Any, Any, Any, Any, Any, NDArray[np.int128]]:
         """Solve the projection problem analytically.
 
         Args:
@@ -215,12 +214,12 @@ class Pilot:
                                     and its low-dimensional approximation.
         """
         print(
-                    "-------------------------------------------------------------------------",
-                )
+            "-------------------------------------------------------------------------",
+        )
         print("  -> PILOT is solving analytically the projection problem.")
         print(
-                    "-------------------------------------------------------------------------",
-                )
+            "-------------------------------------------------------------------------",
+        )
         x_bar = x_bar.T
 
         x = x.T
@@ -263,7 +262,7 @@ class Pilot:
         error = error.astype(np.double)
         r2 = r2.astype(np.double)
 
-        return out_a, out_z, out_c, out_b, error, r2
+        return (out_a, out_z, out_c, out_b, error, r2)
 
     @staticmethod
     def numerical_solve(
@@ -276,10 +275,8 @@ class Pilot:
         alpha: NDArray[np.double],
         eoptim: NDArray[np.double],
         perf: NDArray[np.double],
-        opts: PilotOptions) -> tuple[NDArray[np.double],
-               NDArray[np.double],
-               NDArray[np.double],
-               NDArray[np.double]]:
+        opts: PilotOptions,
+    ) -> tuple[Any, Any, Any, NDArray[np.double]]:
         """Solve the projection problem numerically.
 
         Args:
@@ -307,16 +304,15 @@ class Pilot:
                                     its low-dimensional approximation.
         """
         print(
-                    "-------------------------------------------------------------------------",
-                )
+            "-------------------------------------------------------------------------",
+        )
         print("  -> PILOT is solving numerically the projection problem.")
         print(
-                    "  -> This may take a while. Trials will not be"
-                    "run sequentially.",
-                )
+            "  -> This may take a while. Trials will not be" "run sequentially.",
+        )
         print(
-                    "-------------------------------------------------------------------------",
-                )
+            "-------------------------------------------------------------------------",
+        )
 
         for i in range(opts.n_tries):
             initial_guess = x0[:, i]
@@ -346,10 +342,3 @@ class Pilot:
             perf = perf.astype(np.double)
 
         return idx, alpha, eoptim, perf
-
-
-
-
-
-
-
