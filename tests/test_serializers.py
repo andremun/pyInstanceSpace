@@ -46,8 +46,8 @@ for directory in ["csv", "web", "png"]:
 
 @dataclass
 class _MatlabResults:
-    workspace_data: dict
-    s_data: dict
+    workspace_data: dict  # type: ignore
+    s_data: dict  # type: ignore
 
     def __init__(self) -> None:
         self.workspace_data = loadmat(

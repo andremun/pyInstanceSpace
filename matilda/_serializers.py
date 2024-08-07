@@ -551,15 +551,11 @@ def _draw_good_bad_footprint(
     title_label: str,
     output: Path,
 ) -> None:
-    upper_bound = np.ceil(np.max(z))
-    lower_bound = np.floor(np.min(z))
-
     orange = (1.0, 0.6471, 0.0, 1.0)
     blue = (0.0, 0.0, 1.0, 1.0)
 
     labels = ["GOOD", "BAD"]
 
-    cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
     fig.suptitle(title_label)
@@ -604,15 +600,11 @@ def _draw_binary_performance(
     title_label: str,
     output: Path,
 ) -> None:
-    upper_bound = np.ceil(np.max(z))
-    lower_bound = np.floor(np.min(z))
-
     orange = (1.0, 0.6471, 0.0, 1.0)
     blue = (0.0, 0.0, 1.0, 1.0)
 
     labels = ["GOOD", "BAD"]
 
-    cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
     fig.suptitle(title_label)
