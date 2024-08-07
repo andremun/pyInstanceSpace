@@ -187,6 +187,12 @@ class Pilot:
         )
         pda = PilotDataChanged()
 
+        print(
+            "-------------------------------------------------------------------------",
+        )
+        print("  -> PILOT has completed. The projection matrix A is:")
+        print(out_a)
+
         return (pda, pout)
 
     @staticmethod
