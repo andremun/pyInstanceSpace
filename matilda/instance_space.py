@@ -9,7 +9,6 @@ from matilda.data.metadata import Metadata, from_csv_file
 from matilda.data.model import (
     CloisterOut,
     Data,
-    FeatSel,
     Model,
     PilotOut,
     PrelimOut,
