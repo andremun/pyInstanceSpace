@@ -13,7 +13,7 @@ from shapely.ops import triangulate, unary_union
 import multiprocessing
 import time
 from matilda.data.options import TraceOptions
-
+from matilda.data.model import Footprint
 
 
 
