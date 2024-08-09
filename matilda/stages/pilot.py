@@ -241,9 +241,9 @@ class Pilot:
 
         x_transpose = x.T
         xx_transpose = np.dot(x, x.T)
-        xx_transpose_inv = np.linalg.inv(xx_transpose)
+        xx_transpose_inverse = np.linalg.inv(xx_transpose)
 
-        x_r = np.dot(x_transpose, xx_transpose_inv)
+        x_r = np.dot(x_transpose, xx_transpose_inverse)
 
         out_a = v.T @ x_bar @ x_r
         out_z = out_a @ x
