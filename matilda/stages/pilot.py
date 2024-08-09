@@ -23,51 +23,17 @@ from matilda.data.options import PilotOptions
 
 
 class Pilot:
-    """See file docstring.
-
-    Class for projection of instances into a low-dimensional space
+    """Class for projection of instances into a low-dimensional space
     """
 
     def __init__(self) -> None:
         """Initialize the Pilot stage.
 
-        The Initialize function does nothing.
+        The Initialize functon is used to create a Pilot class.
         """
         pass
 
-    @staticmethod
-    def error_function(
-        alpha: NDArray[np.float64],
-        x_bar: NDArray[np.float64],
-        n: int,
-        m: int,
-    ) -> float:
-        """Error function used for numerical optimization in the PILOT algorithm.
-
-        Args:
-        alpha : NDArray[np.float64] -- Flattened parameter vector containing
-                                        both A (2*n size)
-                                        and B (m*2 size) matrices.
-        x_bar : NDArray[np.float64] -- Combined matrix of X and Y.
-        n : int -- Number of original features.
-        m : int -- Total number of features including appended Y.
-
-        Returns:
-        -------
-        float -- The mean squared error between x_bar and its
-                    low-dimensional approximation.
-        """
-        a = alpha[: 2 * n].reshape(2, n)
-        b = alpha[2 * n :].reshape(m, 2)
-
-        # Compute the approximation of x_bar
-        x_bar_approx = x_bar[:, :n].T
-        x_bar_approx = (b @ a @ x_bar_approx).T
-
-        return float(
-            np.nanmean(np.nanmean((x_bar - x_bar_approx) ** 2, axis=1), axis=0),
-        )
-
+    
     @staticmethod
     def run(
         x: NDArray[np.double],
@@ -75,13 +41,10 @@ class Pilot:
         feat_labels: list[str],
         opts: PilotOptions,
     ) -> tuple[PilotDataChanged, PilotOut]:
-        """Produce the final subset of features.
-
-        opts.pilot.analytic determines whether the analytic (set as TRUE) or the
-        numerical (set as FALSE) solution to be adopted.
-
-        opts.pilot.n_tries number of iterations that the numerical solution is
-        attempted.
+        """Main method for running PILOT dimensionality reduction
+        
+        Args:
+        -------
         """
         n = x.shape[1]
         x_bar = np.concatenate((x, y), axis=1)
@@ -96,6 +59,7 @@ class Pilot:
         perf = None
 
         if opts.analytic:
+            # Analytical solution
             out_a, out_z, out_c, out_b, error, r2 = Pilot.analytic_solve(x, x_bar, n, m)
 
         # Numerical solution
@@ -205,6 +169,7 @@ class Pilot:
         """Solve the projection problem analytically.
 
         Args:
+        -------
         x : NDArray[np.double] -- The feature matrix (instances x features) to process.
         x_bar : NDArray[np.double] -- Combined matrix of X and Y.
         n : int -- Number of original features.
@@ -288,6 +253,7 @@ class Pilot:
         """Solve the projection problem numerically.
 
         Args:
+        -------
         x : NDArray[np.double] -- The feature matrix (instances x features)
                                     to process.
         x0 : NDArray[np.double] -- Initial guess for the solution.
@@ -349,3 +315,39 @@ class Pilot:
             perf = perf.astype(np.double)
 
         return idx, alpha, eoptim, perf
+    
+
+    @staticmethod
+    def error_function(
+        alpha: NDArray[np.float64],
+        x_bar: NDArray[np.float64],
+        n: int,
+        m: int,
+    ) -> float:
+        """Error function used for numerical optimization in the PILOT algorithm.
+
+        Args:
+        -------
+        alpha : NDArray[np.float64] -- Flattened parameter vector containing
+                                        both A (2*n size)
+                                        and B (m*2 size) matrices.
+        x_bar : NDArray[np.float64] -- Combined matrix of X and Y.
+        n : int -- Number of original features.
+        m : int -- Total number of features including appended Y.
+
+        Returns:
+        -------
+        float -- The mean squared error between x_bar and its
+                    low-dimensional approximation.
+        """
+        a = alpha[: 2 * n].reshape(2, n)
+        b = alpha[2 * n :].reshape(m, 2)
+
+        # Compute the approximation of x_bar
+        x_bar_approx = x_bar[:, :n].T
+        x_bar_approx = (b @ a @ x_bar_approx).T
+
+        return float(
+            np.nanmean(np.nanmean((x_bar - x_bar_approx) ** 2, axis=1), axis=0),
+        )
+
