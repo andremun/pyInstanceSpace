@@ -8,6 +8,7 @@ to data analysis and model building.
 from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
+from shapely.geometry import Polygon
 
 import numpy as np
 import pandas as pd
@@ -242,16 +243,34 @@ class PolyShape:
     pass
 
 
-@dataclass(frozen=True)
+@dataclass
 class Footprint:
-    """Represent the geometric and quality attributes of a spatial footprint."""
+    """
+    A class to represent a footprint with geometric and statistical properties.
 
-    polygon: PolyShape
-    area: float
-    elements: float
-    good_elements: float
-    density: float
-    purity: float
+    Attributes:
+    -----------
+    polygon : Polygon
+        The geometric shape of the footprint.
+    area : float
+        The area of the footprint.
+    elements : int
+        The number of data points within the footprint.
+    good_elements : int
+        The number of "good" data points within the footprint (as defined by specific criteria).
+    density : float
+        The density of points within the footprint.
+    purity : float
+        The purity of "good" elements in relation to all elements in the footprint.
+    """
+
+    def __init__(self, polygon: Polygon = None):
+        self.polygon = polygon if polygon else None
+        self.area = self.polygon.area if polygon else None
+        self.elements = 0
+        self.good_elements = 0
+        self.density = 0
+        self.purity = 0
 
 
 @dataclass(frozen=True)
