@@ -155,7 +155,7 @@ class PilotOut:
     c: NDArray[np.double]
     b: NDArray[np.double]
     error: NDArray[np.double]  # or just the double
-    r2: Any | None
+    r2: NDArray[np.float16] | None
     summary: pd.DataFrame
 
 
