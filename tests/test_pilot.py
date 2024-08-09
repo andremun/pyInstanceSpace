@@ -118,7 +118,6 @@ def test_run_analytic() -> None:
     np.testing.assert_almost_equal(error, mtr.data["error"], decimal=6)
 
 
-
 def test_run_numerical() -> None:
     """Test the run function for the Pilot stage for numerical purposes."""
     sd = SampleDataNum()
