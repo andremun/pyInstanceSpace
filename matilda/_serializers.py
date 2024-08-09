@@ -7,6 +7,7 @@ import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.colors import Normalize
 from numpy.typing import NDArray
+from shapely.ops import triangulate
 
 from .data.model import (
     CloisterOut,
@@ -39,22 +40,24 @@ def save_instance_space_to_csv(
 
         best = trace_state.out.best[i]
         if best is not None and best.polygon is not None:
+            best_vertices = triangulate(best.polygon)
             best = trace_state.out.best[i]
             algorithm_labels = trace_state.data.algo_labels[i]
             _write_array_to_csv(
-                best.polygon.vertices,
+                best_vertices,
                 pd.Series(["z_1", "z_2"]),
-                _make_bind_labels(best.polygon.vertices),
+                _make_bind_labels(best_vertices),
                 output_directory / f"footprint_{algorithm_labels}_good.csv",
             )
 
         good = trace_state.out.good[i]
         if good is not None and good.polygon is not None:
+            good_vertices = triangulate(good.polygon)
             algorithm_labels = trace_state.data.algo_labels[i]
             _write_array_to_csv(
-                good.polygon.vertices,
+                good_vertices,
                 pd.Series(["z_1", "z_2"]),
-                _make_bind_labels(good.polygon.vertices),
+                _make_bind_labels(good_vertices),
                 output_directory / f"footprint_{algorithm_labels}_good.csv",
             )
 
