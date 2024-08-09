@@ -234,16 +234,8 @@ class PythiaDataChanged:
         raise NotImplementedError
 
 
+
 @dataclass(frozen=True)
-class PolyShape:
-    """Represent Polygon shape for footprint."""
-
-    # polyshape is the builtin Matlab Data structure,
-    # may find a similar one in python
-    pass
-
-
-@dataclass
 class Footprint:
     """
     A class to represent a footprint with geometric and statistical properties.
@@ -263,8 +255,15 @@ class Footprint:
     purity : float
         The purity of "good" elements in relation to all elements in the footprint.
     """
+    polygon: Polygon
+    area: float
+    elements: int
+    good_elements: int
+    density: float
+    purity: float
 
-    def __init__(self, polygon: Polygon = None):
+
+    def __init__(self, polygon: Polygon):
         self.polygon = polygon if polygon else None
         self.area = self.polygon.area if polygon else None
         self.elements = 0
