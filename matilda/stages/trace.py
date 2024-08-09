@@ -1,54 +1,75 @@
-"""TRACE: Calculating the algorithm footprints.
-
-Triangulation with Removal of Areas with Contradicting Evidence (TRACE)
-is an algorithm used to estimate the area of good performance of an
-algorithm within the space.
-For more details, please read the original Matlab code and liveDemo.
-
-"""
-
-# Allows using Trace type inside the Trace class. This is only required in static
-# constructors.
-from __future__ import annotations
-
+from typing import List, Tuple, Dict
 import numpy as np
 from numpy.typing import NDArray
-
-from matilda.data.model import Footprint, PolyShape, TraceDataChanged, TraceOut
+from sklearn.cluster import DBSCAN
+from shapely.geometry import MultiPoint, Polygon, MultiPolygon
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
+import pandas as pd
+from scipy.special import gamma
+import math
+from scipy.spatial import ConvexHull
+from shapely.ops import triangulate, unary_union
+import multiprocessing
+import time
 from matilda.data.options import TraceOptions
 
 
-class Trace:
-    """See file docstring."""
 
+
+class Trace:
+    """
+    A class to manage the TRACE analysis process.
+
+    Attributes:
+    -----------
+    z : NDArray[np.double]
+        The space of instances.
+    y_bin : NDArray[np.bool_]
+        Binary indicators of performance.
+    p : NDArray[np.double]
+        Performance metrics for algorithms.
+    beta : NDArray[np.bool_]
+        Specific beta threshold for footprint calculation.
+    algo_labels : List[str]
+        Labels for each algorithm.
+    opts : TraceOptions
+        Configuration options for TRACE and its subroutines.
+    """
     z: NDArray[np.double]
     y_bin: NDArray[np.bool_]
     p: NDArray[np.double]
     beta: NDArray[np.bool_]
-    algo_labels: list[str]
+    algo_labels: List[str]
     opts: TraceOptions
 
-    def __init__(
-        self,
-        z: NDArray[np.double],
-        y_bin: NDArray[np.bool_],
-        p: NDArray[np.double],
-        beta: NDArray[np.bool_],
-        algo_labels: list[str],
-        opts: TraceOptions,
-    ) -> None:
-        """Initialise the Trace stage.
 
-        Args
-        ----
-            z (NDArray[np.double]): The space of instances
-            y_bin (NDArray[np.bool_]): Binary indicators of performance
-            p (NDArray[np.double]): Performance metrics for algorithms
-            beta (NDArray[np.bool_]): Specific beta threshold for footprint calculation
-            algo_labels (list[str]): Labels for each algorithm. Note that the datatype
-                is still in deciding
-            opts (TraceOptions): Configuration options for TRACE and its subroutines
-        """
+    def __init__(
+            self,
+            z: NDArray[np.double],
+            y_bin: NDArray[np.bool_],
+            p: NDArray[np.double],
+            beta: NDArray[np.bool_],
+            algo_labels: List[str],
+            opts: TraceOptions,
+    ) -> None:
+        """Initialize the Trace analysis.
+
+                Parameters:
+                -----------
+                z : NDArray[np.double]
+                    The space of instances.
+                y_bin : NDArray[np.bool_]
+                    Binary indicators of performance.
+                p : NDArray[np.double]
+                    Performance metrics for algorithms.
+                beta : NDArray[np.bool_]
+                    Specific beta threshold for footprint calculation.
+                algo_labels : List[str]
+                    Labels for each algorithm.
+                opts : TraceOptions
+                    Configuration options for TRACE and its subroutines.
+                """
         self.z = z
         self.y_bin = y_bin
         self.p = p
@@ -56,264 +77,433 @@ class Trace:
         self.algo_labels = algo_labels
         self.opts = opts
 
-    @staticmethod
-    def run(
-        z: NDArray[np.double],
-        y_bin: NDArray[np.bool_],
-        p: NDArray[np.double],
-        beta: NDArray[np.bool_],
-        algo_labels: list[str],
-        opts: TraceOptions,
-    ) -> tuple[TraceDataChanged, TraceOut]:
-        """Estimate the good performance area of algorithms within the space.
+    def run(self) -> Dict[str, List]:
+        """Perform the TRACE footprint analysis.
 
-        Parameters
-        ----------
-        z : NDArray[np.double]
-            The space of instances
+        Returns:
+        --------
+        dict:
+            A dictionary containing the analysis results, including the calculated footprints and summary statistics.
+        """
+        ninst, ncol = self.z.shape
+        nalgos = self.y_bin.shape[1]
+        true_array = np.ones((ninst, ncol), dtype=bool)
+        # Calculate the space footprint
+        print('  -> TRACE is calculating the space area and density.')
+        out = {'space': self.build(true_array)}
+        print(f'    -> Space area: {out["space"].area} | Space density: {out["space"].density}')
+
+        # Calculate footprints for good and best performance regions
+        print('-------------------------------------------------------------------------')
+        print('  -> TRACE is calculating the algorithm footprints.')
+        nworkers = self.get_num_workers()
+        good, best = self.parallel_processing(nworkers, nalgos)
+
+        out['good'] = good
+        out['best'] = best
+
+        # Detect and remove contradictions
+        print('-------------------------------------------------------------------------')
+        print('  -> TRACE is detecting and removing contradictory sections of the footprints.')
+        for i in range(nalgos):
+            print(f"  -> Base algorithm '{self.algo_labels[i]}'")
+            start_base = time.time()
+            for j in range(i + 1, nalgos):
+                print(f"      -> TRACE is comparing '{self.algo_labels[i]}' with '{self.algo_labels[j]}'")
+                start_test = time.time()
+                algo_1: NDArray[np.bool_] = np.array([v == i for v in self.p], dtype=np.bool_)
+                algo_2: NDArray[np.bool_] = np.array([v == j for v in self.p], dtype=np.bool_)
+
+                out['best'][i], out['best'][j] = self.contra(
+                    out['best'][i], out['best'][j], algo_1, algo_2)
+
+                elapsed_test = time.time() - start_test
+                print(f"      -> Test algorithm '{self.algo_labels[j]}' completed. Elapsed time: {elapsed_test:.2f}s")
+            elapsed_base = time.time() - start_base
+            print(f"  -> Base algorithm '{self.algo_labels[i]}' completed. Elapsed time: {elapsed_base:.2f}s")
+
+        # Calculate the beta footprint
+        print('-------------------------------------------------------------------------')
+        print('  -> TRACE is calculating the beta-footprint.')
+        out['hard'] = self.build(~self.beta)
+
+        # Prepare the summary table
+        print('-------------------------------------------------------------------------')
+        print('  -> TRACE is preparing the summary table.')
+        out['summary'] = [
+            ['Algorithm', 'Area_Good', 'Area_Good_Normalised', 'Density_Good', 'Density_Good_Normalised', 'Purity_Good',
+             'Area_Best', 'Area_Best_Normalised', 'Density_Best', 'Density_Best_Normalised', 'Purity_Best']]
+        for i, label in enumerate(self.algo_labels):
+            summary_row = [label]
+            summary_row += self.summary(out['good'][i], out['space'].area, out['space'].density)
+            summary_row += self.summary(out['best'][i], out['space'].area, out['space'].density)
+            out['summary'].append(summary_row)
+
+        print('  -> TRACE has completed. Footprint analysis results:')
+        print(' ')
+        for row in out['summary']:
+            print(row)
+
+        return out
+
+    def build(self, y_bin: NDArray[np.bool_]) -> Footprint:
+        """Construct a footprint polygon using DBSCAN clustering.
+
+        Parameters:
+        -----------
         y_bin : NDArray[np.bool_]
-            Binary indicators of performance
-        p : NDArray[np.double]
-            Performance metrics for algorithms
-        beta : NDArray[np.bool_]
-            Specific beta threshold for footprint calculation
-        algo_labels : list[str]
-            Labels for each algorithm. Note that the datatype is still in deciding
-        opts : TraceOptions
-            Configuration options for TRACE and its subroutines
+            Binary indicator vector indicating which data points are of interest.
 
-        Returns
-        -------
-        TraceOut :
-            A structured output containing the results of the TRACE analysis
-            including algorithm footprints and performance summaries.
+        Returns:
+        --------
+        Footprint:
+            The constructed footprint with calculated area, density, and purity.
         """
-        trace = Trace(z, y_bin, p, beta, algo_labels, opts)  # noqa: F841
-        # TODO: Rewrite TRACE logic in python
-        raise NotImplementedError
 
-    """
-    % =========================================================================
-    % SUBFUNCTIONS
-    % =========================================================================
-    """
+        # Extract rows where Ybin is True
+        filtered_z = self.z[y_bin].reshape(self.z.shape)
 
-    def build(
-        self,
-    ) -> Footprint:
-        """Build footprints for good or best performance of algorithms.
+        # Find unique rows
+        unique_rows = np.unique(filtered_z, axis=0)
 
-        Parameters
-        ----------
-        z: NDArray[np.double]
-            The space of instances.
-        y_bin: NDArray[np.bool_]
-            Binary indicators of performance.
-        opts: TraceOptions
-            Configuration options for TRACE.
+        # Check the number of unique rows
+        if unique_rows.shape[0] < 3:
+            footprint = self.throw()
 
-        Returns
-        -------
-        Footprint: A footprint structure containing polygons, area, density, and purity.
-        """
-        # TODO: Rewrite TRACEbuild logic in python
-        raise NotImplementedError
+        footprint = Footprint()
 
-    def contra(
-        self,
-        base: Footprint,
-        test: Footprint,
-        y_base: NDArray[np.bool_],
-        y_test: NDArray[np.bool_],
-    ) -> tuple[Footprint, Footprint]:
-        """Detect and remove contradictory sections between two algorithm footprints.
+        labels = self.run_dbscan(y_bin, unique_rows)
 
-        Parameters
-        ----------
-        base, Footprint:
-            the footprints of base
-        test , Footprint:
-            the footprints of test
-        z,NDArray[np.double]:
-            The space of instances.
-        y_base,NDArray[np.bool_]:
-            Performance indicators
-        y_test,NDArray[np.bool_]:
-            Performance indicators
-        opts,TraceOptions:
-            Configuration options for TRACE.
+        flag = False
+        for i in range(1, np.max(labels) + 1):
+            polydata = unique_rows[labels == i]
+            polydata = polydata[ConvexHull(polydata).vertices]
+            aux = self.fit_poly(polydata,y_bin)
+            if aux:
+                if not flag:
+                    footprint.polygon = aux
+                    flag = True
+                else:
+                    footprint.polygon = footprint.polygon.union(aux)
 
-        Returns
-        -------
-            tuple[Footprint, Footprint]
-            still need to decide the return values type.
-        """
-        # not sure whether the returned value is tuple or list, needs further decision
-        # TODO: Rewrite TRACEcontra logic in python
-        raise NotImplementedError
+        if footprint.polygon.is_empty:
+            return self.throw()
 
-    def tight(
-        self,
-        polygon: PolyShape,
-    ) -> PolyShape:
-        """Refer the original Matlab function to get more info.
+        footprint.polygon = footprint.polygon.buffer(0.01).buffer(-0.01)
+        footprint.area = footprint.polygon.area
+        footprint.elements = np.sum([footprint.polygon.contains(point) for point in MultiPoint(self.z)])
+        footprint.good_elements = np.sum([footprint.polygon.contains(point) for point in MultiPoint(self.z[y_bin,])])
+        footprint.density = footprint.elements / footprint.area
+        footprint.purity = footprint.good_elements / footprint.elements
 
-        Parameters
-        ----------
-        polygon : PolyShape
-            The initial polygon shape.
-        z : NDArray[np.double]
-            The space of instances.
+        return footprint
+
+    def contra(self, base: Footprint, test: Footprint, y_base: NDArray[np.bool_] , y_test: NDArray[np.bool_]) \
+            -> Tuple[Footprint, Footprint]:
+        """Detect and resolve contradictions between two footprint polygons.
+
+                Parameters:
+                -----------
+                base : Footprint
+                    The base footprint polygon.
+                test : Footprint
+                    The test footprint polygon.
+                y_base : NDArray[np.bool_]
+                    Binary array indicating the points corresponding to the base footprint.
+                y_test : NDArray[np.bool_]
+                    Binary array indicating the points corresponding to the test footprint.
+
+                Returns:
+                --------
+                tuple:
+                    Updated base and test footprints after resolving contradictions.
+                """
+
+        if base.polygon.is_empty or test.polygon.is_empty:
+            return base, test
+
+        max_tries = 3
+        num_tries = 1
+        contradiction = base.polygon.intersection(test.polygon)
+
+        while not contradiction.is_empty and num_tries <= max_tries:
+            num_elements = np.sum([contradiction.contains(point) for point in MultiPoint(self.z)])
+            num_good_elements_base = np.sum(
+                [contradiction.contains(point) for point in MultiPoint(self.z[y_base])])
+            num_good_elements_test = np.sum(
+                [contradiction.contains(point) for point in MultiPoint(self.z[y_test])])
+
+            purity_base = num_good_elements_base / num_elements
+            purity_test = num_good_elements_test / num_elements
+
+            if purity_base > purity_test:
+                c_area = contradiction.area / test.polygon.area
+                print(f'        -> {round(100 * c_area, 1)}% of the test footprint is contradictory.')
+                test.polygon = test.polygon.difference(contradiction)
+                if num_tries < max_tries:
+                    test.polygon = self.tight(test.polygon, y_test)
+            elif purity_test > purity_base:
+                c_area = contradiction.area / base.polygon.area
+                print(f'        -> {round(100 * c_area, 1)}% of the base footprint is contradictory.')
+                base.polygon = base.polygon.difference(contradiction)
+                if num_tries < max_tries:
+                    base.polygon = self.tight(base.polygon, y_base)
+            else:
+                print('        -> Purity of the contradicting areas is equal for both footprints.')
+                print('        -> Ignoring the contradicting area.')
+                break
+
+            if base.polygon.is_empty or test.polygon.is_empty:
+                break
+            else:
+                contradiction = base.polygon.intersection(test.polygon)
+
+            num_tries += 1
+
+        if base.polygon.is_empty:
+            base = self.throw()
+        else:
+            base.area = base.polygon.area
+            base.elements = np.sum([base.polygon.contains(point) for point in MultiPoint(self.z)])
+            base.good_elements = np.sum([base.polygon.contains(point) for point in MultiPoint(self.z[y_base])])
+            base.density = base.elements / base.area
+            base.purity = base.good_elements / base.elements
+
+        if test.polygon.is_empty:
+            test = self.throw()
+        else:
+            test.area = test.polygon.area
+            test.elements = np.sum([test.polygon.contains(point) for point in MultiPoint(self.z)])
+            test.good_elements = np.sum([test.polygon.contains(point) for point in MultiPoint(self.z[y_test])])
+            test.density = test.elements / test.area
+            test.purity = test.good_elements / test.elements
+
+        return base, test
+
+    def tight(self, polygon: Polygon | MultiPolygon, y_bin: NDArray[np.bool_]) -> Polygon | None:
+        """Refine an existing polygon by removing slivers and improving its shape.
+
+        Parameters:
+        -----------
+        polygon : Polygon | MultiPolygon
+            The polygon or multipolygon to be refined.
         y_bin : NDArray[np.bool_]
-            Not pretty sure the meaning of this parameter
-        opts : TraceOptions
-            Configuration options for TRACE
+            Binary array indicating which data points belong to the polygon.
 
-        Returns
-        -------
-        PolyShape
-            Not pretty sure the meaning
+        Returns:
+        --------
+        Polygon | None:
+            The refined polygon, or None if the refinement fails.
         """
-        # TODO: Rewrite TRACEtight logic in python
-        raise NotImplementedError
+        if not polygon:
+            return None
 
-    # note that for polydata, it is  highly probably a 2 dimensional array
-    def fitpoly(
-        self,
-        poly_data: NDArray[np.double],
-    ) -> PolyShape:
-        """Fits a polygon to the given data points according to TRACE criteria.
+        splits = [item for item in polygon] if isinstance(polygon, MultiPolygon) else [polygon]
+        npolygons = len(splits)
+        refined_polygons = []
 
-        Parameters
-        ----------
-        poly_data : NDArray[np.double]
-            Not pretty sure the meaning.
-        z : NDArray[np.double]
-            Not pretty sure the meaning.
+        for i in range(npolygons):
+            criteria = np.logical_and(splits[i].contains(MultiPoint(self.z)), y_bin)
+            polydata = self.z[criteria]
+
+            if polydata.shape[0] < 3:
+                continue
+
+            # Create a polygon from these points (may use convex_hull instead if needed but the client used this)
+            temp_polygon = Polygon(polydata)
+
+            # Get the boundary of the polygon
+            boundary = temp_polygon.boundary
+            filtered_polydata = polydata[boundary]
+            aux = self.fit_poly(filtered_polydata, y_bin)
+
+            if aux:
+                refined_polygons.append(aux)
+
+        if len(refined_polygons) > 0:
+            return unary_union(refined_polygons)
+        else:
+            return None
+
+    def fit_poly(self, polydata: NDArray[np.double], y_bin: NDArray[np.bool_]) -> Polygon | None:
+        """Fit a polygon to the given data points, ensuring it adheres to purity constraints.
+
+        Parameters:
+        -----------
+        polydata : NDArray[np.double]
+            The data points to fit the polygon to.
         y_bin : NDArray[np.bool_]
-            Not pretty sure the meaning.
-        opts : TraceOptions
-            Configuration options for TRACE,
+            Binary array indicating which data points should be considered for the polygon.
 
-        Returns
-        -------
-        PolyShape
-            Not pretty sure the meaning.
+        Returns:
+        --------
+        Polygon | None:
+            The fitted polygon, or None if the fitting fails.
         """
-        # TODO: Rewrite TRACEfitpoly logic in python
-        raise NotImplementedError
+        if polydata.shape[0] < 3:
+            return None
 
-    def summary(
-        self,
-        footprint: Footprint,
-        space_area: float,
-        space_density: float,
-    ) -> list[float]:
-        """Generate a summary of a footprint's relative characteristics.
+        polygon = Polygon(polydata).simplify(0.05)  # no need for rmslivers function
 
-        Parameters
-        ----------
+        if not np.all(y_bin):
+            if polygon.is_empty:
+                return None
+            tri = triangulate(polygon)
+            for piece in tri:
+                elements = np.sum(tri.contains(MultiPoint(self.z)))
+                good_elements = np.sum(tri.contains(MultiPoint(self.z[y_bin])))
+                if self.opts.PI > (good_elements / elements):
+                    polygon = polygon.difference(piece)
+
+        return polygon
+
+    def summary(self, footprint: Footprint, space_area: float, space_density: float) -> List[float]:
+        """Summarize the footprint metrics.
+
+        Parameters:
+        -----------
         footprint : Footprint
-            The footprint for which to generate a summary.
-        space_area : double
-            Not pretty sure the meaning.
-        space_density : double
-            Not pretty sure the meaning.
+            The footprint to summarize.
+        space_area : float
+            The total area of the space being analyzed.
+        space_density : float
+            The density of the entire space.
 
-        Returns
-        -------
-        list[float]
-            A list containing summary statistics of the footprint,
-            such as its area, normalized area, density, normalized density, and purity.
+        Returns:
+        --------
+        list:
+            A list containing summarized metrics such as area, normalized area, density, normalized density, and purity.
         """
-        # TODO: Rewrite TRACEsummary logic in python
-        raise NotImplementedError
+        out = [
+            footprint.area,
+            footprint.area / space_area,
+            footprint.density,
+            footprint.density / space_density,
+            footprint.purity
+        ]
+        out[np.isnan(out)] = 0
+        return out
 
-    def throw(
-        self,
-    ) -> Footprint:
-        """Generate a default 'empty' footprint.
+    def throw(self) -> Footprint:
+        """Generate an empty footprint with default values, indicating insufficient data.
 
-        Returns
-        -------
-        Footprint
-            with polygon set to an empty list and all numerical values set to 0,
-            indicating an insufficient data scenario.
+        Returns:
+        --------
+        Footprint:
+            An instance of Footprint with default values.
         """
-        # TODO: Rewrite TRACEthrow logic in python
-        raise NotImplementedError
+        print('        -> There are not enough instances to calculate a footprint.')
+        print('        -> The subset of instances used is too small.')
+        return Footprint()
 
-    def dbscan(
-        self,
-        x: NDArray[np.double],
-        k: int,
-        eps: float,
-    ) -> tuple[NDArray[np.intc], NDArray[np.intc]]:
-        """Perform DBSCAN clustering on the given data set.
+    def run_dbscan(self, y_bin, data: NDArray[np.double]) -> NDArray[np.int_]:
+        """Perform DBSCAN clustering on the dataset.
 
-        Parameters
-        ----------
-        x : NDArray[np.double]
-            Data set for clustering,
-        k : int
-            The minimum number of neighbors within `eps` radius
-        eps : double
-            The maximum distance between two points for one
-            to be considered as in the neighborhood of the other.
-            note that parameter:eps could be dropped.
+        Parameters:
+        -----------
+        y_bin : NDArray[np.bool_]
+            Binary indicator vector to filter the data points.
+        data : NDArray[np.double]
+            The dataset to cluster.
 
-        Returns
-        -------
-        tuple[NDArray[np.intc], NDArray[np.intc]]
-            tuple with arrays: the first indicates the cluster labels for each point,
-            and the second array indicates the point types (core, border, outlier).
-            not sure whether the returned value is tuple or list, needs further decision
+        Returns:
+        --------
+        NDArray[np.int_]:
+            Array of cluster labels for each data point.
         """
-        # TODO: Rewrite dbscan logic in python
+        nn = max(min(np.ceil(np.sum(y_bin) / 20), 50), 3)
+        m, n = data.shape
 
-        raise NotImplementedError
+        # Compute the range of each feature
+        feature_ranges = np.max(data, axis=0) - np.min(data, axis=0)
 
-    def epsilon(
-        self,
-        x: NDArray[np.double],
-        k: int,
-    ) -> float:
-        """Estimates the optimal epsilon value for DBSCAN based on the data.
+        # Product of the feature ranges
+        product_ranges = np.prod(feature_ranges)
 
-        Parameters
-        ----------
-        x : NDArray[np.double]
-            The data set used for clustering.
-        k : int
-            The minimum number of neighbors within `eps`
-            radius to consider a point as a core point.
+        # Compute the gamma function value
+        gamma_val = gamma(0.5 * n + 1)
 
-        Returns
-        -------
-        double
-            The estimated optimal epsilon value for the given data set and `k`.
+        # Compute Eps
+        eps = ((product_ranges * nn * gamma_val) / (m * math.sqrt(math.pi ** n))) ** (1 / n)
+
+        labels = DBSCAN(eps=eps, min_samples= int(nn)).fit_predict(data)
+        return labels
+
+    def get_num_workers(self):
+        """Get the number of available workers for parallel processing.
+
+        Returns:
+        --------
+        int:
+            Number of worker processes available.
         """
-        # TODO: Rewrite epsilon logic in python
-        raise NotImplementedError
+        try:
+            # Try to get the current pool if it exists
+            pool = multiprocessing.get_context().Pool()
+            num_workers = pool._processes  # Number of processes in the pool
+            pool.close()
+            pool.join()
+        except AttributeError:
+            num_workers = 0  # Pool does not exist
+        return num_workers
 
-    def dist(
-        self,
-        i: NDArray[np.double],
-        x: NDArray[np.double],
-    ) -> NDArray[np.double]:
-        """Calculate the Euclidean distance between a point and multiple other points.
+    def process_algorithm(self, i: int):
+        """Process a single algorithm to calculate its good and best performance footprints.
 
-        Parameters
-        ----------
-        i : NDArray[np.double]
-            an object (1,n).
-        x : NDArray[np.double]
-            data matrix (m,n); m-objects, n-variables.
+        Parameters:
+        -----------
+        i : int
+            Index of the algorithm to process.
 
-        Returns
-        -------
-        NDArray[np.double]
-            Euclidean distance (m,1).
+        Returns:
+        --------
+        Tuple[int, Footprint, Footprint]:
+            The index of the algorithm, and its good and best performance footprints.
         """
-        # TODO: Rewrite dist logic in python
-        raise NotImplementedError
+        start_time = time.time()
+        print(f"    -> Good performance footprint for '{self.algo_labels[i]}'")
+        good_performance = self.build(self.y_bin[:, i])
+
+        print(f"    -> Best performance footprint for '{self.algo_labels[i]}'")
+        bool_array: NDArray[np.bool_] = np.array([v == i for v in self.p], dtype=np.bool_)
+        best_performance = self.build(bool_array)
+
+        elapsed_time = time.time() - start_time
+        print(f"    -> Algorithm '{self.algo_labels[i]}' completed. Elapsed time: {elapsed_time:.2f}s")
+
+        return i, good_performance, best_performance
+
+    def parallel_processing(self, nworkers: int, nalgos) -> Tuple[List[Footprint], List[Footprint]] :
+        """Perform parallel processing to calculate footprints for multiple algorithms.
+
+        Parameters:
+        -----------
+        nworkers : int
+            Number of worker threads to use.
+        nalgos : int
+            Number of algorithms to process.
+
+        Returns:
+        --------
+        Tuple[List[Footprint], List[Footprint]]:
+            Lists of good and best performance footprints for each algorithm.
+        """
+        good: List[Footprint] = [Footprint() for _ in range(nalgos)]
+        best: List[Footprint] = [Footprint() for _ in range(nalgos)]
+        with (ThreadPoolExecutor(max_workers=nworkers) as executor):
+            futures = [
+                executor.submit(self.process_algorithm, i)
+                for i in range(nalgos)
+            ]
+            for future in as_completed(futures):
+                i: int
+                good_performance: Footprint
+                best_performance: Footprint
+                i, good_performance, best_performance = future.result()
+                good[i] = good_performance
+                best[i] = best_performance
+
+        return good, best
+
+
+
