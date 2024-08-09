@@ -8,8 +8,6 @@ from one edge of the space to the opposite.
 
 """
 
-from typing import Any
-
 import numpy as np
 import pandas as pd
 import scipy.linalg as la
@@ -23,8 +21,7 @@ from matilda.data.options import PilotOptions
 
 
 class Pilot:
-    """Class for projection of instances into a low-dimensional space
-    """
+    """Class for projection of instances into a low-dimensional space."""
 
     def __init__(self) -> None:
         """Initialize the Pilot stage.
@@ -33,7 +30,6 @@ class Pilot:
         """
         pass
 
-    
     @staticmethod
     def run(
         x: NDArray[np.double],
@@ -41,10 +37,27 @@ class Pilot:
         feat_labels: list[str],
         opts: PilotOptions,
     ) -> tuple[PilotDataChanged, PilotOut]:
-        """Main method for running PILOT dimensionality reduction
-        
-        Args:
+        """Run the PILOT dimensionality reduction algorithm.
+
+        Args
         -------
+        x : NDArray[double]
+            The feature matrix (instances x features) to process.
+        y: NDArray[double]
+            The data points for the selected feature
+        feat_labels :  list[str]
+            List feature names
+        opts : PilotOptions
+            The options enabled for the Pilot Class
+
+        Return
+        -------
+        PilotDataChanged
+            The data that has been changed in-place
+
+        PilotOut
+            The output class that contains all the outputs for Pilot
+
         """
         n = x.shape[1]
         x_bar = np.concatenate((x, y), axis=1)
@@ -165,26 +178,43 @@ class Pilot:
         x_bar: NDArray[np.double],
         n: int,
         m: int,
-    ) -> tuple[Any, Any, Any, Any, Any, NDArray[np.int16]]:
+    ) -> tuple[
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.float16],
+    ]:
         """Solve the projection problem analytically.
 
         Args:
         -------
-        x : NDArray[np.double] -- The feature matrix (instances x features) to process.
-        x_bar : NDArray[np.double] -- Combined matrix of X and Y.
-        n : int -- Number of original features.
-        m : int -- Total number of features including appended Y.
+        x : NDArray[np.double]
+            The feature matrix (instances x features) to process.
+        x_bar : NDArray[np.double]
+            Combined matrix of X and Y.
+        n : int
+            Number of original features.
+        m : int
+            Total number of features including appended Y.
 
         Returns:
         -------
-        out_a : NDArray[np.double] -- A matrix.
-        out_b : NDArray[np.double] -- B matrix.
-        out_c : NDArray[np.double] -- C matrix.
-        out_z : NDArray[np.double] -- Z matrix.
-        error : NDArray[np.double] -- The mean squared error between x_bar and its
-                            low-dimensional approximation.
-        r2 : NDArray[np.double] -- The coefficient of determination between x_bar
-                                    and its low-dimensional approximation.
+        NDArray[np.double]
+            Matrix A.
+        NDArray[np.double]
+            Matrix B.
+        NDArray[np.double]
+            Matrix C.
+        NDArray[np.double]
+            Matrix Z.
+        NDArray[np.double]
+            The mean squared error between x_bar and its
+            low-dimensional approximation.
+        NDArray[np.float16]
+            The coefficient of determination between x_bar
+            and its low-dimensional approximation.
         """
         print(
             "-------------------------------------------------------------------------",
@@ -228,14 +258,14 @@ class Pilot:
         error = np.sum((x_bar - x_hat) ** 2)
         r2 = np.diag(np.corrcoef(x_bar.T, x_hat.T, rowvar=False)[:m, m:]) ** 2
 
-        out_a = out_a.astype(np.double)
-        out_z = out_z.astype(np.double)
-        out_c = out_c.astype(np.double)
-        out_b = out_b.astype(np.double)
-        error = error.astype(np.double)
-        r2 = r2.astype(np.double)
+        a: NDArray[np.double] = out_a
+        z: NDArray[np.double] = out_z
+        c: NDArray[np.double] = out_c
+        b: NDArray[np.double] = out_b
+        err: NDArray[np.double] = error
+        corref: NDArray[np.float16] = r2.astype(np.float16)
 
-        return (out_a, out_z, out_c, out_b, error, r2)
+        return (a, z, c, b, err, corref)
 
     @staticmethod
     def numerical_solve(
@@ -249,33 +279,43 @@ class Pilot:
         eoptim: NDArray[np.double],
         perf: NDArray[np.double],
         opts: PilotOptions,
-    ) -> tuple[Any, Any, Any, NDArray[np.double]]:
+    ) -> tuple[int, NDArray[np.double], NDArray[np.double], NDArray[np.double]]:
         """Solve the projection problem numerically.
 
         Args:
         -------
-        x : NDArray[np.double] -- The feature matrix (instances x features)
-                                    to process.
-        x0 : NDArray[np.double] -- Initial guess for the solution.
-        x_bar : NDArray[np.double] -- Combined matrix of X and Y.
-        n : int -- Number of original features.
-        m : int -- Total number of features including appended Y.
-        alpha : NDArray[np.double] -- Flattened parameter vector containing
-                                    both A (2*n size) and B (m*2 size) matrices.
-        eoptim : NDArray[np.double] -- Optimized error function.
-        perf : NDArray[np.double] -- Optimized performance matrix.
-        opts : PilotOptions -- Configuration options for PILOT.
+        x : NDArray[np.double]
+            The feature matrix (instances x features)
+            to process.
+        x0 : NDArray[np.double]
+            Initial guess for the solution.
+        x_bar : NDArray[np.double]
+            Combined matrix of X and Y.
+        n : int
+            Number of original features.
+        m : int
+            Total number of features including appended Y.
+        alpha : NDArray[np.double]
+            Flattened parameter vector containing
+            both A (2*n size) and B (m*2 size) matrices.
+        eoptim : NDArray[np.double]
+            Optimized error function.
+        perf : NDArray[np.double]
+            Optimized performance matrix.
+        opts : PilotOptions
+            Configuration options for PILOT.
 
         Returns:
         -------
-        alpha : NDArray[np.double] -- Flattened parameter vector containing
-                                        both A (2*n size) and B (m*2 size) matrices.
-        eoptim : NDArray[np.double] -- Optimized error function.
-        perf : NDArray[np.double] -- Optimized performance matrix.
-        error : NDArray[np.double] -- The mean squared error between x_bar
-                                        and its low-dimensional approximation.
-        r2 : NDArray[np.double] -- The coefficient of determination between x_bar and
-                                    its low-dimensional approximation.
+        NDArray[np.double]
+            Flattened parameter vector containing
+            both A (2*n size) and B (m*2 size) matrices.
+        NDArray[np.double]
+            Optimized error function.
+        NDArray[np.double]
+            Optimized performance matrix.
+        int
+            The index for the most optimal array indices
         """
         print(
             "-------------------------------------------------------------------------",
@@ -302,20 +342,19 @@ class Pilot:
             alpha[:, i] = xopts
             eoptim[i] = fopts
 
-            aux = alpha[:, i]
+            aux = alpha[:, i].astype(np.float64)
             a = aux[0 : 2 * n].reshape(2, n)
             z = np.dot(x, a.T)
 
             perf[i], _ = pearsonr(hd, pdist(z))
-            idx = np.argmax(perf)
+            idx = np.argmax(perf).astype(int)
             print(f"Pilot has completed trial {i + 1}")
 
-            alpha = alpha.astype(np.double)
-            eoptim = eoptim.astype(np.double)
-            perf = perf.astype(np.double)
+            al: NDArray[np.float16] = alpha.astype(np.float16)
+            ept: NDArray[np.double] = eoptim
+            prf: NDArray[np.double] = perf
 
-        return idx, alpha, eoptim, perf
-    
+        return idx, al, ept, prf
 
     @staticmethod
     def error_function(
@@ -328,17 +367,21 @@ class Pilot:
 
         Args:
         -------
-        alpha : NDArray[np.float64] -- Flattened parameter vector containing
-                                        both A (2*n size)
-                                        and B (m*2 size) matrices.
-        x_bar : NDArray[np.float64] -- Combined matrix of X and Y.
-        n : int -- Number of original features.
-        m : int -- Total number of features including appended Y.
+        alpha : NDArray[np.float64]
+            Flattened parameter vector containing
+            both A (2*n size) and B (m*2 size) matrices.
+        x_bar : NDArray[np.float64]
+            Combined matrix of X and Y.
+        n : int
+            Number of original features.
+        m : int
+            Total number of features including appended Y.
 
         Returns:
         -------
-        float -- The mean squared error between x_bar and its
-                    low-dimensional approximation.
+        float
+            The mean squared error between x_bar and its
+            low-dimensional approximation.
         """
         a = alpha[: 2 * n].reshape(2, n)
         b = alpha[2 * n :].reshape(m, 2)
@@ -350,4 +393,3 @@ class Pilot:
         return float(
             np.nanmean(np.nanmean((x_bar - x_bar_approx) ** 2, axis=1), axis=0),
         )
-
