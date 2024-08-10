@@ -1,0 +1,18 @@
+NAME
+    matilda
+
+SYNOPSIS
+    matilda [--help] [-b <stage-name>]
+
+DESCRIPTION
+matilda is the command line tool for running the MATILDA program through command line interface. The tool 
+allows for fine-grained control over the MATILDA program and scripts in order to make it possible for user
+customization of inputs and user-friendliness
+
+OPTIONS
+
+MATILDA COMMANDS
+
+HIGH-LEVEL COMMANDS
+
+LOW-LEVEL COMMANDS
