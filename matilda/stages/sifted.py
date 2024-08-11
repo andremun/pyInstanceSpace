@@ -79,6 +79,8 @@ class Sifted:
         self.clust = None
         self.ooberr = None
 
+        self.rng = np.random.default_rng(seed=0)
+
     @staticmethod
     def run(
         x: NDArray[np.double],
@@ -144,7 +146,7 @@ class Sifted:
             sifted.x =x_aux
             return sifted.get_output()
 
-        sifted.evaluate_cluster(x_aux)
+        sifted.select_features_by_clustering(x_aux)
 
         np.savetxt(script_dir / "tmp_data/clustering_output/Xaux.csv", x_aux, delimiter=",")
 
@@ -263,18 +265,18 @@ class Sifted:
             x_aux (NDArray[np.double]): feature matrix that contains values selected
                 based on correlation with performance.
         """
-        print("-> Selecting features based on correlation clustering.")
-
-        rng = np.random.default_rng(seed=0)
         min_clusters = 2
         max_clusters = x_aux.shape[1]
 
         silhouette_scores = {}
 
         for n in range(min_clusters, max_clusters):
-            kmeans = KMeans(n_clusters=n, n_init="auto", random_state=rng.integers(1000))
+            kmeans = KMeans(
+                n_clusters=n,
+                n_init="auto",
+                random_state=self.rng.integers(1000),
+            )
             cluster_labels = kmeans.fit_predict(x_aux.T)
-            # print(cluster_labels)
             silhouette_scores[n] = silhouette_score(
                 x_aux.T,
                 cluster_labels,
@@ -292,7 +294,20 @@ class Sifted:
             x_aux (NDArray[np.double]): feature matrix that contains values selected
                 based on correlation with performance.
         """
-        raise NotImplementedError
+        print("-> Selecting features based on correlation clustering.")
+        self.evaluate_cluster(x_aux)
+
+        kmeans = KMeans(
+            n_clusters=self.opts.k,
+            max_iter=self.opts.max_iter,
+            n_init=self.opts.replicates,
+            random_state=self.rng.integers(1000),
+        )
+        cluster_labels = kmeans.fit_predict(x_aux.T)
+
+        self.clust = np.zeros((x_aux.shape[1], self.opts.k), dtype=bool)
+        for i in range(self.opts.k):
+            self.clust[:, i] = (cluster_labels == i)
 
     def find_best_combination(self, x_aux: NDArray[np.double]) -> None:
         raise NotImplementedError
