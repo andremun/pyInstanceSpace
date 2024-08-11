@@ -157,8 +157,10 @@ disallow_untyped_defs = 'True'
 [[tool.mypy.overrides]]
 module = [
     'sklearn',
-    'scipy.stats',
+    'sklearn.cluster',
+    'sklearn.metrics',
     'scipy',
+    'scipy.stats',
     'scipy.spatial',
     'scipy.spatial.distance',
 ]
