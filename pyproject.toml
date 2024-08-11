@@ -161,5 +161,6 @@ module = [
     'scipy',
     'scipy.spatial',
     'scipy.spatial.distance',
+    'shapely.geometry',
 ]
 ignore_missing_imports = 'True'
