@@ -144,7 +144,7 @@ class Sifted:
             sifted.x =x_aux
             return sifted.get_output()
 
-        sifted.select_features_by_clustering(x_aux)
+        sifted.evaluate_cluster(x_aux)
 
         np.savetxt(script_dir / "tmp_data/clustering_output/Xaux.csv", x_aux, delimiter=",")
 
@@ -177,36 +177,6 @@ class Sifted:
             combination.
         """
         # TODO: rewrite SIFTED logic in python
-        raise NotImplementedError
-
-    @staticmethod
-    def fcn_forga(
-        idx: NDArray[np.intc],
-        x: NDArray[np.double],
-        y_bin: NDArray[np.bool_],
-        n_trees: int,
-        clust: NDArray[np.bool_],
-        n_workers: int,
-    ) -> NDArray[np.double]:
-        """Evaluate the fitness of each individual instance in a genetic algorithm.
-
-        Args
-        ----
-            idx: An array of indices specifying the instances to be
-                evaluated.
-            x: The feature matrix (instances x features).
-            y_bin: The binary performance matrix indicating
-                success/failure.
-            n_trees: The number of trees to use in the model or method.
-            clust: A boolean array indicating cluster membership of
-                instances.
-            n_workers: The number of parallel workers to use in
-                computation.
-
-        Returns
-        -------
-            An array representing the fitness score for each instance.
-        """
         raise NotImplementedError
 
     def compute_correlation(self) -> tuple[NDArray[np.double], NDArray[np.double]]:
@@ -285,8 +255,8 @@ class Sifted:
 
         return self.x[:,self.selvars]
 
-    def select_features_by_clustering(self, x_aux: NDArray[np.double]) -> None:
-        """Select features based on correlation clustering.
+    def evaluate_cluster(self, x_aux: NDArray[np.double]) -> None:
+        """Evaluate cluster based on silhouette scores.
 
         Args
         ----
@@ -314,10 +284,14 @@ class Sifted:
         print(silhouette_scores)
 
 
-    def cluster_dataset(self, x_aux: NDArray[np.double]) -> None:
-        raise NotImplementedError
+    def select_features_by_clustering(self, x_aux: NDArray[np.double]) -> None:
+        """Select features based on clustering.
 
-    def find_all_combination(self) -> None:
+        Args
+        ----
+            x_aux (NDArray[np.double]): feature matrix that contains values selected
+                based on correlation with performance.
+        """
         raise NotImplementedError
 
     def find_best_combination(self, x_aux: NDArray[np.double]) -> None:
