@@ -8,11 +8,11 @@ to data analysis and model building.
 from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
-from shapely.geometry import Polygon
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from shapely.geometry import Polygon
 
 
 @dataclass(frozen=True)
@@ -226,13 +226,13 @@ class PythiaDataChanged:
 
 
 
-@dataclass(frozen=True)
+@dataclass()
 class Footprint:
     """
     A class to represent a footprint with geometric and statistical properties.
 
-    Attributes:
-    -----------
+    Attributes
+    ----------
     polygon : Polygon
         The geometric shape of the footprint.
     area : float
@@ -240,12 +240,14 @@ class Footprint:
     elements : int
         The number of data points within the footprint.
     good_elements : int
-        The number of "good" data points within the footprint (as defined by specific criteria).
+        The number of "good" data points within the footprint (as defined by specific
+        criteria).
     density : float
         The density of points within the footprint.
     purity : float
         The purity of "good" elements in relation to all elements in the footprint.
     """
+
     polygon: Polygon
     area: float
     elements: int
@@ -253,8 +255,7 @@ class Footprint:
     density: float
     purity: float
 
-
-    def __init__(self, polygon: Polygon):
+    def __init__(self, polygon: Polygon) -> None:
         self.polygon = polygon if polygon else None
         self.area = self.polygon.area if polygon else None
         self.elements = 0

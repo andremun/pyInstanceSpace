@@ -40,7 +40,7 @@ def save_instance_space_to_csv(
 
         best = trace_state.out.best[i]
         if best is not None and best.polygon is not None:
-            best_vertices = triangulate(best.polygon)
+            best_vertices = np.array(best.polygon.boundary.coords.xy).T
             best = trace_state.out.best[i]
             algorithm_labels = trace_state.data.algo_labels[i]
             _write_array_to_csv(
@@ -52,7 +52,7 @@ def save_instance_space_to_csv(
 
         good = trace_state.out.good[i]
         if good is not None and good.polygon is not None:
-            good_vertices = triangulate(good.polygon)
+            good_vertices = np.array(good.polygon.boundary.coords.xy).T
             algorithm_labels = trace_state.data.algo_labels[i]
             _write_array_to_csv(
                 good_vertices,

@@ -4,13 +4,17 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 from scipy.io import loadmat
+from shapely.geometry import Polygon
 
 from matilda.data.metadata import Metadata
 from matilda.data.model import (
     CloisterOut,
     Data,
+    Footprint,
     PilotOut,
     PrelimOut,
     PythiaOut,
@@ -48,6 +52,7 @@ for directory in ["csv", "web", "png"]:
 class _MatlabResults:
     workspace_data: dict  # type: ignore
     s_data: dict  # type: ignore
+    clean_trace: dict  # type: ignore
 
     def __init__(self) -> None:
         self.workspace_data = loadmat(
@@ -61,6 +66,12 @@ class _MatlabResults:
             chars_as_strings=True,
             simplify_cells=True,
         )
+
+        self.clean_trace = loadmat(
+            script_dir / "test_data/serializers/input/clean_trace.mat",
+            chars_as_strings=True,
+            simplify_cells=True,
+        )["clean_trace"]
 
     def get_instance_space(self) -> InstanceSpace:
         # Construct InstanceSpace without calling init
@@ -231,15 +242,33 @@ class _MatlabResults:
         )
         instance_space._cloister_state = cloister_state  # noqa: SLF001
 
+        def translate_footprint(in_from_matlab: dict) -> Footprint:
+            if in_from_matlab["polygon"]:
+                vertices = in_from_matlab["polygon"]["Vertices"]
+            else:
+                vertices = []
+
+            polygon_ndarray: NDArray[np.double] = vertices
+            polygon = Polygon(polygon_ndarray)
+            footprint = Footprint(polygon)
+
+            footprint.area = in_from_matlab["area"]
+            footprint.elements = in_from_matlab["elements"]
+            footprint.good_elements = in_from_matlab["goodElements"]
+            footprint.density = in_from_matlab["density"]
+            footprint.purity = in_from_matlab["purity"]
+
+            return footprint
+
         trace_state = StageState[TraceOut](
             data=data,
             out=TraceOut(
                 # TODO: This will need to be translated to our footprint struct
-                space=self.workspace_data["model"]["trace"]["space"],
-                good=self.workspace_data["model"]["trace"]["good"],
-                best=self.workspace_data["model"]["trace"]["best"],
+                space=translate_footprint(self.clean_trace["space"]),
+                good=[translate_footprint(i) for i in self.clean_trace["good"]],
+                best=[translate_footprint(i) for i in self.clean_trace["best"]],
                 # TODO: This will need to be translated to our footprint struct
-                hard=self.workspace_data["model"]["trace"]["hard"],
+                hard=translate_footprint(self.clean_trace["hard"]),
                 summary=self.workspace_data["model"]["trace"]["summary"],
             ),
         )
@@ -339,3 +368,5 @@ def test_save_graphs() -> None:
         assert Path.is_file(actual_file_path)
 
         # We can't test the images, so we must check visually that they are consistant
+
+test_save_to_csv()
