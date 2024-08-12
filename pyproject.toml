@@ -19,6 +19,7 @@ click = "^8.1.7"
 scipy = "^1.13.0"
 shapely = "^2.0.5"
 matplotlib = "^3.9.2"
+shapely = "^2.0.5"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.1"
