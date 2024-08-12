@@ -44,11 +44,11 @@ class Sifted:
     y_bin: NDArray[np.bool_]
     opts: SiftedOptions
 
-    rho: NDArray[np.double] | None
-    pval: NDArray[np.double] | None
-    selvars: NDArray[np.intc] | None
-    clust: NDArray[np.bool_] | None
-    ooberr: NDArray[np.double] | None
+    rho: NDArray[np.double]
+    pval: NDArray[np.double]
+    selvars: NDArray[np.intc]
+    clust: NDArray[np.bool_]
+    x_aux: NDArray[np.double]
 
     def __init__(
         self,
@@ -70,12 +70,6 @@ class Sifted:
         self.y = y
         self.y_bin = y_bin
         self.opts = opts
-
-        self.rho = None
-        self.pval = None
-        self.selvars = None
-        self.clust = None
-        self.ooberr = None
 
         self.rng = np.random.default_rng(seed=0)
 
@@ -119,9 +113,9 @@ class Sifted:
             sifted.selvars = np.arange(nfeats)
             return sifted.get_output()
 
-        x_aux = sifted.select_features_by_performance()
+        sifted.select_features_by_performance()
 
-        nfeats = x_aux.shape[1]
+        nfeats = sifted.x_aux.shape[1]
 
         if nfeats <= 1:
             raise NotEnoughFeatureError(
@@ -133,7 +127,7 @@ class Sifted:
                 "-> There are 3 or less features to do selection. \
                     Skipping correlation clustering selection.",
             )
-            sifted.x = x_aux
+            sifted.x = sifted.x_aux
             return sifted.get_output()
 
         if nfeats <= opts.k:
@@ -141,23 +135,17 @@ class Sifted:
                 "-> There are less features than clusters. \
                     Skipping correlation clustering selection.",
             )
-            sifted.x =x_aux
+            sifted.x = sifted.x_aux
             return sifted.get_output()
 
-        sifted.select_features_by_clustering(x_aux)
+        sifted.select_features_by_clustering()
 
-        np.savetxt(script_dir / "tmp_data/clustering_output/Xaux.csv", x_aux, delimiter=",")
+        np.savetxt(script_dir / "tmp_data/clustering_output/Xaux.csv", sifted.x_aux, delimiter=",")
 
         return sifted.get_output()
 
-    def select_features_by_performance(self) -> NDArray[np.double]:
-        """Select features based on correlation with performance.
-
-        Returns
-        -------
-            NDArray[np.double]: Auxillary matrix of x which contains features selected
-                based on correlation with performance.
-        """
+    def select_features_by_performance(self) -> None:
+        """Select features based on correlation with performance."""
         print("-> Selecting features based on correlation with performance.")
 
         self.rho, self.pval = self.compute_correlation()
@@ -180,28 +168,21 @@ class Sifted:
         nfeats = self.x.shape[1]
         selvars = np.zeros(nfeats, dtype=bool)
 
-        # Always take the most correlated feature for each algorithm
+        # Take the most correlated feature for each algorithm
         selvars[np.unique(row[0, :])] = True
 
-        # Now take any feature that has correlation at least equal to opts.rho
+        # Take any feature that has correlation at least equal to opts.rho
         for i in range(nfeats):
             selvars[np.unique(row[i, rho[i, :] >= self.opts.rho])] = True
 
         # Get indices of selected features
         self.selvars = np.where(selvars)[0]
+        self.x_aux = self.x[:, self.selvars]
 
-        return self.x[:,self.selvars]
-
-    def select_features_by_clustering(self, x_aux: NDArray[np.double]) -> None:
-        """Select features based on clustering.
-
-        Args
-        ----
-            x_aux (NDArray[np.double]): feature matrix that contains values selected
-                based on correlation with performance.
-        """
+    def select_features_by_clustering(self) -> None:
+        """Select features based on clustering."""
         print("-> Selecting features based on correlation clustering.")
-        self.evaluate_cluster(x_aux)
+        self.evaluate_cluster()
 
         kmeans = KMeans(
             n_clusters=self.opts.k,
@@ -209,14 +190,14 @@ class Sifted:
             n_init=self.opts.replicates,
             random_state=self.rng.integers(1000),
         )
-        cluster_labels = kmeans.fit_predict(x_aux.T)
+        cluster_labels = kmeans.fit_predict(self.x_aux.T)
 
         # Create a boolean matrix where each column represents a cluster
-        self.clust = np.zeros((x_aux.shape[1], self.opts.k), dtype=bool)
+        self.clust = np.zeros((self.x_aux.shape[1], self.opts.k), dtype=bool)
         for i in range(self.opts.k):
             self.clust[:, i] = (cluster_labels == i)
 
-    def find_best_combination(self, x_aux: NDArray[np.double]) -> None:
+    def find_best_combination(self) -> None:
         raise NotImplementedError
 
     def cost_fcn(
@@ -248,16 +229,10 @@ class Sifted:
         # TODO: rewrite SIFTED logic in python
         raise NotImplementedError
 
-    def evaluate_cluster(self, x_aux: NDArray[np.double]) -> None:
-        """Evaluate cluster based on silhouette scores.
-
-        Args
-        ----
-            x_aux (NDArray[np.double]): feature matrix that contains values selected
-                based on correlation with performance.
-        """
+    def evaluate_cluster(self) -> None:
+        """Evaluate cluster based on silhouette scores."""
         min_clusters = 2
-        max_clusters = x_aux.shape[1]
+        max_clusters = self.x_aux.shape[1]
 
         silhouette_scores = {}
 
@@ -267,9 +242,9 @@ class Sifted:
                 n_init="auto",
                 random_state=self.rng.integers(1000),
             )
-            cluster_labels = kmeans.fit_predict(x_aux.T)
+            cluster_labels = kmeans.fit_predict(self.x_aux.T)
             silhouette_scores[n] = silhouette_score(
-                x_aux.T,
+                self.x_aux.T,
                 cluster_labels,
                 metric="correlation",
             )
@@ -325,7 +300,6 @@ class Sifted:
             pval=self.pval,
             selvars=self.selvars,
             clust=self.clust,
-            ooberr=self.ooberr,
         )
         return (data_changed, output)
 

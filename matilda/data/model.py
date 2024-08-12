@@ -129,7 +129,6 @@ class SiftedOut:
     pval: NDArray[np.double] | None
     selvars: NDArray[np.intc] | None
     clust: NDArray[np.bool_] | None
-    ooberr: NDArray[np.double] | None
 
 
 @dataclass(frozen=True)
