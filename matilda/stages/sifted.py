@@ -152,69 +152,6 @@ class Sifted:
 
         return sifted.get_output()
 
-    @staticmethod
-    def cost_fcn(
-        comb: NDArray[np.double],  # not sure about the type
-        x: NDArray[np.double],
-        y_bin: NDArray[np.bool_],
-        n_trees: int,
-        n_workers: int,
-    ) -> NDArray[np.double]:
-        """Compute the cost function for a given combination of features or parameters.
-
-        Args
-        ----
-            comb: Array representing the combination of parameters to
-                evaluate.
-            x: The feature matrix (instances x features).
-            y_bin: The binary performance matrix indicating
-                success/failure.
-            n_trees: The number of trees to use in the model or method.
-            n_workers: The number of parallel workers to use in
-                computation.
-
-        Returns
-        -------
-            An array representing the calculated cost for each
-            combination.
-        """
-        # TODO: rewrite SIFTED logic in python
-        raise NotImplementedError
-
-    def compute_correlation(self) -> tuple[NDArray[np.double], NDArray[np.double]]:
-        """Calculate the Pearson correlation coefficient for the dataset by row.
-
-        Returns:
-        -------
-            tuple(NDArray[np.double], NDArray[np.double]: rho and p value calculated
-                by Pearson correlation.
-        """
-        rows = self.x.shape[1]
-        cols = self.y.shape[1]
-
-        rho = np.zeros((rows, cols))
-        pval = np.zeros((rows, cols))
-
-        for i in range(rows):
-            for j in range(cols):
-                x_col = self.x[:, i]
-                y_col = self.y[:, j]
-
-                # Filter out NaN values of pairs
-                valid_indices = ~np.isnan(x_col) & ~np.isnan(y_col)
-
-                if np.any(valid_indices):
-                    # Compute Pearson correlation for valid pairs
-                    rho[i, j], pval[i, j] = pearsonr(
-                        x_col[valid_indices],
-                        y_col[valid_indices],
-                    )
-                else:
-                    # Set value to Nan if there is no valid pairs
-                    rho[i, j], pval[i,j] = np.nan, np.nan
-
-        return (rho, pval)
-
     def select_features_by_performance(self) -> NDArray[np.double]:
         """Select features based on correlation with performance.
 
@@ -257,6 +194,62 @@ class Sifted:
 
         return self.x[:,self.selvars]
 
+    def select_features_by_clustering(self, x_aux: NDArray[np.double]) -> None:
+        """Select features based on clustering.
+
+        Args
+        ----
+            x_aux (NDArray[np.double]): feature matrix that contains values selected
+                based on correlation with performance.
+        """
+        print("-> Selecting features based on correlation clustering.")
+        self.evaluate_cluster(x_aux)
+
+        kmeans = KMeans(
+            n_clusters=self.opts.k,
+            max_iter=self.opts.max_iter,
+            n_init=self.opts.replicates,
+            random_state=self.rng.integers(1000),
+        )
+        cluster_labels = kmeans.fit_predict(x_aux.T)
+
+        # Create a boolean matrix where each column represents a cluster
+        self.clust = np.zeros((x_aux.shape[1], self.opts.k), dtype=bool)
+        for i in range(self.opts.k):
+            self.clust[:, i] = (cluster_labels == i)
+
+    def find_best_combination(self, x_aux: NDArray[np.double]) -> None:
+        raise NotImplementedError
+
+    def cost_fcn(
+        self,
+        comb: NDArray[np.double],  # not sure about the type
+        x: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        n_trees: int,
+        n_workers: int,
+    ) -> NDArray[np.double]:
+        """Compute the cost function for a given combination of features or parameters.
+
+        Args
+        ----
+            comb: Array representing the combination of parameters to
+                evaluate.
+            x: The feature matrix (instances x features).
+            y_bin: The binary performance matrix indicating
+                success/failure.
+            n_trees: The number of trees to use in the model or method.
+            n_workers: The number of parallel workers to use in
+                computation.
+
+        Returns
+        -------
+            An array representing the calculated cost for each
+            combination.
+        """
+        # TODO: rewrite SIFTED logic in python
+        raise NotImplementedError
+
     def evaluate_cluster(self, x_aux: NDArray[np.double]) -> None:
         """Evaluate cluster based on silhouette scores.
 
@@ -285,33 +278,39 @@ class Sifted:
 
         print(silhouette_scores)
 
+    def compute_correlation(self) -> tuple[NDArray[np.double], NDArray[np.double]]:
+        """Calculate the Pearson correlation coefficient for the dataset by row.
 
-    def select_features_by_clustering(self, x_aux: NDArray[np.double]) -> None:
-        """Select features based on clustering.
-
-        Args
-        ----
-            x_aux (NDArray[np.double]): feature matrix that contains values selected
-                based on correlation with performance.
+        Returns:
+        -------
+            tuple(NDArray[np.double], NDArray[np.double]: rho and p value calculated
+                by Pearson correlation.
         """
-        print("-> Selecting features based on correlation clustering.")
-        self.evaluate_cluster(x_aux)
+        rows = self.x.shape[1]
+        cols = self.y.shape[1]
 
-        kmeans = KMeans(
-            n_clusters=self.opts.k,
-            max_iter=self.opts.max_iter,
-            n_init=self.opts.replicates,
-            random_state=self.rng.integers(1000),
-        )
-        cluster_labels = kmeans.fit_predict(x_aux.T)
+        rho = np.zeros((rows, cols))
+        pval = np.zeros((rows, cols))
 
-        # Create a boolean matrix where each column represents a cluster
-        self.clust = np.zeros((x_aux.shape[1], self.opts.k), dtype=bool)
-        for i in range(self.opts.k):
-            self.clust[:, i] = (cluster_labels == i)
+        for i in range(rows):
+            for j in range(cols):
+                x_col = self.x[:, i]
+                y_col = self.y[:, j]
 
-    def find_best_combination(self, x_aux: NDArray[np.double]) -> None:
-        raise NotImplementedError
+                # Filter out NaN values of pairs
+                valid_indices = ~np.isnan(x_col) & ~np.isnan(y_col)
+
+                if np.any(valid_indices):
+                    # Compute Pearson correlation for valid pairs
+                    rho[i, j], pval[i, j] = pearsonr(
+                        x_col[valid_indices],
+                        y_col[valid_indices],
+                    )
+                else:
+                    # Set value to Nan if there is no valid pairs
+                    rho[i, j], pval[i,j] = np.nan, np.nan
+
+        return (rho, pval)
 
     def get_output(self) -> tuple[SiftedDataChanged, SiftedOut]:
         """Generate outputs of Sifted stage.
