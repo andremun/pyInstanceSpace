@@ -168,13 +168,17 @@ function [X, out] = SIFTED2(X, Y, Ybin, featlabels, opts)
             y = values(mymap,{key});
             y = y{1};
         else
-            % check with Kush what does pilot do?
+            % 1. filter out X to only choose 10 features based on idx abovee
+            % 2. what is featlabels doing? 
+            % 3. struct('analytic', analytic, 'ntries', ntries)), since we only use 'Z', do we need to take care of this ?
             out = PILOT(X(:,idx), Y, featlabels(idx), struct('analytic', analytic, 'ntries', ntries));
             Z = out.Z;
             rng('default');
             y = -Inf;
             parfor (ii=1:size(Y,2),nworkers)
+                % knn with cross-validation (double check with client about nworkers applied on ybin as argument)
                 knn = fitcknn(Z, Ybin(:,ii), 'CVPartition', cvpart, 'NumNeighbors', kneighbours);
+                % take max current value with cross-validated loss 
                 y = max(y, knn.kfoldLoss);
             end
             mymap(key) = y;
