@@ -47,7 +47,6 @@ class Sifted:
     rho: NDArray[np.double] | None
     pval: NDArray[np.double] | None
     selvars: NDArray[np.intc] | None
-    #eva: ___ | None
     clust: NDArray[np.bool_] | None
     ooberr: NDArray[np.double] | None
 
@@ -75,7 +74,6 @@ class Sifted:
         self.rho = None
         self.pval = None
         self.selvars = None
-        self.eva = None
         self.clust = None
         self.ooberr = None
 
@@ -326,7 +324,6 @@ class Sifted:
             rho=self.rho,
             pval=self.pval,
             selvars=self.selvars,
-            #eva=self.eva,
             clust=self.clust,
             ooberr=self.ooberr,
         )

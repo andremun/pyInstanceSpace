@@ -128,7 +128,6 @@ class SiftedOut:
     rho: NDArray[np.double] | None
     pval: NDArray[np.double] | None
     selvars: NDArray[np.intc] | None
-    #eva: ___ | None
     clust: NDArray[np.bool_] | None
     ooberr: NDArray[np.double] | None
 
