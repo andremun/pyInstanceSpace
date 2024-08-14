@@ -73,7 +73,7 @@ class Preprocessing:
 
         after_selection = Preprocessing.select_features_and_algorithms(data, opts)
         after_washing = Preprocessing.remove_instances_with_many_missing_values(
-            after_selection
+            after_selection,
         )
 
         # From here return the tuple[PreprocessingDataChanged, PreprocessingOut(dummy)]
