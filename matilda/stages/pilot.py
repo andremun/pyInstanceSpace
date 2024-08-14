@@ -71,8 +71,8 @@ class Pilot:
         eoptim = None
         perf = None
 
+        # Analytical solution
         if opts.analytic:
-            # Analytical solution
             out_a, out_z, out_c, out_b, error, r2 = Pilot.analytic_solve(x, x_bar, n, m)
 
         # Numerical solution
