@@ -15,8 +15,8 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import optimize, stats
 
-from matilda.data.model import PrelimDataChanged, PrelimOut
-from matilda.data.options import PrelimOptions
+from matilda.data.model import PrelimDataChanged, PrelimOut, FilterPostPrelimOut
+from matilda.data.options import PrelimOptions, FilterPostPrelimOtions
 
 
 @dataclass(frozen=True)
@@ -391,3 +391,6 @@ class Prelim:
             sigma_y=sigma_y,
             mu_y=mu_y,
         )
+
+    def _filter_post_prelim(self) -> FilterPostPrelimOut:
+        pass
