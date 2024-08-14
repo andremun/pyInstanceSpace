@@ -93,7 +93,7 @@ class Pilot:
                     x0 = opts.x0
                 else:
                     print("  -> PILOT is using random starting points for BFGS.")
-                    rng = np.random.default_rng(0)
+                    rng = np.random.default_rng()
                     x0 = 2 * rng.random((2 * m + 2 * n, opts.n_tries)) - 1
 
                 alpha = np.zeros((2 * m + 2 * n, opts.n_tries))
