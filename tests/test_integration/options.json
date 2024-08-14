@@ -16,13 +16,7 @@
       "file_idx": "",
       "density_flag": false,
       "min_distance": 0.1,
-      "selvars_type": "Ftr&Good",
-      "feats": [
-        "feature_Max_Normalized_Entropy_attributes",
-        "feature_Normalized_Entropy_Class_Attribute",
-        "feature_Nonlinearity_Nearest_Neighbor_Classifier_N4"
-      ],
-      "algos": ["algo_NB", "algo_CART", "algo_KNN", "algo_RBF_SVM", "algo_RandF"]
+      "selvars_type": "Ftr&Good"
     },
     "sifted": {
       "flag": true,
@@ -43,4 +37,3 @@
     },
     "outputs": { "csv": true, "png": true, "web": false }
   }
-  
