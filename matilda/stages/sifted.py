@@ -142,8 +142,6 @@ class Sifted:
         sifted.select_features_by_clustering()
         sifted.find_best_combination()
 
-        np.savetxt(script_dir / "tmp_data/clustering_output/Xaux.csv", sifted.x_aux, delimiter=",")
-
         return sifted.get_output()
 
     def select_features_by_performance(self) -> None:
@@ -162,10 +160,7 @@ class Sifted:
 
         # Sort the correlations in descending order
         row = np.argsort(-rho, axis=0)
-        sorted_rho = np.take_along_axis(rho, row, axis=0)
-
-        np.savetxt(script_dir / "tmp_data/clustering_output/rho.csv", self.rho, delimiter=",")
-        np.savetxt(script_dir / "tmp_data/clustering_output/rho_sorted.csv", sorted_rho, delimiter=",")
+        # sorted_rho = np.take_along_axis(rho, row, axis=0)
 
         nfeats = self.x.shape[1]
         selvars = np.zeros(nfeats, dtype=bool)
