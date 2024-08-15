@@ -161,16 +161,16 @@ class SiftedDataChanged:
 class PilotOut:
     """Results of the Pilot process in the data analysis pipeline."""
 
-    X0: NDArray[np.double]  # not sure about the dimensions
-    alpha: NDArray[np.double]
-    eoptim: NDArray[np.double]
-    perf: NDArray[np.double]
+    X0: NDArray[np.double] | None  # not sure about the dimensions
+    alpha: NDArray[np.double] | None
+    eoptim: NDArray[np.double] | None
+    perf: NDArray[np.double] | None
     a: NDArray[np.double]
     z: NDArray[np.double]
     c: NDArray[np.double]
     b: NDArray[np.double]
     error: NDArray[np.double]  # or just the double
-    r2: NDArray[np.double]
+    r2: NDArray[np.float16] | None
     summary: pd.DataFrame
 
 
