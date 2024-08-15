@@ -11,6 +11,7 @@ The SIFTED function performs the following steps:
 from pathlib import Path
 
 import numpy as np
+import pygad
 from numpy.typing import NDArray
 from scipy.stats import pearsonr
 from sklearn.cluster import KMeans
@@ -139,6 +140,7 @@ class Sifted:
             return sifted.get_output()
 
         sifted.select_features_by_clustering()
+        sifted.find_best_combination()
 
         np.savetxt(script_dir / "tmp_data/clustering_output/Xaux.csv", sifted.x_aux, delimiter=",")
 
@@ -198,36 +200,55 @@ class Sifted:
             self.clust[:, i] = (cluster_labels == i)
 
     def find_best_combination(self) -> None:
-        raise NotImplementedError
+        """Find the best combination of features, using genetic algorithm."""
+        ga_instance = pygad.GA(
+            fitness_func=self.cost_fcn,
+            num_generations=100,
+            num_parents_mating=2,
+            sol_per_pop=50,
+            gene_type=int,
+            num_genes=self.opts.k,
+            parent_selection_type="tournament",
+            K_tournament=4,
+            keep_elitism=2,
+            crossover_type="scattered",
+            crossover_probability=0.8,
+            mutation_type="random",
+            mutation_probability=0.05,
+            stop_criteria="saturate_5", # or reach_0 (don't know if it is possible both)
+            random_seed=0,
+            init_range_low=1,
+            init_range_high=self.x_aux.shape[1],
+        )
+        ga_instance.run()
+        best_solution, _, _ = ga_instance.best_solution()
+        print(best_solution)
+        # Decode the chromosome
+        decoder = np.zeros(self.x_aux.shape[1], dtype=bool)
+        print(decoder.size)
+        for i in range(self.opts.k):
+            aux = np.where(self.clust[:, i])[0]
+            print(aux)
+            # decoder[aux[int(best_solution[i])]] = True
+
+        self.selvars = np.array(self.selvars)[decoder]
+        self.x = self.x[:, self.selvars]
+
+        print(
+            f"-> Keeping {self.x.shape[1]} out of {self.x_aux.shape[1]} \
+                features (clustering).",
+        )
 
     def cost_fcn(
         self,
-        comb: NDArray[np.double],  # not sure about the type
-        x: NDArray[np.double],
-        y_bin: NDArray[np.bool_],
-        n_trees: int,
-        n_workers: int,
-    ) -> NDArray[np.double]:
+        ga_instance: pygad.GA,
+        solution: NDArray[np.intc],
+        solution_idx: int,
+    ) -> int:
         """Compute the cost function for a given combination of features or parameters.
 
-        Args
-        ----
-            comb: Array representing the combination of parameters to
-                evaluate.
-            x: The feature matrix (instances x features).
-            y_bin: The binary performance matrix indicating
-                success/failure.
-            n_trees: The number of trees to use in the model or method.
-            n_workers: The number of parallel workers to use in
-                computation.
-
-        Returns
-        -------
-            An array representing the calculated cost for each
-            combination.
         """
-        # TODO: rewrite SIFTED logic in python
-        raise NotImplementedError
+        return np.sum(solution)
 
     def evaluate_cluster(self) -> None:
         """Evaluate cluster based on silhouette scores."""
