@@ -160,6 +160,8 @@ module = [
     'sklearn',
     'sklearn.cluster',
     'sklearn.metrics',
+    'sklearn.model_selection',
+    'sklearn,neighbors',
     'scipy',
     'scipy.stats',
     'scipy.spatial',
