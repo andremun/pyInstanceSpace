@@ -16,9 +16,12 @@ from numpy.typing import NDArray
 from scipy.stats import pearsonr
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
+from sklearn.model_selection import KFold, cross_val_score
+from sklearn.neighbors import KNeighborsClassifier
 
 from matilda.data.model import SiftedDataChanged, SiftedOut
-from matilda.data.options import SiftedOptions
+from matilda.data.options import PilotOptions, SiftedOptions
+from matilda.stages.pilot import Pilot
 
 script_dir = Path(__file__).parent
 
@@ -39,10 +42,13 @@ class Sifted:
 
     MIN_FEAT_REQUIRED: int = 3
     PVAL_THRESHOLD = 0.05
+    KFOLDS = 5
+    K_NEIGHBORS = 3
 
     x: NDArray[np.double]
     y: NDArray[np.double]
     y_bin: NDArray[np.bool_]
+    feat_labels: list[str]
     opts: SiftedOptions
 
     rho: NDArray[np.double]
@@ -50,12 +56,15 @@ class Sifted:
     selvars: NDArray[np.intc]
     clust: NDArray[np.bool_]
     x_aux: NDArray[np.double]
+    cross_validation_partition: KFold
+    ga_cache: dict[str, int]
 
     def __init__(
         self,
         x: NDArray[np.double],
         y: NDArray[np.double],
         y_bin: NDArray[np.bool_],
+        feat_labels: list[str],
         opts: SiftedOptions,
     ) -> None:
         """Initialize the Sifted stage.
@@ -79,6 +88,7 @@ class Sifted:
         x: NDArray[np.double],
         y: NDArray[np.double],
         y_bin: NDArray[np.bool_],
+        feat_labels: list[str],
         opts: SiftedOptions,
     ) -> tuple[SiftedDataChanged, SiftedOut]:
         """Process data matrices and options to produce a sifted dataset.
@@ -97,7 +107,7 @@ class Sifted:
         """
         # TODO: Multiprocessing setup
 
-        sifted = Sifted(x=x, y=y, y_bin=y_bin, opts=opts)
+        sifted = Sifted(x=x, y=y, y_bin=y_bin, feat_labels=feat_labels, opts=opts)
 
         nfeats = x.shape[1]
 
@@ -198,32 +208,35 @@ class Sifted:
         """Find the best combination of features, using genetic algorithm."""
         ga_instance = pygad.GA(
             fitness_func=self.cost_fcn,
-            num_generations=100,
-            num_parents_mating=2,
-            sol_per_pop=50,
+            num_generations=self.opts.num_generations,
+            num_parents_mating=self.opts.num_parents_mating,
+            sol_per_pop=self.opts.sol_per_pop,
             gene_type=int,
             num_genes=self.opts.k,
-            parent_selection_type="tournament",
-            K_tournament=4,
-            keep_elitism=2,
-            crossover_type="scattered",
-            crossover_probability=0.8,
-            mutation_type="random",
-            mutation_probability=0.05,
-            stop_criteria="saturate_5", # or reach_0 (don't know if it is possible both)
+            parent_selection_type=self.opts.parent_selection_type,
+            K_tournament=self.opts.k_tournament,
+            keep_elitism=self.opts.keep_elitism,
+            crossover_type=self.opts.crossover_type,
+            crossover_probability=self.opts.cross_over_probability,
+            mutation_type=self.opts.mutation_type,
+            mutation_probability=self.opts.mutation_probability,
+            # stop_criteria: saturate_5 or reach_0 (don't know if it is possible both)
+            stop_criteria=self.opts.stop_criteria, 
             random_seed=0,
             init_range_low=1,
             init_range_high=self.x_aux.shape[1],
         )
+
         ga_instance.run()
+
         best_solution, _, _ = ga_instance.best_solution()
-        print(best_solution)
+        # print(best_solution)
         # Decode the chromosome
         decoder = np.zeros(self.x_aux.shape[1], dtype=bool)
-        print(decoder.size)
+        # print(decoder.size)
         for i in range(self.opts.k):
             aux = np.where(self.clust[:, i])[0]
-            print(aux)
+            # print(aux)
             # decoder[aux[int(best_solution[i])]] = True
 
         self.selvars = np.array(self.selvars)[decoder]
@@ -236,14 +249,14 @@ class Sifted:
 
     def cost_fcn(
         self,
-        ga_instance: pygad.GA,
-        solution: NDArray[np.intc],
-        solution_idx: int,
-    ) -> int:
-        """Compute the cost function for a given combination of features or parameters.
+        instance: pygad.GA,
+        solutions: NDArray[np.intc],
+        solution_idx: NDArray[np.intc],
+    ) -> float:
+        """Fill in."""
+        y = np.zeros(solutions.shape[0])
+        return y
 
-        """
-        return np.sum(solution)
 
     def evaluate_cluster(self) -> None:
         """Evaluate cluster based on silhouette scores."""
@@ -324,11 +337,13 @@ if __name__ == "__main__":
     csv_path_x = script_dir / "tmp_data/clustering/0-input_X.csv"
     csv_path_y = script_dir / "tmp_data/clustering/0-input_Y.csv"
     csv_path_ybin = script_dir / "tmp_data/clustering/0-input_Ybin.csv"
+    csv_path_feat_labels = script_dir / "tmp_data/clustering/0-input_featlabels.csv"
 
     input_x = np.genfromtxt(csv_path_x, delimiter=",")
     input_y = np.genfromtxt(csv_path_y, delimiter=",")
     input_ybin = np.genfromtxt(csv_path_ybin, delimiter=",")
+    feat_labels = np.genfromtxt(csv_path_feat_labels, delimiter=",", dtype=str).tolist()
 
     opts = SiftedOptions.default()
 
-    data_change, sifted_output = Sifted.run(input_x, input_y, input_ybin, opts)
+    data_change, sifted_output = Sifted.run(input_x, input_y, input_ybin, feat_labels, opts)
