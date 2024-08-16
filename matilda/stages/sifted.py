@@ -48,7 +48,7 @@ class Sifted:
     x: NDArray[np.double]
     y: NDArray[np.double]
     y_bin: NDArray[np.bool_]
-    feat_labels: list[str]
+    feat_labels: NDArray[np.str_]
     opts: SiftedOptions
 
     rho: NDArray[np.double]
@@ -56,8 +56,8 @@ class Sifted:
     selvars: NDArray[np.intc]
     clust: NDArray[np.bool_]
     x_aux: NDArray[np.double]
-    cross_validation_partition: KFold
-    ga_cache: dict[str, int]
+    cv_partition: KFold
+    ga_cache: dict[str, float]
 
     def __init__(
         self,
@@ -79,9 +79,11 @@ class Sifted:
         self.x = x
         self.y = y
         self.y_bin = y_bin
+        self.feat_labels = np.array(feat_labels)
         self.opts = opts
 
         self.rng = np.random.default_rng(seed=0)
+        self.ga_cache = {}
 
     @staticmethod
     def run(
@@ -206,6 +208,12 @@ class Sifted:
 
     def find_best_combination(self) -> None:
         """Find the best combination of features, using genetic algorithm."""
+        self.cv_partition = KFold(
+            n_splits=Sifted.KFOLDS,
+            shuffle=True,
+            random_state=None,
+        )
+
         ga_instance = pygad.GA(
             fitness_func=self.cost_fcn,
             num_generations=self.opts.num_generations,
@@ -221,7 +229,7 @@ class Sifted:
             mutation_type=self.opts.mutation_type,
             mutation_probability=self.opts.mutation_probability,
             # stop_criteria: saturate_5 or reach_0 (don't know if it is possible both)
-            stop_criteria=self.opts.stop_criteria, 
+            stop_criteria=self.opts.stop_criteria,
             random_seed=0,
             init_range_low=1,
             init_range_high=self.x_aux.shape[1],
@@ -230,14 +238,13 @@ class Sifted:
         ga_instance.run()
 
         best_solution, _, _ = ga_instance.best_solution()
-        # print(best_solution)
+
         # Decode the chromosome
         decoder = np.zeros(self.x_aux.shape[1], dtype=bool)
-        # print(decoder.size)
         for i in range(self.opts.k):
             aux = np.where(self.clust[:, i])[0]
-            # print(aux)
-            # decoder[aux[int(best_solution[i])]] = True
+            selected = aux[int(best_solution[i]) % aux.size]
+            decoder[selected] = True
 
         self.selvars = np.array(self.selvars)[decoder]
         self.x = self.x[:, self.selvars]
@@ -249,12 +256,43 @@ class Sifted:
 
     def cost_fcn(
         self,
-        instance: pygad.GA,
+        instance: pygad.GA,  # noqa: ARG002
         solutions: NDArray[np.intc],
-        solution_idx: NDArray[np.intc],
+        solution_idx: int,  # noqa: ARG002
     ) -> float:
         """Fill in."""
-        y = np.zeros(solutions.shape[0])
+        idx = np.zeros(self.x.shape[1], dtype=bool)
+        for i, value in enumerate(solutions):
+            aux = np.where(self.clust[:, i])[0]
+            selected = aux[value % aux.size]
+            idx[selected] = True
+
+        key = "".join(map(str, idx.astype(int)))
+
+        if key in self.ga_cache:
+            return self.ga_cache[key]
+
+        _, out = Pilot.run(
+            self.x[:, idx],
+            self.y,
+            self.feat_labels[idx].tolist(),
+            PilotOptions.default(),
+        )
+
+        z = out.z
+
+        y = -np.inf
+        for i in range(self.y.shape[1]):
+            knn = KNeighborsClassifier(n_neighbors=Sifted.K_NEIGHBORS)
+            scores = cross_val_score(
+                knn, z, self.y_bin[:, i],
+                cv=self.cv_partition,
+                scoring="neg_mean_squared_error",
+            )
+            y = max(y, -scores.mean())
+
+        self.ga_cache[key] = y
+
         return y
 
 
@@ -347,3 +385,5 @@ if __name__ == "__main__":
     opts = SiftedOptions.default()
 
     data_change, sifted_output = Sifted.run(input_x, input_y, input_ybin, feat_labels, opts)
+
+    np.savetxt(script_dir / "tmp_data/clustering_output/sifted_x.csv", data_change.x, delimiter=",")
