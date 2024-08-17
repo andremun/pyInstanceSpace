@@ -41,9 +41,9 @@ class Sifted:
     """See file docstring."""
 
     MIN_FEAT_REQUIRED: int = 3
-    PVAL_THRESHOLD = 0.05
-    KFOLDS = 5
-    K_NEIGHBORS = 3
+    PVAL_THRESHOLD: float = 0.05
+    KFOLDS: int = 5
+    K_NEIGHBORS: int = 3
 
     x: NDArray[np.double]
     y: NDArray[np.double]
@@ -74,6 +74,7 @@ class Sifted:
             x (NDarray): The feature matrix (instances x features) to process.
             y (NDArray): The algorithm matrix (instances x algorithm performances).
             y_bin (NDArray): Binary labels for algorithm perfromance from prelim.
+            feat_labels(list[str]): List of feature labels.
             opts (SiftedOptions): Sifted options.
         """
         self.x = x
@@ -96,9 +97,11 @@ class Sifted:
         """Process data matrices and options to produce a sifted dataset.
 
         Args
+        ----
             x: The feature matrix (instances x features).
             y: The performance matrix (instances x algorithms).
             y_bin: The binary performance matrix
+            feat_labels: A list of feature labels.
             opts: An instance of `SiftedOptions` containing processing
                 parameters.
 
@@ -107,8 +110,6 @@ class Sifted:
             A tuple containing the processed feature matrix and
             SiftedOut
         """
-        # TODO: Multiprocessing setup
-
         sifted = Sifted(x=x, y=y, y_bin=y_bin, feat_labels=feat_labels, opts=opts)
 
         nfeats = x.shape[1]
