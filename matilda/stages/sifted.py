@@ -261,7 +261,20 @@ class Sifted:
         solutions: NDArray[np.intc],
         solution_idx: int,  # noqa: ARG002
     ) -> float:
-        """Fill in."""
+        """Fitness function to evaluate the quality of solution in genetic algorithm.
+
+        Args
+        ----
+            instance (pygad.GA): The instance of the genetic algorithm.
+            solutions (NDArray[np.intc]): The array of integer values representing the
+                solution to be evaluated.
+            solution_idx (int): The index of the solution being evaluated.
+
+        Returns
+        -------
+            float: The fitness score of the solution, representing the negative mean
+                squared error of the k-NN classification.
+        """
         idx = np.zeros(self.x.shape[1], dtype=bool)
         for i, value in enumerate(solutions):
             aux = np.where(self.clust[:, i])[0]
