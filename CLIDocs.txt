@@ -2,7 +2,11 @@ NAME
     matilda
 
 SYNOPSIS
-    matilda [--help] [-b <stage-name>]
+    matilda [--version] [--help] [run] [-b <stage-name>] [custom <stage-name>] [custom <stage-name> option1, option2, ...]
+            [custom -m stage1, stage2, ...] [custom -m -opts stage:stage1, option1, option2, ..., stage:stage2 option1, option2, ...]
+            [custom -m -opts -i <filename> -o <filepath> stage:stage1, option1, option2, ..., stage:stage2 option1, option2, ...]
+            [-i <filename>] [-i <filename> -o <filepath>] [-m -i filename1, filename2, ...] 
+            [-m -i filename1, filename2, ... -o filepath]  
 
 DESCRIPTION
 matilda is the command line tool for running the MATILDA program through command line interface. The tool 
@@ -10,9 +14,28 @@ allows for fine-grained control over the MATILDA program and scripts in order to
 customization of inputs and user-friendliness
 
 OPTIONS
+--version
+	
+--help 
 
-MATILDA COMMANDS
+run
 
-HIGH-LEVEL COMMANDS
+-b <stage-name> 
 
-LOW-LEVEL COMMANDS
+custom <stage-name>
+
+custom <stage-name> option1, option2, ...
+            
+custom -m stage1, stage2, ...
+
+custom -m -opts stage:stage1, option1, option2, ..., stage:stage2 option1, option2, ...
+            
+custom -m -opts -i <filename> -o <filepath> stage:stage1, option1, option2, ..., stage:stage2 option1, option2, ...
+            
+-i <filename>
+
+-i <filename> -o <filepath>
+
+-m -i filename1, filename2, ...
+            
+-m -i filename1, filename2, ... -o filepath
