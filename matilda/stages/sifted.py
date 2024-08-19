@@ -315,7 +315,7 @@ class Sifted:
         min_clusters = 2
         max_clusters = self.x_aux.shape[1]
 
-        silhouette_scores = {}
+        silhouette_scores, labels = {}, {}
 
         for n in range(min_clusters, max_clusters):
             kmeans = KMeans(
@@ -324,13 +324,26 @@ class Sifted:
                 random_state=self.rng.integers(1000),
             )
             cluster_labels = kmeans.fit_predict(self.x_aux.T)
+            labels[n] = cluster_labels
             silhouette_scores[n] = silhouette_score(
                 self.x_aux.T,
                 cluster_labels,
                 metric="correlation",
             )
 
-        print(silhouette_scores)
+        # suggest k value that has highest silhoulette score if k is not the default
+        # value and not the maximum nth cluster
+        max_k_silhoulette = max(silhouette_scores, key=lambda k: silhouette_scores[k])
+        if max_k_silhoulette not in (self.opts.k, max_clusters):
+            print(
+                f"    Suggested k value {max_k_silhoulette} with silhoulette score of",
+                f"{silhouette_scores[max_k_silhoulette]:.4f}",
+            )
+
+        # matlab returning numOfObservation, inspected K value, criterion values,
+        # and optimal K, but in python lets do k value first need to deal with, if
+        # user choose optimal silhouette value, should change the output
+        return labels[self.opts.k]
 
     def compute_correlation(self) -> tuple[NDArray[np.double], NDArray[np.double]]:
         """Calculate the Pearson correlation coefficient for the dataset by row.
