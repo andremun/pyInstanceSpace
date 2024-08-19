@@ -310,8 +310,13 @@ class Sifted:
         return y
 
 
-    def evaluate_cluster(self) -> None:
-        """Evaluate cluster based on silhouette scores."""
+    def evaluate_cluster(self) -> dict[int, NDArray]:
+        """Evaluate cluster based on silhouette scores.
+
+        Returns
+        -------
+            dict[int, NDArray]: A dictionary containing the labels of the clusters
+        """
         min_clusters = 2
         max_clusters = self.x_aux.shape[1]
 
