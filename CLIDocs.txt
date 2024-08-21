@@ -15,12 +15,22 @@ customization of inputs and user-friendliness
 
 OPTIONS
 --version
-	
+	Prints the version of matilda that is being used
+
 --help 
+    Prints the synopsis and a list of the most commonly used commands. If
+    the option --all or -a is given then all available commands are printed.
+    If a matilda command is named this option will bring up the manual page
+    for that command.
 
 run
+    Run all the stages in the preordered sequence of PRELIM, SIFTED, PILOT,
+    CLOISTER, PYTHIA and TRACE. The output is saved in the same directory in
+    a model.json file. This file has a given format and should not be tampered
+    with. 
 
--b <stage-name> 
+-b <stage-name> -i <filepath> -o <filepath>
+    Runs the given stage using a pre-defined json 
 
 custom <stage-name>
 
