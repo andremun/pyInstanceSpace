@@ -132,6 +132,7 @@ class SiftedOut:
     n_trees: int
     max_lter: int
     replicates: int
+    idx: NDArray[np.int_]
 
 
 @dataclass(frozen=True)
