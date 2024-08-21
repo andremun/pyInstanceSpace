@@ -99,12 +99,11 @@ class Pilot:
                 alpha = np.zeros((2 * m + 2 * n, opts.n_tries))
                 eoptim = np.zeros(opts.n_tries)
                 perf = np.zeros(opts.n_tries)
-                x_init: NDArray[np.double] = x0
 
                 idx, alpha, eoptim, perf = Pilot.numerical_solve(
                     x,
                     hd,
-                    x_init,
+                    x0,
                     x_bar,
                     n,
                     m,
@@ -142,19 +141,35 @@ class Pilot:
         if alpha is not None:
             alph: NDArray[np.float16] = alpha.astype(np.float16)
 
-        pout = PilotOut(
-            X0=x_init,
-            alpha=alph,
-            eoptim=eoptim,
-            perf=perf,
-            a=out_a,
-            z=out_z,
-            c=out_c,
-            b=out_b,
-            error=error,
-            r2=r2,
-            summary=summary,
-        )
+        if x0 is not None:
+            x_init: NDArray[np.double] = x0
+            pout = PilotOut(
+                X0=x_init,
+                alpha=alph,
+                eoptim=eoptim,
+                perf=perf,
+                a=out_a,
+                z=out_z,
+                c=out_c,
+                b=out_b,
+                error=error,
+                r2=r2,
+                summary=summary,
+            )
+        else:
+            pout = PilotOut(
+                X0=x0,
+                alpha=alph,
+                eoptim=eoptim,
+                perf=perf,
+                a=out_a,
+                z=out_z,
+                c=out_c,
+                b=out_b,
+                error=error,
+                r2=r2,
+                summary=summary,
+            )
         pda = PilotDataChanged()
 
         print(
