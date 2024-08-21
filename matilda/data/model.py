@@ -17,7 +17,7 @@ from shapely.geometry import Polygon
 from matilda.data.options import InstanceSpaceOptions
 
 
-@dataclass
+@dataclass(frozen=True)
 class Data:
     """Holds initial dataset from metadata and processed data after operations."""
 

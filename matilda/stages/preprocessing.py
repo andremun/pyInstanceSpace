@@ -43,7 +43,7 @@ class Preprocessing:
 
         Args
             matadata: An object of data class that contains data
-            from CSV file.
+                from CSV file.
             opts: An object of type Options containing options for
                 processing.
 
@@ -103,7 +103,6 @@ class Preprocessing:
         """bad_instances_removed = Preprocessing.remove_bad_instances(
             prelim_data.merge_with(data),
         )
-        # Where is the model created?
         # Preprocessing.split_data(bad_instances_removed, opts, model)"""
 
         return pre_data_changed, preprocess_out
