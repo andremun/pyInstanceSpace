@@ -95,6 +95,7 @@ class Pilot:
                     print("  -> PILOT is using random starting points for BFGS.")
                     rng = np.random.default_rng()
                     x0 = 2 * rng.random((2 * m + 2 * n, opts.n_tries)) - 1
+                    x_init: NDArray[np.double] = x0
 
                 alpha = np.zeros((2 * m + 2 * n, opts.n_tries))
                 eoptim = np.zeros(opts.n_tries)
@@ -103,7 +104,7 @@ class Pilot:
                 idx, alpha, eoptim, perf = Pilot.numerical_solve(
                     x,
                     hd,
-                    x0,
+                    x_init,
                     x_bar,
                     n,
                     m,
@@ -112,8 +113,6 @@ class Pilot:
                     perf,
                     opts,
                 )
-
-            alpha.astype(np.double)
 
             out_a = alpha[: 2 * n, idx].reshape(2, n)
             out_z = x @ out_a.T
@@ -140,18 +139,12 @@ class Pilot:
         rldf = pd.DataFrame(row_labels)
         summary = rldf.join(summary)
 
-        if x0 is not None:
-            x0 = x0.astype(np.double)
-
-        if eoptim is not None:
-            eoptim = eoptim.astype(float)
-
-        if perf is not None:
-            perf = perf.astype(float)
+        if alpha is not None:
+            alph: NDArray[np.float16] = alpha.astype(np.float16)
 
         pout = PilotOut(
-            X0=x0,
-            alpha=alpha,
+            X0=x_init,
+            alpha=alph,
             eoptim=eoptim,
             perf=perf,
             a=out_a,

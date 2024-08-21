@@ -149,8 +149,8 @@ class PilotOut:
 
     X0: NDArray[np.double]  # not sure about the dimensions
     alpha: NDArray[np.double]
-    eoptim: NDArray[np.double]
-    perf: NDArray[np.double]
+    eoptim: NDArray[np.double] | None
+    perf: NDArray[np.double] | None
     a: NDArray[np.double]
     z: NDArray[np.double]
     c: NDArray[np.double]
