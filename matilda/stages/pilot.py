@@ -138,10 +138,8 @@ class Pilot:
         rldf = pd.DataFrame(row_labels)
         summary = rldf.join(summary)
 
-        if alpha is not None:
+        if alpha is not None and x0 is not None:
             alph: NDArray[np.float16] = alpha.astype(np.float16)
-
-        if x0 is not None:
             x_init: NDArray[np.double] = x0
             pout = PilotOut(
                 X0=x_init,
@@ -159,7 +157,7 @@ class Pilot:
         else:
             pout = PilotOut(
                 X0=x0,
-                alpha=alph,
+                alpha=alpha,
                 eoptim=eoptim,
                 perf=perf,
                 a=out_a,

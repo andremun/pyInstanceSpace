@@ -148,7 +148,7 @@ class PilotOut:
     """Results of the Pilot process in the data analysis pipeline."""
 
     X0: NDArray[np.double] | None  # not sure about the dimensions
-    alpha: NDArray[np.double]
+    alpha: NDArray[np.double] | None
     eoptim: NDArray[np.double] | None
     perf: NDArray[np.double] | None
     a: NDArray[np.double]
