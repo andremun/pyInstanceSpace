@@ -49,8 +49,8 @@ class Preprocessing:
 
         Returns
         -------
-            A tuple containing the processed data (as 'Data' object) and
-            preliminary output information (as 'PrelimOut' object).
+            A tuple containing the processed data (as 'PreprocessingDataChanged' object)
+            and dummy object for further implementation (as 'PreprocessingOut' object).
         """
         data = Data(
             inst_labels=matadata.instance_labels,
@@ -535,13 +535,3 @@ class Preprocessing:
             trace=model.trace,
             opts=model.opts,
         )
-
-
-if __name__ == "__main__":
-    # for testing purpose
-    metadata_path = Path(
-        "/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_integration/metadata.csv",
-    )
-    option_path = Path(
-        "/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_integration/options.json",
-    )
