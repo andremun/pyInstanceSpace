@@ -14,7 +14,6 @@ from matilda.data.model import (
     Footprint,
     Model,
     PilotOut,
-    PolyShape,
     PrelimOut,
     PythiaOut,
     SiftedOut,
@@ -166,14 +165,7 @@ def create_dummy_model(data: Data, opts: InstanceSpaceOptions) -> Model:
         selection1=None,
         summary=pd.DataFrame(),
     )
-    footprint = Footprint(
-        polygon=PolyShape(),
-        area=0.0,
-        elements=0,
-        good_elements=0,
-        density=0.0,
-        purity=0.0,
-    )
+    footprint = Footprint(None)
 
     trace = TraceOut(
         space=footprint,
