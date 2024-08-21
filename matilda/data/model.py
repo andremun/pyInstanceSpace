@@ -14,6 +14,8 @@ import pandas as pd
 from numpy.typing import NDArray
 from shapely.geometry import Polygon
 
+from matilda.data.options import InstanceSpaceOptions
+
 
 @dataclass(frozen=True)
 class Data:
@@ -138,10 +140,10 @@ class SiftedDataChanged:
 class PilotOut:
     """Results of the Pilot process in the data analysis pipeline."""
 
-    X0: NDArray[np.double]  # not sure about the dimensions
-    alpha: NDArray[np.double]
-    eoptim: NDArray[np.double]
-    perf: NDArray[np.double]
+    X0: NDArray[np.double] | None  # not sure about the dimensions
+    alpha: NDArray[np.double] | None
+    eoptim: NDArray[np.double] | None
+    perf: NDArray[np.double] | None
     a: NDArray[np.double]
     z: NDArray[np.double]
     c: NDArray[np.double]
@@ -226,12 +228,11 @@ class PythiaDataChanged:
 
 
 
-@dataclass()
+@dataclass(frozen=True)
 class Footprint:
-    """
-    A class to represent a footprint with geometric and statistical properties.
+    """A class to represent a footprint with geometric and statistical properties.
 
-    Attributes
+    Attributes:
     ----------
     polygon : Polygon
         The geometric shape of the footprint.
@@ -256,12 +257,17 @@ class Footprint:
     purity: float
 
     def __init__(self, polygon: Polygon) -> None:
-        self.polygon = polygon if polygon else None
-        self.area = self.polygon.area if polygon else None
-        self.elements = 0
-        self.good_elements = 0
-        self.density = 0
-        self.purity = 0
+        """Initialise a Footprint."""
+        # This is a kinda hacky way to get around the frozen problem.
+        # A nicer way would be a static method to construct it from a polygon rust style
+        # from_polygon().
+
+        object.__setattr__(self, "polygon", polygon if polygon else None)
+        object.__setattr__(self, "area", self.polygon.area if polygon else None)
+        object.__setattr__(self, "elements", 0)
+        object.__setattr__(self, "good_elements", 0)
+        object.__setattr__(self, "density", 0)
+        object.__setattr__(self, "purity", 0)
 
 
 @dataclass(frozen=True)
