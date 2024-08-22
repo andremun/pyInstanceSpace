@@ -330,6 +330,8 @@ class Sifted:
                 metric="correlation",
             )
 
+        # check if silhoulette value is in bell shape, meaning increasing then decreasing
+        # if max is not last, then can recommend max value, if last then how?
         print(silhouette_scores)
 
     def compute_correlation(self) -> tuple[NDArray[np.double], NDArray[np.double]]:
