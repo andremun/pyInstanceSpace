@@ -3,8 +3,7 @@ NAME
 
 SYNOPSIS
     matilda [--version] [--help] [run] [-b <stage-name>] [custom <stage-name>] [custom <stage-name> option1, option2, ...]
-            [custom -m stage1, stage2, ...] [custom -m -opts stage:stage1, option1, option2, ..., stage:stage2 option1, option2, ...]
-            [custom -m -opts -i <filename> -o <filepath> stage:stage1, option1, option2, ..., stage:stage2 option1, option2, ...]
+            [custom -m stage1, stage2, ...][custom -m -opts -i <filename> -o <filepath> stage:stage1, option1, option2, ..., stage:stage2 option1, option2, ...]
             [-i <filename>] [-i <filename> -o <filepath>] [-m -i filename1, filename2, ...] 
             [-m -i filename1, filename2, ... -o filepath]  
 
