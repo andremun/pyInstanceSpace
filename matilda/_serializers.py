@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
-from matplotlib.colors import LinearSegmentedColormap, Normalize
+from matplotlib.colors import Normalize
 from numpy.typing import NDArray
 
 from matilda.data.model import (
@@ -172,10 +172,13 @@ def save_instance_space_for_web(
     if not output_directory.is_dir():
         raise ValueError("output_directory isn't a directory.")
 
-
     colours = (
-        np.array(matplotlib.colormaps["viridis"].resampled(256).colors)[:, :3] * 255
+        np.array(
+            matplotlib.colormaps["viridis"].resampled(256).__dict__["colors"],
+        )[:, :3]
+        * 255
     ).astype(np.int_)
+
     pd.DataFrame(colours, columns=["R", "G", "B"]).to_csv(
         output_directory / "color_table.csv",
         index_label=False,
@@ -295,7 +298,7 @@ def save_instance_space_graphs(
         # optional? in model?
         _draw_binary_performance(
             pilot_state.out.z,
-            pythia_state.out.y_hat,
+            pythia_state.out.y_hat[:, i],
             algo_label.replace("_", " "),
             output_directory / f"binary_svm_{algo_label}.png",
         )
@@ -304,7 +307,7 @@ def save_instance_space_graphs(
         _draw_good_bad_footprint(
             pilot_state.out.z,
             trace_state.out.good[i],
-            y_foot,
+            y_foot[:, i],
             algo_label.replace("_", " "),
             output_directory / f"footprint_{algo_label}.png",
         )
@@ -391,9 +394,9 @@ T = TypeVar("T", bound=np.generic)
 def _colour_scale(
     data: NDArray[np.number],
 ) -> NDArray[np.int_]:
-    data_range = np.max(data) - np.min(data)
+    data_range = np.max(data, axis=0) - np.min(data, axis=0)
     return np.floor(
-        255 * ((data - np.min(data)) / data_range),
+        255.0 * ((data - np.min(data, axis=0)) / data_range),
     ).astype(np.int_)
 
 
@@ -402,7 +405,7 @@ def _colour_scale_g(
 ) -> NDArray[np.int_]:
     data_range = np.max(data) - np.min(data)
     return np.round(
-        255 * ((data - np.min(data)) / data_range),
+        255.0 * ((data - np.min(data)) / data_range),
     ).astype(np.int_)
 
 
@@ -428,7 +431,7 @@ def _draw_sources(
             z[s == source_labels[i], 0],
             z[s == source_labels[i], 1],
             s=8,
-            c=source_labels[i],
+            # c=source_labels[i],
             norm=norm,
             cmap=cmap,
         )
@@ -464,6 +467,7 @@ def _draw_scatter(
             norm=norm,
             cmap=cmap,
         ),
+        ax=ax,
     )
 
     fig.savefig(output)
@@ -485,7 +489,7 @@ def _draw_portfolio_selections(
     bsxfun_result = np.array(
         [[x == j for j in range(num_algorithms + 1)] for i, x in enumerate(p)],
     )
-    is_worthy = np.sum(bsxfun_result) != 0
+    is_worthy = np.sum(bsxfun_result, axis=0) != 0
 
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
@@ -502,7 +506,7 @@ def _draw_portfolio_selections(
             z[p == i, 0],
             z[p == i, 1],
             s=8,
-            c=i,
+            # c=i,
             norm=norm,
             cmap=cmap,
             label="None" if i == 0 else algorithm_labels[i - 1].replace("_", " "),
@@ -529,7 +533,7 @@ def _draw_portfolio_footprint(
     bsxfun_result = np.array(
         [[x == j for j in range(num_algorithms + 1)] for i, x in enumerate(p)],
     )
-    is_worthy = np.sum(bsxfun_result) != 0
+    is_worthy = np.sum(bsxfun_result, axis=0) != 0
 
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
@@ -546,7 +550,7 @@ def _draw_portfolio_footprint(
             z[p == i, 0],
             z[p == i, 1],
             s=8,
-            c=i,
+            # c=i,
             norm=norm,
             cmap=cmap,
             label="None" if i == 0 else algorithm_labels[i - 1].replace("_", " "),
@@ -577,10 +581,12 @@ def _draw_good_bad_footprint(
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
     fig.suptitle(title_label)
 
-    if np.any(not y_bin):
+    not_y_bin = y_bin != 1
+
+    if np.any(not_y_bin):
         ax.scatter(
-            z[not y_bin, 0],
-            z[not y_bin, 1],
+            z[not_y_bin, 0],
+            z[not_y_bin, 1],
             s=8,
             c=orange,
         )
@@ -625,11 +631,12 @@ def _draw_binary_performance(
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
     fig.suptitle(title_label)
+    not_y_bin = y_bin != 1
 
-    if np.any(not y_bin):
+    if np.any(not_y_bin != 1):
         ax.scatter(
-            z[not y_bin, 0],
-            z[not y_bin, 1],
+            z[not_y_bin, 0],
+            z[not_y_bin, 1],
             s=8,
             c=orange,
         )

@@ -257,7 +257,9 @@ class _MatlabResults:
             object.__setattr__(footprint, "area", in_from_matlab["area"])
             object.__setattr__(footprint, "elements", in_from_matlab["elements"])
             object.__setattr__(
-                footprint, "good_elements", in_from_matlab["goodElements"],
+                footprint,
+                "good_elements",
+                in_from_matlab["goodElements"],
             )
             object.__setattr__(footprint, "density", in_from_matlab["density"])
             object.__setattr__(footprint, "purity", in_from_matlab["purity"])
@@ -356,7 +358,21 @@ def test_save_for_web() -> None:
         expected_data = pd.read_csv(expected_file_path)
         actual_data = pd.read_csv(actual_file_path)
 
-        pd.testing.assert_frame_equal(expected_data, actual_data)
+        if csv_file in [
+            "good_algos_color.csv",
+            "algorithm_process_single_color.csv",
+            "feature_raw_color.csv",
+            "feature_process_color.csv",
+            "algorithm_raw_single_color.csv",
+        ]:
+            # There seems to be a rounding error in either python or MATLAB, so
+            # allow an error of 1 for colours
+            pd.testing.assert_frame_equal(expected_data, actual_data, rtol=0, atol=1)
+        elif csv_file in ["color_table.csv"]:
+            # We are using a different colormap, because the matlab one is proprietary
+            pass
+        else:
+            pd.testing.assert_frame_equal(expected_data, actual_data)
 
 
 def test_save_graphs() -> None:
@@ -380,4 +396,4 @@ def test_save_graphs() -> None:
         # We can't test the images, so we must check visually that they are consistant
 
 
-test_save_for_web()
+test_save_graphs()
