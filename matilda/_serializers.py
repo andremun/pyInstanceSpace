@@ -379,23 +379,21 @@ T = TypeVar("T", bound=np.generic)
 
 
 def _colour_scale(
-    data: NDArray[T],
-) -> NDArray[T]:
-    data_range: NDArray[T] = np.max(data, axis=0) - np.min(data, axis=0)
-    out: NDArray[T] = np.round(255 * (data - np.min(data, axis=0)) / data_range)
-
-    return out
+    data: NDArray[np.number],
+) -> NDArray[np.int_]:
+    data_range = np.max(data) - np.min(data)
+    return np.round(
+        255 * ((data - np.min(data)) / data_range),
+    ).astype(np.int_)
 
 
 def _colour_scale_g(
-    data: NDArray[T],
-) -> NDArray[T]:
-    data_range: NDArray[T] = np.max(data, axis=0) - np.min(data, axis=0)
-    out: NDArray[T] = np.round(255 * (data - np.min(data, axis=0)) / data_range).astype(
-        np.int_,
-    )
-
-    return out
+    data: NDArray[np.number],
+) -> NDArray[np.int_]:
+    data_range = np.max(data) - np.min(data)
+    return np.round(
+        255 * ((data - np.min(data)) / data_range),
+    ).astype(np.int_)
 
 
 def _draw_sources(
