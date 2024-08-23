@@ -14,8 +14,6 @@ import pandas as pd
 from numpy.typing import NDArray
 from shapely.geometry import Polygon
 
-from matilda.data.options import InstanceSpaceOptions
-
 
 @dataclass(frozen=True)
 class Data:
@@ -125,6 +123,7 @@ class SiftedOut:
     n_trees: int
     max_lter: int
     replicates: int
+    idx: NDArray[np.int_]
 
 
 @dataclass(frozen=True)
@@ -225,7 +224,6 @@ class PythiaDataChanged:
     def merge_with(self, data: Data) -> Data:
         """Merge changed fields of data with a Data object."""
         raise NotImplementedError
-
 
 
 @dataclass(frozen=True)

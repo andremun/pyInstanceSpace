@@ -363,7 +363,7 @@ class InstanceSpace:
         if (
             self._trace_state is None
             or self._pilot_state is None
-            or self._prelim_state is None
+            or self._sifted_state is None
             or self._pythia_state is None
             or self._cloister_state is None
         ):
@@ -372,7 +372,7 @@ class InstanceSpace:
         save_instance_space_to_csv(
             output_directory,
             self._data,
-            self._prelim_state,
+            self._sifted_state,
             self._trace_state,
             self._pilot_state,
             self._cloister_state,
@@ -390,10 +390,11 @@ class InstanceSpace:
             not self._stages[_Stage.CLOISTER]
             or not self._stages[_Stage.TRACE]
             or not self._stages[_Stage.PYTHIA]
+            or not self._stages[_Stage.SIFTED]
         ):
             raise StageError
 
-        if self._prelim_state is None:
+        if self._prelim_state is None or self._sifted_state is None:
             raise StageError
 
         # TODO: Placeholder, need to work out how to get the most relevant data
@@ -401,10 +402,41 @@ class InstanceSpace:
         if self._data is None:
             raise StageError
 
-        save_instance_space_for_web(output_directory, self._prelim_state)
+        save_instance_space_for_web(
+            output_directory,
+            self._prelim_state,
+            self._sifted_state,
+        )
 
     def save_graphs(self, output_directory: Path) -> None:
-        save_instance_space_graphs()
+        """Save graphs used for analysis of the results."""
+        if (
+            not self._stages[_Stage.PYTHIA]
+            or not self._stages[_Stage.PILOT]
+            or not self._stages[_Stage.TRACE]
+        ):
+            raise StageError
+
+        if (
+            self._pythia_state is None
+            or self._pilot_state is None
+            or self._trace_state is None
+        ):
+            raise StageError
+
+        # TODO: Placeholder, need to work out how to get the most relevant data
+        # Conductor branch would solve this, needs more thought
+        if self._data is None:
+            raise StageError
+
+        save_instance_space_graphs(
+            output_directory,
+            self._data,
+            self.options,
+            self._pythia_state,
+            self._pilot_state,
+            self._trace_state,
+        )
 
 
 def instance_space_from_files(

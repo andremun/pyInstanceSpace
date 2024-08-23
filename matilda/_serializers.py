@@ -7,52 +7,52 @@ import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.colors import Normalize
 from numpy.typing import NDArray
-from shapely.ops import triangulate
 
-from .data.model import (
+from matilda.data.model import (
     CloisterOut,
     Data,
+    Footprint,
     PilotOut,
     PrelimOut,
     PythiaOut,
+    SiftedOut,
     StageState,
     TraceOut,
 )
+
 from .data.options import InstanceSpaceOptions
 
 
 def save_instance_space_to_csv(
     output_directory: Path,
     data: Data,
-    prelim_state: StageState[PrelimOut],
+    sifted_state: StageState[SiftedOut],
     trace_state: StageState[TraceOut],
     pilot_state: StageState[PilotOut],
     cloister_state: StageState[CloisterOut],
     pythia_state: StageState[PythiaOut],
 ) -> None:
-
     if not output_directory.is_dir():
         raise ValueError("output_directory isn't a directory.")
 
     num_algorithms = data.y.shape[1]
 
     for i in range(num_algorithms):
-
         best = trace_state.out.best[i]
         if best is not None and best.polygon is not None:
-            best_vertices = np.array(best.polygon.boundary.coords.xy).T
+            best_vertices = np.array(best.polygon.boundary.coords.xy).T[:-1]
             best = trace_state.out.best[i]
             algorithm_labels = trace_state.data.algo_labels[i]
             _write_array_to_csv(
                 best_vertices,
                 pd.Series(["z_1", "z_2"]),
                 _make_bind_labels(best_vertices),
-                output_directory / f"footprint_{algorithm_labels}_good.csv",
+                output_directory / f"footprint_{algorithm_labels}_best.csv",
             )
 
         good = trace_state.out.good[i]
         if good is not None and good.polygon is not None:
-            good_vertices = np.array(good.polygon.boundary.coords.xy).T
+            good_vertices = np.array(good.polygon.boundary.coords.xy).T[:-1]
             algorithm_labels = trace_state.data.algo_labels[i]
             _write_array_to_csv(
                 good_vertices,
@@ -83,7 +83,7 @@ def save_instance_space_to_csv(
         )
 
     _write_array_to_csv(
-        data.x_raw[:, prelim_state.out.idx],
+        data.x_raw[:, sifted_state.out.idx],
         pd.Series(data.feat_labels),
         data.inst_labels,
         output_directory / "feature_raw.csv",
@@ -96,19 +96,19 @@ def save_instance_space_to_csv(
     )
     _write_array_to_csv(
         data.y_raw,
-        pd.Series(data.feat_labels),
+        pd.Series(data.algo_labels),
         data.inst_labels,
         output_directory / "algorithm_raw.csv",
     )
     _write_array_to_csv(
         data.y,
-        pd.Series(data.feat_labels),
+        pd.Series(data.algo_labels),
         data.inst_labels,
         output_directory / "algorithm_process.csv",
     )
     _write_array_to_csv(
         data.y_bin,
-        pd.Series(data.feat_labels),
+        pd.Series(data.algo_labels),
         data.inst_labels,
         output_directory / "algorithm_bin.csv",
     )
@@ -143,22 +143,22 @@ def save_instance_space_to_csv(
         output_directory / "portfolio_svm.csv",
     )
     _write_cell_to_csv(
-        trace_state.out.summary[2:, [3, 5, 6, 8, 10, 11]],
-        trace_state.out.summary[1, [3, 5, 6, 8, 10, 11]],
-        trace_state.out.summary[2:, 1],
+        trace_state.out.summary[1:, [2, 4, 5, 7, 9, 10]],
+        trace_state.out.summary[0, [2, 4, 5, 7, 9, 10]],
+        trace_state.out.summary[1:, 0],
         output_directory / "footprint_performance.csv",
     )
     if pilot_state.out.summary is not None:
         _write_cell_to_csv(
-            pilot_state.out.summary[2:, 2:],
-            pilot_state.out.summary[1, 2:],
-            pilot_state.out.summary[2:, 1],
-            output_directory / "footprint_performance.csv",
+            pilot_state.out.summary[1:, 1:],
+            pilot_state.out.summary[0, 1:],
+            pilot_state.out.summary[1:, 0],
+            output_directory / "projection_matrix.csv",
         )
     _write_cell_to_csv(
-        pythia_state.out.summary[2:, 2:],
-        pythia_state.out.summary[1, 2:],
-        pythia_state.out.summary[2:, 1],
+        pythia_state.out.summary[1:, 1:],
+        pythia_state.out.summary[0, 1:],
+        pythia_state.out.summary[1:, 0],
         output_directory / "svm_table.csv",
     )
 
@@ -166,13 +166,13 @@ def save_instance_space_to_csv(
 def save_instance_space_for_web(
     output_directory: Path,
     prelim_state: StageState[PrelimOut],
+    sifted_state: StageState[SiftedOut],
 ) -> None:
-
     if not output_directory.is_dir():
         raise ValueError("output_directory isn't a directory.")
 
     _write_array_to_csv(
-        _colour_scale(prelim_state.data.x_raw[:, prelim_state.out.idx]),
+        _colour_scale(prelim_state.data.x_raw[:, sifted_state.out.idx]),
         pd.Series(prelim_state.data.feat_labels),
         prelim_state.data.inst_labels,
         output_directory / "feature_raw_color.csv",
@@ -223,7 +223,6 @@ def save_instance_space_graphs(
     pilot_state: StageState[PilotOut],
     trace_state: StageState[TraceOut],
 ) -> None:
-
     if not output_directory.is_dir():
         raise ValueError("output_directory isn't a directory.")
 
@@ -257,7 +256,6 @@ def save_instance_space_graphs(
         )
 
     for i in range(num_algorithms):
-
         algo_label = data.algo_labels[i]
 
         filename = f"distribution_performance_global_normalized_{algo_label}.png"
@@ -311,7 +309,7 @@ def save_instance_space_graphs(
     _draw_portfolio_selections(
         pilot_state.out.z,
         data.p,
-        data.algo_labels,
+        np.array(data.algo_labels),
         "Best algorithm",
         output_directory / "distribution_portfolio.png",
     )
@@ -319,7 +317,7 @@ def save_instance_space_graphs(
     _draw_portfolio_selections(
         pilot_state.out.z,
         pythia_state.out.selection0,
-        data.algo_labels,
+        np.array(data.algo_labels),
         "Predicted best algorithm",
         output_directory / "distribution_svm_portfolio.png",
     )
@@ -328,7 +326,7 @@ def save_instance_space_graphs(
         pilot_state.out.z,
         trace_state.out.best,
         p_foot,
-        data.algo_labels,
+        np.array(data.algo_labels),
         output_directory / "footprint_portfolio.png",
     )
 
@@ -342,7 +340,7 @@ def save_instance_space_graphs(
     if data.s is not None:
         _draw_sources(
             pilot_state.out.z,
-            data.s,
+            np.array(data.s),
             output_directory / "distribution_sources.png",
         )
 
@@ -353,7 +351,10 @@ def _write_array_to_csv(
     row_names: pd.Series,  # type: ignore[type-arg]
     filename: Path,
 ) -> None:
-    pd.DataFrame(data, index=row_names, columns=column_names).to_csv(filename)
+    pd.DataFrame(data, index=row_names, columns=column_names).to_csv(
+        filename,
+        index_label="Row",
+    )
 
 
 def _write_cell_to_csv(
@@ -362,13 +363,16 @@ def _write_cell_to_csv(
     row_names: pd.Series,  # type: ignore[type-arg]
     filename: Path,
 ) -> None:
-    pd.DataFrame(data, index=row_names, columns=column_names).to_csv(filename)
+    pd.DataFrame(data, index=row_names, columns=column_names).to_csv(
+        filename,
+        index_label="Row",
+    )
 
 
 def _make_bind_labels(
     data: NDArray[Any],
 ) -> pd.Series:
-    return pd.Series([f"bnd_pnt_{i}" for i in range(data.shape[0])])
+    return pd.Series([f"bnd_pnt_{i+1}" for i in range(data.shape[0])])
 
 
 T = TypeVar("T", bound=np.generic)
@@ -387,7 +391,9 @@ def _colour_scale_g(
     data: NDArray[T],
 ) -> NDArray[T]:
     data_range: NDArray[T] = np.max(data, axis=0) - np.min(data, axis=0)
-    out: NDArray[T] = np.round(255 * (data - np.min(data, axis=0)) / data_range)
+    out: NDArray[T] = np.round(255 * (data - np.min(data, axis=0)) / data_range).astype(
+        np.int_,
+    )
 
     return out
 
@@ -503,7 +509,7 @@ def _draw_portfolio_selections(
 
 def _draw_portfolio_footprint(
     z: NDArray[Any],
-    best: NDArray[Any],
+    best: list[Footprint],
     p: NDArray[Any],
     algorithm_labels: NDArray[np.str_],
     output: Path,
@@ -549,7 +555,7 @@ def _draw_portfolio_footprint(
 
 def _draw_good_bad_footprint(
     z: NDArray[Any],
-    good: NDArray[Any],
+    good: Footprint,
     y_bin: NDArray[Any],
     title_label: str,
     output: Path,
@@ -589,7 +595,7 @@ def _draw_good_bad_footprint(
 
 def _draw_footprint(
     ax: Axes,
-    footprint: Any,
+    footprint: Footprint,
     colour: tuple[float, float, float, float],
     alpha: float,
 ) -> None:

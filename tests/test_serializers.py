@@ -211,6 +211,8 @@ class _MatlabResults:
                 n_trees=-1,  # TODO: Find where this comes from
                 max_lter=-1,  # TODO: Find where this comes from
                 replicates=-1,  # TODO: Find where this comes from
+                # MATLAB indexes by 1
+                idx=self.workspace_data["model"]["featsel"]["idx"] - 1,
             ),
         )
         instance_space._sifted_state = sifted_state  # noqa: SLF001
@@ -243,7 +245,7 @@ class _MatlabResults:
         instance_space._cloister_state = cloister_state  # noqa: SLF001
 
         def translate_footprint(in_from_matlab: dict) -> Footprint:
-            if in_from_matlab["polygon"]:
+            if len(in_from_matlab["polygon"]):
                 vertices = in_from_matlab["polygon"]["Vertices"]
             else:
                 vertices = []
@@ -252,11 +254,13 @@ class _MatlabResults:
             polygon = Polygon(polygon_ndarray)
             footprint = Footprint(polygon)
 
-            footprint.area = in_from_matlab["area"]
-            footprint.elements = in_from_matlab["elements"]
-            footprint.good_elements = in_from_matlab["goodElements"]
-            footprint.density = in_from_matlab["density"]
-            footprint.purity = in_from_matlab["purity"]
+            object.__setattr__(footprint, "area", in_from_matlab["area"])
+            object.__setattr__(footprint, "elements", in_from_matlab["elements"])
+            object.__setattr__(
+                footprint, "good_elements", in_from_matlab["goodElements"]
+            )
+            object.__setattr__(footprint, "density", in_from_matlab["density"])
+            object.__setattr__(footprint, "purity", in_from_matlab["purity"])
 
             return footprint
 
@@ -273,6 +277,12 @@ class _MatlabResults:
             ),
         )
         instance_space._trace_state = trace_state  # noqa: SLF001
+
+        summary = self.workspace_data["model"]["pythia"]["summary"]
+        for i in range(summary.shape[0]):
+            for j in range(summary.shape[1]):
+                if type(summary[i, j]) is np.ndarray:
+                    summary[i, j] = None
 
         pythia_state = StageState[PythiaOut](
             data=data,
@@ -369,4 +379,5 @@ def test_save_graphs() -> None:
 
         # We can't test the images, so we must check visually that they are consistant
 
-test_save_to_csv()
+
+test_save_for_web()
