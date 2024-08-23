@@ -121,8 +121,8 @@ class Sifted:
 
         if nfeats <= Sifted.MIN_FEAT_REQUIRED:
             print(
-                "-> There are 3 or less features to do selection. \
-                Skipping feature selection.",
+                "-> There are 3 or less features to do selection.",
+                "Skipping feature selection.",
             )
             sifted.selvars = np.arange(nfeats)
             return sifted.get_output()
@@ -138,16 +138,16 @@ class Sifted:
 
         if nfeats <= Sifted.MIN_FEAT_REQUIRED:
             print(
-                "-> There are 3 or less features to do selection. \
-                    Skipping correlation clustering selection.",
+                "-> There are 3 or less features to do selection.",
+                "Skipping correlation clustering selection.",
             )
             sifted.x = sifted.x_aux
             return sifted.get_output()
 
         if nfeats <= opts.k:
             print(
-                "-> There are less features than clusters. \
-                    Skipping correlation clustering selection.",
+                "-> There are less features than clusters.",
+                "Skipping correlation clustering selection.",
             )
             sifted.x = sifted.x_aux
             return sifted.get_output()
