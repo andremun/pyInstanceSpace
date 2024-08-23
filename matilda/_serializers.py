@@ -228,6 +228,136 @@ def save_instance_space_for_web(
     )
 
 
+def save_instance_space_graphs(
+    output_directory: Path,
+    data: Data,
+    options: InstanceSpaceOptions,
+    pythia_state: StageState[PythiaOut],
+    pilot_state: StageState[PilotOut],
+    trace_state: StageState[TraceOut],
+) -> None:
+    if not output_directory.is_dir():
+        raise ValueError("output_directory isn't a directory.")
+
+    num_feats = data.x.shape[1]
+    num_algorithms = data.y.shape[1]
+
+    x_range = np.max(data.x, axis=0) - np.min(data.x, axis=0)
+    x_aux = (data.x - np.min(data.x, axis=0)) / x_range
+
+    y_raw_range = np.max(data.y_raw, axis=0) - np.min(data.y_raw, axis=0)
+    y_ind = data.y_raw - np.min(data.y_raw, axis=0) / y_raw_range
+
+    y_glb = np.log10(data.y_raw + 1)
+    y_glb_range = np.max(y_glb, axis=0) - np.min(y_glb, axis=0)
+    y_glb = (y_glb - np.min(y_glb)) / y_glb_range
+
+    if options.trace.use_sim:
+        y_foot = pythia_state.out.y_hat
+        p_foot = pythia_state.out.selection0
+    else:
+        y_foot = data.y_bin
+        p_foot = data.p
+
+    for i in range(num_feats):
+        filename = f"distribution_feature_{data.feat_labels[i]}.png"
+        _draw_scatter(
+            pilot_state.out.z,
+            x_aux[:, i],
+            data.feat_labels[i].replace("_", " "),
+            output_directory / filename,
+        )
+
+    for i in range(num_algorithms):
+        algo_label = data.algo_labels[i]
+
+        filename = f"distribution_performance_global_normalized_{algo_label}.png"
+        _draw_scatter(
+            pilot_state.out.z,
+            y_glb[:, i],
+            algo_label.replace("_", " "),
+            output_directory / filename,
+        )
+
+        filename = f"distribution_performance_individual_normalized_{algo_label}.png"
+        _draw_scatter(
+            pilot_state.out.z,
+            y_ind[:, i],
+            algo_label.replace("_", " "),
+            output_directory / filename,
+        )
+
+        _draw_binary_performance(
+            pilot_state.out.z,
+            data.y_bin[:, i],
+            algo_label.replace("_", " "),
+            output_directory / f"binary_performance_{algo_label}.png",
+        )
+
+        # TODO: MATLAB has a try catch for this one, when pythia is done maybe make
+        # optional? in model?
+        _draw_binary_performance(
+            pilot_state.out.z,
+            pythia_state.out.y_hat[:, i],
+            algo_label.replace("_", " "),
+            output_directory / f"binary_svm_{algo_label}.png",
+        )
+
+        # TODO: Same as above
+        _draw_good_bad_footprint(
+            pilot_state.out.z,
+            trace_state.out.good[i],
+            y_foot[:, i],
+            algo_label.replace("_", " "),
+            output_directory / f"footprint_{algo_label}.png",
+        )
+
+    _draw_scatter(
+        pilot_state.out.z,
+        data.num_good_algos / num_algorithms,
+        "Percentage of good algorithms",
+        output_directory / "distribution_number_good_algos.png",
+    )
+
+    _draw_portfolio_selections(
+        pilot_state.out.z,
+        data.p,
+        np.array(data.algo_labels),
+        "Best algorithm",
+        output_directory / "distribution_portfolio.png",
+    )
+
+    _draw_portfolio_selections(
+        pilot_state.out.z,
+        pythia_state.out.selection0,
+        np.array(data.algo_labels),
+        "Predicted best algorithm",
+        output_directory / "distribution_svm_portfolio.png",
+    )
+
+    _draw_portfolio_footprint(
+        pilot_state.out.z,
+        trace_state.out.best,
+        p_foot,
+        np.array(data.algo_labels),
+        output_directory / "footprint_portfolio.png",
+    )
+
+    _draw_binary_performance(
+        pilot_state.out.z,
+        data.beta,
+        "Beta score",
+        output_directory / "distribution_beta_score.png",
+    )
+
+    if data.s is not None:
+        _draw_sources(
+            pilot_state.out.z,
+            np.array(data.s),
+            output_directory / "distribution_sources.png",
+        )
+
+
 def _write_array_to_csv(
     data: NDArray[Any],  # TODO: Try to unify these
     column_names: pd.Series,  # TODO: Try to unify these
@@ -277,3 +407,250 @@ def _colour_scale_g(
     return np.round(
         255.0 * ((data - np.min(data)) / data_range),
     ).astype(np.int_)
+
+
+def _draw_sources(
+    z: NDArray[Any],
+    s: NDArray[np.str_],
+    output: Path,
+) -> None:
+    upper_bound = np.ceil(np.max(z))
+    lower_bound = np.floor(np.min(z))
+    source_labels = np.unique(s)
+    num_sources = len(source_labels)
+
+    cmap = plt.colormaps["viridis"]
+    fig, ax2 = plt.subplots()
+    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    fig.suptitle("Sources")
+
+    norm = Normalize(lower_bound, upper_bound)
+
+    for i in reversed(range(num_sources)):
+        ax.scatter(
+            z[s == source_labels[i], 0],
+            z[s == source_labels[i], 1],
+            s=8,
+            # c=source_labels[i],
+            norm=norm,
+            cmap=cmap,
+        )
+
+    ax.set_xlabel("z_{1}")
+    ax.set_ylabel("z_{2}")
+    ax.legend()
+
+    fig.savefig(output)
+
+
+def _draw_scatter(
+    z: NDArray[Any],
+    x: NDArray[Any],
+    title_label: str,
+    output: Path,
+) -> None:
+    upper_bound = np.ceil(np.max(z))
+    lower_bound = np.floor(np.min(z))
+
+    cmap = plt.colormaps["viridis"]
+    fig, ax2 = plt.subplots()
+    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    fig.suptitle(title_label, size=14)
+
+    norm = Normalize(lower_bound, upper_bound)
+
+    ax.scatter(z[:, 0], z[:, 1], s=8, c=x, norm=norm, cmap=cmap)
+    ax.set_xlabel("z_{1}")
+    ax.set_ylabel("z_{2}")
+    fig.colorbar(
+        plt.cm.ScalarMappable(
+            norm=norm,
+            cmap=cmap,
+        ),
+        ax=ax,
+    )
+
+    fig.savefig(output)
+
+
+def _draw_portfolio_selections(
+    z: NDArray[Any],
+    p: NDArray[Any],
+    algorithm_labels: NDArray[np.str_],
+    title_label: str,
+    output: Path,
+) -> None:
+    upper_bound = np.ceil(np.max(z))
+    lower_bound = np.floor(np.min(z))
+    num_algorithms = len(algorithm_labels)
+    # labels: list[str] = []
+    # h = np.zeros((1, num_algorithms + 1))
+
+    bsxfun_result = np.array(
+        [[x == j for j in range(num_algorithms + 1)] for i, x in enumerate(p)],
+    )
+    is_worthy = np.sum(bsxfun_result, axis=0) != 0
+
+    cmap = plt.colormaps["viridis"]
+    fig, ax2 = plt.subplots()
+    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    fig.suptitle(title_label)
+
+    norm = Normalize(lower_bound, upper_bound)
+
+    for i in range(num_algorithms):
+        if not is_worthy[i]:
+            continue
+
+        ax.scatter(
+            z[p == i, 0],
+            z[p == i, 1],
+            s=8,
+            # c=i,
+            norm=norm,
+            cmap=cmap,
+            label="None" if i == 0 else algorithm_labels[i - 1].replace("_", " "),
+        )
+
+    ax.set_xlabel("z_{1}")
+    ax.set_ylabel("z_{2}")
+    ax.legend()
+
+    fig.savefig(output)
+
+
+def _draw_portfolio_footprint(
+    z: NDArray[Any],
+    best: list[Footprint],
+    p: NDArray[Any],
+    algorithm_labels: NDArray[np.str_],
+    output: Path,
+) -> None:
+    upper_bound = np.ceil(np.max(z))
+    lower_bound = np.floor(np.min(z))
+    num_algorithms = len(algorithm_labels)
+
+    bsxfun_result = np.array(
+        [[x == j for j in range(num_algorithms + 1)] for i, x in enumerate(p)],
+    )
+    is_worthy = np.sum(bsxfun_result, axis=0) != 0
+
+    cmap = plt.colormaps["viridis"]
+    fig, ax2 = plt.subplots()
+    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    fig.suptitle("Portfolio footprints")
+
+    norm = Normalize(lower_bound, upper_bound)
+
+    for i in range(num_algorithms):
+        if not is_worthy[i]:
+            continue
+
+        ax.scatter(
+            z[p == i, 0],
+            z[p == i, 1],
+            s=8,
+            # c=i,
+            norm=norm,
+            cmap=cmap,
+            label="None" if i == 0 else algorithm_labels[i - 1].replace("_", " "),
+        )
+
+        _draw_footprint(ax, best[i], cmap(norm(i)), 0.3)
+
+    ax.set_xlabel("z_{1}")
+    ax.set_ylabel("z_{2}")
+    ax.legend()
+
+    fig.savefig(output)
+
+
+def _draw_good_bad_footprint(
+    z: NDArray[Any],
+    good: Footprint,
+    y_bin: NDArray[Any],
+    title_label: str,
+    output: Path,
+) -> None:
+    orange = (1.0, 0.6471, 0.0, 1.0)
+    blue = (0.0, 0.0, 1.0, 1.0)
+
+    labels = ["GOOD", "BAD"]
+
+    fig, ax2 = plt.subplots()
+    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    fig.suptitle(title_label)
+
+    not_y_bin = y_bin != 1
+
+    if np.any(not_y_bin):
+        ax.scatter(
+            z[not_y_bin, 0],
+            z[not_y_bin, 1],
+            s=8,
+            c=orange,
+        )
+
+    if np.any(y_bin):
+        ax.scatter(
+            z[y_bin, 0],
+            z[y_bin, 1],
+            s=8,
+            c=blue,
+        )
+        _draw_footprint(ax, good, blue, 0.3)
+
+    ax.set_xlabel("z_{1}")
+    ax.set_ylabel("z_{2}")
+    ax.legend()
+
+    fig.savefig(output)
+
+
+def _draw_footprint(
+    ax: Axes,
+    footprint: Footprint,
+    colour: tuple[float, float, float, float],
+    alpha: float,
+) -> None:
+    # TODO: Blockered on TRACE
+    pass
+
+
+def _draw_binary_performance(
+    z: NDArray[Any],
+    y_bin: NDArray[Any],
+    title_label: str,
+    output: Path,
+) -> None:
+    orange = (1.0, 0.6471, 0.0, 1.0)
+    blue = (0.0, 0.0, 1.0, 1.0)
+
+    labels = ["GOOD", "BAD"]
+
+    fig, ax2 = plt.subplots()
+    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    fig.suptitle(title_label)
+    not_y_bin = y_bin != 1
+
+    if np.any(not_y_bin != 1):
+        ax.scatter(
+            z[not_y_bin, 0],
+            z[not_y_bin, 1],
+            s=8,
+            c=orange,
+        )
+
+    if np.any(y_bin):
+        ax.scatter(
+            z[y_bin, 0],
+            z[y_bin, 1],
+            s=8,
+            c=blue,
+        )
+
+    ax.set_xlabel("z_{1}")
+    ax.set_ylabel("z_{2}")
+    ax.legend()
+
+    fig.savefig(output)
