@@ -7,7 +7,6 @@ from pathlib import Path
 
 from matilda._serializers import (
     save_instance_space_for_web,
-    save_instance_space_graphs,
     save_instance_space_to_csv,
 )
 from matilda.data.metadata import Metadata, from_csv_file
@@ -406,36 +405,6 @@ class InstanceSpace:
             output_directory,
             self._prelim_state,
             self._sifted_state,
-        )
-
-    def save_graphs(self, output_directory: Path) -> None:
-        """Save graphs used for analysis of the results."""
-        if (
-            not self._stages[_Stage.PYTHIA]
-            or not self._stages[_Stage.PILOT]
-            or not self._stages[_Stage.TRACE]
-        ):
-            raise StageError
-
-        if (
-            self._pythia_state is None
-            or self._pilot_state is None
-            or self._trace_state is None
-        ):
-            raise StageError
-
-        # TODO: Placeholder, need to work out how to get the most relevant data
-        # Conductor branch would solve this, needs more thought
-        if self._data is None:
-            raise StageError
-
-        save_instance_space_graphs(
-            output_directory,
-            self._data,
-            self.options,
-            self._pythia_state,
-            self._pilot_state,
-            self._trace_state,
         )
 
 
