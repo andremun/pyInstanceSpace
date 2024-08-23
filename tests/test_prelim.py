@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from matilda.data.options import PrelimOptions, FilterPostPrelimOtions, SelvarsOptions
+from matilda.data.options import FilterPostPrelimOtions, PrelimOptions, SelvarsOptions
 from matilda.stages.prelim import Prelim
 
 script_dir = Path(__file__).parent

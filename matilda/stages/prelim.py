@@ -15,8 +15,8 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import optimize, stats
 
-from matilda.data.model import PrelimDataChanged, PrelimOut, FilterPostPrelimOut
-from matilda.data.options import PrelimOptions, FilterPostPrelimOtions
+from matilda.data.model import FilterPostPrelimOut, PrelimDataChanged, PrelimOut
+from matilda.data.options import FilterPostPrelimOtions, PrelimOptions
 
 
 @dataclass(frozen=True)
@@ -114,7 +114,10 @@ class Prelim:
                 y = 1 - y / y_best[:, np.newaxis]
                 y_bin = (1 - y_aux / y_best[:, np.newaxis]) <= prelim_opts.epsilon
                 msg = (
-                    msg + "within " + str(round(100 * prelim_opts.epsilon)) + "% of the best."
+                    msg
+                    + "within "
+                    + str(round(100 * prelim_opts.epsilon))
+                    + "% of the best."
                 )
 
         else:
@@ -135,7 +138,10 @@ class Prelim:
                 y = 1 - y_best[:, np.newaxis] / y
                 y_bin = (1 - y_best[:, np.newaxis] / y_aux) <= prelim_opts.epsilon
                 msg = (
-                    msg + "within " + str(round(100 * prelim_opts.epsilon)) + "% of the worst."
+                    msg
+                    + "within "
+                    + str(round(100 * prelim_opts.epsilon))
+                    + "% of the worst."
                 )
 
         print(msg)
@@ -171,7 +177,7 @@ class Prelim:
             sigma_y = normalise_out.sigma_y
             mu_y = normalise_out.mu_y
 
-        filter_post_prelim_out = prelim._filter_post_prelim()
+        filter_post_prelim_out = prelim._filter_post_prelim()  # noqa: SLF001
 
         data_changed = PrelimDataChanged(
             x=x,

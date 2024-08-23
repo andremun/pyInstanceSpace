@@ -590,10 +590,13 @@ class FilterPostPrelimOtions:
 
     @staticmethod
     def from_options(options: InstanceSpaceOptions) -> FilterPostPrelimOtions:
-        """Get a filter post prelim options object from an existing InstanceSpaceOptions object."""
+        """Get a filter post prelim options object from an existing
+        InstanceSpaceOptions object.
+        """
         return FilterPostPrelimOtions(
             selvars=options.selvars,
         )
+
 
 def from_json_file(file_path: Path) -> InstanceSpaceOptions | None:
     """Parse options from a JSON file and construct an InstanceSpaceOptions object.

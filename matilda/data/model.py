@@ -120,6 +120,7 @@ class PrelimDataChanged:
             s=data.s,
         )
 
+
 @dataclass(frozen=True)
 class FilterPostPrelimOut:
     """Results of the filter post prelim process between stages of prelim and sifted."""
@@ -133,8 +134,9 @@ class FilterPostPrelimOut:
     p: NDArray[np.double]
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
-    inst_labels: pd.Series
+    inst_labels: pd.Series # type: ignore[type-arg]
     s: set[str] | None
+
 
 @dataclass(frozen=True)
 class SiftedOut:
