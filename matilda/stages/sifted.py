@@ -348,6 +348,8 @@ class Sifted:
         # matlab returning numOfObservation, inspected K value, criterion values,
         # and optimal K, but in python lets do k value first need to deal with, if
         # user choose optimal silhouette value, should change the output
+        # check if silhoulette value is in bell shape, meaning increasing then decreasing
+        # if max is not last, then can recommend max value, if last then how?
         return labels[self.opts.k]
 
     def compute_correlation(self) -> tuple[NDArray[np.double], NDArray[np.double]]:
