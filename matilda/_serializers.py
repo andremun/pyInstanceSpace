@@ -1,18 +1,14 @@
 from pathlib import Path
 from typing import Any, TypeVar
 
-import matplotlib
-import matplotlib.pyplot as plt
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
-from matplotlib.axes import Axes
-from matplotlib.colors import Normalize
 from numpy.typing import NDArray
 
 from matilda.data.model import (
     CloisterOut,
     Data,
-    Footprint,
     PilotOut,
     PrelimOut,
     PythiaOut,
@@ -20,8 +16,6 @@ from matilda.data.model import (
     StageState,
     TraceOut,
 )
-
-from .data.options import InstanceSpaceOptions
 
 
 def save_instance_space_to_csv(
@@ -174,7 +168,7 @@ def save_instance_space_for_web(
 
     colours = (
         np.array(
-            matplotlib.colormaps["viridis"].resampled(256).__dict__["colors"],
+            mpl.colormaps["viridis"].resampled(256).__dict__["colors"],
         )[:, :3]
         * 255
     ).astype(np.int_)
@@ -230,8 +224,8 @@ def save_instance_space_for_web(
 
 def _write_array_to_csv(
     data: NDArray[Any],  # TODO: Try to unify these
-    column_names: pd.Series,  # TODO: Try to unify these
-    row_names: pd.Series,  # type: ignore[type-arg]
+    column_names: pd.Series[str],  # TODO: Try to unify these
+    row_names: pd.Series[str],
     filename: Path,
 ) -> None:
     pd.DataFrame(data, index=row_names, columns=column_names).to_csv(
@@ -241,9 +235,9 @@ def _write_array_to_csv(
 
 
 def _write_cell_to_csv(
-    data: pd.Series,  # TODO: Try to unify these
-    column_names: pd.Series,  # TODO: Try to unify these
-    row_names: pd.Series,  # type: ignore[type-arg]
+    data: pd.Series[Any],  # TODO: Try to unify these
+    column_names: pd.Series[str],  # TODO: Try to unify these
+    row_names: pd.Series[str],
     filename: Path,
 ) -> None:
     pd.DataFrame(data, index=row_names, columns=column_names).to_csv(
@@ -254,7 +248,7 @@ def _write_cell_to_csv(
 
 def _make_bind_labels(
     data: NDArray[Any],
-) -> pd.Series:
+) -> pd.Series[str]:
     return pd.Series([f"bnd_pnt_{i+1}" for i in range(data.shape[0])])
 
 
@@ -262,18 +256,22 @@ T = TypeVar("T", bound=np.generic)
 
 
 def _colour_scale(
-    data: NDArray[np.number],
+    data: NDArray[np._NumberType],
 ) -> NDArray[np.int_]:
     data_range = np.max(data, axis=0) - np.min(data, axis=0)
-    return np.floor(
+    out: NDArray[np.int_] = np.floor(
         255.0 * ((data - np.min(data, axis=0)) / data_range),
     ).astype(np.int_)
 
+    return out
+
 
 def _colour_scale_g(
-    data: NDArray[np.number],
+    data: NDArray[np._NumberType],
 ) -> NDArray[np.int_]:
     data_range = np.max(data) - np.min(data)
-    return np.round(
+    out: NDArray[np.int_] = np.round(
         255.0 * ((data - np.min(data)) / data_range),
     ).astype(np.int_)
+
+    return out

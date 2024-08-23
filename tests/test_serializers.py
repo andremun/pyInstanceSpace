@@ -3,6 +3,7 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -244,7 +245,7 @@ class _MatlabResults:
         )
         instance_space._cloister_state = cloister_state  # noqa: SLF001
 
-        def translate_footprint(in_from_matlab: dict) -> Footprint:
+        def translate_footprint(in_from_matlab: dict[str, Any]) -> Footprint:
             if len(in_from_matlab["polygon"]):
                 vertices = in_from_matlab["polygon"]["Vertices"]
             else:
@@ -373,4 +374,3 @@ def test_save_for_web() -> None:
             pass
         else:
             pd.testing.assert_frame_equal(expected_data, actual_data)
-
