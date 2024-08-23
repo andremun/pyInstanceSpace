@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from matilda.data.options import PrelimOptions
+from matilda.data.options import PrelimOptions, FilterPostPrelimOtions, SelvarsOptions
 from matilda.stages.prelim import Prelim
 
 script_dir = Path(__file__).parent
@@ -78,7 +78,7 @@ csv_path_prelim_output_sigma_y = (
 x_input = pd.read_csv(csv_path_x_input, header=None).to_numpy()
 y_input = pd.read_csv(csv_path_y_input, header=None).to_numpy()
 
-opts = PrelimOptions(
+prelim_opts = PrelimOptions(
     abs_perf=True,
     beta_threshold=0.5500,
     epsilon=0.2000,
@@ -86,6 +86,8 @@ opts = PrelimOptions(
     bound=True,
     norm=True,
 )
+
+filter_post_prelim_opts = FilterPostPrelimOtions(selvars=SelvarsOptions.default())
 
 
 def test_bound() -> None:
@@ -96,7 +98,7 @@ def test_bound() -> None:
     prelim_iq_range = np.genfromtxt(csv_path_prelim_output_iq_range, delimiter=",")
     prelim_x_after_bound = np.genfromtxt(csv_path_x_output_after_bound, delimiter=",")
 
-    prelim = Prelim(x_input, y_input, opts)
+    prelim = Prelim(x_input, y_input, prelim_opts, filter_post_prelim_opts)
     prelim_bound = prelim._bound()  # noqa: SLF001
     x = prelim_bound.x
     hi_bound = prelim_bound.hi_bound
@@ -122,7 +124,7 @@ def test_normalise() -> None:
     prelim_mu_y = np.genfromtxt(csv_path_prelim_output_mu_y, delimiter=",")
     prelim_sigma_y = np.genfromtxt(csv_path_prelim_output_sigma_y, delimiter=",")
 
-    _, prelim_out = Prelim.run(x_input, y_input, opts)
+    _, prelim_out = Prelim.run(x_input, y_input, prelim_opts, filter_post_prelim_opts)
 
     assert np.allclose(prelim_out.lambda_x, prelim_lambda_x)
     assert np.allclose(prelim_out.min_x, prelim_min_x)
@@ -144,7 +146,7 @@ def test_prelim() -> None:
     x_output = pd.read_csv(csv_path_x_output, header=None).to_numpy()
     y_output = pd.read_csv(csv_path_y_output, header=None).to_numpy()
 
-    data, _ = Prelim.run(x_input, y_input, opts)
+    data, _ = Prelim.run(x_input, y_input, prelim_opts, filter_post_prelim_opts)
 
     assert np.allclose(data.x, x_output)
     assert np.allclose(data.y, y_output)
