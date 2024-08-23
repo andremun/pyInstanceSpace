@@ -46,7 +46,8 @@ script_dir = Path(__file__).parent
 for directory in ["csv", "web", "png"]:
     output_directory = script_dir / "test_data/serializers/actual_output" / directory
     for file in os.listdir(output_directory):
-        Path(output_directory / file).unlink()
+        if ".gitignore" not in file:
+            Path(output_directory / file).unlink()
 
 
 @dataclass
