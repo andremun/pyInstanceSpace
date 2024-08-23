@@ -1,11 +1,12 @@
 from pathlib import Path
 from typing import Any, TypeVar
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
-from matplotlib.colors import Normalize
+from matplotlib.colors import LinearSegmentedColormap, Normalize
 from numpy.typing import NDArray
 
 from matilda.data.model import (
@@ -170,6 +171,15 @@ def save_instance_space_for_web(
 ) -> None:
     if not output_directory.is_dir():
         raise ValueError("output_directory isn't a directory.")
+
+
+    colours = (
+        np.array(matplotlib.colormaps["viridis"].resampled(256).colors)[:, :3] * 255
+    ).astype(np.int_)
+    pd.DataFrame(colours, columns=["R", "G", "B"]).to_csv(
+        output_directory / "color_table.csv",
+        index_label=False,
+    )
 
     _write_array_to_csv(
         _colour_scale(prelim_state.data.x_raw[:, sifted_state.out.idx]),
@@ -382,7 +392,7 @@ def _colour_scale(
     data: NDArray[np.number],
 ) -> NDArray[np.int_]:
     data_range = np.max(data) - np.min(data)
-    return np.round(
+    return np.floor(
         255 * ((data - np.min(data)) / data_range),
     ).astype(np.int_)
 

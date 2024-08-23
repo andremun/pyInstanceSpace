@@ -257,7 +257,7 @@ class _MatlabResults:
             object.__setattr__(footprint, "area", in_from_matlab["area"])
             object.__setattr__(footprint, "elements", in_from_matlab["elements"])
             object.__setattr__(
-                footprint, "good_elements", in_from_matlab["goodElements"]
+                footprint, "good_elements", in_from_matlab["goodElements"],
             )
             object.__setattr__(footprint, "density", in_from_matlab["density"])
             object.__setattr__(footprint, "purity", in_from_matlab["purity"])
@@ -363,15 +363,15 @@ def test_save_graphs() -> None:
     """Test saving graphs from a completed instance space."""
     instance_space = _MatlabResults().get_instance_space()
 
-    instance_space.save_for_web(script_dir / "test_data/serializers/actual_output/web")
+    instance_space.save_graphs(script_dir / "test_data/serializers/actual_output/png")
 
     test_data_dir = script_dir / "test_data/serializers"
 
     for csv_file in os.listdir(
-        test_data_dir / "expected_output/web",
+        test_data_dir / "expected_output/png",
     ):
-        expected_file_path = test_data_dir / "expected_output/web" / csv_file
-        actual_file_path = test_data_dir / "actual_output/web" / csv_file
+        expected_file_path = test_data_dir / "expected_output/png" / csv_file
+        actual_file_path = test_data_dir / "actual_output/png" / csv_file
 
         # Expected file isn't a directory, and actual file exists
         assert Path.is_file(expected_file_path)
