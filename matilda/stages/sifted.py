@@ -8,8 +8,6 @@ The SIFTED function performs the following steps:
     model performance.
 """
 
-from pathlib import Path
-
 import numpy as np
 import pygad
 from numpy.typing import NDArray
@@ -23,7 +21,6 @@ from matilda.data.model import SiftedDataChanged, SiftedOut
 from matilda.data.options import PilotOptions, SiftedOptions
 from matilda.stages.pilot import Pilot
 
-script_dir = Path(__file__).parent
 
 class NotEnoughFeatureError(Exception):
     """Raised when there is not enough feature to continue feature selection."""
@@ -121,8 +118,8 @@ class Sifted:
 
         if nfeats <= Sifted.MIN_FEAT_REQUIRED:
             print(
-                "-> There are 3 or less features to do selection. \
-                Skipping feature selection.",
+                "-> There are 3 or less features to do selection.",
+                "Skipping feature selection.",
             )
             sifted.selvars = np.arange(nfeats)
             return sifted.get_output()
@@ -138,16 +135,16 @@ class Sifted:
 
         if nfeats <= Sifted.MIN_FEAT_REQUIRED:
             print(
-                "-> There are 3 or less features to do selection. \
-                    Skipping correlation clustering selection.",
+                "-> There are 3 or less features to do selection.",
+                "Skipping correlation clustering selection.",
             )
             sifted.x = sifted.x_aux
             return sifted.get_output()
 
         if nfeats <= opts.k:
             print(
-                "-> There are less features than clusters. \
-                    Skipping correlation clustering selection.",
+                "-> There are less features than clusters.",
+                "Skipping correlation clustering selection.",
             )
             sifted.x = sifted.x_aux
             return sifted.get_output()
@@ -203,6 +200,7 @@ class Sifted:
             n_init=self.opts.replicates,
             random_state=self.rng.integers(1000),
         )
+
         cluster_labels = kmeans.fit_predict(self.x_aux.T)
         
         print('this is cluster label')
@@ -259,8 +257,8 @@ class Sifted:
         self.x = self.x[:, self.selvars]
 
         print(
-            f"-> Keeping {self.x.shape[1]} out of {self.x_aux.shape[1]} \
-                features (clustering).",
+            f"-> Keeping {self.x.shape[1]} out of {self.x_aux.shape[1]}",
+            "features (clustering).",
         )
 
     def cost_fcn(
@@ -318,7 +316,7 @@ class Sifted:
         return y
 
 
-    def evaluate_cluster(self) -> dict[int, NDArray]:
+    def evaluate_cluster(self) -> NDArray[np.intc]:
         """Evaluate cluster based on silhouette scores.
 
         Returns
@@ -356,8 +354,8 @@ class Sifted:
         # matlab returning numOfObservation, inspected K value, criterion values,
         # and optimal K, but in python lets do k value first need to deal with, if
         # user choose optimal silhouette value, should change the output
-        # check if silhoulette value is in bell shape, meaning increasing then decreasing
-        # if max is not last, then can recommend max value, if last then how?
+        # check if silhoulette value is in bell shape, meaning increasing then
+        # decreasing if max is not last, then can recommend max value, if last then how?
         return labels[self.opts.k]
 
     def compute_correlation(self) -> tuple[NDArray[np.double], NDArray[np.double]]:
