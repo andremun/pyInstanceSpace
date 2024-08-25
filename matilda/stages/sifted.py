@@ -157,7 +157,7 @@ class Sifted:
 
         return sifted.get_output()
 
-    def select_features_by_performance(self) -> None:
+    def select_features_by_performance(self) -> NDArray[np.double]:
         """Select features based on correlation with performance."""
         print("-> Selecting features based on correlation with performance.")
 
@@ -188,8 +188,11 @@ class Sifted:
         # Get indices of selected features
         self.selvars = np.where(selvars)[0]
         self.x_aux = self.x[:, self.selvars]
+        
+        return self.x_aux
 
-    def select_features_by_clustering(self) -> None:
+        
+    def select_features_by_clustering(self) -> NDArray[np.double]:
         """Select features based on clustering."""
         print("-> Selecting features based on correlation clustering.")
         self.evaluate_cluster()
@@ -201,11 +204,16 @@ class Sifted:
             random_state=self.rng.integers(1000),
         )
         cluster_labels = kmeans.fit_predict(self.x_aux.T)
+        
+        print('this is cluster label')
+        print(cluster_labels)
 
         # Create a boolean matrix where each column represents a cluster
         self.clust = np.zeros((self.x_aux.shape[1], self.opts.k), dtype=bool)
         for i in range(self.opts.k):
             self.clust[:, i] = (cluster_labels == i)
+            
+        return cluster_labels
 
     def find_best_combination(self) -> None:
         """Find the best combination of features, using genetic algorithm."""
@@ -419,5 +427,7 @@ if __name__ == "__main__":
     opts = SiftedOptions.default()
 
     data_change, sifted_output = Sifted.run(input_x, input_y, input_ybin, feat_labels, opts)
+    
+    print('done !')
 
     np.savetxt(script_dir / "tmp_data/clustering_output/sifted_x.csv", data_change.x, delimiter=",")
