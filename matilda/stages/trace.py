@@ -14,6 +14,7 @@ from sklearn.cluster import DBSCAN
 from matilda.data.options import TraceOptions
 from matilda.data.model import Footprint
 
+
 class Trace:
     """A class to manage the TRACE analysis process.
 
@@ -481,7 +482,7 @@ class Trace:
         NDArray[np.int_]:
             Array of cluster labels for each data point.
         """
-        nn = max(min(np.ceil(np.sum(y_bin) / 20), 50), 3)
+        nn = max(min(np.ceil((np.sum(y_bin) / y_bin.shape[1]) / 20), 50), 3)
         m, n = data.shape
 
         # Compute the range of each feature

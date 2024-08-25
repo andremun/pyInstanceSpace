@@ -261,7 +261,7 @@ class Footprint:
     density: float
     purity: float
 
-    def __init__(self, polygon: Polygon):
+    def __init__(self, polygon: Polygon = None):
         self.polygon = polygon if polygon else None
         self.area = self.polygon.area if polygon else None
         self.elements = 0

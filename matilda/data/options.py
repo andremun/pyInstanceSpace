@@ -288,7 +288,7 @@ class PythiaOptions:
         )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class TraceOptions:
     """Options for trace analysis in the model."""
 
