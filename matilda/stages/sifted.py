@@ -409,23 +409,3 @@ class Sifted:
             clust=self.clust,
         )
         return (data_changed, output)
-
-
-if __name__ == "__main__":
-    csv_path_x = script_dir / "tmp_data/clustering/0-input_X.csv"
-    csv_path_y = script_dir / "tmp_data/clustering/0-input_Y.csv"
-    csv_path_ybin = script_dir / "tmp_data/clustering/0-input_Ybin.csv"
-    csv_path_feat_labels = script_dir / "tmp_data/clustering/0-input_featlabels.csv"
-
-    input_x = np.genfromtxt(csv_path_x, delimiter=",")
-    input_y = np.genfromtxt(csv_path_y, delimiter=",")
-    input_ybin = np.genfromtxt(csv_path_ybin, delimiter=",")
-    feat_labels = np.genfromtxt(csv_path_feat_labels, delimiter=",", dtype=str).tolist()
-
-    opts = SiftedOptions.default()
-
-    data_change, sifted_output = Sifted.run(input_x, input_y, input_ybin, feat_labels, opts)
-    
-    print('done !')
-
-    np.savetxt(script_dir / "tmp_data/clustering_output/sifted_x.csv", data_change.x, delimiter=",")
