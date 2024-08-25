@@ -8,11 +8,11 @@ to data analysis and model building.
 from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
-from shapely.geometry import Polygon
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from shapely.geometry import Polygon
 
 from matilda.data.options import InstanceSpaceOptions
 
@@ -235,13 +235,12 @@ class PythiaDataChanged:
 
 
 
-@dataclass(frozen=True)
+@dataclass(frozen= False)
 class Footprint:
-    """
-    A class to represent a footprint with geometric and statistical properties.
+    """A class to represent a footprint with geometric and statistical properties.
 
     Attributes:
-    -----------
+    ----------
     polygon : Polygon
         The geometric shape of the footprint.
     area : float
@@ -261,7 +260,6 @@ class Footprint:
     good_elements: int
     density: float
     purity: float
-
 
     def __init__(self, polygon: Polygon):
         self.polygon = polygon if polygon else None
