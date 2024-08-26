@@ -19,7 +19,8 @@ def test_trace():
     # Reading p from p.csv
     p = np.genfromtxt('test_data/trace_csvs/selection0.csv', delimiter=',', dtype=np.integer)
     p2 = np.genfromtxt('test_data/trace_csvs/dataP.csv', delimiter=',', dtype=np.integer)
-
+    p = p - 1
+    p2 = p2 - 1
     # Reading beta from beta.csv
     beta = np.genfromtxt('test_data/trace_csvs/beta.csv', delimiter=',', dtype=np.int8).astype(np.bool_)
 

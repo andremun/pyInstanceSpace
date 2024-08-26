@@ -10,7 +10,7 @@ from scipy.spatial import ConvexHull
 from scipy.special import gamma
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
 from shapely.ops import triangulate, unary_union
-from sklearn.cluster import DBSCAN
+from sklearn.cluster import DBSCAN, HDBSCAN
 import alphashape
 from matilda.data.options import TraceOptions
 from matilda.data.model import Footprint
@@ -205,11 +205,10 @@ class Trace:
         # Check the number of unique rows
         if unique_rows.shape[0] < 3:
             footprint = self.throw()
+            return footprint
 
         footprint = Footprint()
-
         labels = self.run_dbscan(y_bin, unique_rows)
-
         flag = False
         for i in range(0, np.max(labels) + 1):
             polydata = unique_rows[labels == i]
@@ -224,19 +223,18 @@ class Trace:
                 else:
                     footprint.polygon = footprint.polygon.union(aux)
 
-        if footprint.polygon.is_empty:
+        if footprint.polygon is None:
             return self.throw()
-
-        footprint.polygon = footprint.polygon.buffer(0.01).buffer(-0.01)
-        footprint.area = footprint.polygon.area
-        footprint.elements = np.sum([footprint.polygon.contains(point) for point in MultiPoint(self.z).geoms])
-        footprint.good_elements = np.sum(
-            [footprint.polygon.contains(point) for point in MultiPoint(self.z[y_bin]).geoms],
-        )
-        footprint.density = footprint.elements / footprint.area
-        footprint.purity = footprint.good_elements / footprint.elements
-
-        return footprint
+        else:
+            footprint.polygon = footprint.polygon.buffer(0.01).buffer(-0.01)
+            footprint.area = footprint.polygon.area
+            footprint.elements = np.sum([footprint.polygon.contains(point) for point in MultiPoint(self.z).geoms])
+            footprint.good_elements = np.sum(
+                [footprint.polygon.contains(point) for point in MultiPoint(self.z[y_bin]).geoms],
+            )
+            footprint.density = footprint.elements / footprint.area
+            footprint.purity = footprint.good_elements / footprint.elements
+            return footprint
 
     def contra(
         self,
@@ -263,7 +261,7 @@ class Trace:
         tuple:
             Updated base and test footprints after resolving contradictions.
         """
-        if base.polygon.is_empty or test.polygon.is_empty:
+        if base.polygon is None or test.polygon is None:
             return base, test
 
         max_tries = 3
@@ -583,3 +581,7 @@ class Trace:
                 best[i] = best_performance
 
         return good, best
+
+
+
+
