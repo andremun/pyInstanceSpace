@@ -21,8 +21,7 @@ def test_trace():
     p2 = np.genfromtxt('test_data/trace_csvs/dataP.csv', delimiter=',', dtype=np.integer)
 
     # Reading beta from beta.csv
-    beta_data = pd.read_csv('test_data/trace_csvs/beta.csv')
-    beta = np.genfromtxt('test_data/trace_csvs/beta.csv', delimiter=',', dtype=np.bool_)
+    beta = np.genfromtxt('test_data/trace_csvs/beta.csv', delimiter=',', dtype=np.int8).astype(np.bool_)
 
     # Print the initialized variables to verify
     print("z:", z)

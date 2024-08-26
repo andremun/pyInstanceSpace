@@ -2,6 +2,7 @@ import math
 import multiprocessing
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import matplotlib.pyplot as plt
 
 import numpy as np
 from numpy.typing import NDArray
@@ -10,7 +11,7 @@ from scipy.special import gamma
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
 from shapely.ops import triangulate, unary_union
 from sklearn.cluster import DBSCAN
-
+import alphashape
 from matilda.data.options import TraceOptions
 from matilda.data.model import Footprint
 
@@ -36,7 +37,7 @@ class Trace:
 
     z: NDArray[np.double]
     y_bin: NDArray[np.bool_]
-    p: NDArray[np.double]
+    p: NDArray[np.integer]
     beta: NDArray[np.bool_]
     algo_labels: list[str]
     opts: TraceOptions
@@ -45,7 +46,7 @@ class Trace:
         self,
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
-        p: NDArray[np.double],
+        p: NDArray[np.integer],
         beta: NDArray[np.bool_],
         algo_labels: list[str],
         opts: TraceOptions,
@@ -84,7 +85,7 @@ class Trace:
         """
         ninst, ncol = self.z.shape
         nalgos = self.y_bin.shape[1]
-        true_array = np.ones((ninst, ncol), dtype=bool)
+        true_array: NDArray[np.bool_] = np.array([True for _ in self.y_bin], dtype=np.bool_)
         # Calculate the space footprint
         print("  -> TRACE is calculating the space area and density.")
         out = {"space": self.build(true_array)}
@@ -196,7 +197,7 @@ class Trace:
             The constructed footprint with calculated area, density, and purity.
         """
         # Extract rows where Ybin is True
-        filtered_z = self.z[y_bin].reshape(self.z.shape)
+        filtered_z = self.z[y_bin]
 
         # Find unique rows
         unique_rows = np.unique(filtered_z, axis=0)
@@ -210,9 +211,11 @@ class Trace:
         labels = self.run_dbscan(y_bin, unique_rows)
 
         flag = False
-        for i in range(1, np.max(labels) + 1):
+        for i in range(0, np.max(labels) + 1):
             polydata = unique_rows[labels == i]
-            polydata = polydata[ConvexHull(polydata).vertices]
+
+            # hull = ConvexHull(polydata)
+            # polydata = polydata[hull.vertices, :]
             aux = self.fit_poly(polydata, y_bin)
             if aux:
                 if not flag:
@@ -226,11 +229,9 @@ class Trace:
 
         footprint.polygon = footprint.polygon.buffer(0.01).buffer(-0.01)
         footprint.area = footprint.polygon.area
-        footprint.elements = np.sum(
-            [footprint.polygon.contains(point) for point in MultiPoint(self.z)],
-        )
+        footprint.elements = np.sum([footprint.polygon.contains(point) for point in MultiPoint(self.z).geoms])
         footprint.good_elements = np.sum(
-            [footprint.polygon.contains(point) for point in MultiPoint(self.z[y_bin,])],
+            [footprint.polygon.contains(point) for point in MultiPoint(self.z[y_bin]).geoms],
         )
         footprint.density = footprint.elements / footprint.area
         footprint.purity = footprint.good_elements / footprint.elements
@@ -412,16 +413,16 @@ class Trace:
         if polydata.shape[0] < 3:
             return None
 
-        polygon = Polygon(polydata).simplify(0.05)  # no need for rmslivers function
+        polygon = alphashape.alphashape(polydata, 2.2).simplify(0.05)  # no need for rmslivers function
 
         if not np.all(y_bin):
             if polygon.is_empty:
                 return None
             tri = triangulate(polygon)
             for piece in tri:
-                elements = np.sum(tri.contains(MultiPoint(self.z)))
-                good_elements = np.sum(tri.contains(MultiPoint(self.z[y_bin])))
-                if (good_elements / elements) < self.opts.PI:
+                elements = np.sum([piece.contains(point) for point in MultiPoint(self.z).geoms])
+                good_elements = np.sum([piece.contains(point) for point in MultiPoint(self.z[y_bin]).geoms])
+                if (good_elements / elements) < self.opts.pi:
                     polygon = polygon.difference(piece)
 
         return polygon
@@ -482,7 +483,7 @@ class Trace:
         NDArray[np.int_]:
             Array of cluster labels for each data point.
         """
-        nn = max(min(np.ceil((np.sum(y_bin) / y_bin.shape[1]) / 20), 50), 3)
+        nn = max(min(np.ceil((np.sum(y_bin)) / 20), 50), 3)
         m, n = data.shape
 
         # Compute the range of each feature
@@ -499,7 +500,7 @@ class Trace:
             1 / n
         )
 
-        labels = DBSCAN(eps=eps, min_samples=int(nn)).fit_predict(data)
+        labels = DBSCAN(eps=eps, min_samples=int(nn), metric='euclidean').fit_predict(data)
         return labels
 
     def get_num_workers(self):
