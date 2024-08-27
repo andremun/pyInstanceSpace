@@ -25,11 +25,11 @@ def test_trace():
     beta = np.genfromtxt('test_data/trace_csvs/beta.csv', delimiter=',', dtype=np.int8).astype(np.bool_)
 
     # Print the initialized variables to verify
-    print("z:", z)
-    print("y_bin:", y_bin)
-    print("p:", p)
-    print("beta:", beta)
-    print("algo_labels:", algo_labels)
+    # print("z:", z)
+    # print("y_bin:", y_bin)
+    # print("p:", p)
+    # print("beta:", beta)
+    # print("algo_labels:", algo_labels)
 
     trace_options = TraceOptions(False, 0.55)
 

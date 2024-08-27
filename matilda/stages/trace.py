@@ -270,13 +270,13 @@ class Trace:
 
         while not contradiction.is_empty and num_tries <= max_tries:
             num_elements = np.sum(
-                [contradiction.contains(point) for point in MultiPoint(self.z)],
+                [contradiction.contains(point) for point in MultiPoint(self.z).geoms],
             )
             num_good_elements_base = np.sum(
-                [contradiction.contains(point) for point in MultiPoint(self.z[y_base])],
+                [contradiction.contains(point) for point in MultiPoint(self.z[y_base]).geoms],
             )
             num_good_elements_test = np.sum(
-                [contradiction.contains(point) for point in MultiPoint(self.z[y_test])],
+                [contradiction.contains(point) for point in MultiPoint(self.z[y_test]).geoms],
             )
 
             purity_base = num_good_elements_base / num_elements
@@ -317,10 +317,10 @@ class Trace:
         else:
             base.area = base.polygon.area
             base.elements = np.sum(
-                [base.polygon.contains(point) for point in MultiPoint(self.z)],
+                [base.polygon.contains(point) for point in MultiPoint(self.z).geoms],
             )
             base.good_elements = np.sum(
-                [base.polygon.contains(point) for point in MultiPoint(self.z[y_base])],
+                [base.polygon.contains(point) for point in MultiPoint(self.z[y_base]).geoms],
             )
             base.density = base.elements / base.area
             base.purity = base.good_elements / base.elements
@@ -330,10 +330,10 @@ class Trace:
         else:
             test.area = test.polygon.area
             test.elements = np.sum(
-                [test.polygon.contains(point) for point in MultiPoint(self.z)],
+                [test.polygon.contains(point) for point in MultiPoint(self.z).geoms],
             )
             test.good_elements = np.sum(
-                [test.polygon.contains(point) for point in MultiPoint(self.z[y_test])],
+                [test.polygon.contains(point) for point in MultiPoint(self.z[y_test]).geoms],
             )
             test.density = test.elements / test.area
             test.purity = test.good_elements / test.elements
@@ -357,7 +357,7 @@ class Trace:
         Polygon | None:
             The refined polygon, or None if the refinement fails.
         """
-        if not polygon:
+        if polygon is None:
             return None
 
         splits = (
@@ -444,14 +444,24 @@ class Trace:
         list:
             A list containing summarized metrics such as area, normalized area, density, normalized density, and purity.
         """
+        area = footprint.area if footprint.area is not None else 0
+        normalised_area = area / space_area \
+            if ((space_area is not None) and (space_area != 0)) \
+            else footprint.area
+        density = footprint.density if footprint.density is not None else 0
+        normalised_density = density / space_density \
+            if ((space_density is not None) and (space_density != 0)) \
+            else footprint.density
+        purity = footprint.purity
+
         out = [
-            footprint.area,
-            footprint.area / space_area,
-            footprint.density,
-            footprint.density / space_density,
-            footprint.purity,
+            area,
+            normalised_area,
+            density,
+            normalised_density,
+            purity
         ]
-        out[np.isnan(out)] = 0
+        out = [element if element is not None else 0 for element in out]
         return out
 
     def throw(self) -> Footprint:
