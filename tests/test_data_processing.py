@@ -125,6 +125,7 @@ def create_dummy_model(data: Data, opts: InstanceSpaceOptions) -> Model:
         n_trees=50,
         max_lter=1000,
         replicates=100,
+        idx=np.array([], dtype=np.int_),
     )
 
     pilot = PilotOut(
