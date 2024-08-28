@@ -17,104 +17,105 @@ OPTIONS
 	Prints the version of matilda that is being used
 
 --help 
-    Prints the synopsis and a list of the most commonly used commands. If
-    the option --all or -a is given then all available commands are printed.
-    If a matilda command is named this option will bring up the manual page
-    for that command.
+	Prints the synopsis and a list of the most commonly used commands. If
+	the option --all or -a is given then all available commands are printed.
+	If a matilda command is named this option will bring up the manual page
+	for that command.
 
 run
-    Run all the stages in the preordered sequence of PRELIM, SIFTED, PILOT 
-    followed by CLOISTER, PYTHIA and TRACE. PRELIM, SIFTED and PILOT are
-    required to be run in order. CLOISTER, PYTHIA and TRACE can be run in 
-    any order after PILOT. The output is saved in the same directory in a 
-    model.json file. This file has a given format and should not be edited. 
+	Run all the stages in the preordered sequence of PRELIM, SIFTED, PILOT 
+	followed by CLOISTER, PYTHIA and TRACE. PRELIM, SIFTED and PILOT are
+	required to be run in order. CLOISTER, PYTHIA and TRACE can be run in 
+	any order after PILOT. The output is saved in the same directory in a 
+	model.json file. This file has a given format and should not be edited. 
 
 -i <filename>
-    Runs matilda with a custom file input. The input file must be a json
-    file with the relevant fields present.
+	Runs matilda with a user-defined file input. The input file must be 
+	a json file with the relevant fields present.
 
 -i <filename> -o <filepath>
-    Runs matilda with a custom file input and a custom directory output.
-    The output will always be a model.json file.
+	Runs matilda with a user-defined file input and a user-defined output
+	directory. The output will always be a model.json file.
 
 -m -i filename1, filename2, ... -checkall
-    Runs matilda with muiltple file inputs. The matilda tool will try to
-    allocate files to stages by checking the filename, input fields and 
-    data types in this order of priority. If it is successful with allocation
-    based on filename then it will not attempt to try allocation again 
-    using input fields and data types. Similarly, if it successful with 
-    allocation using input fields it will not check data types. The -checkall
-    flag can be added in the end to force matilda to ensure that all three
-    fields match. 
+	Runs matilda with muiltple file inputs. The matilda tool will try to
+	allocate files to stages by checking the filename, input fields and 
+	data types in this order of priority. If it is successful with allocation
+	based on filename then it will not attempt to try allocation again 
+	using input fields and data types. Similarly, if it successful with 
+	allocation using input fields it will not check data types. The -checkall
+	flag can be added in the end to force matilda to ensure that all three
+	fields match. 
             
 -m -i filename1, filename2, ... -o filepath
-    Runs matilda with muiltple file inputs and outputs. The matilda tool will 
-    try to allocate files to stages by checking the filename, input fields 
-    and data types in this order of priority. If it is successful with 
-    allocation based on filename then it will not attempt to try allocation 
-    again using input fields and data types. Similarly, if it successful 
-    with allocation using input fields it will not check data types. The 
-    -checkall flag can be added in the end to force matilda to ensure that 
-    allocation is successful for all three fields.
+	Runs matilda with muiltple file inputs and outputs. The matilda tool will 
+	try to allocate files to stages by checking the filename, input fields 
+	and data types in this order of priority. If it is successful with 
+	allocation based on filename then it will not attempt to try allocation 
+	again using input fields and data types. Similarly, if it successful 
+	with allocation using input fields it will not check data types. The 
+	-checkall flag can be added in the end to force matilda to ensure that 
+	allocation is successful for all three fields.
 
 -b <stage-name-1>, <stage-name-2>, ...
-    Runs the given stage using a pre-defined json file called model.json. 
-    There are optional input and output filepath specifications. The 
-    input is assumed to be the model.json file in the local directory. If 
-    the stages prior to this stage haven't been run then matilda will 
-    return an error code 3. Running this command will cause any changes 
-    or data generated from the subsequent stages to be erased from the 
-    model.json file. Multiple stage arguments will run multiple stages 
-    however if the stages aren't run the default order then matilda will 
-    return an error code 4.
+	Runs the given stage using a pre-defined json file called model.json. 
+	There are optional input and output filepath specifications. The 
+	input is assumed to be the model.json file in the local directory. If 
+	the stages prior to this stage haven't been run then matilda will 
+	return an error code 3. Running this command will cause any changes 
+	or data generated from the subsequent stages to be erased from the 
+	model.json file. Multiple stage arguments will run multiple stages 
+	however if the stages aren't run the default order then matilda will 
+	return an error code 4.
 
 custom <stage-name> -i <filepath> -o <filepath>
-    Runs the provided stage with a custom filepath input and output. The 
-    input needs to be a json file with the relevant fields labelled and 
-    filled in. If the program is unable to find a specific input field, 
-    it will return an error code 5. If the input field is not correct 
-    data type or is malformed then matilda will return error code 6.
+	Runs the provided stage with a user-defined input file that must 
+	be in json format and user-defined output directory. The input needs 
+	to be a json file with the relevant fields labelled and filled in. If 
+	the program is unable to find a specific input field, it will return 
+	an error code 5. If the input field is not correct data type or is 
+	malformed then matilda will return error code 6.
 
 custom <stage-name> option1, option2, ... -i <filepath> -o <filepath>
-    Runs the provided stage with a custom filepath input as well as 
-    defining the options for the stage if any options required are 
-    different from default. If matilda fails to recognise an option 
-    then it will return an error code 7.
+	Runs the provided stage with a user-defined input file that must 
+	be in json format and user-defined output directory, as well as defining 
+	the options for the stage if any options required are different from 
+	default. If matilda fails to recognise an option then it will return 
+	an error code 7.
             
 custom -m stage1, stage2, ... -i <filepath> -o <filepath>
-    Runs multiple stages with a custom filepath input and output. The
-    filepath input is assumed to be for the first stage only. The data 
-    for the subsequent stages will be generated from prior stages or 
-    will be computed from the provided input. 
+	Runs multiple stages with a user-defined for the input and output files. 
+	The input path is assumed to be for the input file for the first stage 
+	only. The data for the subsequent stages will be generated from prior stages 
+	or will be computed from the provided input. 
             
 custom -m -opts -i <filename> -o <filepath> stage:stage1, option1, option2, ..., stage:stage2 option1, option2, ...
-    Runs multiple stages with a custom filepath input and output as 
-    well as defining options for the stages if any options required 
-    are different default. The filepath input is assumed to be for 
-    the first stage only. The data for the subsequent stages will be 
-    generated from prior stages or will be computed from the provided 
-    input.
+	Runs multiple stages with a user-defined for the input and output files as 
+	well as defining options for the stages if any options required are 
+	different default. The filepath input is assumed to be for the first 
+	stage only. The data for the subsequent stages will be generated from 
+	prior stages or will be computed from the provided input.
 
 ERROR CODES
 
-0 - Missing files in MATILDA. This error indicates that there are some files that
+ER0 - Missing files in MATILDA. This error indicates that there are some files that
     are missing from the MATILDA package or are not being detected.
 
     SUGGESTED FIX: Re-install the package and the CLI
 
-1 - Invalid output directory. This error indicates that matilda tool is unable to
+ER1 - Invalid output directory. This error indicates that matilda tool is unable to
     locate the specified output directory.
 
     SUGGESTED FIX: Check if the directory actually exists on the system and has
                     not been misspelled.
 
-2 - Invalid input filetype. This error indicates that the file input type that has
+ER2 - Invalid input filetype. This error indicates that the file input type that has
     been provided is not a json file.
 
     SUGGESTED FIX: Check if the input file specified is correct. Extension 
                     is required in the name when specifying input.
 
-3 - Prior stages are missing from the run history. This error indicates that stages
+ER3 - Prior stages are missing from the run history. This error indicates that stages
     prior to this specific stage haven't been run. 
 
     SUGGESTED FIX: Check "stages-hist" of the model.json file to see the recorded
@@ -122,7 +123,7 @@ ERROR CODES
                     checking the field of "stages-hist" can provide the information 
                     as to the stages that have been recorded in the history.
 
-4 - Missing intermediary stages. This error indicates that stages that have been 
+ER4 - Missing intermediary stages. This error indicates that stages that have been 
     input are not in order. The stages are expected to be run in default order of
     PRELIM, SIFTED, PILOT. If the stages are not run in this order, then the data 
     required is not present or malformed.
@@ -130,16 +131,16 @@ ERROR CODES
     SUGGESTED FIX: Check the order of the stages input. SIFTED must run after
                     PRELIM and PILOT must run after SIFTED.
 
-    4PL -  Missing PRELIM stage. This error indicates that PRELIM stage hasn't been run 
+    ER4PL -  Missing PRELIM stage. This error indicates that PRELIM stage hasn't been run 
             using this data.
 
-    4SI -  Missing SIFTED stage. This error indicates that SIFTED stage hasn't been run 
+    ER4SI -  Missing SIFTED stage. This error indicates that SIFTED stage hasn't been run 
             using this data.
 
-    4PI -  Missing PILOT stage. This error indicates that PILOT stage hasn't been run 
+    ER4PI -  Missing PILOT stage. This error indicates that PILOT stage hasn't been run 
             using this data.
 
-5 - File missing input field. This error indicates that the input custom json file is 
+ER5 - File missing input field. This error indicates that the input custom json file is 
     missing one or more input fields and requires revision to add the correct fields 
     with the correct spelling.
 
@@ -147,14 +148,14 @@ ERROR CODES
                     with the correct spelling as the CLI reads the fields in a 
                     case-sensitive manner.
 
-6 - Malformed input detected. This error indicates that input format of one or more
+ER6 - Malformed input detected. This error indicates that input format of one or more
     input fields is incorrect and requires revision before it can be utilised to run
     the stage targeted.
 
     SUGGESTED FIX: Check the dimensionality of the input fields. Most inputs are matrices
                     and hence require all rows to be the same length.
 
-7 - Option not detected. This error indicates that the provided option is not
+ER7 - Option not detected. This error indicates that the provided option is not
     present for the target stage.
     
     SUGGESTED FIX: Check if the correct options are provided and that they are in lowercase
