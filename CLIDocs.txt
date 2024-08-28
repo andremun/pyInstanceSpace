@@ -48,15 +48,11 @@ run
 	
 		matilda -i pythiaOnly.json -o /results
 
--m -i filename1, filename2, ... -checkall
+-m -i filename1, filename2, ...
 	Runs matilda with muiltple file inputs. The matilda tool will try to
-	allocate files to stages by checking the filename, input fields and 
-	data types in this order of priority. If it is successful with allocation
-	based on filename then it will not attempt to try allocation again 
-	using input fields and data types. Similarly, if it successful with 
-	allocation using input fields it will not check data types. The -checkall
-	flag can be added in the end to force matilda to ensure that all three
-	fields match.
+	allocate files to stages by checking against pre-defined input json 
+	schemas for each stage. If it is successful with allocation then it 
+	will execute the command otherwise it will return error code ER6.
 	
 		matilda -m -i prelimOnly.json siftedOnly.json pilotOnly.json
             
