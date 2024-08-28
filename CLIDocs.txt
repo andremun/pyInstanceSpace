@@ -37,7 +37,8 @@ run
 
 -i <filename>
 	Runs matilda with a user-defined file input. The input file must be 
-	a json file with the relevant fields present.
+	a json file with the relevant fields present. The filename is also
+	case-sensitive.
 	
 		matilda -i pythiaOnly.json
 
