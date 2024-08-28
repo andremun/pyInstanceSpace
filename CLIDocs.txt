@@ -62,26 +62,26 @@ run
 	There are optional input and output filepath specifications. The 
 	input is assumed to be the model.json file in the local directory. If 
 	the stages prior to this stage haven't been run then matilda will 
-	return an error code 3. Running this command will cause any changes 
+	return an error code ER3. Running this command will cause any changes 
 	or data generated from the subsequent stages to be erased from the 
 	model.json file. Multiple stage arguments will run multiple stages 
 	however if the stages aren't run the default order then matilda will 
-	return an error code 4.
+	return an error code ER4.
 
 custom <stage-name> -i <filepath> -o <filepath>
 	Runs the provided stage with a user-defined input file that must 
 	be in json format and user-defined output directory. The input needs 
 	to be a json file with the relevant fields labelled and filled in. If 
 	the program is unable to find a specific input field, it will return 
-	an error code 5. If the input field is not correct data type or is 
-	malformed then matilda will return error code 6.
+	an error code ER5. If the input field is not correct data type or is 
+	malformed then matilda will return error code ER6.
 
 custom <stage-name> option1, option2, ... -i <filepath> -o <filepath>
 	Runs the provided stage with a user-defined input file that must 
 	be in json format and user-defined output directory, as well as defining 
 	the options for the stage if any options required are different from 
 	default. If matilda fails to recognise an option then it will return 
-	an error code 7.
+	an error code ER7.
             
 custom -m stage1, stage2, ... -i <filepath> -o <filepath>
 	Runs multiple stages with a user-defined for the input and output files. 
