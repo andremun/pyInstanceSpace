@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any
 
 import matplotlib as mpl
 import numpy as np
@@ -252,9 +252,6 @@ def _make_bind_labels(
     data: NDArray[Any],
 ) -> pd.Series[str]:
     return pd.Series([f"bnd_pnt_{i+1}" for i in range(data.shape[0])])
-
-
-T = TypeVar("T", bound=np.generic)
 
 
 def _colour_scale(
