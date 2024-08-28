@@ -12,6 +12,7 @@ from typing import Any, Generic, TypeVar
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from shapely.geometry import Polygon
 
 from matilda.data.options import InstanceSpaceOptions
 
@@ -131,6 +132,7 @@ class SiftedOut:
     n_trees: int
     max_lter: int
     replicates: int
+    idx: NDArray[np.int_]
 
 
 @dataclass(frozen=True)
@@ -146,10 +148,10 @@ class SiftedDataChanged:
 class PilotOut:
     """Results of the Pilot process in the data analysis pipeline."""
 
-    X0: NDArray[np.double]  # not sure about the dimensions
-    alpha: NDArray[np.double]
-    eoptim: NDArray[np.double]
-    perf: NDArray[np.double]
+    X0: NDArray[np.double] | None  # not sure about the dimensions
+    alpha: NDArray[np.double] | None
+    eoptim: NDArray[np.double] | None
+    perf: NDArray[np.double] | None
     a: NDArray[np.double]
     z: NDArray[np.double]
     c: NDArray[np.double]
@@ -234,24 +236,45 @@ class PythiaDataChanged:
 
 
 @dataclass(frozen=True)
-class PolyShape:
-    """Represent Polygon shape for footprint."""
-
-    # polyshape is the builtin Matlab Data structure,
-    # may find a similar one in python
-    pass
-
-
-@dataclass(frozen=True)
 class Footprint:
-    """Represent the geometric and quality attributes of a spatial footprint."""
+    """A class to represent a footprint with geometric and statistical properties.
 
-    polygon: PolyShape
+    Attributes:
+    ----------
+    polygon : Polygon
+        The geometric shape of the footprint.
+    area : float
+        The area of the footprint.
+    elements : int
+        The number of data points within the footprint.
+    good_elements : int
+        The number of "good" data points within the footprint (as defined by specific
+        criteria).
+    density : float
+        The density of points within the footprint.
+    purity : float
+        The purity of "good" elements in relation to all elements in the footprint.
+    """
+
+    polygon: Polygon
     area: float
-    elements: float
-    good_elements: float
+    elements: int
+    good_elements: int
     density: float
     purity: float
+
+    def __init__(self, polygon: Polygon) -> None:
+        """Initialise a Footprint."""
+        # This is a kinda hacky way to get around the frozen problem.
+        # A nicer way would be a static method to construct it from a polygon rust style
+        # from_polygon().
+
+        object.__setattr__(self, "polygon", polygon if polygon else None)
+        object.__setattr__(self, "area", self.polygon.area if polygon else None)
+        object.__setattr__(self, "elements", 0)
+        object.__setattr__(self, "good_elements", 0)
+        object.__setattr__(self, "density", 0)
+        object.__setattr__(self, "purity", 0)
 
 
 @dataclass(frozen=True)
