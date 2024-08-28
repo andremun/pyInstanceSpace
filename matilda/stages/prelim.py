@@ -16,7 +16,7 @@ from numpy.typing import NDArray
 from scipy import optimize, stats
 
 from matilda.data.model import PrelimDataChanged, PrelimOut
-from matilda.data.options import PrelimOptions, SelvarsOptions
+from matilda.data.options import PrelimOptions
 
 
 @dataclass(frozen=True)
@@ -49,8 +49,7 @@ class Prelim:
         self,
         x: NDArray[np.double],
         y: NDArray[np.double],
-        prelim_opts: PrelimOptions,
-        selvars_opts: SelvarsOptions,
+        opts: PrelimOptions,
     ) -> None:
         """Initialize the Prelim stage.
 
@@ -58,19 +57,17 @@ class Prelim:
         ----
             x: The feature matrix (instances x features) to process.
             y: The performance matrix (instances x algorithms) to process.
-            prelim_opts (PrelimOptions): Configuration options for PRELIM.
+            opts (PrelimOptions): Configuration options for PRELIM.
         """
         self.x = x
         self.y = y
-        self.prelim_opts = prelim_opts
-        self._filter_post_prelim_opts = selvars_opts
+        self.opts = opts
 
     @staticmethod
     def run(
         x: NDArray[np.double],
         y: NDArray[np.double],
-        prelim_opts: PrelimOptions,
-        selvars_opts: SelvarsOptions,
+        opts: PrelimOptions,
     ) -> tuple[PrelimDataChanged, PrelimOut]:
         """Perform preliminary processing on the input data 'x' and 'y'.
 
@@ -78,7 +75,7 @@ class Prelim:
             x: The feature matrix (instances x features) to process.
             y: The performance matrix (instances x algorithms) to
                 process.
-            prelim_opts: An object of type PrelimOptions containing options for
+            opts: An object of type PrelimOptions containing options for
                 processing.
 
         Returns
@@ -86,7 +83,7 @@ class Prelim:
             A tuple containing the processed data (as 'Data' object) and
             preliminary output information (as 'PrelimOut' object).
         """
-        prelim = Prelim(x, y, prelim_opts, selvars_opts)
+        prelim = Prelim(x, y, opts)
         y_raw = y.copy()
         nalgos = y.shape[1]
 
@@ -96,7 +93,7 @@ class Prelim:
         print("-> Calculating the binary measure of performance")
 
         msg = "An algorithm is good if its performance is "
-        if prelim_opts.max_perf:
+        if opts.max_perf:
             print("-> Maximizing performance.")
             y_aux = y.copy()
             y_aux[np.isnan(y_aux)] = -np.inf
@@ -105,19 +102,16 @@ class Prelim:
             # add 1 to the index to match the MATLAB code
             p = np.argmax(y_aux, axis=1) + 1
 
-            if prelim_opts.abs_perf:
-                y_bin = y_aux >= prelim_opts.epsilon
-                msg = msg + "higher than " + str(prelim_opts.epsilon)
+            if opts.abs_perf:
+                y_bin = y_aux >= opts.epsilon
+                msg = msg + "higher than " + str(opts.epsilon)
             else:
                 y_best[y_best == 0] = np.finfo(float).eps
                 y[y == 0] = np.finfo(float).eps
                 y = 1 - y / y_best[:, np.newaxis]
-                y_bin = (1 - y_aux / y_best[:, np.newaxis]) <= prelim_opts.epsilon
+                y_bin = (1 - y_aux / y_best[:, np.newaxis]) <= opts.epsilon
                 msg = (
-                    msg
-                    + "within "
-                    + str(round(100 * prelim_opts.epsilon))
-                    + "% of the best."
+                    msg + "within " + str(round(100 * opts.epsilon)) + "% of the best."
                 )
 
         else:
@@ -129,19 +123,16 @@ class Prelim:
             # add 1 to the index to match the MATLAB code
             p = np.argmin(y_aux, axis=1) + 1
 
-            if prelim_opts.abs_perf:
-                y_bin = y_aux <= prelim_opts.epsilon
-                msg = msg + "less than " + str(prelim_opts.epsilon)
+            if opts.abs_perf:
+                y_bin = y_aux <= opts.epsilon
+                msg = msg + "less than " + str(opts.epsilon)
             else:
                 y_best[y_best == 0] = np.finfo(float).eps
                 y[y == 0] = np.finfo(float).eps
                 y = 1 - y_best[:, np.newaxis] / y
-                y_bin = (1 - y_best[:, np.newaxis] / y_aux) <= prelim_opts.epsilon
+                y_bin = (1 - y_best[:, np.newaxis] / y_aux) <= opts.epsilon
                 msg = (
-                    msg
-                    + "within "
-                    + str(round(100 * prelim_opts.epsilon))
-                    + "% of the worst."
+                    msg + "within " + str(round(100 * opts.epsilon)) + "% of the worst."
                 )
 
         print(msg)
@@ -151,12 +142,12 @@ class Prelim:
             y_best,
             y_bin,
             nalgos,
-            prelim_opts.beta_threshold,
+            opts.beta_threshold,
             p,
         )
 
         # Auto-Pre-Processing
-        if prelim_opts.bound:
+        if opts.bound:
             bound_out = prelim._bound()  # noqa: SLF001
             x = bound_out.x
             med_val = bound_out.med_val
@@ -164,7 +155,7 @@ class Prelim:
             hi_bound = bound_out.hi_bound
             lo_bound = bound_out.lo_bound
 
-        if prelim_opts.norm:
+        if opts.norm:
             normalise_out = prelim._normalise()  # noqa: SLF001
             x = normalise_out.x
             min_x = normalise_out.min_x
@@ -400,12 +391,3 @@ class Prelim:
             sigma_y=sigma_y,
             mu_y=mu_y,
         )
-
-    def _filter_post_prelim(self) -> PrelimOut:
-        """Filter the data after Prelim Stage completes.
-
-        This will run after the Prelim stage completes and will filter the data
-        based on SelvarsOptions, and will be called in the run method.
-        Returns modified data same as PrelimOut.
-        """
-        raise NotImplementedError
