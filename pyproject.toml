@@ -20,6 +20,7 @@ click = "^8.1.7"
 black = "^24.4.2"
 scipy = "^1.13.0"
 shapely = "^2.0.5"
+matplotlib = "^3.9.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.1"
@@ -167,6 +168,6 @@ module = [
     'shapely.geometry',
     'scipy.linalg',
     'scipy.optimize',
-    'scipy.io'
+    'scipy.io',
 ]
 ignore_missing_imports = 'True'
