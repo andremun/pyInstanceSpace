@@ -135,7 +135,7 @@ class InstanceSpace:
             self._metadata.features,
             self._metadata.algorithms,
             PrelimOptions.from_options(self._options),
-            self.options.selvars,
+            self._options.selvars,
         )
 
         if self._data is None:
