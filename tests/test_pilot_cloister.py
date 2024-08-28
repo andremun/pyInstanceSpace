@@ -31,9 +31,9 @@ def test_run_analytic_pilot_cloister() -> None:
     feat_labels_sample_str = [str(label[0]) for label in feat_labels_sample]
     opts = PilotOptions(True, 5)
     pilot = Pilot()
-    result = pilot.run(x_sample, y_sample, feat_labels_sample_str, opts)[1]
+    _, result_pilot = pilot.run(x_sample, y_sample, feat_labels_sample_str, opts)
 
-    a = result.a
+    a = result_pilot.a
 
     cloister = Cloister(x_sample, a, default_option.cloister)
     _, result_cloister = cloister.run(x_sample, a, default_option.cloister)
@@ -67,9 +67,9 @@ def test_run_numerical_pilot_cloister_zedge() -> None:
     feat_labels_sample_str = [str(label[0]) for label in feat_labels_sample]
     opts = PilotOptions(False, 5)
     pilot = Pilot()
-    result = pilot.run(x_sample, y_sample, feat_labels_sample_str, opts)[1]
+    _, result_pilot = pilot.run(x_sample, y_sample, feat_labels_sample_str, opts)
 
-    a = result.a
+    a = result_pilot.a
 
     cloister = Cloister(x_sample, a, default_option.cloister)
     _, result_cloister = cloister.run(x_sample, a, default_option.cloister)
