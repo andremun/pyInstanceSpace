@@ -18,7 +18,6 @@ from matilda.data.model import (
     TraceOut,
 )
 from matilda.data.options import (
-    FilterPostPrelimOtions,
     InstanceSpaceOptions,
     PrelimOptions,
     from_json_file,
@@ -136,7 +135,7 @@ class InstanceSpace:
             self._metadata.features,
             self._metadata.algorithms,
             PrelimOptions.from_options(self._options),
-            FilterPostPrelimOtions.from_options(self._options),
+            self.options.selvars,
         )
 
         if self._data is None:

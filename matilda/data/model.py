@@ -122,23 +122,6 @@ class PrelimDataChanged:
 
 
 @dataclass(frozen=True)
-class FilterPostPrelimOut:
-    """Results of the filter post prelim process between stages of prelim and sifted."""
-
-    x: NDArray[np.double]
-    y: NDArray[np.double]
-    x_raw: NDArray[np.double]
-    y_raw: NDArray[np.double]
-    y_bin: NDArray[np.bool_]
-    y_best: NDArray[np.double]
-    p: NDArray[np.double]
-    num_good_algos: NDArray[np.double]
-    beta: NDArray[np.bool_]
-    inst_labels: pd.Series # type: ignore[type-arg]
-    s: set[str] | None
-
-
-@dataclass(frozen=True)
 class SiftedOut:
     """Results of the sifting process in the data analysis pipeline."""
 

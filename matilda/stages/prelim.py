@@ -15,8 +15,8 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy import optimize, stats
 
-from matilda.data.model import FilterPostPrelimOut, PrelimDataChanged, PrelimOut
-from matilda.data.options import FilterPostPrelimOtions, PrelimOptions
+from matilda.data.model import PrelimDataChanged, PrelimOut
+from matilda.data.options import PrelimOptions, SelvarsOptions
 
 
 @dataclass(frozen=True)
@@ -50,7 +50,7 @@ class Prelim:
         x: NDArray[np.double],
         y: NDArray[np.double],
         prelim_opts: PrelimOptions,
-        filter_post_prelim_opts: FilterPostPrelimOtions,
+        selvars_opts: SelvarsOptions,
     ) -> None:
         """Initialize the Prelim stage.
 
@@ -63,14 +63,14 @@ class Prelim:
         self.x = x
         self.y = y
         self.prelim_opts = prelim_opts
-        self._filter_post_prelim_opts = filter_post_prelim_opts
+        self._filter_post_prelim_opts = selvars_opts
 
     @staticmethod
     def run(
         x: NDArray[np.double],
         y: NDArray[np.double],
         prelim_opts: PrelimOptions,
-        filter_post_prelim_opts: FilterPostPrelimOtions,
+        selvars_opts: SelvarsOptions,
     ) -> tuple[PrelimDataChanged, PrelimOut]:
         """Perform preliminary processing on the input data 'x' and 'y'.
 
@@ -86,7 +86,7 @@ class Prelim:
             A tuple containing the processed data (as 'Data' object) and
             preliminary output information (as 'PrelimOut' object).
         """
-        prelim = Prelim(x, y, prelim_opts, filter_post_prelim_opts)
+        prelim = Prelim(x, y, prelim_opts, selvars_opts)
         y_raw = y.copy()
         nalgos = y.shape[1]
 
@@ -176,8 +176,6 @@ class Prelim:
             lambda_y = normalise_out.lambda_y
             sigma_y = normalise_out.sigma_y
             mu_y = normalise_out.mu_y
-
-        filter_post_prelim_out = prelim._filter_post_prelim()  # noqa: SLF001
 
         data_changed = PrelimDataChanged(
             x=x,
@@ -403,6 +401,11 @@ class Prelim:
             mu_y=mu_y,
         )
 
-    def _filter_post_prelim(self) -> FilterPostPrelimOut:
-        # TODO: Implement this method
-        pass
+    def _filter_post_prelim(self) -> PrelimOut:
+        """Filter the data after Prelim Stage completes.
+
+        This will run after the Prelim stage completes and will filter the data
+        based on SelvarsOptions, and will be called in the run method.
+        Returns modified data same as PrelimOut.
+        """
+        raise NotImplementedError
