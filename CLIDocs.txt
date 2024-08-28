@@ -1,0 +1,197 @@
+NAME
+    matilda
+
+SYNOPSIS
+    matilda [--version] [--help] [run] [-b <stage-name>] [single <stage-name>] [single <stage-name> option1, option2, ...]
+            [single -m stage1, stage2, ...][single -m -opts -i <filename> -o <filepath> stage:stage1, option1, option2, ..., stage:stage2 option1, option2, ...]
+            [-i <filename>] [-i <filename> -o <filepath>] [-m -i filename1, filename2, ...] 
+            [-m -i filename1, filename2, ... -o filepath]  
+
+DESCRIPTION
+matilda is the command line tool for running the MATILDA program through command line interface. The tool 
+allows for fine-grained control over the MATILDA program and scripts in order to make it possible for user
+customization of inputs and user-friendliness
+
+OPTIONS
+--version
+	Prints the version of matilda that is being used
+	
+		matilda --version
+
+--help 
+	Prints the synopsis and a list of the most commonly used commands. If
+	the option --all or -a is given then all available commands are printed.
+	If a matilda command is named this option will bring up the manual page
+	for that command.
+	
+		matilda --help
+
+run
+	Run all the stages in the preordered sequence of PRELIM, SIFTED, PILOT 
+	followed by CLOISTER, PYTHIA and TRACE. PRELIM, SIFTED and PILOT are
+	required to be run in order. CLOISTER, PYTHIA and TRACE can be run in 
+	any order after PILOT. The output is saved in the same directory in a 
+	model.json file. This file has a given format and should not be edited. 
+	
+		matilda run
+
+-i <filename>
+	Runs matilda with a user-defined file input. The input file must be 
+	a json file with the relevant fields present. The filename is also
+	case-sensitive.
+	
+		matilda -i pythiaOnly.json
+
+-i <filename> -o <filepath>
+	Runs matilda with a user-defined file input and a user-defined output
+	directory. The output will always be a model.json file that has a defined
+	schema that cannot be changed.
+	
+		matilda -i pythiaOnly.json -o /results
+
+-m -i filename1, filename2, ...
+	Runs matilda with muiltple file inputs. The matilda tool will try to
+	allocate files to stages by checking against pre-defined input json 
+	schemas for each stage. If it is successful with allocation then it 
+	will execute the command otherwise it will return error code ER6.
+	
+		matilda -m -i prelimOnly.json siftedOnly.json pilotOnly.json
+            
+-m -i filename1, filename2, ... -o filepath
+	Runs matilda with muiltple file inputs and outputs. The matilda tool will 
+	try to allocate files to stages by checking the filename, input fields 
+	and data types in this order of priority. If it is successful with 
+	allocation based on filename then it will not attempt to try allocation 
+	again using input fields and data types. Similarly, if it successful 
+	with allocation using input fields it will not check data types. The 
+	-checkall flag can be added in the end to force matilda to ensure that 
+	allocation is successful for all three fields.
+	
+		matilda -m -i prelimOnly.json siftedOnly.json pilotOnly.json -o /results
+
+-b <stage-name-1>, <stage-name-2>, ...
+	Runs the given stage using a pre-defined json file called model.json. 
+	There are optional input and output filepath specifications. The 
+	input is assumed to be the model.json file in the local directory. If 
+	the stages prior to this stage haven't been run then matilda will 
+	return an error code ER3. Running this command will cause any changes 
+	or data generated from the subsequent stages to be erased from the 
+	model.json file. Multiple stage arguments will run multiple stages 
+	however if the stages aren't run the default order then matilda will 
+	return an error code ER4.
+	
+		matilda -b prelim
+
+single <stage-name> -i <filepath> -o <filepath>
+	Runs the provided stage with a user-defined input file that must 
+	be in json format and user-defined output directory. The input needs 
+	to be a json file with the relevant fields labelled and filled in. If 
+	the program is unable to find a specific input field, it will return 
+	an error code ER5. If the input field is not correct data type or is 
+	malformed then matilda will return error code ER6.
+	
+		matilda single prelim -i prelimOnly.json -o /results
+
+single <stage-name> option1, option2, ... -i <filepath> -o <filepath>
+	Runs the provided stage with a user-defined input file that must 
+	be in json format and user-defined output directory, as well as defining 
+	the options for the stage if any options required are different from 
+	default. If matilda fails to recognise an option then it will return 
+	an error code ER7.
+	
+		matilda single pilot false 5 -i pilotOnly.json -o /results
+            
+single -m stage1, stage2, ... -i <filepath> -o <filepath>
+	Runs multiple stages with a user-defined for the input and output files. 
+	The input path is assumed to be for the input file for the first stage 
+	only. The data for the subsequent stages will be generated from prior stages 
+	or will be computed from the provided input.
+	
+		matilda single -m pilot pythia trace -i pilotOnly.json -o /results
+            
+single -m -opts -i <filename> -o <filepath> stage:stage1, option1, option2, ..., stage:stage2 option1, option2, ...
+	Runs multiple stages with a user-defined for the input and output files as 
+	well as defining options for the stages if any options required are 
+	different default. The filepath input is assumed to be for the first 
+	stage only. The data for the subsequent stages will be generated from 
+	prior stages or will be computed from the provided input.
+
+		matilda single -m -opts -i pilotOnly.json -o /results stage: pilot true 5 stage: pythia 5 true true false
+
+ERROR CODES
+
+ER0 - Missing files in MATILDA. 
+	This error indicates that there are some files that
+	are missing from the MATILDA package or are not being detected.
+
+    SUGGESTED FIX: Re-install the package and the CLI
+
+ER1 - Invalid output directory. 
+	This error indicates that matilda tool is unable to
+	locate the specified output directory.
+
+    SUGGESTED FIX: Check if the directory actually exists on the system and has
+                    not been misspelled.
+
+ER2 - Invalid input filetype. 
+	This error indicates that the file input type that 
+	has been provided is not a json file.
+
+    SUGGESTED FIX: Check if the input file specified is correct. Extension 
+                    is required in the name when specifying input.
+
+ER3 - Prior stages are missing from the run history. 
+	This error indicates that stages prior to this specific 
+	stage haven't been run. 
+
+    SUGGESTED FIX: Check "stages-hist" of the model.json file to see the recorded
+                    stages that have been run. As the input is in the model.json
+                    checking the field of "stages-hist" can provide the information 
+                    as to the stages that have been recorded in the history.
+
+ER4 - Missing intermediary stages. 
+	This error indicates that stages that have been input 
+	are not in order. The stages are expected to be run in 
+	default order of PRELIM, SIFTED, PILOT. If the stages 
+	are not run in this order, then the data required is not 
+	present or malformed.
+
+    SUGGESTED FIX: Check the order of the stages input. SIFTED must run after
+                    PRELIM and PILOT must run after SIFTED.
+
+    ER4PL -  Missing PRELIM stage. 
+	This error indicates that PRELIM stage hasn't been run 
+        using this data.
+
+    ER4SI -  Missing SIFTED stage. 
+	This error indicates that SIFTED stage hasn't been run 
+        using this data.
+
+    ER4PI -  Missing PILOT stage. 
+	This error indicates that PILOT stage hasn't been run 
+        using this data.
+
+ER5 - File missing input field. 
+	This error indicates that the input custom json file is 
+	missing one or more input fields and requires revision 
+	to add the correct fields with the correct spelling.
+
+    SUGGESTED FIX: Check if the correct fields are present and that they are in 
+			lowercase with the correct spelling as the CLI reads the
+			fields in a case-sensitive manner.
+
+ER6 - Malformed input detected. 
+	This error indicates that input format of one or more
+	input fields is incorrect and requires revision before 
+	it can be utilised to run the stage targeted.
+
+    SUGGESTED FIX: Check the dimensionality of the input fields. Most inputs are matrices
+                    and hence require all rows to be the same length.
+
+ER7 - Option not detected. 
+	This error indicates that the provided option is not
+	present for the target stage.
+    
+    SUGGESTED FIX: Check if the correct options are provided and that they are in lowercase
+                    with the correct spelling as the CLI reads the fields in a case-sensitive
+                    manner.
