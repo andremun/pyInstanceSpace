@@ -20,7 +20,11 @@ from matilda.data.model import (
     StageState,
     TraceOut,
 )
-from matilda.data.options import InstanceSpaceOptions, PrelimOptions, from_json_file
+from matilda.data.options import (
+    InstanceSpaceOptions,
+    PrelimOptions,
+    from_json_file,
+)
 from matilda.stages.cloister import Cloister
 from matilda.stages.pilot import Pilot
 from matilda.stages.prelim import Prelim
@@ -132,6 +136,7 @@ class InstanceSpace:
             self._metadata.features,
             self._metadata.algorithms,
             PrelimOptions.from_options(self._options),
+            self._options.selvars,
         )
 
         if self._data is None:
