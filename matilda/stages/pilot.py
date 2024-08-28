@@ -113,8 +113,6 @@ class Pilot:
                     opts,
                 )
 
-            alpha.astype(np.double)
-
             out_a = alpha[: 2 * n, idx].reshape(2, n)
             out_z = x @ out_a.T
             b = alpha[2 * n :, idx].reshape(m, 2)
@@ -140,28 +138,36 @@ class Pilot:
         rldf = pd.DataFrame(row_labels)
         summary = rldf.join(summary)
 
-        if x0 is not None:
-            x0 = x0.astype(np.double)
-
-        if eoptim is not None:
-            eoptim = eoptim.astype(float)
-
-        if perf is not None:
-            perf = perf.astype(float)
-
-        pout = PilotOut(
-            X0=x0,
-            alpha=alpha,
-            eoptim=eoptim,
-            perf=perf,
-            a=out_a,
-            z=out_z,
-            c=out_c,
-            b=out_b,
-            error=error,
-            r2=r2,
-            summary=summary,
-        )
+        if alpha is not None and x0 is not None:
+            alph: NDArray[np.float16] = alpha.astype(np.float16)
+            x_init: NDArray[np.double] = x0
+            pout = PilotOut(
+                X0=x_init,
+                alpha=alph,
+                eoptim=eoptim,
+                perf=perf,
+                a=out_a,
+                z=out_z,
+                c=out_c,
+                b=out_b,
+                error=error,
+                r2=r2,
+                summary=summary,
+            )
+        else:
+            pout = PilotOut(
+                X0=x0,
+                alpha=alpha,
+                eoptim=eoptim,
+                perf=perf,
+                a=out_a,
+                z=out_z,
+                c=out_c,
+                b=out_b,
+                error=error,
+                r2=r2,
+                summary=summary,
+            )
         pda = PilotDataChanged()
 
         print(
