@@ -81,7 +81,6 @@ def pythia(
             params = opts.params
         else:
             print(" -> Bayesian Optimization will be used for parameter hyper-tunning.")
-
         print(
             "-------------------------------------------------------------------------"
         )
@@ -99,7 +98,7 @@ def pythia(
 
     print(
         "  -> Using a "
-        + opts.cv_folds
+        + str(opts.cv_folds)
         + "-fold stratified cross-validation experiment to evaluate the SVMs."
     )
     print("-------------------------------------------------------------------------")
@@ -153,7 +152,7 @@ def pythia(
             "    -> PYTHIA has trained a model for "
             + algo_labels[i]
             + ", there are "
-            + models_left
+            + str(models_left)
             + " models left to train."
         )
         print("    -> Elapsed time: " + t_inner.tocvalue() + "s")
