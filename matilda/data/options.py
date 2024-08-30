@@ -272,8 +272,9 @@ class PythiaOptions:
     cv_folds: int
     is_poly_krnl: bool
     use_weights: bool
-    use_lib_svm: bool
-
+    use_svm: bool
+    #TODO: Add Params
+    # params: np.array()
     @staticmethod
     def default(
         cv_folds: int = DEFAULT_PYTHIA_CV_FOLDS,

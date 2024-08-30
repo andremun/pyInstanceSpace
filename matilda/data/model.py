@@ -1,5 +1,4 @@
-"""
-Defines a comprehensive set of data classes used in the instance space analysis.
+"""Defines a comprehensive set of data classes used in the instance space analysis.
 
 These classes are designed to encapsulate various aspects of the data and the results
 of different analytical processes, facilitating a structured and organized approach
@@ -8,7 +7,7 @@ to data analysis and model building.
 
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -33,8 +32,19 @@ class Data:
     p: NDArray[np.double]
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
-    # s: set[str] | None
     s: set[str] | None
+    uniformity: float | None
+
+
+T = TypeVar("T")
+
+
+@dataclass(frozen=True)
+class StageState(Generic[T]):
+    """The state of the data at the end of a Stage."""
+
+    data: Data
+    out: T
 
 
 @dataclass(frozen=True)
@@ -48,88 +58,17 @@ class FeatSel:
 class AlgorithmSummary:
     """Provides a summary of an algorithm's performance across different metrics."""
 
-    def __init__(
-            self,
-            name: str,
-            avg_perf_all_instances: float | None = None,
-            std_perf_all_instances: float | None = None,
-            probability_of_good: float | None = None,
-            avg_perf_selected_instances: float | None = None,
-            std_perf_selected_instances: float | None = None,
-            cv_model_accuracy: float | None = None,
-            cv_model_precision: float | None = None,
-            cv_model_recall: float | None = None,
-            box_constraint: float | None = None,
-            kernel_scale: float | None = None,
-     ):
-        self.name = name
-        self.avg_perf_all_instances = avg_perf_all_instances
-        self.std_perf_all_instances = std_perf_all_instances
-        self.probability_of_good = probability_of_good
-        self.avg_perf_selected_instances = avg_perf_selected_instances
-        self.std_perf_selected_instances = std_perf_selected_instances
-        self.cv_model_accuracy = cv_model_accuracy
-        self.cv_model_precision = cv_model_precision
-        self.cv_model_recall = cv_model_recall
-        self.box_constraint = box_constraint
-        self.kernel_scale = kernel_scale
-
-    def __str__(self):
-        return (f"Algorithm: {self.name}, "\
-                f"Avg Performance: {self.avg_perf_all_instances}, "\
-                f"Std: {self.std_perf_all_instances}, "\
-                f"Prob Good: {self.probability_of_good}, "\
-                f"Avg Selected: {self.avg_perf_selected_instances}, "\
-                f"Std Selected: {self.std_perf_selected_instances}, "\
-                f"Accuracy: {self.cv_model_accuracy}, "\
-                f"Precision: {self.cv_model_precision}, "\
-                f"Recall: {self.cv_model_recall}, "\
-                f"Box Constraint: {self.box_constraint}, "\
-                f"Kernel Scale: {self.kernel_scale}")
-
-    def __repr__(self):
-        return self.__str__()
-    def __init__(
-            self,
-            name: str,
-            avg_perf_all_instances: float | None = None,
-            std_perf_all_instances: float | None = None,
-            probability_of_good: float | None = None,
-            avg_perf_selected_instances: float | None = None,
-            std_perf_selected_instances: float | None = None,
-            cv_model_accuracy: float | None = None,
-            cv_model_precision: float | None = None,
-            cv_model_recall: float | None = None,
-            box_constraint: float | None = None,
-            kernel_scale: float | None = None,
-     ):
-        self.name = name
-        self.avg_perf_all_instances = avg_perf_all_instances
-        self.std_perf_all_instances = std_perf_all_instances
-        self.probability_of_good = probability_of_good
-        self.avg_perf_selected_instances = avg_perf_selected_instances
-        self.std_perf_selected_instances = std_perf_selected_instances
-        self.cv_model_accuracy = cv_model_accuracy
-        self.cv_model_precision = cv_model_precision
-        self.cv_model_recall = cv_model_recall
-        self.box_constraint = box_constraint
-        self.kernel_scale = kernel_scale
-
-    def __str__(self):
-        return (f"Algorithm: {self.name}, "\
-                f"Avg Performance: {self.avg_perf_all_instances}, "\
-                f"Std: {self.std_perf_all_instances}, "\
-                f"Prob Good: {self.probability_of_good}, "\
-                f"Avg Selected: {self.avg_perf_selected_instances}, "\
-                f"Std Selected: {self.std_perf_selected_instances}, "\
-                f"Accuracy: {self.cv_model_accuracy}, "\
-                f"Precision: {self.cv_model_precision}, "\
-                f"Recall: {self.cv_model_recall}, "\
-                f"Box Constraint: {self.box_constraint}, "\
-                f"Kernel Scale: {self.kernel_scale}")
-
-    def __repr__(self):
-        return self.__str__()
+    name: str
+    avg_perf_all_instances: float | None
+    std_perf_all_instances: float | None
+    probability_of_good: float | None
+    avg_perf_selected_instances: float | None
+    std_perf_selected_instances: float | None
+    cv_model_accuracy: float | None
+    cv_model_precision: float | None
+    cv_model_recall: float | None
+    box_constraint: float | None
+    kernel_scale: float | None
 
 
 @dataclass(frozen=True)
@@ -269,18 +208,17 @@ class PythiaOut:
     mu: list[float]
     sigma: list[float]
     cp: Any  # Change it to proper type
-    # svm: Any  # Change it to proper type
-    # svm: Any  # Change it to proper type
+    svm: Any  # Change it to proper type
     cvcmat: NDArray[np.double]
     y_sub: NDArray[np.bool_]
     y_hat: NDArray[np.bool_]
     pr0_sub: NDArray[np.double]
     pr0_hat: NDArray[np.double]
-    box_consnt: list[float]
+    box_consnt: list[np.double]
     k_scale: list[float]
-    precision: list[float]
-    recall: list[float]
-    accuracy: list[float]
+    precision: list[np.double]
+    recall: list[np.double]
+    accuracy: list[np.double]
     selection0: NDArray[np.double]
     selection1: Any  # Change it to proper type
     summary: pd.DataFrame
@@ -340,8 +278,7 @@ class TraceDataChanged:
 
 @dataclass(frozen=True)
 class Model:
-    """
-    Contain data and output.
+    """Contain data and output.
 
     Combines all components into a full model representation, including data and
     analysis results.

@@ -1,45 +1,47 @@
 """PYTHIA function for algorithm selection and performance evaluation using SVM."""
 
 import time
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from pytictoc import TicToc
 from scipy import stats
-from sklearn.metrics import confusion_matrix
-from sklearn.model_selection import (
-    GridSearchCV,
-    StratifiedKFold,
-)
-from sklearn.svm import SVC
 
 from matilda.data.model import PythiaDataChanged, PythiaOut
 from matilda.data.options import PythiaOptions
 
+script_dir = Path(__file__).parents[2] / "tests" / "test_data" / "pythia" / "input"
+print(script_dir)
 
 class SvmRes:
     """Resent data resulting from SVM."""
 
     svm: None
-    Ysub: NDArray[np.double]
-    Psub: NDArray[np.double]
-    Yhat: NDArray[np.double]
-    Phat: NDArray[np.double]
-    C: float
-    g: float
+    accuracy: np.double
+    precision: np.double
+    recall: np.double
+    # Ysub: NDArray[np.double]
+    # Psub: NDArray[np.double]
+    # Yhat: NDArray[np.double]
+    # Phat: NDArray[np.double]
+    # C: float
+    # g: float
 
 
 class Pythia:
     """See file docstring."""
 
-    def __init__(self,
-        x:NDArray[np.double],
-        y:NDArray[np.double],
-        y_bin:NDArray[np.bool_],
-        y_best:NDArray[np.double],
-        algo_labels:list[str],
-        opts:PythiaOptions,
+    # pythia_output = PythiaOut()
+
+    def __init__(
+        self,
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        y_best: NDArray[np.double],
+        algo_labels: list[str],
+        opts: PythiaOptions,
     ) -> None:
         """
         Initialize the Pythia object.
@@ -58,23 +60,41 @@ class Pythia:
             None
 
         """
-        self.x = x,
-        self.y = y,
+        self.x = x
+        self.y = y
         self.y_bin = y_bin
         self.y_best = y_best
         self.algo_labels = algo_labels
         self.opts = opts
+        self.nalgos = len(algo_labels)
 
-        self.cp = [None] * len(algo_labels)
+        self.mu: list[float]
+        self.sigma: list[float]
+        self.cp: Any  # Change it to proper type
+        self.svm: Any  # Change it to proper type
+        self.cvcmat: NDArray[np.double]
+        self.y_sub: NDArray[np.bool_]
+        self.y_hat: NDArray[np.bool_]
+        self.pr0sub: NDArray[np.double]
+        self.pr0hat: NDArray[np.double]
+        self.box_consnt: list[float]
+        self.k_scale: list[float]
+        self.precision: list[np.double] = [0.0] * self.nalgos
+        self.recall: list[np.double] = [0.0] * self.nalgos
+        self.accuracy: list[np.double] = [0.0] * self.nalgos
+        self.selection0: NDArray[np.double]
+        self.selection1: Any  # Change it to proper type
+        self.summary: pd.DataFrame
+
         self.rng = np.random.default_rng(seed=0)
-        # self.PythiaOut = PythiaOut()
+
     @staticmethod
     def run(
         z: NDArray[np.double],
         y: NDArray[np.double],
         y_bin: NDArray[np.bool_],
-        y_best: NDArray[np.double],  # noqa: ARG004
-        algo_labels: list[str],  # noqa: ARG004
+        y_best: NDArray[np.double],
+        algo_labels: list[str],
         opts: PythiaOptions,
     ) -> tuple[PythiaDataChanged, PythiaOut]:
         """
@@ -98,20 +118,18 @@ class Pythia:
             Summary of performance for each algorithm.
 
         """
+        pythia = Pythia(z, y, y_bin, y_best, algo_labels, opts)
         print("  -> Initializing PYTHIA.")
+
+        pythia.compute_sigma_mu(z)
         z = stats.zscore(z, ddof=1)
-        mu = np.mean(z, axis=0)
-        sigma = np.std(z, ddof=1, axis=0)
+
         ninst, nalgos = y_bin.shape
-        Yfull = y.copy()
-        Ysvms = y.copy()
-        # Step 2: Set elements to NaN based on conditions
-        # y[~sel0] = np.nan       # Set elements to NaN where sel0 is False
-        # Yfull[~sel1] = np.nan   # Set elements to NaN where sel1 is False
-        # Ysvms[~out.Yhat] = np.nan
-        pgood = np.mean(np.any(np.logical_and(y_bin, sel1), axis=1))
+
         params = np.full((nalgos, 2), np.nan)
-        print("-------------------------------------------------------------------------")
+        print(
+            "-------------------------------------------------------------------------",
+        )
 
         # Configure the SVM training process.
         # (Including kernel function selection, library usage, hyperparameter strategy,
@@ -122,6 +140,7 @@ class Pythia:
             and isinstance(opts.params, (list, np.ndarray))
             and np.array(opts.params).shape == (nalgos, 2)
         )
+
         kernel_fcn = "guassian"
         if opts.is_poly_krnl:
             kernel_fcn = "polynomial"
@@ -136,16 +155,17 @@ class Pythia:
                 "-------------------------------------------------------------------------",
             )
         print(" => PYTHIA is using a " + kernel_fcn + " kernel")
-        print("-------------------------------------------------------------------------")
+        print(
+            "-------------------------------------------------------------------------",
+        )
 
-
-        if precalparams:
-            print(" -> Using pre-calculated hyper-parameters for the SVM.")
-            params = opts.params
-        else:
-            print(
-                " -> Search on a latin hyper-cube design will be used for parameter hyper-tunning.",
-            )
+        # if precalparams:
+        #     print(" -> Using pre-calculated hyper-parameters for the SVM.")
+        #     params = opts.params
+        # else:
+        #     print(
+        #         " -> Search on a latin hyper-cube design will be used for parameter hyper-tunning.",
+        #     )
 
         if precalparams:
             print(" -> Using pre-calculated hyper-parameters for the SVM.")
@@ -155,11 +175,11 @@ class Pythia:
         print(
             "-------------------------------------------------------------------------",
         )
-        if opts.use_lib_svm:
+        if opts.use_svm:
             print(" -> Using LIBSVM's libraries")
             if precalparams:
                 print(" -> Using pre-calculated hyper-parameters for the SVM.")
-                params = opts.params
+                # params = opts.params
         else:
             print(" -> Using MATLAB's libraries")
         if opts.use_weights:
@@ -171,166 +191,226 @@ class Pythia:
         else:
             print(" -> PYTHIA is not using cost-sensitive classification.")
             w = np.ones((ninst, nalgos))
-        print("-------------------------------------------------------------------------")
+        print(
+            "-------------------------------------------------------------------------",
+        )
 
         print(
             "  -> Using a "
-            + opts.cv_folds
+            + str(opts.cv_folds)
             + "-fold stratified cross-validation experiment to evaluate the SVMs.",
         )
-        print("-------------------------------------------------------------------------")
+        print(
+            "-------------------------------------------------------------------------",
+        )
         print("  -> Training has started. PYTHIA may take a while to complete...")
 
         # TODO Section 3: Train SVM model for each algorithm & Evaluate performance.
-        start_time = time.time()
+        overall_start_time = time.time()
         for i in range(nalgos):
-            skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
-            PythiaOut.cp[i] = list(skf.split(z, y_bin[:, i]))
-            t_inner = TicToc()
-            t_inner.tic()
-            if opts.use_lib_svm:
-                svmres = fitlibsvm(z, y_bin[:, i],PythiaOut.cp[i], opts.cv_folds, kernel_fcn, params[i])
+            # skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
+            # pythia_output.cp[i] = list(skf.split(z, y_bin[:, i]))
+            algo_start_time = time.time()
+            # if opts.use_svm:
+            res = Pythia.fitmatsvm()
+
+            pythia.record_perf(index=i,performance=res)
+            # Generate output
+            if i == nalgos - 1:
+                print(
+                    f"    -> PYTHIA has trained a model for '{algo_labels[i]}', there are no models left to train.",
+                )
             else:
-                #TODO Section 4: SVM model selection.
-                svmres = fitmatsvm(z, y_bin[:, i], w[:, i], PythiaOut.cp[i], kernel_fcn, params[i])
+                print(
+                    f"    -> PYTHIA has trained a model for '{algo_labels[i]}', there are {nalgos - i - 1} models left to train.",
+                )
+            print(f"      -> Elapsed time: {time.time() - algo_start_time:.2f}s")
 
-        # Generate output
-            aux = confusion_matrix(y_bin[:, i], svmres.Ysub[:, i])
-            if aux.size != 4:
-                caux = aux
-                aux = np.zeros((2, 2), dtype=int)
-                if np.all(y_bin[:, i] == 0):
-                    if np.all(svmres.Ysub[:, i] == 0):
-                        aux[0, 0] = caux
-                    elif np.all(svmres.Ysub[:, i] == 1):
-                        aux[1, 0] = caux
-                elif np.all(y_bin[:, i] == 1):
-                    if np.all(svmres.Ysub[:, i] == 0):
-                        aux[0, 1] = caux
-                    elif np.all(svmres.Ysub[:, i] == 1):
-                        aux[1, 1] = caux
-            svmres.cvcmat[i, :] = aux.flatten()
-
-        if i == nalgos - 1:
-            print(f"    -> PYTHIA has trained a model for '{algo_labels[i]}', there are no models left to train.")
-        else:
-            print(f"    -> PYTHIA has trained a model for '{algo_labels[i]}', there are {nalgos - i - 1} models left to train.")  # noqa: E501
-        elapsed_time = time.time() - start_time
-        print(f"      -> Elapsed time: {elapsed_time:.2f}s")
-        # raise NotImplementedError
-        # Assuming pythiaout has a method tocvalue() that returns elapsed time as a string
-
-        print("Total elapsed time: " + pythiaout.tocvalue() + "s")
-        print("-------------------------------------------------------------------------")
+        print(f"Total elapsed time:  {time.time() - overall_start_time:.2f}s")
+        print(
+            "-------------------------------------------------------------------------",
+        )
         print(" -> PYTHIA has completed training the models.")
+        pythia.display_avg_perf()
+
+        pythia.determine_selections()
+
         print(
-            " -> The average cross validated precision is: "
-            + str(np.round(100 * np.mean(PythiaOut.precision), 1))
-            + "%",
+            "-------------------------------------------------------------------------",
         )
-        print(
-            " -> The average cross validated accuracy is: "
-            + str(np.round(100 * np.mean(PythiaOut.accuracy), 1))
-            + "%",
-        )
-        print("    -> Elapsed time: " + {time.time()-start_time} + "s")
-        print("-------------------------------------------------------------------------")
-        PythiaOut.summary = np.round([avgperf, np.nanmean(Ybest), np.nanmean(Yfull)], 3).tolist()
-        PythiaOut.summary[1:, 2] = np.round([stdperf, np.nanstd(Ybest), np.nanstd(Yfull)], 3).tolist()
-        PythiaOut.summary[1:, 3] = np.round([np.mean(Ybin), 1, pgood], 3).tolist()
-        PythiaOut.summary[1:, 4] = np.round([np.nanmean(Ysvms), np.nan, np.nanmean(Y)], 3).tolist()
-        PythiaOut.summary[1:, 5] = np.round([np.nanstd(Ysvms), np.nan, np.nanstd(Y)], 3).tolist()
-        PythiaOut.summary[1:, 6] = np.round(100. * [PythiaOut.accuracy + [np.nan, np.nan]], 1).tolist()
-        PythiaOut.summary[1:, 7] = np.round(100. * [PythiaOut.precision + [np.nan, precisionsel]], 1).tolist()
-        PythiaOut.summary[1:, 8] = np.round(100. * [PythiaOut.recall + [np.nan, recallsel]], 1).tolist()
-        PythiaOut.summary[1:nalgos+1, 9] = np.round(PythiaOut.boxcosnt, 3).tolist()
-        PythiaOut.summary[1:nalgos+1, 10] = np.round(PythiaOut.kscale, 3).tolist()
-    @staticmethod
-    def fitlibsvm(
-        z: NDArray[np.double],
-        y_bin: NDArray[np.double],
-        cp: NDArray[np.double],  # Actually its an array and the type is dynamic
-        n_folds: int,
-        kernel: str,
-        params: NDArray[np.double],
-    ) -> SvmRes:
-        maxgrid = 4
-        mingrid = -10
-        nvals = 30
-        ninst = z.shape[0]
-        # Number of samples
-        if(np.isnan(params).any()):
-            lhs = stats.qmc.LatinHypercube(d=2, seed=rng)
-            samples = lhs.random(30)
-            paramgrid = 2 ** ((maxgrid - mingrid) * samples + mingrid)
-            df = pd.DataFrame(paramgrid)
-            df = df.sort_values(df.columns[0],ascending=True)
-            print(df.dtypes)
+        """Generate a summary of the results."""
+        pythia.generate_summary()
 
-            # df = df.sort_values(df.columns[0],ascending=True)
-            paramgrid = df.to_numpy(dtype=np.float64)
-        else:
-            nvals = 1
-            paramgrid = params
+        return get_output(data_change, pythia_output)
 
-        y_bin = np.array(y_bin, dtype=float) + 1
-        Ysub = np.zeros((ninst, nvals))
-        Psub = np.zeros((ninst, nvals))
-
-        kernel = "poly" if kernel == "polynomial" else "rbf"
-
-        for i in range(n_folds):
-            train_idx, test_idx = cp[i]
-            idx = np.zeros(len(z),dtype=int)
-            idx[train_idx] = 1
-
-            z_train = z[idx == 1]
-            y_train = y_bin[idx == 1]
-            z_test = z[idx == 0]
-            y_test = y_bin[idx == 0]
-
-            # y_aux = np.zeros((z_test.shape[0], nvals))
-            # p_aux = np.zeros((z_test.shape[0], nvals))
-
-            paramgrid_dict = {
-                "C": paramgrid[:, 0],
-                "gamma": paramgrid[:, 1],
-            }
-            svc = SVC(probability=True,kernel=kernel)
-
-
-            for train_idx, test_idx in cp:
-                print(f"Max train_idx: {max(train_idx)}, Max test_idx: {max(test_idx)}")
-                print(f"Length of Ztrain: {len(z_train)}, Length of Ytrain: {len(y_train)}")
-                grid_search = GridSearchCV(estimator=svc,
-                                        param_grid=paramgrid_dict,
-                                        cv=cp,
-                                        scoring="accuracy",
-                                        n_jobs=1)
-                grid_search.fit(z_train, y_train)
-                best_idx = grid_search.best_index_
-                best_model = grid_search.best_estimator_
-
-
-                svm_res = SvmRes()
-                svm_res.svm = best_model
-                svm_res.Ysub = (Ysub[:, best_idx] == 2)
-                svm_res.Psub = Psub[:, best_idx]
-                svm_res.Yhat = best_model.predict(z_train)
-                svm_res.Phat = best_model.predict_proba(z_train)
-                svm_res.C = grid_search.best_params_["C"]
-                svm_res.g = grid_search.best_params_["gamma"]
-
-        return svm_res
     @staticmethod
     def fitmatsvm(
-        z: NDArray[np.double],
-        y_bin: NDArray[np.double],
-        w: NDArray[np.double],
-        cp: NDArray[np.double],  # Actually its an array and the type is dynamic
-        k: str,
-        params: NDArray[np.double],
+        # z: NDArray[np.double],
+        # y_bin: NDArray[np.bool_],
+        # w: NDArray[np.double],
+        # cp: NDArray[np.double],  # Actually its an array and the type is dynamic
+        # k: str,
+        # params: NDArray[np.double],
     ) -> SvmRes:
         """Train a SVM model using MATLAB's 'fitcsvm' function."""
-        raise NotImplementedError
-# if __name__ == "__main__":
+        svm_result = SvmRes()
+        svm_result.svm = None
+        svm_result.accuracy = np.double(0.95)
+        svm_result.precision = np.double(0.9)
+        svm_result.recall = np.double(0.85)
+        return svm_result
+    def display_avg_perf(self) -> None:
+        print(
+            " -> The average cross validated precision is: "
+            + str(np.round(100 * np.mean(self.precision), 1))
+            + "%",
+        )
+
+        print(
+            " -> The average cross validated accuracy is: "
+            + str(np.round(100 * np.mean(pythia_output.accuracy), 1))
+            + "%",
+        )
+    def record_perf(self,index:int,performance:SvmRes)-> None:
+        """Record performance."""
+        self.accuracy[index] = performance.accuracy
+        self.precision[index] = performance.precision
+        self.recall[index] = performance.recall
+        self.svm = performance.svm
+
+    def determine_selections(self) -> None:
+        """
+        Determine the selections based on the predicted labels and precision.
+
+        Returns
+        -------
+        None
+
+        """
+        if self.nalgos > 1:
+            best = np.max(self.y_hat * self.precision, axis=1)
+            self.selection0 = best
+        else:
+            best = self.y_hat
+            self.selection0 = self.y_hat
+        default = np.argmax(np.mean(self.y_bin, axis=0))
+        self.selection1 = pythia_output.selection0
+        self.selection0[best <= 0] = 0
+        self.selection1[best <= 0] = default
+
+    def get_output(self,
+    ) -> tuple[PythiaDataChanged, PythiaOut]:
+        """Generate output."""
+        data_changed = PythiaDataChanged()
+        pythia_output = PythiaOut(
+            mu=self.mu,
+            sigma=self.sigma,
+            cp=self.cp,
+            svm=self.svm,
+            cvcmat=self.cvcmat,
+            y_sub=self.y_sub,
+            y_hat=self.y_hat,
+            pr0_sub=self.pr0sub,
+            pr0_hat=self.pr0hat,
+            box_consnt=self.box_consnt, #TODO: fix this
+            k_scale=self.k_scale,
+            precision=self.precision,
+            recall=self.recall,
+            accuracy=self.accuracy,
+            selection0=self.selection0,
+            selection1=self.selection1,
+            summary=self.summary,
+        )
+        return (data_changed, pythia_output)
+
+    def compute_sigma_mu(self, z: NDArray[np.double]) -> None:
+        """Compute sigma and mu."""
+        self.mu = np.mean(z, axis=0)
+        self.sigma = np.std(z, ddof=1, axis=0)
+
+    def generate_summary(self) -> None:
+        sel0 = self.selection0[:, np.newaxis] == np.arange(1, self.nalgos + 1)
+        sel1 = self.selection1[:, np.newaxis] == np.arange(1, self.nalgos + 1)
+
+        avgperf = np.mean(np.nanmean(self.y))
+        stdperf = np.std(np.nanmean(self.y))
+
+        y_full = self.y.copy()
+        y_svms = self.y.copy()
+
+        self.y[~sel0] = np.nan
+        y_full[~sel1] = np.nan
+        y_svms[~pythia_output.y_hat] = np.nan
+
+        pgood = np.mean(np.any(self.y_bin & sel1, axis=1))
+        data = {
+            "Algorithms": [*self.algo_labels, "Oracle", "Selector"],
+            "Avg_Perf_all_instances": np.round(
+                np.append(avgperf, [np.nanmean(self.y_best), np.nanmean(y_full)]),
+                3,
+            ),
+            "Std_Perf_all_instances": np.round(
+                np.append(stdperf, [np.nanstd(self.y_best), np.nanstd(y_full)]),
+                3,
+            ),
+            "Probability_of_good": np.round(np.append(np.mean(y_best), [1, pgood]), 3),
+            "Avg_Perf_selected_instances": np.round(
+                np.append(np.nanmean(y_svms), [np.nan, np.nanmean(y_full)]),
+                3,
+            ),
+            "Std_Perf_selected_instances": np.round(
+                np.append(np.nanstd(y_svms), [np.nan, np.nanstd(y_full)]),
+                3,
+            ),
+            "CV_model_accuracy": np.round(
+                100 * np.append(pythia_output.accuracy, [np.nan, np.nan]),
+                1,
+            ),
+            "CV_model_precision": np.round(
+                100
+                * np.append(pythia_output.precision, [np.nan, pythia_output.precision]),
+                1,
+            ),
+            "CV_model_recall": np.round(
+                100 * np.append(self.recall, [np.nan, pythia_output.recall]),
+                1,
+            ),
+            "BoxConstraint": np.round(
+                np.append(pythia_output.boxcosnt, [np.nan, np.nan]),
+                3,
+            ),
+            "KernelScale": np.round(
+                np.append(pythia_output.kscale, [np.nan, np.nan]),
+                3,
+            ),
+        }
+        print("  -> PYTHIA is preparing the summary table.")
+        print("  -> PYTHIA has completed! Performance of the models:")
+        df = pd.DataFrame(data).replace({np.nan: ""})
+
+        print(df)
+        df.to_csv("output.csv", index=False)
+if __name__ == "__main__":
+    print("we love svm")
+    csv_path_z = script_dir / "Z.csv"
+    csv_path_y = script_dir / "y.csv"
+    csv_path_ybin = script_dir / "ybin.csv"
+    csv_path_ybest = script_dir / "ybest.csv"
+    csv_path_algo = script_dir / "algolabels.csv"
+
+    z_input = pd.read_csv(csv_path_z).values.astype(np.double)
+    y_input = pd.read_csv(csv_path_y).values.astype(np.double)
+    y_bin_input = pd.read_csv(csv_path_ybin).values.astype(np.bool_)
+    y_best_input = pd.read_csv(csv_path_ybest).values.astype(np.double)
+    algo_input = pd.read_csv(csv_path_algo, header=None).values.flatten().tolist()
+
+    opts = PythiaOptions(cv_folds=5, use_svm=True, use_weights=False, is_poly_krnl=False)
+
+    data_change, pythia_output = Pythia.run(
+        z_input,
+        y_input,
+        y_bin_input,
+        y_best_input,
+        algo_input,
+        opts,
+    )
