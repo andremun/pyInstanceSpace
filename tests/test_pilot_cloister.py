@@ -41,9 +41,6 @@ def test_run_analytic_pilot_cloister() -> None:
     fp_outdata = script_dir / "test_data/pilot-cloister/output/matlab_results_ana.mat"
     data_out = loadmat(fp_outdata)
 
-    print(data_out["Zedge"])
-    print(result_cloister.z_edge)
-
     np.testing.assert_almost_equal(
         np.sort(data_out["Zedge"][1:], axis=0),
         np.sort(result_cloister.z_edge, axis=0),
