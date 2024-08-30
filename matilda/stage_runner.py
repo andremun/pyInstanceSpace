@@ -1,7 +1,8 @@
 """A runner to run a list of stages."""
+
 from typing import Any
 
-from matilda.stage import Stage
+from matilda.stages.stage import Stage, StageArgument
 
 
 class StageRunner:
@@ -17,14 +18,16 @@ class StageRunner:
 
     # Types and names of inputs and outputs of stages, used for order resolution and
     # dependency injection.
-    input_arguments: dict[type[Stage], tuple[str, type]]
-    output_arguments: dict[type[Stage], tuple[str, type]]
+    initial_input_arguments: list[StageArgument]
+    input_arguments: dict[type[Stage], list[StageArgument]]
+    output_arguments: dict[type[Stage], list[StageArgument]]
 
     def __init__(
         self,
         stages: list[type[Stage]],
-        input_arguments: dict[type[Stage], tuple[str, type]],
-        output_arguments: dict[type[Stage], tuple[str, type]],
+        initial_input_arguments: list[StageArgument],
+        input_arguments: dict[type[Stage], list[StageArgument]],
+        output_arguments: dict[type[Stage], list[StageArgument]],
     ) -> None:
         """
         Create a StageRunner from a preresolved set of stages.
@@ -32,6 +35,7 @@ class StageRunner:
         All stages inputs and outputs are assumed to already be resolved.
         """
         self.stages = stages
+        self.initial_input_arguments = initial_input_arguments
         self.input_arguments = input_arguments
         self.output_arguments = output_arguments
 
@@ -39,26 +43,28 @@ class StageRunner:
 
         # TODO: Check the inputs are actually resolved, throw if not
 
-    def run(self, **initial_inputs: dict[str, Any]) -> tuple[Any]:
+    def run(self, **initial_inputs: Any) -> tuple[Any]:  # noqa: ANN401
         """
         Run all stages from start to finish.
 
         Return the entire outputs data object when finished.
         """
-        for input_name, input_data in initial_inputs:
+        for initial_input_name, initial_input_data in self.initial_input_arguments:
+            # TODO: Check all inputs are present and correct. Otherwise Throw.
             pass
 
 
         for stage in self.stages:
-            input_data = []
+            input_data: list[Any] = []
             for input_name, input_type in self.input_arguments[stage]:
-                input_data.append(self.outputs[input_name])
-                # Do some check that input is the right type
-            outputs = stage.run(*input_data)
+                input_data.append(self.output_data[input_name])
+                # TODO: Do some check that input is the right type
+
+            outputs = stage._run(*input_data)  # noqa: SLF001
 
             for i in range(len(outputs)):
-                output_name, output_type = self.outputs[stage][i]
+                output_name, output_type = self.output_arguments[stage][i]
                 # Do some check that the output is the right type
                 self.output_data[output_name] = outputs[i]
 
-        return # all of outputs?
+        return # TODO: all of outputs?
