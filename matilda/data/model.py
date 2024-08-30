@@ -31,7 +31,7 @@ class Data:
     p: NDArray[np.double]
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
-    s: set[str] | None
+    s: pd.Series | None  # type: ignore[type-arg]
     uniformity: float | None
 
 
@@ -61,6 +61,35 @@ class AlgorithmSummary:
     cv_model_recall: float | None
     box_constraint: float | None
     kernel_scale: float | None
+
+
+@dataclass(frozen=True)
+class PreprocessingOut:
+    """Holds preprocessed data."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class PreprocessingDataChanged:
+    """The fields of Data that the preprocessing stage changes."""
+
+    inst_labels: pd.Series  # type: ignore[type-arg]
+    feat_labels: list[str]
+    algo_labels: list[str]
+    # x: only the contents of features(doubles), no feature names
+    x: NDArray[np.double]
+    # y :only the contents of algorithms(doubles), no algorithms names
+    y: NDArray[np.double]
+    # x_raw: NDArray[np.double]
+    # y_raw: NDArray[np.double]
+    # y_bin: NDArray[np.bool_]
+    # y_best: NDArray[np.double]
+    # p: NDArray[np.double]
+    # num_good_algos: NDArray[np.double]
+    # beta: NDArray[np.bool_]
+    s: pd.Series | None  # type: ignore[type-arg]
+    # uniformity: float | None
 
 
 @dataclass(frozen=True)
