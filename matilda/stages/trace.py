@@ -2,7 +2,6 @@ import math
 import multiprocessing
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
 import numpy as np
 from numpy.typing import NDArray
 from scipy.special import gamma
@@ -11,8 +10,8 @@ from shapely.ops import triangulate, unary_union
 from sklearn.cluster import DBSCAN, HDBSCAN  # this is here due to clients request. I didn't test it yet. do not delete
 import alphashape
 from matilda.data.options import TraceOptions
-from matilda.data.model import Footprint
-
+from matilda.data.model import Footprint, TraceOut
+import pandas as pd
 
 class Trace:
     """A class to manage the TRACE analysis process.
@@ -73,82 +72,70 @@ class Trace:
         self.algo_labels = algo_labels
         self.opts = opts
 
-    def run(self) -> dict[str, list]:
+    def run(self) -> TraceOut:
         """Perform the TRACE footprint analysis.
 
         Returns:
         -------
-        dict:
-            A dictionary containing the analysis results, including the calculated footprints and summary statistics.
+        TraceOut:
+            An instance of TraceOut containing the analysis results, including the calculated footprints and summary statistics.
         """
+        # Determine the number of algorithms being analyzed
         nalgos = self.y_bin.shape[1]
-        true_array: NDArray[np.bool_] = np.array([True for _ in self.y_bin], dtype=np.bool_)
-        # Calculate the space footprint
-        print("  -> TRACE is calculating the space area and density.")
-        out = {"space": self.build(true_array)}
-        print(
-            f'    -> Space area: {out["space"].area} | Space density: {out["space"].density}',
-        )
 
-        # Calculate footprints for good and best performance regions
-        print(
-            "-------------------------------------------------------------------------",
-        )
+        # Create a boolean array where all values are True (used to calculate the space footprint)
+        true_array: NDArray[np.bool_] = np.array([True for _ in self.y_bin], dtype=np.bool_)
+
+        # Calculate the space footprint (area and density)
+        print("  -> TRACE is calculating the space area and density.")
+        space = self.build(true_array)  # Build the footprint for the entire space
+        print(f'    -> Space area: {space.area} | Space density: {space.density}')
+
+        # Prepare to calculate footprints for each algorithm's good and best performance regions
+        print("-------------------------------------------------------------------------")
         print("  -> TRACE is calculating the algorithm footprints.")
+
+        # Determine the number of workers available for parallel processing
         nworkers = self.get_num_workers()
+
+        # Calculate the good and best performance footprints for all algorithms in parallel
         good, best = self.parallel_processing(nworkers, nalgos)
 
-        out["good"] = good
-        out["best"] = best
-
-        # Detect and remove contradictions
-        print(
-            "-------------------------------------------------------------------------",
-        )
-        print(
-            "  -> TRACE is detecting and removing contradictory sections of the footprints.",
-        )
+        # Detect and resolve contradictions between the best performance footprints of each algorithm
+        print("-------------------------------------------------------------------------")
+        print("  -> TRACE is detecting and removing contradictory sections of the footprints.")
         for i in range(nalgos):
             print(f"  -> Base algorithm '{self.algo_labels[i]}'")
-            start_base = time.time()
+            start_base = time.time()  # Track the start time for processing this base algorithm
+
             for j in range(i + 1, nalgos):
-                print(
-                    f"      -> TRACE is comparing '{self.algo_labels[i]}' with '{self.algo_labels[j]}'",
-                )
-                start_test = time.time()
-                algo_1: NDArray[np.bool_] = np.array(
-                    [v == i for v in self.p], dtype=np.bool_,
-                )
-                algo_2: NDArray[np.bool_] = np.array(
-                    [v == j for v in self.p], dtype=np.bool_,
-                )
+                print(f"      -> TRACE is comparing '{self.algo_labels[i]}' with '{self.algo_labels[j]}'")
+                start_test = time.time()  # Track the start time for the comparison
 
-                out["best"][i], out["best"][j] = self.contra(
-                    out["best"][i], out["best"][j], algo_1, algo_2,
-                )
+                # Create boolean arrays indicating which points correspond to each algorithm's best performance
+                algo_1: NDArray[np.bool_] = np.array([v == i for v in self.p], dtype=np.bool_)
+                algo_2: NDArray[np.bool_] = np.array([v == j for v in self.p], dtype=np.bool_)
 
+                # Resolve contradictions between the two compared algorithms' best footprints
+                best[i], best[j] = self.contra(best[i], best[j], algo_1, algo_2)
+
+                # Print the elapsed time for the comparison
                 elapsed_test = time.time() - start_test
-                print(
-                    f"      -> Test algorithm '{self.algo_labels[j]}' completed. Elapsed time: {elapsed_test:.2f}s",
-                )
+                print(f"      -> Test algorithm '{self.algo_labels[j]}' completed. Elapsed time: {elapsed_test:.2f}s")
+
+            # Print the elapsed time for processing this base algorithm
             elapsed_base = time.time() - start_base
-            print(
-                f"  -> Base algorithm '{self.algo_labels[i]}' completed. Elapsed time: {elapsed_base:.2f}s",
-            )
+            print(f"  -> Base algorithm '{self.algo_labels[i]}' completed. Elapsed time: {elapsed_base:.2f}s")
 
-        # Calculate the beta footprint
-        print(
-            "-------------------------------------------------------------------------",
-        )
+        # Calculate the footprint for the beta threshold, which is a stricter performance threshold
+        print("-------------------------------------------------------------------------")
         print("  -> TRACE is calculating the beta-footprint.")
-        out["hard"] = self.build(~self.beta)
+        hard = self.build(~self.beta)  # Build the footprint for instances not meeting the beta threshold
 
-        # Prepare the summary table
-        print(
-            "-------------------------------------------------------------------------",
-        )
+        # Prepare the summary table for all algorithms, which includes various performance metrics
+        print("-------------------------------------------------------------------------")
         print("  -> TRACE is preparing the summary table.")
-        out["summary"] = [
+        summary_data = [
             [
                 "Algorithm",
                 "Area_Good",
@@ -163,22 +150,30 @@ class Trace:
                 "Purity_Best",
             ],
         ]
+
+        # Populate the summary table with metrics for each algorithm's good and best footprints
         for i, label in enumerate(self.algo_labels):
             summary_row = [label]
-            summary_row += self.summary(
-                out["good"][i], out["space"].area, out["space"].density,
-            )
-            summary_row += self.summary(
-                out["best"][i], out["space"].area, out["space"].density,
-            )
-            out["summary"].append(summary_row)
+            summary_row += self.summary(good[i], space.area, space.density)  # Add good performance metrics
+            summary_row += self.summary(best[i], space.area, space.density)  # Add best performance metrics
+            summary_data.append(summary_row)
 
+        # Convert the summary data into a pandas DataFrame for better organization and readability
+        summary_df = pd.DataFrame(summary_data[1:], columns=summary_data[0])
+
+        # Print the completed summary of the TRACE analysis
         print("  -> TRACE has completed. Footprint analysis results:")
         print(" ")
-        for row in out["summary"]:
-            print(row)
+        print(summary_df)
 
-        return out
+        # Return the results as a TraceOut dataclass instance
+        return TraceOut(
+            space=space,
+            good=good,
+            best=best,
+            hard=hard,
+            summary=summary_df
+        )
 
     def build(self, y_bin: NDArray[np.bool_]) -> Footprint:
         """Construct a footprint polygon using DBSCAN clustering.
