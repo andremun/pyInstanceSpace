@@ -1,4 +1,4 @@
-import stage
+from matilda.stages.stage import Stage
 
 import numpy as np
 import pandas as pd
@@ -11,7 +11,7 @@ from scipy.stats import pearsonr
 from matilda.data.model import PilotDataChanged, PilotOut
 from matilda.data.options import PilotOptions
 
-class pilotStage(stage):
+class pilotStage(Stage):
     def __init__(self, x: NDArray[np.double],
         y: NDArray[np.double],
         feat_labels: list[str]) -> None:
@@ -394,7 +394,7 @@ class pilotStage(stage):
         for i in range(opts.n_tries):
             initial_guess = x0[:, i]
             result = optim.fmin_bfgs(
-                Pilot.error_function,
+                pilotStage.error_function,
                 initial_guess,
                 args=(x_bar, n, m),
                 full_output=True,

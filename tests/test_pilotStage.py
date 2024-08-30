@@ -96,13 +96,13 @@ def test_run_analytic() -> None:
     feat_labels_sample = sd.feat_labels_sample
     opts = PilotOptions(True, 5)
     pilot = pilotStage(x_sample, y_sample, feat_labels_sample)
-    result = pilot._run(opts)
+    result = pilot.pilot(x_sample, y_sample, feat_labels_sample, opts)
 
-    a = result.a
-    b = result.b
-    c = result.c
-    z = result.z
-    error = result.error
+    a = result[4]
+    b = result[7]
+    c = result[6]
+    z = result[5]
+    error = result[8]
 
     np.testing.assert_almost_equal(abs(a), abs(mtr.data["A"]), decimal=6)
     np.testing.assert_almost_equal(abs(b), abs(mtr.data["B"]), decimal=6)
@@ -122,9 +122,9 @@ def test_run_numerical() -> None:
     opts_sample = sd.opts_sample
     opts = PilotOptions(opts_sample.analytic, opts_sample.n_tries)
     pilot = pilotStage(x_sample, y_sample, feat_labels_sample)
-    result = pilot._run(opts)
-    eoptim = result.eoptim
-    perf = result.perf
+    result = pilot.pilot(x_sample, y_sample, feat_labels_sample, opts)
+    eoptim = result[2]
+    perf = result[3]
 
     if eoptim is not None and perf is not None:
         np.testing.assert_almost_equal(eoptim, mtr.data["eoptim"][0], decimal=6)
