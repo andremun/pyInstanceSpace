@@ -95,14 +95,14 @@ class Preprocessing:
             after_process.y,
             prelim_opts,
         )
-        """
 
         # These should be a part of FILTRER, leave it not delete
 
-        """bad_instances_removed = Preprocessing.remove_bad_instances(
+        bad_instances_removed = Preprocessing.remove_bad_instances(
             prelim_data.merge_with(data),
         )
-        # Preprocessing.split_data(bad_instances_removed, opts, model)"""
+        # Preprocessing.split_data(bad_instances_removed, opts, model)
+        """
 
         return pre_data_changed, preprocess_out
 
