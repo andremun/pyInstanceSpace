@@ -14,13 +14,10 @@ def test_trace_pythia():
 
     # Reading y_bin from y_bin.csv
     y_bin = np.genfromtxt('test_data/trace_csvs/yhat.csv', delimiter=',', dtype=np.int8).astype(np.bool_)
-    y_bin2 = np.genfromtxt('test_data/trace_csvs/yhat2.csv', delimiter=',', dtype=np.int8).astype(np.bool_)
 
     # Reading p from p.csv
     p = np.genfromtxt('test_data/trace_csvs/selection0.csv', delimiter=',', dtype=np.integer)
-    p2 = np.genfromtxt('test_data/trace_csvs/dataP.csv', delimiter=',', dtype=np.integer)
     p = p - 1
-    p2 = p2 - 1
     # Reading beta from beta.csv
     beta = np.genfromtxt('test_data/trace_csvs/beta.csv', delimiter=',', dtype=np.int8).astype(np.bool_)
 
@@ -38,13 +35,10 @@ def test_trace_simulation():
     z = np.genfromtxt('test_data/trace_csvs/Z.csv', delimiter=',', dtype=np.double)
 
     # Reading y_bin from y_bin.csv
-    y_bin = np.genfromtxt('test_data/trace_csvs/yhat.csv', delimiter=',', dtype=np.int8).astype(np.bool_)
     y_bin2 = np.genfromtxt('test_data/trace_csvs/yhat2.csv', delimiter=',', dtype=np.int8).astype(np.bool_)
 
     # Reading p from p.csv
-    p = np.genfromtxt('test_data/trace_csvs/selection0.csv', delimiter=',', dtype=np.integer)
     p2 = np.genfromtxt('test_data/trace_csvs/dataP.csv', delimiter=',', dtype=np.integer)
-    p = p - 1
     p2 = p2 - 1
     # Reading beta from beta.csv
     beta = np.genfromtxt('test_data/trace_csvs/beta.csv', delimiter=',', dtype=np.int8).astype(np.bool_)

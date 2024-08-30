@@ -2,15 +2,13 @@ import math
 import multiprocessing
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import matplotlib.pyplot as plt
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.spatial import ConvexHull
 from scipy.special import gamma
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
 from shapely.ops import triangulate, unary_union
-from sklearn.cluster import DBSCAN, HDBSCAN
+from sklearn.cluster import DBSCAN, HDBSCAN  # this is here due to clients request. I didn't test it yet. do not delete
 import alphashape
 from matilda.data.options import TraceOptions
 from matilda.data.model import Footprint
@@ -83,7 +81,6 @@ class Trace:
         dict:
             A dictionary containing the analysis results, including the calculated footprints and summary statistics.
         """
-        ninst, ncol = self.z.shape
         nalgos = self.y_bin.shape[1]
         true_array: NDArray[np.bool_] = np.array([True for _ in self.y_bin], dtype=np.bool_)
         # Calculate the space footprint
@@ -207,9 +204,9 @@ class Trace:
             footprint = self.throw()
             return footprint
 
-        footprint = Footprint()
         labels = self.run_dbscan(y_bin, unique_rows)
         flag = False
+        polygon_body = None
         for i in range(0, np.max(labels) + 1):
             polydata = unique_rows[labels == i]
 
@@ -218,23 +215,22 @@ class Trace:
             aux = self.fit_poly(polydata, y_bin)
             if aux:
                 if not flag:
-                    footprint.polygon = aux
+                    polygon_body = aux
                     flag = True
                 else:
-                    footprint.polygon = footprint.polygon.union(aux)
+                    polygon_body = polygon_body.union(aux)
 
-        if footprint.polygon is None:
+        if polygon_body is None:
             return self.throw()
         else:
-            footprint.polygon = footprint.polygon.buffer(0.01).buffer(-0.01)
-            footprint.area = footprint.polygon.area
-            footprint.elements = np.sum([footprint.polygon.contains(point) for point in MultiPoint(self.z).geoms])
-            footprint.good_elements = np.sum(
-                [footprint.polygon.contains(point) for point in MultiPoint(self.z[y_bin]).geoms],
-            )
-            footprint.density = footprint.elements / footprint.area
-            footprint.purity = footprint.good_elements / footprint.elements
-            return footprint
+            polygon_body.buffer(0.01).buffer(-0.01)
+            elements = np.sum([polygon_body.contains(point) for point in MultiPoint(self.z).geoms])
+            good_elements = np.sum(
+                [polygon_body.contains(point) for point in MultiPoint(self.z[y_bin]).geoms])
+
+            density = elements / polygon_body.area
+            purity = good_elements / elements
+            return Footprint(polygon_body, polygon_body.area, elements, good_elements, density, purity)
 
     def contra(
         self,
@@ -264,9 +260,12 @@ class Trace:
         if base.polygon is None or test.polygon is None:
             return base, test
 
+        base_polygon = base.polygon
+        test_polygon = test.polygon
+
         max_tries = 3
         num_tries = 1
-        contradiction = base.polygon.intersection(test.polygon)
+        contradiction = base_polygon.intersection(test_polygon)
 
         while not contradiction.is_empty and num_tries <= max_tries:
             num_elements = np.sum(
@@ -283,21 +282,21 @@ class Trace:
             purity_test = num_good_elements_test / num_elements
 
             if purity_base > purity_test:
-                c_area = contradiction.area / test.polygon.area
+                c_area = contradiction.area / test_polygon.area
                 print(
                     f"        -> {round(100 * c_area, 1)}% of the test footprint is contradictory.",
                 )
-                test.polygon = test.polygon.difference(contradiction)
+                test_polygon = test_polygon.difference(contradiction)
                 if num_tries < max_tries:
-                    test.polygon = self.tight(test.polygon, y_test)
+                    test_polygon = self.tight(test_polygon, y_test)
             elif purity_test > purity_base:
-                c_area = contradiction.area / base.polygon.area
+                c_area = contradiction.area / base_polygon.area
                 print(
                     f"        -> {round(100 * c_area, 1)}% of the base footprint is contradictory.",
                 )
-                base.polygon = base.polygon.difference(contradiction)
+                base_polygon = base_polygon.difference(contradiction)
                 if num_tries < max_tries:
-                    base.polygon = self.tight(base.polygon, y_base)
+                    base_polygon = self.tight(base_polygon, y_base)
             else:
                 print(
                     "        -> Purity of the contradicting areas is equal for both footprints.",
@@ -305,38 +304,38 @@ class Trace:
                 print("        -> Ignoring the contradicting area.")
                 break
 
-            if base.polygon.is_empty or test.polygon.is_empty:
+            if base_polygon.is_empty or test_polygon.is_empty:
                 break
             else:
-                contradiction = base.polygon.intersection(test.polygon)
+                contradiction = base_polygon.intersection(test_polygon)
 
             num_tries += 1
 
-        if base.polygon.is_empty:
+        if base_polygon.is_empty:
             base = self.throw()
         else:
-            base.area = base.polygon.area
-            base.elements = np.sum(
-                [base.polygon.contains(point) for point in MultiPoint(self.z).geoms],
+            elements = np.sum(
+                [base_polygon.contains(point) for point in MultiPoint(self.z).geoms],
             )
-            base.good_elements = np.sum(
-                [base.polygon.contains(point) for point in MultiPoint(self.z[y_base]).geoms],
+            good_elements = np.sum(
+                [base_polygon.contains(point) for point in MultiPoint(self.z[y_base]).geoms],
             )
-            base.density = base.elements / base.area
-            base.purity = base.good_elements / base.elements
+            density = elements / base_polygon.area
+            purity = good_elements / elements
+            base = Footprint(base_polygon, base_polygon.area, elements, good_elements, density, purity)
 
-        if test.polygon.is_empty:
+        if test_polygon.is_empty:
             test = self.throw()
         else:
-            test.area = test.polygon.area
-            test.elements = np.sum(
-                [test.polygon.contains(point) for point in MultiPoint(self.z).geoms],
+            elements = np.sum(
+                [test_polygon.contains(point) for point in MultiPoint(self.z).geoms],
             )
-            test.good_elements = np.sum(
-                [test.polygon.contains(point) for point in MultiPoint(self.z[y_test]).geoms],
+            good_elements = np.sum(
+                [test_polygon.contains(point) for point in MultiPoint(self.z[y_test]).geoms],
             )
-            test.density = test.elements / test.area
-            test.purity = test.good_elements / test.elements
+            density = elements / test_polygon.area
+            purity = good_elements / elements
+            test = Footprint(test_polygon, test_polygon.area, elements, good_elements, density, purity)
 
         return base, test
 
@@ -361,7 +360,7 @@ class Trace:
             return None
 
         splits = (
-            [item for item in polygon]
+            [item for item in polygon.geoms]
             if isinstance(polygon, MultiPolygon)
             else [polygon]
         )
@@ -445,14 +444,14 @@ class Trace:
             A list containing summarized metrics such as area, normalized area, density, normalized density, and purity.
         """
         area = footprint.area if footprint.area is not None else 0
-        normalised_area = area / space_area \
+        normalised_area = float(area / space_area) \
             if ((space_area is not None) and (space_area != 0)) \
-            else footprint.area
-        density = footprint.density if footprint.density is not None else 0
-        normalised_density = density / space_density \
+            else float(area)
+        density = int(footprint.density) if footprint.density is not None else 0
+        normalised_density = float(density / space_density) \
             if ((space_density is not None) and (space_density != 0)) \
-            else footprint.density
-        purity = footprint.purity
+            else float(footprint.density)
+        purity = float(footprint.purity)
 
         out = [
             area,
@@ -461,7 +460,7 @@ class Trace:
             normalised_density,
             purity
         ]
-        out = [element if element is not None else 0 for element in out]
+        out = [element if ((element is not None) and (not np.isnan(element))) else 0 for element in out]
         return out
 
     def throw(self) -> Footprint:
@@ -474,7 +473,7 @@ class Trace:
         """
         print("        -> There are not enough instances to calculate a footprint.")
         print("        -> The subset of instances used is too small.")
-        return Footprint()
+        return Footprint(None, 0, 0, 0, 0, 0)
 
     def run_dbscan(self, y_bin, data: NDArray[np.double]) -> NDArray[np.int_]:
         """Perform DBSCAN clustering on the dataset.
@@ -576,8 +575,8 @@ class Trace:
         Tuple[List[Footprint], List[Footprint]]:
             Lists of good and best performance footprints for each algorithm.
         """
-        good: list[Footprint] = [Footprint() for _ in range(nalgos)]
-        best: list[Footprint] = [Footprint() for _ in range(nalgos)]
+        good: list[Footprint | None] = [None for _ in range(nalgos)]
+        best: list[Footprint | None] = [None for _ in range(nalgos)]
         with ThreadPoolExecutor(max_workers=nworkers) as executor:
             futures = [
                 executor.submit(self.process_algorithm, i) for i in range(nalgos)

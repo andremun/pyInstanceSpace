@@ -235,7 +235,7 @@ class PythiaDataChanged:
 
 
 
-@dataclass(frozen= False)
+@dataclass(frozen= True)
 class Footprint:
     """A class to represent a footprint with geometric and statistical properties.
 
@@ -254,20 +254,13 @@ class Footprint:
     purity : float
         The purity of "good" elements in relation to all elements in the footprint.
     """
-    polygon: Polygon
+    polygon: Polygon | None
     area: float
     elements: int
     good_elements: int
     density: float
     purity: float
 
-    def __init__(self, polygon: Polygon = None):
-        self.polygon = polygon if polygon else None
-        self.area = self.polygon.area if polygon else None
-        self.elements = 0
-        self.good_elements = 0
-        self.density = 0
-        self.purity = 0
 
 
 @dataclass(frozen=True)
