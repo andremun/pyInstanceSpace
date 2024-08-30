@@ -1,8 +1,9 @@
 import csv
-import pandas as pd
+
 import numpy as np
-from matilda.pythia_tao import pythia
+
 from matilda.data.option import *
+from matilda.pythia_tao import pythia
 
 CSV_Z = "pythia/test_pythia_input/z_M.csv"
 CSV_Y = "pythia/test_pythia_input/y.csv"

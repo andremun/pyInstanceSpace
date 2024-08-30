@@ -14,8 +14,11 @@ def script_csv(model: Model, rootdir: str) -> None:
     """
     Export and save the data from a Model object into CSV files.
 
-    :param model: The Model object containing the data to be exported.
-    :param rootdir: The root directory where the CSV files will be saved.
+    Args:
+    ----
+        model: The Model object containing the data to be exported.
+        rootdir: The root directory where the CSV files will be saved.
+
     """
     # TODO: Transcripte scriptcsv into python
     raise NotImplementedError

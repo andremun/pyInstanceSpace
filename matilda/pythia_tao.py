@@ -1,13 +1,11 @@
 # Import all the necessary libraries
-import numpy as np
-import pandas as pd
 import multiprocessing
 
+import numpy as np
 from numpy.typing import NDArray
 from pytictoc import TicToc
-
-from sklearn.model_selection import StratifiedKFold, GridSearchCV
 from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.svm import SVC
 
 from matilda.data.model import AlgorithmSummary
@@ -51,13 +49,13 @@ def pythia(
     else:
         if ninst > 1000:
             print(
-                "  -> For datasets larger than 1K Instances, PYTHIA works better with a Polynomial kernel."
+                "  -> For datasets larger than 1K Instances, PYTHIA works better with a Polynomial kernel.",
             )
             print(
-                "  -> Consider changing the kernel if the results are unsatisfactory."
+                "  -> Consider changing the kernel if the results are unsatisfactory.",
             )
             print(
-                "-------------------------------------------------------------------------"
+                "-------------------------------------------------------------------------",
             )
         kernel_fcn = "gaussian"
     print(" => PYTHIA is using a " + kernel_fcn + " kernel")
@@ -71,7 +69,7 @@ def pythia(
             params = opts.params
         else:
             print(
-                " -> Search on a latin hyper-cube design will be used for parameter hyper-tunning."
+                " -> Search on a latin hyper-cube design will be used for parameter hyper-tunning.",
             )
     else:
         print(" -> Using MATLAB's SVM libraries.")
@@ -82,7 +80,7 @@ def pythia(
         else:
             print(" -> Bayesian Optimization will be used for parameter hyper-tunning.")
         print(
-            "-------------------------------------------------------------------------"
+            "-------------------------------------------------------------------------",
         )
 
         if opts.use_weights:
@@ -99,7 +97,7 @@ def pythia(
     print(
         "  -> Using a "
         + str(opts.cv_folds)
-        + "-fold stratified cross-validation experiment to evaluate the SVMs."
+        + "-fold stratified cross-validation experiment to evaluate the SVMs.",
     )
     print("-------------------------------------------------------------------------")
     print("  -> Training has started. PYTHIA may take a while to complete...")
@@ -153,7 +151,7 @@ def pythia(
             + algo_labels[i]
             + ", there are "
             + str(models_left)
-            + " models left to train."
+            + " models left to train.",
         )
         print("    -> Elapsed time: " + t_inner.tocvalue() + "s")
 
@@ -168,12 +166,12 @@ def pythia(
     print(
         " -> The average cross validated precision is: "
         + np.round(100 * np.mean(precision), 1)
-        + "%"
+        + "%",
     )
     print(
         " -> The average cross validated accuracy is: "
         + np.round(100 * np.mean(accuracy), 1)
-        + "%"
+        + "%",
     )
     print("    -> Elapsed time: " + t.tocvalue() + "s")
     print("-------------------------------------------------------------------------")
@@ -197,9 +195,9 @@ def pythia(
     stdperf = np.nanstd(y)
     y_full = y.copy()
     y_svms = y.copy()
-    y[~sel0] = np.NaN
-    y_full[~sel1] = np.NaN
-    y_svms[~y_hat] = np.NaN
+    y[~sel0] = np.nan
+    y_full[~sel1] = np.nan
+    y_svms[~y_hat] = np.nan
 
     pgood = np.mean(np.any(y_bin & sel1, axis=1))
     fb = np.sum(np.any(y_bin & ~sel0, axis=1))

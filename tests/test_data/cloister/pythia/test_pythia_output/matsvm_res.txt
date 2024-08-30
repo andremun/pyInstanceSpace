@@ -1,0 +1,76 @@
+
+   Result of MATLAB:
+   --------precision----------
+    0.8692
+    0.8500
+    0.7200
+    0.9597
+    0.9419
+    0.9419
+    0.9536
+    0.8814
+    0.9597
+    0.9073
+-----------------------------
+Version 1:
+[0.9389313  
+0.84285714 
+0.7125     
+0.96621622 
+0.95394737 
+0.94736842
+0.96       
+0.88596491 
+0.96575342 
+0.93706294
+---------------
+[0.86923077 0.85815603 0.71428571 0.95918367 0.94736842 0.94736842
+ 0.95973154 0.88135593 0.98648649 0.93877551]
+ ---------------3
+ [0.86259542 0.85714286 0.72972973 0.95945946 0.94155844 0.9483871
+ 0.95973154 0.88793103 0.98657718 0.93877551]
+
+ ---------------4 with CCCv to retrain
+ [0.86259542 0.85815603 0.76056338 0.94666667 0.93630573 0.93670886
+ 0.96       0.87931034 0.97986577 0.93877551]
+
+--------------- 5 with standard scaler
+[0.86259542 0.85714286 0.75714286 0.95945946 0.94155844 0.94230769
+ 0.95973154 0.88793103 0.98657718 0.93877551]
+
+ -------- k fold
+ [0.8359375  0.875      0.75       0.77456647 0.97727273 1.
+ 0.98425197 0.88073394 0.72928177 0.8976378 ]
+
+Mean Accuracy for this al is:  0.8246954595791806
+Mean Accuracy for this al is:  0.8199335548172758
+Mean Accuracy for this al is:  0.7960132890365449
+Mean Accuracy for this al is:  0.9148394241417497
+Mean Accuracy for this al is:  0.8959025470653377
+Mean Accuracy for this al is:  0.9242524916943522
+Mean Accuracy for this al is:  0.9098560354374307
+Mean Accuracy for this al is:  0.866998892580288
+Mean Accuracy for this al is:  0.9192691029900331
+Mean Accuracy for this al is:  0.8624584717607974
+
+Mean Accuracy for this al is:  0.8294573643410853
+Mean Accuracy for this al is:  0.8294573643410853
+Mean Accuracy for this al is:  0.8007751937984496
+Mean Accuracy for this al is:  0.9243632336655592
+Mean Accuracy for this al is:  0.8912513842746399
+Mean Accuracy for this al is:  0.9289036544850499
+Mean Accuracy for this al is:  0.9098560354374307
+Mean Accuracy for this al is:  0.866998892580288
+Mean Accuracy for this al is:  0.9192691029900331
+Mean Accuracy for this al is:  0.8624584717607974
+
+Mean Accuracy for this al is:  0.8192691029900331
+Mean Accuracy for this al is:  0.8192691029900333
+Mean Accuracy for this al is:  0.7534883720930232
+Mean Accuracy for this al is:  0.9192691029900333
+Mean Accuracy for this al is:  0.8954595791805093
+Mean Accuracy for this al is:  0.9004429678848282
+Mean Accuracy for this al is:  0.9241417497231451
+Mean Accuracy for this al is:  0.8719822812846069
+Mean Accuracy for this al is:  0.9287929125138428
+Mean Accuracy for this al is:  0.8623477297895903

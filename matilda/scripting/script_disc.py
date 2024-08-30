@@ -9,11 +9,15 @@ users are aware of the terms under which the software is provided and how to
 properly acknowledge its use.
 """
 
+
 def script_disc(filename: str) -> None:
     """
     Display software disclaimer and citation information.
 
-    :param filename: Name of the file or software being described.
+    Args:
+    ----
+        filename: Name of the file or software being described.
+
     """
     print("-" * 73)
     print()

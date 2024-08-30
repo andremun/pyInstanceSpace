@@ -1,23 +1,12 @@
-import scipy
+
 import numpy as np
-import csv
 import pandas as pd
-from numpy.typing import NDArray
-from scipy.stats import zscore,qmc
-from pytictoc import TicToc
-from scipy import optimize, stats
-from sklearn.model_selection import GridSearchCV, StratifiedKFold, KFold, PredefinedSplit
-from sklearn.calibration import CalibratedClassifierCV
-from sklearn.metrics import confusion_matrix
-from sklearn.svm import SVC
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+import scipy
 from pyDOE import lhs
-from scipy.stats import zscore,qmc
+from scipy import stats
 
 print(scipy.__version__)
 print(scipy.__version__)
-from pyDOE import lhs
 ninst = 212
 maxgrid = 4
 mingrid = -10
@@ -43,3 +32,5 @@ print(paramgrid)
 # paramgrid = paramgrid[np.lexsort((paramgrid[:, 0], paramgrid[:, 1]))]
 print(paramgrid)
 # print(paramgrid)
+params = np.full((10, 2), np.nan)
+print(params)
