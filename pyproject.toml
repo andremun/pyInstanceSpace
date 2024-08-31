@@ -19,11 +19,13 @@ click = "^8.1.7"
 black = "^24.4.2"
 scipy = "^1.13.0"
 pygad = "^3.3.1"
+shapely = "^2.0.5"
+matplotlib = "^3.9.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.1"
 poethepoet = "^0.25.0"
-ruff = "^0.3.4"
+ruff = "^0.5.1"
 mypy = "^1.9.0"
 pdoc = "^14.4.0"
 docconvert = "^2.1.0"
@@ -166,6 +168,7 @@ module = [
     'scipy.stats',
     'scipy.spatial',
     'scipy.spatial.distance',
+    'shapely.geometry',
     'scipy.linalg',
     'scipy.optimize',
     'scipy.io',

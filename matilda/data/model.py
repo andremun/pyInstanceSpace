@@ -12,8 +12,7 @@ from typing import Any, Generic, TypeVar
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-
-from matilda.data.options import InstanceSpaceOptions
+from shapely.geometry import Polygon
 
 
 @dataclass(frozen=True)
@@ -45,13 +44,6 @@ class StageState(Generic[T]):
 
     data: Data
     out: T
-
-
-@dataclass(frozen=True)
-class FeatSel:
-    """Holds indices for feature selection."""
-
-    idx: NDArray[np.intc]
 
 
 @dataclass(frozen=True)
@@ -170,7 +162,7 @@ class PilotOut:
     c: NDArray[np.double]
     b: NDArray[np.double]
     error: NDArray[np.double]  # or just the double
-    r2: NDArray[np.float16] | None
+    r2: NDArray[np.double]
     summary: pd.DataFrame
 
 
@@ -249,24 +241,45 @@ class PythiaDataChanged:
 
 
 @dataclass(frozen=True)
-class PolyShape:
-    """Represent Polygon shape for footprint."""
-
-    # polyshape is the builtin Matlab Data structure,
-    # may find a similar one in python
-    pass
-
-
-@dataclass(frozen=True)
 class Footprint:
-    """Represent the geometric and quality attributes of a spatial footprint."""
+    """A class to represent a footprint with geometric and statistical properties.
 
-    polygon: PolyShape
+    Attributes:
+    ----------
+    polygon : Polygon
+        The geometric shape of the footprint.
+    area : float
+        The area of the footprint.
+    elements : int
+        The number of data points within the footprint.
+    good_elements : int
+        The number of "good" data points within the footprint (as defined by specific
+        criteria).
+    density : float
+        The density of points within the footprint.
+    purity : float
+        The purity of "good" elements in relation to all elements in the footprint.
+    """
+
+    polygon: Polygon
     area: float
-    elements: float
-    good_elements: float
+    elements: int
+    good_elements: int
     density: float
     purity: float
+
+    def __init__(self, polygon: Polygon) -> None:
+        """Initialise a Footprint."""
+        # This is a kinda hacky way to get around the frozen problem.
+        # A nicer way would be a static method to construct it from a polygon rust style
+        # from_polygon().
+
+        object.__setattr__(self, "polygon", polygon if polygon else None)
+        object.__setattr__(self, "area", self.polygon.area if polygon else None)
+        object.__setattr__(self, "elements", 0)
+        object.__setattr__(self, "good_elements", 0)
+        object.__setattr__(self, "density", 0)
+        object.__setattr__(self, "purity", 0)
 
 
 @dataclass(frozen=True)
@@ -289,23 +302,3 @@ class TraceDataChanged:
     def merge_with(self, data: Data) -> Data:
         """Merge changed fields of data with a Data object."""
         raise NotImplementedError
-
-
-@dataclass(frozen=True)
-class Model:
-    """Contain data and output.
-
-    Combines all components into a full model representation, including data and
-    analysis results.
-    """
-
-    data: Data
-    data_dense: Data
-    feat_sel: FeatSel
-    prelim: PrelimOut
-    sifted: SiftedOut
-    pilot: PilotOut
-    cloist: CloisterOut
-    pythia: PythiaOut
-    trace: TraceOut
-    opts: InstanceSpaceOptions
