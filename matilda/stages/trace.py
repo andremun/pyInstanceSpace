@@ -1,5 +1,4 @@
-"""
-A class to manage the TRACE analysis process for performance footprints.
+"""A class to manage the TRACE analysis process for performance footprints.
 
 The TRACE class is designed to analyze the performance of different algorithms by
 generating geometric footprints that represent areas of good, best, and beta
@@ -14,7 +13,7 @@ z : NDArray[np.double]
 y_bin : NDArray[np.bool_]
     Binary indicators of performance, where each column corresponds to an
     algorithm's performance.
-p : NDArray[np.integer]
+p : NDArray[np.int_]
     Performance metrics for algorithms, represented as integers where each value
     corresponds to the index of an algorithm.
 beta : NDArray[np.bool_]
@@ -30,7 +29,7 @@ Methods:
 __init__(self) -> None:
     Initializes the Trace class without any parameters.
 
-run(self, z: NDArray[np.double], y_bin: NDArray[np.bool_], p: NDArray[np.integer],
+run(self, z: NDArray[np.double], y_bin: NDArray[np.bool_], p: NDArray[np.int_],
     beta: NDArray[np.bool_], algo_labels: list[str], opts: TraceOptions)
     -> tuple[TraceDataChanged, TraceOut]:
     Performs the TRACE footprint analysis and returns the results, including
@@ -102,7 +101,7 @@ class Trace:
 
     z: NDArray[np.double]
     y_bin: NDArray[np.bool_]
-    p: NDArray[np.integer]
+    p: NDArray[np.int_]
     beta: NDArray[np.bool_]
     algo_labels: list[str]
     opts: TraceOptions
@@ -114,7 +113,7 @@ class Trace:
         self,
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
-        p: NDArray[np.integer],
+        p: NDArray[np.int_],
         beta: NDArray[np.bool_],
         algo_labels: list[str],
         opts: TraceOptions,
@@ -156,7 +155,8 @@ class Trace:
 
         # Create a boolean array to calculate the space footprint
         true_array: NDArray[np.bool_] = np.array(
-            [True for _ in self.y_bin], dtype=np.bool_,
+            [True for _ in self.y_bin],
+            dtype=np.bool_,
         )
 
         # Calculate the space footprint (area and density)
@@ -201,10 +201,12 @@ class Trace:
                 # Create boolean arrays indicating which points correspond
                 # to each algorithm's best performance
                 algo_1: NDArray[np.bool_] = np.array(
-                    [v == i for v in self.p], dtype=np.bool_,
+                    [v == i for v in self.p],
+                    dtype=np.bool_,
                 )
                 algo_2: NDArray[np.bool_] = np.array(
-                    [v == j for v in self.p], dtype=np.bool_,
+                    [v == j for v in self.p],
+                    dtype=np.bool_,
                 )
 
                 # Resolve contradictions between the compared algorithms'  footprints
@@ -261,10 +263,14 @@ class Trace:
         for i, label in enumerate(self.algo_labels):
             summary_row = [label]
             summary_row += self.summary(
-                good[i], space.area, space.density,
+                good[i],
+                space.area,
+                space.density,
             )  # Add good performance metrics
             summary_row += self.summary(
-                best[i], space.area, space.density,
+                best[i],
+                space.area,
+                space.density,
             )  # Add the best performance metrics
             summary_data.append(summary_row)
 
@@ -319,17 +325,16 @@ class Trace:
                 else:
                     polygon_body = polygon_body.union(aux)
 
-        return Footprint.from_polygon(polygon=polygon_body,
-                                      z=self.z,
-                                      y_bin=y_bin,
-                                      smoothen=True)
+        return Footprint.from_polygon(
+            polygon=polygon_body, z=self.z, y_bin=y_bin, smoothen=True,
+        )
 
     def contra(
-            self,
-            base: Footprint,
-            test: Footprint,
-            y_base: NDArray[np.bool_],
-            y_test: NDArray[np.bool_],
+        self,
+        base: Footprint,
+        test: Footprint,
+        y_base: NDArray[np.bool_],
+        y_test: NDArray[np.bool_],
     ) -> tuple[Footprint, Footprint]:
         """Detect and resolve contradictions between two footprint polygons.
 
@@ -412,19 +417,15 @@ class Trace:
 
             num_tries += 1
 
-        base = Footprint.from_polygon(polygon=base_polygon,
-                                      z=self.z,
-                                      y_bin=y_base)
-        test = Footprint.from_polygon(polygon=test_polygon,
-                                      z=self.z,
-                                      y_bin=y_test)
+        base = Footprint.from_polygon(polygon=base_polygon, z=self.z, y_bin=y_base)
+        test = Footprint.from_polygon(polygon=test_polygon, z=self.z, y_bin=y_test)
 
         return base, test
 
     def tight(
-            self,
-            polygon: Polygon | MultiPolygon,
-            y_bin: NDArray[np.bool_],
+        self,
+        polygon: Polygon | MultiPolygon,
+        y_bin: NDArray[np.bool_],
     ) -> Polygon | None:
         """Refine an existing polygon by removing slivers and improving its shape.
 
@@ -472,9 +473,9 @@ class Trace:
         return None
 
     def fit_poly(
-            self,
-            polydata: NDArray[np.double],
-            y_bin: NDArray[np.bool_],
+        self,
+        polydata: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
     ) -> Polygon | None:
         """Fit a polygon to the given data points, following the purity constraints.
 
@@ -504,12 +505,13 @@ class Trace:
             tri = triangulate(polygon)
             for piece in tri:
                 elements = np.sum(
-                    [piece.contains(point)
-                     for point in MultiPoint(self.z).geoms],
+                    [piece.contains(point) for point in MultiPoint(self.z).geoms],
                 )
                 good_elements = np.sum(
-                    [piece.contains(point)
-                     for point in MultiPoint(self.z[y_bin]).geoms],
+                    [
+                        piece.contains(point)
+                        for point in MultiPoint(self.z[y_bin]).geoms
+                    ],
                 )
                 if (good_elements / elements) < self.opts.purity:
                     polygon = polygon.difference(piece)
@@ -517,10 +519,10 @@ class Trace:
         return polygon
 
     def summary(
-            self,
-            footprint: Footprint,
-            space_area: float,
-            space_density: float,
+        self,
+        footprint: Footprint,
+        space_area: float,
+        space_density: float,
     ) -> list[float]:
         """Summarize the footprint metrics.
 
@@ -572,7 +574,9 @@ class Trace:
         return Footprint(None, 0, 0, 0, 0, 0)
 
     def run_dbscan(
-            self, y_bin: NDArray[np.bool_], data: NDArray[np.double],
+        self,
+        y_bin: NDArray[np.bool_],
+        data: NDArray[np.double],
     ) -> NDArray[np.int_]:
         """Perform DBSCAN clustering on the dataset.
 
@@ -601,12 +605,13 @@ class Trace:
         gamma_val = gamma(0.5 * n + 1)
 
         # Compute Eps
-        eps = ((product_ranges * nn * gamma_val) /
-               (m * math.sqrt(math.pi ** n))) ** (1 / n)
+        eps = ((product_ranges * nn * gamma_val) / (m * math.sqrt(math.pi**n))) ** (
+            1 / n
+        )
 
-        return DBSCAN(eps=eps,
-                      min_samples=int(nn),
-                      metric="euclidean").fit_predict(data)
+        return DBSCAN(eps=eps, min_samples=int(nn), metric="euclidean").fit_predict(
+            data,
+        )
 
     def process_algorithm(self, i: int) -> tuple[int, Footprint, Footprint]:
         """Process an algorithm to calculate its good and best performance footprints.
@@ -627,7 +632,8 @@ class Trace:
 
         print(f"    -> Best performance footprint for '{self.algo_labels[i]}'")
         bool_array: NDArray[np.bool_] = np.array(
-            [v == i for v in self.p], dtype=np.bool_,
+            [v == i for v in self.p],
+            dtype=np.bool_,
         )
         best_performance = self.build(bool_array)
 
@@ -640,9 +646,9 @@ class Trace:
         return i, good_performance, best_performance
 
     def parallel_processing(
-            self,
-            n_workers: int,
-            n_algos: int,
+        self,
+        n_workers: int,
+        n_algos: int,
     ) -> tuple[list[Footprint], list[Footprint]]:
         """Perform parallel processing to calculate footprints for multiple algorithms.
 
@@ -662,8 +668,7 @@ class Trace:
         best: list[Footprint | None] = [None for _ in range(n_algos)]
         with ThreadPoolExecutor(max_workers=n_workers) as executor:
             futures = [
-                executor.submit(self.process_algorithm, i)
-                for i in range(n_algos)
+                executor.submit(self.process_algorithm, i) for i in range(n_algos)
             ]
             for future in as_completed(futures):
                 i: int
@@ -676,10 +681,10 @@ class Trace:
         return good, best
 
     def compute_footprint(
-            self,
-            polygon: Polygon,
-            y_bin: NDArray[np.bool_],
-            smoothen: bool = False,
+        self,
+        polygon: Polygon,
+        y_bin: NDArray[np.bool_],
+        smoothen: bool = False,
     ) -> Footprint:
         """Create a Footprint object based on the given polygon.
 
@@ -719,5 +724,3 @@ class Trace:
             density=density,
             purity=purity,
         )
-
-

@@ -6,6 +6,7 @@ This module contains two test functions: `test_trace_pythia` and
 Each function reads in algorithm labels and various datasets, runs the TRACE analysis,
 and evaluates the performance footprints for different algorithms.
 """
+
 from pathlib import Path
 
 import numpy as np
@@ -37,24 +38,28 @@ def test_trace_pythia() -> None:
         algo_labels = f.read().split(",")
 
     # Reading instance space from Z.csv
-    z = np.genfromtxt("test_data/trace_csvs/Z.csv",
-                      delimiter=",",
-                      dtype=np.double)
+    z = np.genfromtxt("test_data/trace_csvs/Z.csv", delimiter=",", dtype=np.double)
 
     # Reading binary performance indicators from y_bin.csv
     y_bin = np.genfromtxt(
-        "test_data/trace_csvs/yhat.csv", delimiter=",", dtype=np.int8,
+        "test_data/trace_csvs/yhat.csv",
+        delimiter=",",
+        dtype=np.int_,
     ).astype(np.bool_)
 
     # Reading performance metrics from p.csv
     p = np.genfromtxt(
-        "test_data/trace_csvs/selection0.csv", delimiter=",", dtype=np.integer,
+        "test_data/trace_csvs/selection0.csv",
+        delimiter=",",
+        dtype=np.int_,
     )
     p = p - 1  # Adjusting indices to be zero-based
 
     # Reading beta thresholds from beta.csv
     beta = np.genfromtxt(
-        "test_data/trace_csvs/beta.csv", delimiter=",", dtype=np.int8,
+        "test_data/trace_csvs/beta.csv",
+        delimiter=",",
+        dtype=np.int_,
     ).astype(np.bool_)
 
     # Setting TRACE options with a pi value of 0.55 and enabling smoothing
@@ -88,24 +93,28 @@ def test_trace_simulation() -> None:
         algo_labels = f.read().split(",")
 
     # Reading instance space from Z.csv
-    z = np.genfromtxt("test_data/trace_csvs/Z.csv",
-                      delimiter=",",
-                      dtype=np.double)
+    z = np.genfromtxt("test_data/trace_csvs/Z.csv", delimiter=",", dtype=np.double)
 
     # Reading binary performance indicators from y_bin2.csv
     y_bin2 = np.genfromtxt(
-        "test_data/trace_csvs/yhat2.csv", delimiter=",", dtype=np.int8,
+        "test_data/trace_csvs/yhat2.csv",
+        delimiter=",",
+        dtype=np.int_,
     ).astype(np.bool_)
 
     # Reading performance metrics from p2.csv
     p2 = np.genfromtxt(
-        "test_data/trace_csvs/dataP.csv", delimiter=",", dtype=np.integer,
+        "test_data/trace_csvs/dataP.csv",
+        delimiter=",",
+        dtype=np.int_,
     )
     p2 = p2 - 1  # Adjusting indices to be zero-based
 
     # Reading beta thresholds from beta.csv
     beta = np.genfromtxt(
-        "test_data/trace_csvs/beta.csv", delimiter=",", dtype=np.int8,
+        "test_data/trace_csvs/beta.csv",
+        delimiter=",",
+        dtype=np.int_,
     ).astype(np.bool_)
 
     # Setting TRACE options with a pi value of 0.55 and disabling smoothing

@@ -4,6 +4,7 @@ These classes are designed to encapsulate various aspects of the data and the re
 of different analytical processes, facilitating a structured and organized approach
 to data analysis and model building.
 """
+
 from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
@@ -255,7 +256,7 @@ class Footprint:
     @classmethod
     def from_polygon(
         cls: type["Footprint"],
-        polygon: Polygon,
+        polygon: Polygon | None,
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         smoothen: bool = False,
