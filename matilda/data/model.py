@@ -226,9 +226,7 @@ class PythiaDataChanged:
         raise NotImplementedError
 
 
-
 @dataclass(frozen=True)
-
 class Footprint:
     """A class to represent a footprint with geometric and statistical properties.
 
@@ -241,34 +239,19 @@ class Footprint:
     elements : int
         The number of data points within the footprint.
     good_elements : int
-        The number of "good" data points within the footprint (as defined by specific criteria).
+        The number of "good" data points within the footprint.
     density : float
         The density of points within the footprint.
     purity : float
         The purity of "good" elements in relation to all elements in the footprint.
     """
+
     polygon: Polygon | None
     area: float
     elements: int
     good_elements: int
     density: float
     purity: float
-
-    def __init__(self, polygon: Polygon) -> None:
-        """Initialise a Footprint."""
-        # This is a kinda hacky way to get around the frozen problem.
-        # A nicer way would be a static method to construct it from a polygon rust style
-        # from_polygon().
-
-        object.__setattr__(self, "polygon", polygon if polygon else None)
-        object.__setattr__(self, "area", self.polygon.area if polygon else None)
-        object.__setattr__(self, "elements", 0)
-        object.__setattr__(self, "good_elements", 0)
-        object.__setattr__(self, "density", 0)
-        object.__setattr__(self, "purity", 0)
-
-
-
 
 
 @dataclass(frozen=True)

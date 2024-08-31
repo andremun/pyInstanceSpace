@@ -5,10 +5,7 @@ from dataclasses import fields
 from enum import Enum
 from pathlib import Path
 
-from matilda._serializers import (
-    save_instance_space_for_web,
-    save_instance_space_to_csv,
-)
+from matilda._serializers import save_instance_space_for_web, save_instance_space_to_csv
 from matilda.data.metadata import Metadata, from_csv_file
 from matilda.data.model import (
     CloisterOut,
@@ -20,11 +17,7 @@ from matilda.data.model import (
     StageState,
     TraceOut,
 )
-from matilda.data.options import (
-    InstanceSpaceOptions,
-    PrelimOptions,
-    from_json_file,
-)
+from matilda.data.options import InstanceSpaceOptions, PrelimOptions, from_json_file
 from matilda.stages.cloister import Cloister
 from matilda.stages.pilot import Pilot
 from matilda.stages.prelim import Prelim
