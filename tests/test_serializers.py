@@ -255,9 +255,7 @@ class _MatlabResults:
             polygon_ndarray: NDArray[np.double] = vertices
             polygon = Polygon(polygon_ndarray)
             y_bin: NDArray[np.bool_] = np.array([True for _ in polygon_ndarray])
-            footprint = Footprint.from_polygon(polygon,
-                                               polygon_ndarray,
-                                               y_bin)
+            footprint = Footprint.from_polygon(polygon, polygon_ndarray, y_bin)
             # TODO: Clarify what the following section is for
             """
             object.__setattr__(footprint, "area", in_from_matlab["area"])

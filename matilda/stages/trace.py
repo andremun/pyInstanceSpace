@@ -266,17 +266,15 @@ class Trace:
         summary_data = []
 
         for i, _ in enumerate(self.algo_labels):
-            summary_row = self.summary(
-                            good[i],
-                            space.area,
-                            space.density)
+            summary_row = self.summary(good[i], space.area, space.density)
             # Add good performance metrics
             summary_row.extend(
                 self.summary(
                     best[i],
                     space.area,
                     space.density,
-                ))  # Add the best performance metrics
+                ),
+            )  # Add the best performance metrics
 
             summary_data.append(summary_row)
 
