@@ -275,7 +275,7 @@ class InstanceSpace:
 
         self._clear_stages_after_trace()
 
-        data_changed, trace_out = Trace.run(
+        data_changed, trace_out = Trace().run(
             self._pilot_state.out.z,
             self._pilot_state.data.y_bin,
             self._pilot_state.data.p,

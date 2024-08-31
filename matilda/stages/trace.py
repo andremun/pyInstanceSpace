@@ -101,7 +101,7 @@ class Trace:
 
     z: NDArray[np.double]
     y_bin: NDArray[np.bool_]
-    p: NDArray[np.int_]
+    p: NDArray[np.double]
     beta: NDArray[np.bool_]
     algo_labels: list[str]
     opts: TraceOptions
@@ -113,7 +113,7 @@ class Trace:
         self,
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
-        p: NDArray[np.int_],
+        p: NDArray[np.double],
         beta: NDArray[np.bool_],
         algo_labels: list[str],
         opts: TraceOptions,
@@ -201,11 +201,11 @@ class Trace:
                 # Create boolean arrays indicating which points correspond
                 # to each algorithm's best performance
                 algo_1: NDArray[np.bool_] = np.array(
-                    [v == i for v in self.p],
+                    [int(v) == i for v in self.p],
                     dtype=np.bool_,
                 )
                 algo_2: NDArray[np.bool_] = np.array(
-                    [v == j for v in self.p],
+                    [int(v) == j for v in self.p],
                     dtype=np.bool_,
                 )
 
@@ -242,7 +242,7 @@ class Trace:
             "------------------------------------------------------------------------",
         )
         print("  -> TRACE is preparing the summary table.")
-        summary_data = [
+        data_labels = [
             [
                 "Algorithm",
                 "Area_Good",
@@ -260,23 +260,27 @@ class Trace:
 
         # Populate the summary table with metrics for each algorithm's
         # good and best footprints
+        summary_data = []
+
         for i, label in enumerate(self.algo_labels):
-            summary_row = [label]
-            summary_row += self.summary(
-                good[i],
-                space.area,
-                space.density,
-            )  # Add good performance metrics
-            summary_row += self.summary(
-                best[i],
-                space.area,
-                space.density,
-            )  # Add the best performance metrics
+            summary_row = self.summary(
+                            good[i],
+                            space.area,
+                            space.density)
+            # Add good performance metrics
+            summary_row.extend(
+                self.summary(
+                    best[i],
+                    space.area,
+                    space.density,
+                ))  # Add the best performance metrics
+
+            # add the label
+            summary_row.insert(0, label)
             summary_data.append(summary_row)
 
             # Convert the summary data into a pandas DataFrame for better organization
-        summary_df = pd.DataFrame(summary_data[1:], columns=summary_data[0])
-
+        summary_df = pd.DataFrame(summary_data, columns=data_labels)
         # Print the completed summary of the TRACE analysis
         print("  -> TRACE has completed. Footprint analysis results:")
         print(" ")
@@ -313,7 +317,7 @@ class Trace:
 
         labels = self.run_dbscan(y_bin, unique_rows)
         flag = False
-        polygon_body = None
+        polygon_body: Polygon = Polygon()
         for i in range(0, np.max(labels) + 1):
             polydata = unique_rows[labels == i]
 
@@ -326,7 +330,10 @@ class Trace:
                     polygon_body = polygon_body.union(aux)
 
         return Footprint.from_polygon(
-            polygon=polygon_body, z=self.z, y_bin=y_bin, smoothen=True,
+            polygon=polygon_body,
+            z=self.z,
+            y_bin=y_bin,
+            smoothen=True,
         )
 
     def contra(
@@ -608,9 +615,8 @@ class Trace:
         eps = ((product_ranges * nn * gamma_val) / (m * math.sqrt(math.pi**n))) ** (
             1 / n
         )
-
-        return DBSCAN(eps=eps, min_samples=int(nn), metric="euclidean").fit_predict(
-            data,
+        return np.array(
+            DBSCAN(eps=eps, min_samples=int(nn), metric="euclidean").fit_predict(data),
         )
 
     def process_algorithm(self, i: int) -> tuple[int, Footprint, Footprint]:
@@ -632,7 +638,7 @@ class Trace:
 
         print(f"    -> Best performance footprint for '{self.algo_labels[i]}'")
         bool_array: NDArray[np.bool_] = np.array(
-            [v == i for v in self.p],
+            [int(v) == i for v in self.p],
             dtype=np.bool_,
         )
         best_performance = self.build(bool_array)
@@ -664,8 +670,8 @@ class Trace:
         tuple[list[Footprint], list[Footprint]]:
             Lists of good and best performance footprints for each algorithm.
         """
-        good: list[Footprint | None] = [None for _ in range(n_algos)]
-        best: list[Footprint | None] = [None for _ in range(n_algos)]
+        good: list[Footprint] = [self.throw() for _ in range(n_algos)]
+        best: list[Footprint] = [self.throw() for _ in range(n_algos)]
         with ThreadPoolExecutor(max_workers=n_workers) as executor:
             futures = [
                 executor.submit(self.process_algorithm, i) for i in range(n_algos)
