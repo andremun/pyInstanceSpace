@@ -5,11 +5,14 @@ from dataclasses import fields
 from enum import Enum
 from pathlib import Path
 
+from matilda._serializers import (
+    save_instance_space_for_web,
+    save_instance_space_to_csv,
+)
 from matilda.data.metadata import Metadata, from_csv_file
 from matilda.data.model import (
     CloisterOut,
     Data,
-    Model,
     PilotOut,
     PrelimOut,
     PythiaOut,
@@ -17,7 +20,11 @@ from matilda.data.model import (
     StageState,
     TraceOut,
 )
-from matilda.data.options import InstanceSpaceOptions, PrelimOptions, from_json_file
+from matilda.data.options import (
+    InstanceSpaceOptions,
+    PrelimOptions,
+    from_json_file,
+)
 from matilda.stages.cloister import Cloister
 from matilda.stages.pilot import Pilot
 from matilda.stages.prelim import Prelim
@@ -61,8 +68,6 @@ class InstanceSpace:
     _trace_state: StageState[TraceOut] | None
     _pythia_state: StageState[PythiaOut] | None
 
-    _model: Model | None
-
     def __init__(self, metadata: Metadata, options: InstanceSpaceOptions) -> None:
         """Create a new InstanceSpace object.
 
@@ -99,7 +104,7 @@ class InstanceSpace:
         """Get options."""
         return self._options
 
-    def build(self) -> Model:
+    def build(self) -> None:
         """Construct and return a Model object after instance space analysis.
 
         This runs all stages.
@@ -131,6 +136,7 @@ class InstanceSpace:
             self._metadata.features,
             self._metadata.algorithms,
             PrelimOptions.from_options(self._options),
+            self._options.selvars,
         )
 
         if self._data is None:
@@ -330,6 +336,81 @@ class InstanceSpace:
 
     def _clear_stages_after_pythia(self) -> None:
         pass
+
+    def save_to_csv(self, output_directory: Path) -> None:
+        """Save csv outputs to a directory."""
+        print(
+            "=========================================================================",
+        )
+        print("-> Writing the data on CSV files for posterior analysis.")
+
+        if (
+            not self._stages[_Stage.CLOISTER]
+            or not self._stages[_Stage.TRACE]
+            or not self._stages[_Stage.PYTHIA]
+        ):
+            raise StageError
+
+        if (
+            self._trace_state is None
+            or self._pilot_state is None
+            or self._prelim_state is None
+            or self._pythia_state is None
+        ):
+            raise StageError
+
+        # TODO: Placeholder, need to work out how to get the most relevant data
+        # Conductor branch would solve this, needs more thought
+        if self._data is None:
+            raise StageError
+
+        if (
+            self._trace_state is None
+            or self._pilot_state is None
+            or self._sifted_state is None
+            or self._pythia_state is None
+            or self._cloister_state is None
+        ):
+            raise StageError
+
+        save_instance_space_to_csv(
+            output_directory,
+            self._data,
+            self._sifted_state,
+            self._trace_state,
+            self._pilot_state,
+            self._cloister_state,
+            self._pythia_state,
+        )
+
+    def save_for_web(self, output_directory: Path) -> None:
+        """Save csv outputs used for the web frontend to a directory."""
+        print(
+            "=========================================================================",
+        )
+        print("-> Writing the data for the web interface.")
+
+        if (
+            not self._stages[_Stage.CLOISTER]
+            or not self._stages[_Stage.TRACE]
+            or not self._stages[_Stage.PYTHIA]
+            or not self._stages[_Stage.SIFTED]
+        ):
+            raise StageError
+
+        if self._prelim_state is None or self._sifted_state is None:
+            raise StageError
+
+        # TODO: Placeholder, need to work out how to get the most relevant data
+        # Conductor branch would solve this, needs more thought
+        if self._data is None:
+            raise StageError
+
+        save_instance_space_for_web(
+            output_directory,
+            self._prelim_state,
+            self._sifted_state,
+        )
 
 
 def instance_space_from_files(

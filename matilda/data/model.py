@@ -14,8 +14,6 @@ import pandas as pd
 from numpy.typing import NDArray
 from shapely.geometry import Polygon
 
-from matilda.data.options import InstanceSpaceOptions
-
 
 @dataclass(frozen=True)
 class Data:
@@ -46,13 +44,6 @@ class StageState(Generic[T]):
 
     data: Data
     out: T
-
-
-@dataclass(frozen=True)
-class FeatSel:
-    """Holds indices for feature selection."""
-
-    idx: NDArray[np.intc]
 
 
 @dataclass(frozen=True)
@@ -132,6 +123,7 @@ class SiftedOut:
     n_trees: int
     max_lter: int
     replicates: int
+    idx: NDArray[np.int_]
 
 
 @dataclass(frozen=True)
@@ -147,10 +139,10 @@ class SiftedDataChanged:
 class PilotOut:
     """Results of the Pilot process in the data analysis pipeline."""
 
-    X0: NDArray[np.double]  # not sure about the dimensions
-    alpha: NDArray[np.double]
-    eoptim: NDArray[np.double]
-    perf: NDArray[np.double]
+    X0: NDArray[np.double] | None  # not sure about the dimensions
+    alpha: NDArray[np.double] | None
+    eoptim: NDArray[np.double] | None
+    perf: NDArray[np.double] | None
     a: NDArray[np.double]
     z: NDArray[np.double]
     c: NDArray[np.double]
@@ -235,7 +227,8 @@ class PythiaDataChanged:
 
 
 
-@dataclass(frozen= True)
+@dataclass(frozen=True)
+
 class Footprint:
     """A class to represent a footprint with geometric and statistical properties.
 
@@ -261,6 +254,19 @@ class Footprint:
     density: float
     purity: float
 
+    def __init__(self, polygon: Polygon) -> None:
+        """Initialise a Footprint."""
+        # This is a kinda hacky way to get around the frozen problem.
+        # A nicer way would be a static method to construct it from a polygon rust style
+        # from_polygon().
+
+        object.__setattr__(self, "polygon", polygon if polygon else None)
+        object.__setattr__(self, "area", self.polygon.area if polygon else None)
+        object.__setattr__(self, "elements", 0)
+        object.__setattr__(self, "good_elements", 0)
+        object.__setattr__(self, "density", 0)
+        object.__setattr__(self, "purity", 0)
+
 
 
 
@@ -285,23 +291,3 @@ class TraceDataChanged:
     def merge_with(self, data: Data) -> Data:
         """Merge changed fields of data with a Data object."""
         raise NotImplementedError
-
-
-@dataclass(frozen=True)
-class Model:
-    """Contain data and output.
-
-    Combines all components into a full model representation, including data and
-    analysis results.
-    """
-
-    data: Data
-    data_dense: Data
-    feat_sel: FeatSel
-    prelim: PrelimOut
-    sifted: SiftedOut
-    pilot: PilotOut
-    cloist: CloisterOut
-    pythia: PythiaOut
-    trace: TraceOut
-    opts: InstanceSpaceOptions
