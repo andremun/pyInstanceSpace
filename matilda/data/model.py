@@ -263,6 +263,8 @@ class Footprint:
 
 
 
+
+
 @dataclass(frozen=True)
 class TraceOut:
     """Results of the Trace process in the data analysis pipeline."""

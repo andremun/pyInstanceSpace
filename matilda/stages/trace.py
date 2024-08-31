@@ -10,8 +10,9 @@ from shapely.ops import triangulate, unary_union
 from sklearn.cluster import DBSCAN, HDBSCAN  # this is here due to clients request. I didn't test it yet. do not delete
 import alphashape
 from matilda.data.options import TraceOptions
-from matilda.data.model import Footprint, TraceOut
+from matilda.data.model import Footprint, TraceOut, TraceDataChanged
 import pandas as pd
+
 
 class Trace:
     """A class to manage the TRACE analysis process.
@@ -72,16 +73,19 @@ class Trace:
         self.algo_labels = algo_labels
         self.opts = opts
 
-    def run(self) -> TraceOut:
+    def run(self) -> tuple[TraceDataChanged, TraceOut]:
         """Perform the TRACE footprint analysis.
 
         Returns:
         -------
+        TraceDataChanged:
+            Should be Empty
         TraceOut:
-            An instance of TraceOut containing the analysis results, including the calculated footprints and summary statistics.
+            An instance of TraceOut containing the analysis results,
+             including the calculated footprints and summary statistics.
         """
         # Determine the number of algorithms being analyzed
-        nalgos = self.y_bin.shape[1]
+        n_algos = self.y_bin.shape[1]
 
         # Create a boolean array where all values are True (used to calculate the space footprint)
         true_array: NDArray[np.bool_] = np.array([True for _ in self.y_bin], dtype=np.bool_)
@@ -96,19 +100,19 @@ class Trace:
         print("  -> TRACE is calculating the algorithm footprints.")
 
         # Determine the number of workers available for parallel processing
-        nworkers = self.get_num_workers()
+        n_workers = self.get_num_workers()
 
         # Calculate the good and best performance footprints for all algorithms in parallel
-        good, best = self.parallel_processing(nworkers, nalgos)
+        good, best = self.parallel_processing(n_workers, n_algos)
 
         # Detect and resolve contradictions between the best performance footprints of each algorithm
         print("-------------------------------------------------------------------------")
         print("  -> TRACE is detecting and removing contradictory sections of the footprints.")
-        for i in range(nalgos):
+        for i in range(n_algos):
             print(f"  -> Base algorithm '{self.algo_labels[i]}'")
             start_base = time.time()  # Track the start time for processing this base algorithm
 
-            for j in range(i + 1, nalgos):
+            for j in range(i + 1, n_algos):
                 print(f"      -> TRACE is comparing '{self.algo_labels[i]}' with '{self.algo_labels[j]}'")
                 start_test = time.time()  # Track the start time for the comparison
 
@@ -167,13 +171,13 @@ class Trace:
         print(summary_df)
 
         # Return the results as a TraceOut dataclass instance
-        return TraceOut(
+        return (TraceDataChanged(), TraceOut(
             space=space,
             good=good,
             best=best,
             hard=hard,
             summary=summary_df
-        )
+        ))
 
     def build(self, y_bin: NDArray[np.bool_]) -> Footprint:
         """Construct a footprint polygon using DBSCAN clustering.
@@ -188,7 +192,7 @@ class Trace:
         Footprint:
             The constructed footprint with calculated area, density, and purity.
         """
-        # Extract rows where Ybin is True
+        # Extract rows where y_bin is True
         filtered_z = self.z[y_bin]
 
         # Find unique rows
@@ -215,17 +219,8 @@ class Trace:
                 else:
                     polygon_body = polygon_body.union(aux)
 
-        if polygon_body is None:
-            return self.throw()
-        else:
-            polygon_body.buffer(0.01).buffer(-0.01)
-            elements = np.sum([polygon_body.contains(point) for point in MultiPoint(self.z).geoms])
-            good_elements = np.sum(
-                [polygon_body.contains(point) for point in MultiPoint(self.z[y_bin]).geoms])
+        return self.compute_footprint(polygon_body, y_bin, True)
 
-            density = elements / polygon_body.area
-            purity = good_elements / elements
-            return Footprint(polygon_body, polygon_body.area, elements, good_elements, density, purity)
 
     def contra(
         self,
@@ -306,31 +301,8 @@ class Trace:
 
             num_tries += 1
 
-        if base_polygon.is_empty:
-            base = self.throw()
-        else:
-            elements = np.sum(
-                [base_polygon.contains(point) for point in MultiPoint(self.z).geoms],
-            )
-            good_elements = np.sum(
-                [base_polygon.contains(point) for point in MultiPoint(self.z[y_base]).geoms],
-            )
-            density = elements / base_polygon.area
-            purity = good_elements / elements
-            base = Footprint(base_polygon, base_polygon.area, elements, good_elements, density, purity)
-
-        if test_polygon.is_empty:
-            test = self.throw()
-        else:
-            elements = np.sum(
-                [test_polygon.contains(point) for point in MultiPoint(self.z).geoms],
-            )
-            good_elements = np.sum(
-                [test_polygon.contains(point) for point in MultiPoint(self.z[y_test]).geoms],
-            )
-            density = elements / test_polygon.area
-            purity = good_elements / elements
-            test = Footprint(test_polygon, test_polygon.area, elements, good_elements, density, purity)
+        base = self.compute_footprint(base_polygon, y_base)
+        test = self.compute_footprint(test_polygon, y_test)
 
         return base, test
 
@@ -359,10 +331,10 @@ class Trace:
             if isinstance(polygon, MultiPolygon)
             else [polygon]
         )
-        npolygons = len(splits)
+        n_polygons = len(splits)
         refined_polygons = []
 
-        for i in range(npolygons):
+        for i in range(n_polygons):
             criteria = np.logical_and(splits[i].contains(MultiPoint(self.z)), y_bin)
             polydata = self.z[criteria]
 
@@ -585,6 +557,36 @@ class Trace:
                 best[i] = best_performance
 
         return good, best
+
+    def compute_footprint(self, polygon: Polygon, y_bin: NDArray[np.bool_], smoothen=False) -> Footprint:
+        """Create a Footprint object based on the given polygon.
+
+        Parameters:
+        ----------
+        polygon : Polygon
+            The polygon to create the footprint from.
+        y_bin : NDArray[np.bool_]
+            Binary array indicating the points corresponding to the footprint.
+        smoothen : Bool
+            Indicates we if need to smoothen the polygon borders.
+
+        Returns:
+        -------
+        Footprint:
+            The created footprint, or an empty one if the polygon is empty.
+        """
+        if polygon is None:
+            return self.throw()
+        if smoothen:
+            polygon.buffer(0.01).buffer(-0.01)
+
+        elements = np.sum([polygon.contains(point) for point in MultiPoint(self.z).geoms])
+        good_elements = np.sum([polygon.contains(point) for point in MultiPoint(self.z[y_bin]).geoms])
+        density = elements / polygon.area
+        purity = good_elements / elements
+
+        return Footprint(polygon, polygon.area, elements, good_elements, density, purity)
+
 
 
 
