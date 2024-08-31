@@ -7,18 +7,13 @@ tests also include some boundary test where appropriate to test the boundary of 
 statement within the methods to ensure they are implemented appropriately.
 
 Tests includes:
--  For the function select_features_by_performance, we check xaux value, check if features selected are the same 
-- For the function costfcn, given an example, check if cost value is the same 
-- For the function ga, check if the filtered x value, for each row and column, only one instances with high correlation, others are low correlation
+- For the function select_features_by_performance, we check xaux value, check if features selected are the same 
+- For the function select_features_by_clustering, we check if number of elements in the same clusters for both matlab and python
+    are over given threshold %
+- For the function ga, check if the filtered x value, for each row and column, only one instances with high correlation, others are low correlation. 
+    Test passed if more than 1 columns/rows don't fulfil this condition
 
 """
-
-# cross correlation between matlab and pythoon, by row and by column, one and only one one corrlatino is above 0.9, others are lower than 0.3
-# recommend best k value that gives the silhoulette value, and give warning if not bell value
-# chang into int for binary matrix
-# compare whether the faeture is in same cluster
-# check error of machine learning model is wtithin a range
-# line 133 in matlab, get [ind,y], cost value 
 
 import numpy as np
 import pandas as pd
@@ -94,51 +89,60 @@ def test_run() -> None:
     Given the output of sifted stage of matlab and python, compute the correlation between them. Check for each
     column and row, there's only one value that has high correlation (>0.9) and other correlation values are low (<0.9)
     """
-    # csv_path_x = script_dir / "test_data/sifted/output/X.csv"
-    # x_matlab = pd.read_csv(csv_path_x, header = None)
+    csv_path_x = script_dir / "test_data/sifted/output/x_matlab.csv"
+    x_matlab = pd.read_csv(csv_path_x, header = None)
 
     data_change, sifted_output = Sifted.run(input_x, input_y, input_ybin, feat_labels, opts)
     x_python = pd.DataFrame(data_change.x)
-    scaler = MinMaxScaler()
     
-    x_python.to_csv('x_python.csv')
+    # compute correlation matrix that has been categorised into high, normal and low
+    correlation_matrix = compute_correlation(x_python, x_matlab)
     
-    return
+    print(correlation_matrix)
     
-    # # Compute the correlation between corresponding columns
-    # correlation_matrix = np.corrcoef(x_python.T, x_matlab.T)[:x_python.shape[1], x_python.shape[1]:]
+    n_row, n_col = correlation_matrix.shape
+    # threshold set to above n-1 row or column to fulfil the condition
+    row_threshold = (n_row - 1) / n_row
+    col_threshold = (n_col - 1) / n_col
+    
+    assert correlation_matrix_check(correlation_matrix, row_threshold, col_threshold)
 
-    # # Convert the correlation matrix to a DataFrame
-    # correlation_df = pd.DataFrame(correlation_matrix, columns=x_matlab.columns, index=x_python.columns)
-    # correlation_df_normalised= scaler.fit_transform(correlation_df)
-    # normalised_correlation = pd.DataFrame(correlation_df_normalised)
-    
-    # normalised_correlation.to_csv("normalised_correlation.csv")
-    
-    # assert check_correlation(normalised_correlation)
-
-def check_correlation(matrix: pd.DataFrame) -> bool:
+def compute_correlation(df1, df2):
     """
-    Check if for each row or column in the matrix, only one correlation is > 0.9 and others are <= 0.9.
+    Compute correlation value given two dataframe, and categorise them into high, normal and low
     """
-    matrix_np = matrix.to_numpy()
+    def categorise_value(x):
+        if x > 0.7:
+            return 1
+        elif x < 0.3:
+            return -1
+        else:
+            return 0
     
-    # Above this threshold signify high correlation while below signify low correlation
-    threshold = 0.9
+    # given two dataframe, compute correlation matrix
+    correlation_matrix = pd.DataFrame(index=df1.columns, columns=df2.columns)
+    for col1 in df1.columns:
+        for col2 in df2.columns:
+            correlation_matrix.loc[col1, col2] = df1[col1].corr(df2[col2])
+    correlation_matrix = correlation_matrix.abs()
+            
+    # categorise correlation matrix's value to high and low
+    correlation_matrix_transform = correlation_matrix.map(categorise_value)
     
-    # Check for each row, only one correlation greater than threshold
-    for row in matrix_np:
-        count_above_threshold = np.sum(row > threshold)
-        if count_above_threshold != 1:
-            return False
-    
-     # Check for each column, only one correlation greater than threshold
-    for col in matrix_np.T:  
-        count_above_threshold = np.sum(col > threshold)
-        if count_above_threshold != 1:
-            return False
-    
-    # If all rows and columns meet the condition, return True
-    return True
+    return correlation_matrix_transform
 
-test_run()
+
+def correlation_matrix_check(df, row_threshold, col_threshold):
+    """
+    Return true if both rows and columns condition are at least threshold percentage, condition
+    fulfill if only 1 value in row/column contains high value (1)
+    """
+    # for every row, calculate percentage of only one value has modified correlation equals to 1
+    row_condition = (df == 1).sum(axis=1) == 1
+    row_percentage = row_condition.mean() 
+    
+    # for every column, calculate percentage of only one value has modified correlation equals to 1
+    col_condition = (df==1).sum(axis=0) == 1
+    col_percentage = col_condition.mean()
+    
+    return row_percentage >= row_threshold and col_percentage >= col_threshold
