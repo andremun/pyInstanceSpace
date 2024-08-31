@@ -293,17 +293,17 @@ class TraceOptions:
     """Options for trace analysis in the model."""
 
     use_sim: bool
-    pi: float
+    purity: float
 
     @staticmethod
     def default(
         use_sim: bool = DEFAULT_TRACE_USE_SIM,
-        pi: float = DEFAULT_TRACE_PI,
+        purity: float = DEFAULT_TRACE_PI,
     ) -> TraceOptions:
         """Instantiate with default values."""
         return TraceOptions(
             use_sim=use_sim,
-            pi=pi,
+            purity=purity,
         )
 
 

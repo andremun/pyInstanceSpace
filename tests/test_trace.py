@@ -23,8 +23,8 @@ def test_trace_pythia():
 
     trace_options = TraceOptions(True, 0.55)
 
-    trace = Trace(z, y_bin, p, beta, algo_labels, trace_options)
-    trace.run()
+    trace = Trace()
+    trace.run(z, y_bin, p, beta, algo_labels, trace_options)
 def test_trace_simulation():
     # Reading algo_labels from a text file with comma delimiter
     with open('test_data/trace_csvs/algolabels.txt', 'r') as f:
@@ -45,8 +45,8 @@ def test_trace_simulation():
 
     trace_options = TraceOptions(False, 0.55)
 
-    trace = Trace(z, y_bin2, p2, beta, algo_labels, trace_options)
-    trace.run()
+    trace = Trace()
+    trace.run(z, y_bin2, p2, beta, algo_labels, trace_options)
 
 
 

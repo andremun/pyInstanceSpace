@@ -40,16 +40,19 @@ class Trace:
     algo_labels: list[str]
     opts: TraceOptions
 
-    def __init__(
-        self,
+    def __init__(self) -> None:
+        """Initialize the Trace analysis.
+        """
+
+    def run( self,
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         p: NDArray[np.integer],
         beta: NDArray[np.bool_],
         algo_labels: list[str],
         opts: TraceOptions,
-    ) -> None:
-        """Initialize the Trace analysis.
+             ) -> tuple[TraceDataChanged, TraceOut]:
+        """Perform the TRACE footprint analysis.
 
         Parameters:
         ----------
@@ -65,16 +68,6 @@ class Trace:
             Labels for each algorithm.
         opts : TraceOptions
             Configuration options for TRACE and its subroutines.
-        """
-        self.z = z
-        self.y_bin = y_bin
-        self.p = p
-        self.beta = beta
-        self.algo_labels = algo_labels
-        self.opts = opts
-
-    def run(self) -> tuple[TraceDataChanged, TraceOut]:
-        """Perform the TRACE footprint analysis.
 
         Returns:
         -------
@@ -84,6 +77,13 @@ class Trace:
             An instance of TraceOut containing the analysis results,
              including the calculated footprints and summary statistics.
         """
+        self.z = z
+        self.y_bin = y_bin
+        self.p = p
+        self.beta = beta
+        self.algo_labels = algo_labels
+        self.opts = opts
+
         # Determine the number of algorithms being analyzed
         n_algos = self.y_bin.shape[1]
 
@@ -386,7 +386,7 @@ class Trace:
             for piece in tri:
                 elements = np.sum([piece.contains(point) for point in MultiPoint(self.z).geoms])
                 good_elements = np.sum([piece.contains(point) for point in MultiPoint(self.z[y_bin]).geoms])
-                if (good_elements / elements) < self.opts.pi:
+                if (good_elements / elements) < self.opts.purity:
                     polygon = polygon.difference(piece)
 
         return polygon
