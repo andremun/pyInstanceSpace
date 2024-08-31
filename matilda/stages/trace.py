@@ -242,9 +242,12 @@ class Trace:
             "------------------------------------------------------------------------",
         )
         print("  -> TRACE is preparing the summary table.")
+
+        # Create a pandas DataFrame and name the column "Algorithms"
+        algorithm_names_df = pd.DataFrame(self.algo_labels, columns=["Algorithm"])
+
         data_labels = [
             [
-                "Algorithm",
                 "Area_Good",
                 "Area_Good_Normalised",
                 "Density_Good",
@@ -262,7 +265,7 @@ class Trace:
         # good and best footprints
         summary_data = []
 
-        for i, label in enumerate(self.algo_labels):
+        for i, _ in enumerate(self.algo_labels):
             summary_row = self.summary(
                             good[i],
                             space.area,
@@ -275,21 +278,20 @@ class Trace:
                     space.density,
                 ))  # Add the best performance metrics
 
-            # add the label
-            summary_row.insert(0, label)
             summary_data.append(summary_row)
 
-            # Convert the summary data into a pandas DataFrame for better organization
+        # Convert the summary data into a pandas DataFrame for better organization
         summary_df = pd.DataFrame(summary_data, columns=data_labels)
+        final_df = pd.concat([algorithm_names_df, summary_df], axis=1)
         # Print the completed summary of the TRACE analysis
         print("  -> TRACE has completed. Footprint analysis results:")
         print(" ")
-        print(summary_df)
+        print(final_df)
 
         # Return the results as a TraceOut dataclass instance
         return (
             TraceDataChanged(),
-            TraceOut(space=space, good=good, best=best, hard=hard, summary=summary_df),
+            TraceOut(space=space, good=good, best=best, hard=hard, summary=final_df),
         )
 
     def build(self, y_bin: NDArray[np.bool_]) -> Footprint:
