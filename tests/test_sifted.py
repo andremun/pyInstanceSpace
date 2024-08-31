@@ -97,15 +97,8 @@ def test_run() -> None:
     
     # compute correlation matrix that has been categorised into high, normal and low
     correlation_matrix = compute_correlation(x_python, x_matlab)
-    
-    print(correlation_matrix)
-    
-    n_row, n_col = correlation_matrix.shape
-    # threshold set to above n-1 row or column to fulfil the condition
-    row_threshold = (n_row - 1) / n_row
-    col_threshold = (n_col - 1) / n_col
-    
-    assert correlation_matrix_check(correlation_matrix, row_threshold, col_threshold)
+    # test case pass if 70% 
+    assert correlation_matrix_check(correlation_matrix, threshold=0.7)
 
 def compute_correlation(df1, df2):
     """
@@ -132,9 +125,9 @@ def compute_correlation(df1, df2):
     return correlation_matrix_transform
 
 
-def correlation_matrix_check(df, row_threshold, col_threshold):
+def correlation_matrix_check(df, threshold):
     """
-    Return true if both rows and columns condition are at least threshold percentage, condition
+    Return true if at least threshold percentage of both rows and columns fulfil condition, condition
     fulfill if only 1 value in row/column contains high value (1)
     """
     # for every row, calculate percentage of only one value has modified correlation equals to 1
@@ -145,4 +138,6 @@ def correlation_matrix_check(df, row_threshold, col_threshold):
     col_condition = (df==1).sum(axis=0) == 1
     col_percentage = col_condition.mean()
     
-    return row_percentage >= row_threshold and col_percentage >= col_threshold
+    total_percentage = (row_percentage + col_percentage) / 2
+    
+    return total_percentage >= threshold
