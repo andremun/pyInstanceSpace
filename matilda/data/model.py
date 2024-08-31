@@ -4,7 +4,6 @@ These classes are designed to encapsulate various aspects of the data and the re
 of different analytical processes, facilitating a structured and organized approach
 to data analysis and model building.
 """
-
 from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
@@ -12,7 +11,7 @@ from typing import Any, Generic, TypeVar
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from shapely.geometry import Polygon
+from shapely.geometry import MultiPoint, Polygon
 
 
 @dataclass(frozen=True)
@@ -232,7 +231,7 @@ class Footprint:
 
     Attributes:
     ----------
-    polygon : Polygon
+    polygon : Polygon | None
         The geometric shape of the footprint.
     area : float
         The area of the footprint.
@@ -252,6 +251,56 @@ class Footprint:
     good_elements: int
     density: float
     purity: float
+
+    @classmethod
+    def from_polygon(
+        cls: type["Footprint"],
+        polygon: Polygon,
+        z: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        smoothen: bool = False,
+    ) -> "Footprint":
+        """Create a Footprint object based on the given polygon.
+
+        Parameters:
+        ----------
+        polygon : Polygon
+            The polygon to create the footprint from.
+        z : NDArray[np.double]
+            The space of instances, represented as an array of data points (features).
+        y_bin : NDArray[np.bool_]
+            Binary array indicating the points corresponding to the footprint.
+        smoothen : bool, optional
+            Indicates if the polygon borders need to be smoothened, by default False.
+
+        Returns:
+        -------
+        Footprint:
+            The created footprint, or an empty one if the polygon is empty.
+        """
+        if polygon is None:
+            return cls(None, 0, 0, 0, 0, 0)
+
+        if smoothen:
+            polygon = polygon.buffer(0.01).buffer(-0.01)
+
+        elements = np.sum(
+            [polygon.contains(point) for point in MultiPoint(z).geoms],
+        )
+        good_elements = np.sum(
+            [polygon.contains(point) for point in MultiPoint(z[y_bin]).geoms],
+        )
+        density = elements / polygon.area if polygon.area != 0 else 0
+        purity = good_elements / elements if elements != 0 else 0
+
+        return cls(
+            polygon=polygon,
+            area=polygon.area,
+            elements=elements,
+            good_elements=good_elements,
+            density=density,
+            purity=purity,
+        )
 
 
 @dataclass(frozen=True)

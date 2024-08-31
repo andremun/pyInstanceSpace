@@ -319,7 +319,10 @@ class Trace:
                 else:
                     polygon_body = polygon_body.union(aux)
 
-        return self.compute_footprint(polygon_body, y_bin, True)
+        return Footprint.from_polygon(polygon=polygon_body,
+                                      z=self.z,
+                                      y_bin=y_bin,
+                                      smoothen=True)
 
     def contra(
             self,
@@ -409,8 +412,12 @@ class Trace:
 
             num_tries += 1
 
-        base = self.compute_footprint(base_polygon, y_base)
-        test = self.compute_footprint(test_polygon, y_test)
+        base = Footprint.from_polygon(polygon=base_polygon,
+                                      z=self.z,
+                                      y_bin=y_base)
+        test = Footprint.from_polygon(polygon=test_polygon,
+                                      z=self.z,
+                                      y_bin=y_test)
 
         return base, test
 
@@ -597,8 +604,9 @@ class Trace:
         eps = ((product_ranges * nn * gamma_val) /
                (m * math.sqrt(math.pi ** n))) ** (1 / n)
 
-        return DBSCAN(eps=eps, min_samples=int(nn),
-                        metric="euclidean").fit_predict(data)
+        return DBSCAN(eps=eps,
+                      min_samples=int(nn),
+                      metric="euclidean").fit_predict(data)
 
     def process_algorithm(self, i: int) -> tuple[int, Footprint, Footprint]:
         """Process an algorithm to calculate its good and best performance footprints.
