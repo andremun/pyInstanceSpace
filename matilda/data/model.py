@@ -209,19 +209,19 @@ class PythiaOut:
     sigma: list[float]
     cp: Any  # Change it to proper type
     svm: Any  # Change it to proper type
-    cvcmat: NDArray[np.double]
+    #cvcmat: NDArray[np.double]
     y_sub: NDArray[np.bool_]
     y_hat: NDArray[np.bool_]
     pr0_sub: NDArray[np.double]
     pr0_hat: NDArray[np.double]
-    box_consnt: list[np.double]
+    box_consnt: list[float]
     k_scale: list[float]
-    precision: list[np.double]
-    recall: list[np.double]
-    accuracy: list[np.double]
+    precision: list[float]
+    recall: list[float]
+    accuracy: list[float]
     selection0: NDArray[np.double]
     selection1: Any  # Change it to proper type
-    summary: pd.DataFrame
+    #summary: pd.DataFrame
 
 
 @dataclass(frozen=True)
@@ -279,7 +279,6 @@ class TraceDataChanged:
 @dataclass(frozen=True)
 class Model:
     """Contain data and output.
-
     Combines all components into a full model representation, including data and
     analysis results.
     """

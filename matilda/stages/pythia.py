@@ -15,25 +15,60 @@ script_dir = Path(__file__).parents[2] / "tests" / "test_data" / "pythia" / "inp
 print(script_dir)
 
 class SvmRes:
-    """Resent data resulting from SVM."""
+    def __init__(
+        self,
+        svm: any,  # TODO: Change it to proper type
+        Ysub: NDArray[np.bool_],
+        Psub: NDArray[np.double],
+        Yhat: NDArray[np.bool_],
+        Phat: NDArray[np.double],
+        C: float,
+        g: float,
+        accuracy: float,
+        precision: float,
+        recall: float,
+    ):
+        self.svm = svm
+        self.Ysub = Ysub
+        self.Psub = Psub
+        self.Yhat = Yhat
+        self.Phat = Phat
+        self.C = C
+        self.g = g
+        self.accuracy = accuracy
+        self.precision = precision
+        self.recall = recall
 
-    svm: None
-    accuracy: np.double
-    precision: np.double
-    recall: np.double
-    # Ysub: NDArray[np.double]
-    # Psub: NDArray[np.double]
-    # Yhat: NDArray[np.double]
-    # Phat: NDArray[np.double]
-    # C: float
-    # g: float
-
+    def __str__(self)->str:
+        return (f"SvmRes(\n"
+                f"  Ysub: {self.Ysub.flatten()},\n"
+                f"  Psub: {self.Psub.flatten()},\n"
+                f"  Yhat: {self.Yhat.flatten()},\n"
+                f"  Phat: {self.Phat.flatten()},\n"
+                f"  C: {self.C},\n"
+                f"  g: {self.g}\n"
+                f")")
 
 class Pythia:
     """See file docstring."""
 
-    # pythia_output = PythiaOut()
-
+    mu: list[float]
+    sigma: list[float]
+    #cvcmat: NDArray[np.double]
+    y_sub: NDArray[np.bool_] #= np.zeros((self.nalgos, self.x), dtype=bool)
+    y_hat: NDArray[np.bool_] #= np.zeros((self.nalgos, self.x),dtype=bool)
+    pr0hat: NDArray[np.double] #= np.zeros((self.nalgos, self.x),dtype=np.double)
+    pr0sub: NDArray[np.double] #= np.zeros((self.nalgos, self.x),dtype=np.double)
+    box_consnt: list[float]
+    k_scale: list[float]
+    precision: list[float]
+    recall: list[float]
+    accuracy: list[float]
+    selection0: NDArray[np.double]
+    selection1: NDArray[np.double]  # Change it to proper type
+    cp: any  # Change it to proper type
+    svm: any  # Change it to proper type
+    summary: pd.DataFrame
     def __init__(
         self,
         x: NDArray[np.double],
@@ -68,24 +103,18 @@ class Pythia:
         self.opts = opts
         self.nalgos = len(algo_labels)
 
-        self.mu: list[float]
-        self.sigma: list[float]
-        self.cp: Any  # Change it to proper type
-        self.svm: Any  # Change it to proper type
-        self.cvcmat: NDArray[np.double]
-        self.y_sub: NDArray[np.bool_]
-        self.y_hat: NDArray[np.bool_]
-        self.pr0sub: NDArray[np.double]
-        self.pr0hat: NDArray[np.double]
-        self.box_consnt: list[float]
-        self.k_scale: list[float]
-        self.precision: list[np.double] = [0.0] * self.nalgos
-        self.recall: list[np.double] = [0.0] * self.nalgos
-        self.accuracy: list[np.double] = [0.0] * self.nalgos
-        self.selection0: NDArray[np.double]
-        self.selection1: Any  # Change it to proper type
-        self.summary: pd.DataFrame
-
+        self.y_sub = np.zeros((self.x.shape[0],self.nalgos), dtype=bool)
+        self.y_hat = np.zeros((self.x.shape[0],self.nalgos), dtype=bool)
+        self.pr0sub = np.zeros((self.x.shape[0], self.nalgos), dtype=np.double)
+        self.pr0hat = np.zeros((self.x.shape[0], self.nalgos), dtype=np.double)
+        #TODO: Check the type of cp and svm
+        self.cp = []
+        self.svm = []
+        self.box_consnt = []
+        self.k_scale = []
+        self.accuracy = []
+        self.precision = []
+        self.recall = []
         self.rng = np.random.default_rng(seed=0)
 
     @staticmethod
@@ -212,8 +241,7 @@ class Pythia:
             # pythia_output.cp[i] = list(skf.split(z, y_bin[:, i]))
             algo_start_time = time.time()
             # if opts.use_svm:
-            res = Pythia.fitmatsvm()
-
+            res = pythia.fitmatsvm(nalgos)
             pythia.record_perf(index=i,performance=res)
             # Generate output
             if i == nalgos - 1:
@@ -239,9 +267,9 @@ class Pythia:
             "-------------------------------------------------------------------------",
         )
         """Generate a summary of the results."""
-        pythia.generate_summary()
+        #pythia.generate_summary()
 
-        return get_output(data_change, pythia_output)
+        return pythia.get_output()
 
     @staticmethod
     def fitmatsvm(
@@ -251,14 +279,25 @@ class Pythia:
         # cp: NDArray[np.double],  # Actually its an array and the type is dynamic
         # k: str,
         # params: NDArray[np.double],
+            # def __init__(self,svm,ysub,psub,yhat,phat,c,g):
+
+        nalgos: int,
     ) -> SvmRes:
         """Train a SVM model using MATLAB's 'fitcsvm' function."""
-        svm_result = SvmRes()
-        svm_result.svm = None
-        svm_result.accuracy = np.double(0.95)
-        svm_result.precision = np.double(0.9)
-        svm_result.recall = np.double(0.85)
+        svm_result = SvmRes(svm = None,
+                            Yhat=np.random.choice([0, 1],size = (211,1)),
+                            Ysub=np.random.choice([0, 1], size = (211,1)),
+                            Psub=np.random.rand(211,1),
+                            Phat=np.random.rand(211,1),
+                            C = 0.1,
+                            g = 0.1,
+                            accuracy=0.1,
+                            precision=0.1,
+                            recall=0.1)
+
+        print(svm_result)
         return svm_result
+
     def display_avg_perf(self) -> None:
         print(
             " -> The average cross validated precision is: "
@@ -268,15 +307,24 @@ class Pythia:
 
         print(
             " -> The average cross validated accuracy is: "
-            + str(np.round(100 * np.mean(pythia_output.accuracy), 1))
+            + str(np.round(100 * np.mean(self.accuracy), 1))
             + "%",
         )
+
     def record_perf(self,index:int,performance:SvmRes)-> None:
+        print(performance)
         """Record performance."""
-        self.accuracy[index] = performance.accuracy
-        self.precision[index] = performance.precision
-        self.recall[index] = performance.recall
-        self.svm = performance.svm
+        self.y_sub[:, [index]] = performance.Ysub
+        self.pr0sub[:, [index]] = performance.Psub
+        self.y_hat[:, [index]] = performance.Yhat
+        self.pr0hat[:, [index]] = performance.Phat
+
+        self.box_consnt.append(performance.C)
+        self.k_scale.append(performance.g)
+
+        self.accuracy.append(performance.accuracy)
+        self.precision.append(performance.precision)
+        self.recall.append(performance.recall)
 
     def determine_selections(self) -> None:
         """
@@ -292,9 +340,9 @@ class Pythia:
             self.selection0 = best
         else:
             best = self.y_hat
-            self.selection0 = self.y_hat
+            #self.selection0 = self.y_hat TODO: fix this
         default = np.argmax(np.mean(self.y_bin, axis=0))
-        self.selection1 = pythia_output.selection0
+        self.selection1 = self.selection0
         self.selection0[best <= 0] = 0
         self.selection1[best <= 0] = default
 
@@ -307,7 +355,7 @@ class Pythia:
             sigma=self.sigma,
             cp=self.cp,
             svm=self.svm,
-            cvcmat=self.cvcmat,
+            #cvcmat=self.cvcmat,
             y_sub=self.y_sub,
             y_hat=self.y_hat,
             pr0_sub=self.pr0sub,
@@ -319,7 +367,7 @@ class Pythia:
             accuracy=self.accuracy,
             selection0=self.selection0,
             selection1=self.selection1,
-            summary=self.summary,
+            #summary=self.summary,
         )
         return (data_changed, pythia_output)
 
@@ -340,7 +388,7 @@ class Pythia:
 
         self.y[~sel0] = np.nan
         y_full[~sel1] = np.nan
-        y_svms[~pythia_output.y_hat] = np.nan
+        y_svms[~self.y_hat] = np.nan
 
         pgood = np.mean(np.any(self.y_bin & sel1, axis=1))
         data = {
@@ -353,7 +401,7 @@ class Pythia:
                 np.append(stdperf, [np.nanstd(self.y_best), np.nanstd(y_full)]),
                 3,
             ),
-            "Probability_of_good": np.round(np.append(np.mean(y_best), [1, pgood]), 3),
+            "Probability_of_good": np.round(np.append(np.mean(self.y_best), [1, pgood]), 3),
             "Avg_Perf_selected_instances": np.round(
                 np.append(np.nanmean(y_svms), [np.nan, np.nanmean(y_full)]),
                 3,
@@ -363,24 +411,24 @@ class Pythia:
                 3,
             ),
             "CV_model_accuracy": np.round(
-                100 * np.append(pythia_output.accuracy, [np.nan, np.nan]),
+                100 * np.append(self.accuracy, [np.nan, np.nan]),
                 1,
             ),
             "CV_model_precision": np.round(
                 100
-                * np.append(pythia_output.precision, [np.nan, pythia_output.precision]),
+                * np.append(self.precision, [np.nan, self.precision]),
                 1,
             ),
             "CV_model_recall": np.round(
-                100 * np.append(self.recall, [np.nan, pythia_output.recall]),
+                100 * np.append(self.recall, [np.nan, self.recall]),
                 1,
             ),
             "BoxConstraint": np.round(
-                np.append(pythia_output.boxcosnt, [np.nan, np.nan]),
+                np.append(self.box_consnt, [np.nan, np.nan]),
                 3,
             ),
             "KernelScale": np.round(
-                np.append(pythia_output.kscale, [np.nan, np.nan]),
+                np.append(self.k_scale, [np.nan, np.nan]),
                 3,
             ),
         }
