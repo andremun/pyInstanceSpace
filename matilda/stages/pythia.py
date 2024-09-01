@@ -7,12 +7,17 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from scipy import stats
+from sklearn.metrics import accuracy_score, precision_score, recall_score
+from sklearn.svm import SVC
+from skopt import BayesSearchCV
+from skopt.space import Real
 
 from matilda.data.model import PythiaDataChanged, PythiaOut
 from matilda.data.options import PythiaOptions
 
 script_dir = Path(__file__).parents[2] / "tests" / "test_data" / "pythia" / "input"
 print(script_dir)
+
 
 class SvmRes:
     def __init__(
@@ -39,26 +44,29 @@ class SvmRes:
         self.precision = precision
         self.recall = recall
 
-    def __str__(self)->str:
-        return (f"SvmRes(\n"
-                f"  Ysub: {self.Ysub.flatten()},\n"
-                f"  Psub: {self.Psub.flatten()},\n"
-                f"  Yhat: {self.Yhat.flatten()},\n"
-                f"  Phat: {self.Phat.flatten()},\n"
-                f"  C: {self.C},\n"
-                f"  g: {self.g}\n"
-                f")")
+    def __str__(self) -> str:
+        return (
+            f"SvmRes(\n"
+            f"  Ysub: {self.Ysub.flatten()},\n"
+            f"  Psub: {self.Psub.flatten()},\n"
+            f"  Yhat: {self.Yhat.flatten()},\n"
+            f"  Phat: {self.Phat.flatten()},\n"
+            f"  C: {self.C},\n"
+            f"  g: {self.g}\n"
+            f")"
+        )
+
 
 class Pythia:
     """See file docstring."""
 
     mu: list[float]
     sigma: list[float]
-    #cvcmat: NDArray[np.double]
-    y_sub: NDArray[np.bool_] #= np.zeros((self.nalgos, self.x), dtype=bool)
-    y_hat: NDArray[np.bool_] #= np.zeros((self.nalgos, self.x),dtype=bool)
-    pr0hat: NDArray[np.double] #= np.zeros((self.nalgos, self.x),dtype=np.double)
-    pr0sub: NDArray[np.double] #= np.zeros((self.nalgos, self.x),dtype=np.double)
+    # cvcmat: NDArray[np.double]
+    y_sub: NDArray[np.bool_]  # = np.zeros((self.nalgos, self.x), dtype=bool)
+    y_hat: NDArray[np.bool_]  # = np.zeros((self.nalgos, self.x),dtype=bool)
+    pr0hat: NDArray[np.double]  # = np.zeros((self.nalgos, self.x),dtype=np.double)
+    pr0sub: NDArray[np.double]  # = np.zeros((self.nalgos, self.x),dtype=np.double)
     box_consnt: list[float]
     k_scale: list[float]
     precision: list[float]
@@ -69,6 +77,7 @@ class Pythia:
     cp: any  # Change it to proper type
     svm: any  # Change it to proper type
     summary: pd.DataFrame
+
     def __init__(
         self,
         x: NDArray[np.double],
@@ -103,11 +112,11 @@ class Pythia:
         self.opts = opts
         self.nalgos = len(algo_labels)
 
-        self.y_sub = np.zeros((self.x.shape[0],self.nalgos), dtype=bool)
-        self.y_hat = np.zeros((self.x.shape[0],self.nalgos), dtype=bool)
+        self.y_sub = np.zeros((self.x.shape[0], self.nalgos), dtype=bool)
+        self.y_hat = np.zeros((self.x.shape[0], self.nalgos), dtype=bool)
         self.pr0sub = np.zeros((self.x.shape[0], self.nalgos), dtype=np.double)
         self.pr0hat = np.zeros((self.x.shape[0], self.nalgos), dtype=np.double)
-        #TODO: Check the type of cp and svm
+        # TODO: Check the type of cp and svm
         self.cp = []
         self.svm = []
         self.box_consnt = []
@@ -242,7 +251,7 @@ class Pythia:
             algo_start_time = time.time()
             # if opts.use_svm:
             res = pythia.fitmatsvm(nalgos)
-            pythia.record_perf(index=i,performance=res)
+            pythia.record_perf(index=i, performance=res)
             # Generate output
             if i == nalgos - 1:
                 print(
@@ -267,33 +276,81 @@ class Pythia:
             "-------------------------------------------------------------------------",
         )
         """Generate a summary of the results."""
-        #pythia.generate_summary()
+        # pythia.generate_summary()
 
         return pythia.get_output()
 
     @staticmethod
     def fitmatsvm(
-        # z: NDArray[np.double],
-        # y_bin: NDArray[np.bool_],
-        # w: NDArray[np.double],
+        z: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        w: NDArray[np.double],
         # cp: NDArray[np.double],  # Actually its an array and the type is dynamic
-        # k: str,
-        # params: NDArray[np.double],
-            # def __init__(self,svm,ysub,psub,yhat,phat,c,g):
-
+        k: str,
         nalgos: int,
     ) -> SvmRes:
         """Train a SVM model using MATLAB's 'fitcsvm' function."""
-        svm_result = SvmRes(svm = None,
-                            Yhat=np.random.choice([0, 1],size = (211,1)),
-                            Ysub=np.random.choice([0, 1], size = (211,1)),
-                            Psub=np.random.rand(211,1),
-                            Phat=np.random.rand(211,1),
-                            C = 0.1,
-                            g = 0.1,
-                            accuracy=0.1,
-                            precision=0.1,
-                            recall=0.1)
+
+        if k == "gaussian":
+            k = "rbf"
+        elif k == "polynomial":
+            k = "poly"
+        elif k == "linear":
+            k = "linear"
+        else:
+            raise ValueError(f"Unsupported kernel function: {k}. \
+                                Supported kernels are 'gaussian', 'polynomial', and 'linear'.")
+
+        param_space = {
+            "C": Real(2**-10, 2**4, prior="log-uniform"),
+            "gamma": Real(2**-10, 2**4, prior="log-uniform"),
+        }
+
+        svm_model = SVC(
+            kernel=k,
+            random_state=0,
+            probability=True,
+            C=param_space["C"],
+            gamma=param_space["gamma"],
+        )
+
+        bayes_search = BayesSearchCV(
+            estimator=svm_model,
+            n_iter=30,
+            search_spaces=param_space,
+            cv=5,
+            verbose=0,
+            random_state=0,
+        )
+
+        bayes_search.fit(z, y_bin, sample_weight=w)
+
+        best_svm = bayes_search.best_estimator_
+        c = bayes_search.best_params_["C"]
+        g = bayes_search.best_params_["gamma"]
+
+        y_sub = best_svm.predict(z)
+        p_sub = best_svm.predict_proba(z)[:, 1]
+
+        y_hat = best_svm.predict(z)
+        p_hat = best_svm.predict_proba(z)[:, 1]
+
+        accuracy = accuracy_score(y_bin, y_hat)
+        precision = precision_score(y_bin, y_hat)
+        recall = recall_score(y_bin, y_hat)
+
+        svm_result = SvmRes(
+            svm=best_svm,
+            Yhat=y_hat,
+            Ysub=y_sub,
+            Psub=p_sub,
+            Phat=p_hat,
+            C=c,
+            g=g,
+            accuracy=accuracy,
+            precision=precision,
+            recall=recall,
+        )
 
         print(svm_result)
         return svm_result
@@ -311,7 +368,7 @@ class Pythia:
             + "%",
         )
 
-    def record_perf(self,index:int,performance:SvmRes)-> None:
+    def record_perf(self, index: int, performance: SvmRes) -> None:
         print(performance)
         """Record performance."""
         self.y_sub[:, [index]] = performance.Ysub
@@ -340,13 +397,14 @@ class Pythia:
             self.selection0 = best
         else:
             best = self.y_hat
-            #self.selection0 = self.y_hat TODO: fix this
+            # self.selection0 = self.y_hat TODO: fix this
         default = np.argmax(np.mean(self.y_bin, axis=0))
         self.selection1 = self.selection0
         self.selection0[best <= 0] = 0
         self.selection1[best <= 0] = default
 
-    def get_output(self,
+    def get_output(
+        self,
     ) -> tuple[PythiaDataChanged, PythiaOut]:
         """Generate output."""
         data_changed = PythiaDataChanged()
@@ -355,19 +413,19 @@ class Pythia:
             sigma=self.sigma,
             cp=self.cp,
             svm=self.svm,
-            #cvcmat=self.cvcmat,
+            # cvcmat=self.cvcmat,
             y_sub=self.y_sub,
             y_hat=self.y_hat,
             pr0_sub=self.pr0sub,
             pr0_hat=self.pr0hat,
-            box_consnt=self.box_consnt, #TODO: fix this
+            box_consnt=self.box_consnt,  # TODO: fix this
             k_scale=self.k_scale,
             precision=self.precision,
             recall=self.recall,
             accuracy=self.accuracy,
             selection0=self.selection0,
             selection1=self.selection1,
-            #summary=self.summary,
+            # summary=self.summary,
         )
         return (data_changed, pythia_output)
 
@@ -401,7 +459,9 @@ class Pythia:
                 np.append(stdperf, [np.nanstd(self.y_best), np.nanstd(y_full)]),
                 3,
             ),
-            "Probability_of_good": np.round(np.append(np.mean(self.y_best), [1, pgood]), 3),
+            "Probability_of_good": np.round(
+                np.append(np.mean(self.y_best), [1, pgood]), 3
+            ),
             "Avg_Perf_selected_instances": np.round(
                 np.append(np.nanmean(y_svms), [np.nan, np.nanmean(y_full)]),
                 3,
@@ -415,8 +475,7 @@ class Pythia:
                 1,
             ),
             "CV_model_precision": np.round(
-                100
-                * np.append(self.precision, [np.nan, self.precision]),
+                100 * np.append(self.precision, [np.nan, self.precision]),
                 1,
             ),
             "CV_model_recall": np.round(
@@ -438,6 +497,8 @@ class Pythia:
 
         print(df)
         df.to_csv("output.csv", index=False)
+
+
 if __name__ == "__main__":
     print("we love svm")
     csv_path_z = script_dir / "Z.csv"
@@ -452,7 +513,9 @@ if __name__ == "__main__":
     y_best_input = pd.read_csv(csv_path_ybest).values.astype(np.double)
     algo_input = pd.read_csv(csv_path_algo, header=None).values.flatten().tolist()
 
-    opts = PythiaOptions(cv_folds=5, use_svm=True, use_weights=False, is_poly_krnl=False)
+    opts = PythiaOptions(
+        cv_folds=5, use_svm=True, use_weights=False, is_poly_krnl=False
+    )
 
     data_change, pythia_output = Pythia.run(
         z_input,
