@@ -179,7 +179,7 @@ class Pythia:
             and np.array(opts.params).shape == (nalgos, 2)
         )
 
-        kernel_fcn = "guassian"
+        kernel_fcn = "gaussian"
         if opts.is_poly_krnl:
             kernel_fcn = "polynomial"
         elif ninst > 1000:  # noqa: PLR2004
@@ -213,7 +213,7 @@ class Pythia:
         print(
             "-------------------------------------------------------------------------",
         )
-        if opts.use_svm:
+        if opts.use_lib_svm:
             print(" -> Using LIBSVM's libraries")
             if precalparams:
                 print(" -> Using pre-calculated hyper-parameters for the SVM.")
@@ -250,7 +250,7 @@ class Pythia:
             # pythia_output.cp[i] = list(skf.split(z, y_bin[:, i]))
             algo_start_time = time.time()
             # if opts.use_svm:
-            res = pythia.fitmatsvm(nalgos)
+            res = pythia.fitmatsvm(z, y_bin[:, i], w[:, i], kernel_fcn)
             pythia.record_perf(index=i, performance=res)
             # Generate output
             if i == nalgos - 1:
@@ -287,7 +287,6 @@ class Pythia:
         w: NDArray[np.double],
         # cp: NDArray[np.double],  # Actually its an array and the type is dynamic
         k: str,
-        nalgos: int,
     ) -> SvmRes:
         """Train a SVM model using MATLAB's 'fitcsvm' function."""
 
@@ -514,7 +513,10 @@ if __name__ == "__main__":
     algo_input = pd.read_csv(csv_path_algo, header=None).values.flatten().tolist()
 
     opts = PythiaOptions(
-        cv_folds=5, use_svm=True, use_weights=False, is_poly_krnl=False
+        cv_folds=5,
+        use_lib_svm=True,
+        use_weights=False,
+        is_poly_krnl=False,
     )
 
     data_change, pythia_output = Pythia.run(
