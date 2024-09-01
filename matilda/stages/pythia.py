@@ -228,7 +228,7 @@ class Pythia:
             w_aux = w
         else:
             print(" -> PYTHIA is not using cost-sensitive classification.")
-            w = np.ones((ninst, nalgos))
+            w = np.ones((ninst, nalgos), dtype=int)
         print(
             "-------------------------------------------------------------------------",
         )
@@ -351,7 +351,6 @@ class Pythia:
             recall=recall,
         )
 
-        print(svm_result)
         return svm_result
 
     def display_avg_perf(self) -> None:
@@ -368,12 +367,12 @@ class Pythia:
         )
 
     def record_perf(self, index: int, performance: SvmRes) -> None:
-        print(performance)
+        # print(performance)
         """Record performance."""
-        self.y_sub[:, [index]] = performance.Ysub
-        self.pr0sub[:, [index]] = performance.Psub
-        self.y_hat[:, [index]] = performance.Yhat
-        self.pr0hat[:, [index]] = performance.Phat
+        self.y_sub[:, [index]] = performance.Ysub.reshape(-1, 1)
+        self.pr0sub[:, [index]] = performance.Psub.reshape(-1, 1)
+        self.y_hat[:, [index]] = performance.Yhat.reshape(-1, 1)
+        self.pr0hat[:, [index]] = performance.Phat.reshape(-1, 1)
 
         self.box_consnt.append(performance.C)
         self.k_scale.append(performance.g)
