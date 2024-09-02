@@ -209,7 +209,7 @@ class PythiaOut:
     sigma: list[float]
     cp: Any  # Change it to proper type
     svm: Any  # Change it to proper type
-    #cvcmat: NDArray[np.double]
+    cvcmat: NDArray[np.int32]
     y_sub: NDArray[np.bool_]
     y_hat: NDArray[np.bool_]
     pr0_sub: NDArray[np.double]
