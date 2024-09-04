@@ -143,7 +143,7 @@ class _MatlabResults:
         )
         trace_options = TraceOptions(
             use_sim=opts["trace"]["usesim"],
-            purity=opts["trace"]["Pi"],
+            purity=opts["trace"]["PI"],
         )
         output_options = OutputOptions(
             csv=opts["outputs"]["csv"],
