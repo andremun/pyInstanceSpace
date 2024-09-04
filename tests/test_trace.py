@@ -41,7 +41,7 @@ def test_trace_pythia() -> None:
 
     # Reading instance space from Z.csv
     z = np.genfromtxt(
-        script_dir / "test_data/trace_csvs/Z.csv", delimiter=",", dtype=np.double
+        script_dir / "test_data/trace_csvs/Z.csv", delimiter=",", dtype=np.double,
     )
 
     # Reading binary performance indicators from y_bin.csv
@@ -100,7 +100,7 @@ def test_trace_simulation() -> None:
 
     # Reading instance space from Z.csv
     z = np.genfromtxt(
-        script_dir / "test_data/trace_csvs/Z.csv", delimiter=",", dtype=np.double
+        script_dir / "test_data/trace_csvs/Z.csv", delimiter=",", dtype=np.double,
     )
 
     # Reading binary performance indicators from y_bin2.csv
