@@ -73,10 +73,10 @@ def test_run_numerical_pilot_cloister_zedge() -> None:
     pilot = Pilot()
     _, result_pilot = pilot.run(x_sample, y_sample, feat_labels_sample_str, opts)
 
-    a = result_pilot.a
+    projection_matrix = result_pilot.a
 
-    cloister = Cloister(x_sample, a, DEFAULT_OPT.cloister)
-    _, result_cloister = cloister.run(x_sample, a, DEFAULT_OPT.cloister)
+    cloister = Cloister(x_sample, projection_matrix, DEFAULT_OPT.cloister)
+    _, result_cloister = cloister.run(x_sample, projection_matrix, DEFAULT_OPT.cloister)
 
     fp_outdata = SCRIPT_DIR / "test_data/pilot-cloister/output/matlab_results_num.mat"
     data_out = loadmat(fp_outdata)
