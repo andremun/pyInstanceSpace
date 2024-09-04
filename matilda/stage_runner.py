@@ -46,7 +46,10 @@ class StageRunner:
 
         # TODO: Check the inputs are actually resolved, throw if not
 
-    def run_iter(self, **initial_inputs: Any) -> Generator[None, tuple[Any], None]:  # noqa: ANN401
+    def run_iter(
+        self,
+        **initial_inputs: Any,  # noqa: ANN401
+    ) -> Generator[None, tuple[Any], None]:
         """
         Run all stages, yielding after every run.
 
@@ -56,7 +59,11 @@ class StageRunner:
         """
         raise NotImplementedError
 
-    def run_stage(self, stage: type[Stage]) -> tuple[Any]:
+    def run_stage(
+        self,
+        stage: type[Stage],
+        **arguments: Any,  # noqa: ANN401
+    ) -> tuple[Any]:
         """
         Run a single stage.
 
@@ -65,6 +72,9 @@ class StageRunner:
         Args
         ----
             stages list[type[Stage]]: A list of stages to run.
+            **arguments dict[str, Any]: Inputs for the stage. If inputs aren't provided
+                the runner will try to get them from previously ran stages. If they
+                still aren't present the stage will raise an error.
         """
         raise NotImplementedError
 
@@ -90,11 +100,15 @@ class StageRunner:
         """
         raise NotImplementedError
 
-    def build(self, **initial_inputs: Any) -> tuple[Any]:  # noqa: ANN401
+    def run_all(self, **initial_inputs: Any) -> tuple[Any]:  # noqa: ANN401
         """
         Run all stages from start to finish.
 
         Return the entire outputs data object when finished.
+
+        Returns
+        -------
+            tuple[Any]: _description_
         """
         for initial_input_name, initial_input_data in self.initial_input_arguments:
             # TODO: Check all inputs are present and correct. Otherwise Throw.
