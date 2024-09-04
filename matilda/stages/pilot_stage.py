@@ -85,8 +85,7 @@ class pilotStage(Stage):
             pd.DataFrame
 
         """
-        pout = pilotStage(self.x, self.y, self.feat_labels)
-        return pout
+        return pilotStage.pilot(self.x, self.y, self.feat_labels)
 
     @staticmethod
     def pilot(x: NDArray[np.double],
