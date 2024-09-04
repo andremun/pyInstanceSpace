@@ -258,6 +258,7 @@ class _MatlabResults:
 
             footprint = Footprint.__new__(Footprint)
             object.__setattr__(footprint, "polygon", polygon)
+            object.__setattr__(footprint, "y_bin", y_bin)
             object.__setattr__(footprint, "area", in_from_matlab["area"])
             object.__setattr__(footprint, "elements", in_from_matlab["elements"])
             object.__setattr__(
