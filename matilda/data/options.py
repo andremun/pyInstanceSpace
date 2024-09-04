@@ -47,7 +47,7 @@ from matilda.data.default_options import (
     DEFAULT_SIFTED_NTREES,
     DEFAULT_SIFTED_REPLICATES,
     DEFAULT_SIFTED_RHO,
-    DEFAULT_TRACE_PI,
+    DEFAULT_TRACE_PURITY,
     DEFAULT_TRACE_USE_SIM,
 )
 
@@ -298,7 +298,7 @@ class TraceOptions:
     @staticmethod
     def default(
         use_sim: bool = DEFAULT_TRACE_USE_SIM,
-        purity: float = DEFAULT_TRACE_PI,
+        purity: float = DEFAULT_TRACE_PURITY,
     ) -> TraceOptions:
         """Instantiate with default values."""
         return TraceOptions(

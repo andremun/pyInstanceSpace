@@ -44,7 +44,7 @@ from matilda.data.default_options import (
     DEFAULT_SIFTED_NTREES,
     DEFAULT_SIFTED_REPLICATES,
     DEFAULT_SIFTED_RHO,
-    DEFAULT_TRACE_PI,
+    DEFAULT_TRACE_PURITY,
     DEFAULT_TRACE_USE_SIM,
 )
 from matilda.data.metadata import Metadata
@@ -304,7 +304,7 @@ class TestOption:
             ("pythia", "use_weights", False),
             ("pythia", "use_lib_svm", False),
             ("trace", "use_sim", True),
-            ("trace", "pi", 0.55),
+            ("trace", "purity", 0.55),
             ("outputs", "csv", True),
             ("outputs", "png", True),
             ("outputs", "web", False),
@@ -468,7 +468,7 @@ class TestOption:
             ("pythia", "use_weights", DEFAULT_PYTHIA_USE_WEIGHTS),
             ("pythia", "use_lib_svm", DEFAULT_PYTHIA_USE_LIB_SVM),
             ("trace", "use_sim", DEFAULT_TRACE_USE_SIM),
-            ("trace", "pi", DEFAULT_TRACE_PI),
+            ("trace", "purity", DEFAULT_TRACE_PURITY),
             ("outputs", "csv", DEFAULT_OUTPUTS_CSV),
             ("outputs", "png", DEFAULT_OUTPUTS_PNG),
             ("outputs", "web", DEFAULT_OUTPUTS_WEB),
