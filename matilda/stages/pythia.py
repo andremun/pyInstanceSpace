@@ -13,7 +13,7 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
-from sklearn.svm import SVC,SVR
+from sklearn.svm import SVC
 from skopt import BayesSearchCV
 from skopt.space import Real
 
@@ -443,7 +443,6 @@ class Pythia:
         """Compute sigma and mu."""
         self.mu = np.mean(z, axis=0)
         self.sigma = np.std(z, ddof=1, axis=0)
-        print(self.mu)
 
     def generate_summary(self) -> None:
         """Generate a summary of the results."""
@@ -451,11 +450,9 @@ class Pythia:
 
 
         sel0 = self.selection0[:, np.newaxis] == np.arange(1, self.nalgos + 1)
-        print(sel0)
         sel1 = self.selection1[:, np.newaxis] == np.arange(1, self.nalgos + 1)
-        print(sel1)
+
         avgperf = np.round(np.nanmean(self.y, axis=0), 3)
-        print(avgperf)
         stdperf = np.round(np.nanstd(self.y, axis=0), 3)
 
         y_full = self.y.copy()
