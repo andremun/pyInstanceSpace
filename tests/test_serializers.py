@@ -143,7 +143,7 @@ class _MatlabResults:
         )
         trace_options = TraceOptions(
             use_sim=opts["trace"]["usesim"],
-            purity=opts["trace"]["pi"],
+            purity=opts["trace"]["Pi"],
         )
         output_options = OutputOptions(
             csv=opts["outputs"]["csv"],
@@ -255,9 +255,9 @@ class _MatlabResults:
             polygon_ndarray: NDArray[np.double] = vertices
             polygon = Polygon(polygon_ndarray)
             y_bin: NDArray[np.bool_] = np.array([True for _ in polygon_ndarray])
-            footprint = Footprint.from_polygon(polygon, polygon_ndarray, y_bin)
-            # TODO: Clarify what the following section is for
-            """
+
+            footprint = Footprint.__new__(Footprint)
+            object.__setattr__(footprint, "polygon", polygon)
             object.__setattr__(footprint, "area", in_from_matlab["area"])
             object.__setattr__(footprint, "elements", in_from_matlab["elements"])
             object.__setattr__(
@@ -267,7 +267,6 @@ class _MatlabResults:
             )
             object.__setattr__(footprint, "density", in_from_matlab["density"])
             object.__setattr__(footprint, "purity", in_from_matlab["purity"])
-            """
 
             return footprint
 
