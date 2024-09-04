@@ -56,7 +56,8 @@ class pilotStage(stage):
         
         #Implement all the code in and around this class in buildIS
         raise NotImplementedError
-
+    
+    @staticmethod
     def pilot(x: NDArray[np.double],
         y: NDArray[np.double],
         feat_labels: list[str]) -> tuple[NDArray[np.double] | None,
