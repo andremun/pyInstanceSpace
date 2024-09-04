@@ -57,9 +57,6 @@ def test_bayes_opt() -> None:
 
     # compare the output and check the tolerance, the tolerance should within 2.5%
     for i in range(len(algo_input)):
-        if i == 2:
-            continue
-
         if np.allclose(matlab_accuracy[i], pythiaOut.accuracy[i] * 100, atol=tol):
             pass
         else:
@@ -85,9 +82,6 @@ def test_bayes_opt() -> None:
             )
 
     for i in range(len(algo_input)):
-        # if i == 2:
-        #     continue
-
         assert np.isclose(
             matlab_accuracy[i],
             pythiaOut.accuracy[i] * 100,

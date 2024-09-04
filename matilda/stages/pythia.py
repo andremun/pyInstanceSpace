@@ -13,6 +13,7 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
+from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
 from skopt import BayesSearchCV
 from skopt.space import Real
@@ -21,6 +22,7 @@ from matilda.data.model import PythiaDataChanged, PythiaOut
 from matilda.data.options import PythiaOptions
 
 script_dir = Path(__file__).parents[2] / "tests" / "test_data" / "pythia" / "input"
+
 
 class SvmRes:
     def __init__(
@@ -227,10 +229,10 @@ class Pythia:
         # TODO Section 3: Train SVM model for each algorithm & Evaluate performance.
         overall_start_time = time.time()
         for i in range(nalgos):
-            # skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
+            skf = StratifiedKFold(n_splits=opts.cv_folds, shuffle=True, random_state=0)
             # pythia_output.cp[i] = list(skf.split(z, y_bin[:, i]))
             algo_start_time = time.time()
-            res = pythia.fitmatsvm(z, y_bin[:, i], w[:, i], kernel_fcn, params[i])
+            res = pythia.fitmatsvm(z, y_bin[:, i], w[:, i], skf, kernel_fcn)
             pythia.record_perf(index=i, performance=res)
             # Generate output
             if i == nalgos - 1:
@@ -266,9 +268,8 @@ class Pythia:
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         w: NDArray[np.double],
-        # cp: NDArray[np.double],  # Actually its an array and the type is dynamic
+        skf: StratifiedKFold,  # Actually its an array and the type is dynamic
         k: str,
-        params: NDArray[np.double],
     ) -> SvmRes:
         """Train a SVM model using MATLAB's 'fitcsvm' function."""
         if k == "gaussian":
@@ -300,7 +301,7 @@ class Pythia:
             estimator=svm_model,
             n_iter=30,
             search_spaces=param_space,
-            cv=5,
+            cv=skf,
             verbose=0,
             random_state=0,
         )
@@ -318,7 +319,6 @@ class Pythia:
 
         y_hat = best_svm.predict(z)
         p_hat = best_svm.predict_proba(z)[:, 1]
-
 
         p_sub = best_svm.predict(z)
         p_hat = best_svm.predict(z)
@@ -407,7 +407,7 @@ class Pythia:
             self.selection0 = best
         else:
             best = self.y_hat
-            #self.selection0 = self.y_hat
+            # self.selection0 = self.y_hat
         default = np.argmax(np.mean(self.y_bin, axis=0))
         self.selection1 = self.selection0
         self.selection0[best <= 0] = 0
@@ -448,7 +448,6 @@ class Pythia:
         """Generate a summary of the results."""
         print("  -> PYTHIA is preparing the summary table.")
 
-
         sel0 = self.selection0[:, np.newaxis] == np.arange(1, self.nalgos + 1)
         sel1 = self.selection1[:, np.newaxis] == np.arange(1, self.nalgos + 1)
 
@@ -468,17 +467,16 @@ class Pythia:
             "Avg_Perf_all_instances": avgperf,
             # , [np.nanmean(self.y_best), np.nanmean(y_full)]),
             "Std_Perf_all_instances": stdperf,
-                #np.append(stdperf, [],#[np.nanstd(self.y_best), np.nanstd(y_full)]),
-                #3,
-            #),
-            "Probability_of_good": np.nanmean(self.y_best),#np.round(
-                #np.append(np.mean(self.y_best), [1, pgood]),
+            # np.append(stdperf, [],#[np.nanstd(self.y_best), np.nanstd(y_full)]),
+            # 3,
+            # ),
+            "Probability_of_good": np.nanmean(self.y_best),  # np.round(
+            # np.append(np.mean(self.y_best), [1, pgood]),
             # ),
             # "Avg_Perf_selected_instances": np.round(
             #      np.append(np.nanmean(y_svms,[]))),#, [np.nan, np.nanmean(y_full)]),
             #     3,
             # ),
-        
             # "Std_Perf_selected_instances": np.round(
             #     np.append(np.nanstd(y_svms),[]), #[np.nan, np.nanstd(y_full)]),
             #     3,
@@ -496,11 +494,11 @@ class Pythia:
                 1,
             ),
             "BoxConstraint": np.round(
-                np.append(self.box_consnt, []),#[np.nan, np.nan]),
+                np.append(self.box_consnt, []),  # [np.nan, np.nan]),
                 3,
             ),
             "KernelScale": np.round(
-                np.append(self.k_scale, []),#[np.nan, np.nan]),
+                np.append(self.k_scale, []),  # [np.nan, np.nan]),
                 3,
             ),
         }
