@@ -1,13 +1,10 @@
+"""File for preprocessing stage."""
 
 import numpy as np
 import pandas as pd
-import stage
 from numpy.typing import NDArray
+from stages.stage import Stage
 
-from matilda.data.metadata import Metadata
-from matilda.data.model import (
-    Data,
-)
 from matilda.data.options import (
     AutoOptions,
     BoundOptions,
@@ -23,14 +20,30 @@ from matilda.data.options import (
 )
 
 
-class preprocessingStage(stage):
-    def __init__(self, feature_names: list[str], algorithm_names: list[str], 
-                 instance_labels: pd.Series, instance_sources: pd.Series | None,
-                 features: NDArray[np.double], algorithms: NDArray[np.double],
-                 perf: PerformanceOptions, auto: AutoOptions, bound: BoundOptions,
-                 norm: NormOptions, selvars: SelvarsOptions, sifted: SiftedOptions,
-                 pilot: PilotOptions, cloister: CloisterOptions, pythia: PythiaOptions,
-                trace: TraceOptions, outputs: OutputOptions):
+class PreprocessingStage(Stage):
+    """Class for Preprocessing stage."""
+
+    def __init__(
+        self,
+        feature_names: list[str],
+        algorithm_names: list[str],
+        instance_labels: pd.Series,
+        instance_sources: pd.Series | None,
+        features: NDArray[np.double],
+        algorithms: NDArray[np.double],
+        perf: PerformanceOptions,
+        auto: AutoOptions,
+        bound: BoundOptions,
+        norm: NormOptions,
+        selvars: SelvarsOptions,
+        sifted: SiftedOptions,
+        pilot: PilotOptions,
+        cloister: CloisterOptions,
+        pythia: PythiaOptions,
+        trace: TraceOptions,
+        outputs: OutputOptions,
+    ) -> None:
+        """Initialize the Preprocessing stage."""
         self.feature_names = feature_names
         self.algorithm_names = algorithm_names
         self.instance_labels = instance_labels
@@ -49,9 +62,9 @@ class preprocessingStage(stage):
         self.trace = trace
         self.outputs = outputs
 
-
     @staticmethod
     def _inputs() -> list[tuple[str, type]]:
+        """See file docstring."""
         return [
             ["feature_names", list[str]],
             ["algorithm_names", list[str]],
@@ -74,6 +87,7 @@ class preprocessingStage(stage):
 
     @staticmethod
     def _outputs() -> list[tuple[str, type]]:
+        """See file docstring."""
         return [
             ["inst_labels", pd.Series],  # type: ignore[type-arg]
             ["feat_labels", list[str]],
@@ -96,14 +110,20 @@ class preprocessingStage(stage):
         pythia: PythiaOptions,
         trace: TraceOptions,
         outputs: OutputOptions,
-    ) -> tuple[pd.Series, list[str], list[str], NDArray[np.double], NDArray[np.double],
-                pd.Series | None]:
+    ) -> tuple[
+        pd.Series,
+        list[str],
+        list[str],
+        NDArray[np.double],
+        NDArray[np.double],
+        pd.Series | None,
+    ]:
+        """See file docstring."""
         # All the code including the code in the buildIS should be here
         raise NotImplementedError
 
     @staticmethod
     def preprocessing(
-        self,
         feature_names: list[str],
         algorithm_names: list[str],
         instance_labels: pd.Series,
@@ -121,8 +141,14 @@ class preprocessingStage(stage):
         pythia: PythiaOptions,
         trace: TraceOptions,
         outputs: OutputOptions,
-    ) -> tuple[pd.Series, list[str], list[str], NDArray[np.double], NDArray[np.double],
-                pd.Series | None]:
+    ) -> tuple[
+        pd.Series,
+        list[str],
+        list[str],
+        NDArray[np.double],
+        NDArray[np.double],
+        pd.Series | None,
+    ]:
+        """See file docstring."""
         # This has code specific to preprocessing.m
         raise NotImplementedError
-

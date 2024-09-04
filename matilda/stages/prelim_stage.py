@@ -1,15 +1,25 @@
-import pandas as pd
-import stage
+"""Performing preliminary data processing.
 
-from dataclasses import dataclass
+The main focus is on the `prelim` function, which prepares the input data for further
+analysis and modeling.
+
+The `prelim` function takes feature and performance data matrices along with a set of
+processing options, and performs various preprocessing tasks such as normalization,
+outlier detection and removal, and binary performance classification. These tasks are
+guided by the options specified in the `InstanceSpaceOptions` object.
+"""
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
-from scipy import optimize, stats
+from stages.stage import Stage
 
-class prelimStage(stage):
-    def __init__(self, 
-                 
+
+class PrelimStage(Stage):
+    """See file docstring."""
+
+    def __init__(
+        self,
         x: NDArray[np.double],
         y: NDArray[np.double],
         max_perf: bool,
@@ -18,7 +28,6 @@ class prelimStage(stage):
         beta_threshold: float,
         bound: bool,
         norm: bool,
-        
         small_scale_flag: bool,
         small_scale: float,
         file_idx_flag: bool,
@@ -27,9 +36,9 @@ class prelimStage(stage):
         algos: pd.DataFrame | None,
         selvars_type: str,
         min_distance: float,
-        density_flag: bool
-        ) -> None:
-        
+        density_flag: bool,
+    ) -> None:
+        """See file docstring."""
         self.x = x
         self.y = y
         self.max_perf = max_perf
@@ -38,7 +47,7 @@ class prelimStage(stage):
         self.beta_threshold = beta_threshold
         self.bound = bound
         self.norm = norm
-        
+
         self.small_scale_flag = small_scale_flag
         self.small_scale = small_scale
         self.file_idx_flag = file_idx_flag
@@ -48,9 +57,10 @@ class prelimStage(stage):
         self.selvars_type = selvars_type
         self.min_distance = min_distance
         self.density_flag = density_flag
-        
+
     @staticmethod
     def _inputs() -> list[tuple[str, type]]:
+        """See file docstring."""
         return [
             ["x", NDArray[np.double]],
             ["y", NDArray[np.double]],
@@ -68,11 +78,12 @@ class prelimStage(stage):
             ["algos", pd.DataFrame | None],
             ["selvars_type", str],
             ["min_distance", float],
-            ["density_flag", bool]
-            ]
-        
-    @staticmethod 
-    def _outputs() -> List[Tuple[str, type]]:
+            ["density_flag", bool],
+        ]
+
+    @staticmethod
+    def _outputs() -> list[tuple[str, type]]:
+        """See file docstring."""
         return [
             ("med_val", NDArray[np.double]),
             ("iq_range", NDArray[np.double]),
@@ -85,10 +96,11 @@ class prelimStage(stage):
             ("min_y", float),
             ("lambda_y", NDArray[np.double]),
             ("sigma_y", NDArray[np.double]),
-            ("mu_y", NDArray[np.double])
+            ("mu_y", NDArray[np.double]),
         ]
-        
-    def _run(self,
+
+    def _run(
+        self,
         x: NDArray[np.double],
         y: NDArray[np.double],
         max_perf: bool,
@@ -105,14 +117,26 @@ class prelimStage(stage):
         algos: pd.DataFrame | None,
         selvars_type: str,
         min_distance: float,
-        density_flag: bool) -> tuple[
-            NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], 
-            NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], 
-            float, NDArray[np.double], NDArray[np.double], NDArray[np.double]]:
-            
-            raise NotImplementedError
-        
-    def prelim(self, 
+        density_flag: bool,
+    ) -> tuple[
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        float,
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+    ]:
+        """See file docstring."""
+        raise NotImplementedError
+
+    def prelim(
+        self,
         x: NDArray[np.double],
         y: NDArray[np.double],
         max_perf: bool,
@@ -120,9 +144,20 @@ class prelimStage(stage):
         epsilon: float,
         beta_threshold: float,
         bound: bool,
-        norm: bool) -> tuple[
-            NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], 
-            NDArray[np.double], NDArray[np.double], NDArray[np.double], NDArray[np.double], 
-            float, NDArray[np.double], NDArray[np.double], NDArray[np.double]]:
-        
+        norm: bool,
+    ) -> tuple[
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        float,
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+    ]:
+        """See file docstring."""
         raise NotImplementedError
