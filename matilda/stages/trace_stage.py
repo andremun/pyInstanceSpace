@@ -1,4 +1,4 @@
-import Stage
+import stage
 
 from __future__ import annotations
 import pandas as pd
@@ -10,7 +10,7 @@ from shapely.geometry import MultiPolygon, Polygon
 from matilda.data.model import Footprint, TraceDataChanged, TraceOut
 from matilda.data.options import TraceOptions
 
-class traceStage(Stage):
+class traceStage(stage):
     def __init__(self, z: NDArray[np.double], y_bin: NDArray[np.bool_], 
                  p: NDArray[np.double], beta: NDArray[np.bool_], 
                  algo_labels: list[str]) -> None:
