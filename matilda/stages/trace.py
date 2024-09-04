@@ -69,11 +69,6 @@ process_algorithm(self, i: int) -> tuple[int, Footprint, Footprint]:
 parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint],
     list[Footprint]]:
     Performs parallel processing to calculate footprints for multiple algorithms.
-
-compute_footprint(self, polygon: Polygon, y_bin: NDArray[np.bool_], smoothen=False)
-    -> Footprint:
-    Creates a Footprint object based on the given polygon, calculating its area,
-    density, and purity.
 """
 
 import math
@@ -150,9 +145,6 @@ class Trace:
         self.algo_labels = algo_labels
         self.opts = opts
 
-        # Determine the number of algorithms being analyzed
-        n_algos = self.y_bin.shape[1]
-
         # Create a boolean array to calculate the space footprint
         true_array: NDArray[np.bool_] = np.array(
             [True for _ in self.y_bin],
@@ -171,11 +163,10 @@ class Trace:
         )
         print("  -> TRACE is calculating the algorithm footprints.")
 
-        # Determine the number of workers available for parallel processing
-        n_workers = multiprocessing.cpu_count()
-
         # Calculate the good and best performance footprints for all algorithms
-        good, best = self.parallel_processing(n_workers, n_algos)
+        # Determine the number of algorithms being analyzed
+        n_algos = self.y_bin.shape[1]
+        good, best = self.compute_algorithm_qualities(n_algos)
 
         # Detect and resolve contradictions between the best performance footprints
         print(
@@ -651,9 +642,8 @@ class Trace:
 
         return i, good_performance, best_performance
 
-    def parallel_processing(
+    def compute_algorithm_qualities(
         self,
-        n_workers: int,
         n_algos: int,
     ) -> tuple[list[Footprint], list[Footprint]]:
         """Perform parallel processing to calculate footprints for multiple algorithms.
@@ -670,9 +660,10 @@ class Trace:
         tuple[list[Footprint], list[Footprint]]:
             Lists of good and best performance footprints for each algorithm.
         """
+        # Determine the number of workers available for parallel processing
         good: list[Footprint] = [self.throw() for _ in range(n_algos)]
         best: list[Footprint] = [self.throw() for _ in range(n_algos)]
-        with ThreadPoolExecutor(max_workers=n_workers) as executor:
+        with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
             futures = [
                 executor.submit(self.process_algorithm, i) for i in range(n_algos)
             ]
@@ -685,48 +676,3 @@ class Trace:
                 best[i] = best_performance
 
         return good, best
-
-    def compute_footprint(
-        self,
-        polygon: Polygon,
-        y_bin: NDArray[np.bool_],
-        smoothen: bool = False,
-    ) -> Footprint:
-        """Create a Footprint object based on the given polygon.
-
-        Parameters:
-        ----------
-        polygon : Polygon
-            The polygon to create the footprint from.
-        y_bin : NDArray[np.bool_]
-            Binary array indicating the points corresponding to the footprint.
-        smoothen : bool, optional
-            Indicates if the polygon borders need to be smoothened, by default False.
-
-        Returns:
-        -------
-        Footprint:
-            The created footprint, or an empty one if the polygon is empty.
-        """
-        if polygon is None:
-            return self.throw()
-        if smoothen:
-            polygon = polygon.buffer(0.01).buffer(-0.01)
-
-        elements = np.sum(
-            [polygon.contains(point) for point in MultiPoint(self.z).geoms],
-        )
-        good_elements = np.sum(
-            [polygon.contains(point) for point in MultiPoint(self.z[y_bin]).geoms],
-        )
-        density = elements / polygon.area if polygon.area != 0 else 0
-        purity = good_elements / elements if elements != 0 else 0
-
-        return Footprint(
-            polygon=polygon,
-            area=polygon.area,
-            elements=elements,
-            good_elements=good_elements,
-            density=density,
-            purity=purity,
-        )

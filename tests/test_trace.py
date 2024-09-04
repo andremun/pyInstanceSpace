@@ -31,25 +31,29 @@ def test_trace_pythia() -> None:
     None
     """
     # Define the path to the file
-    file_path = Path("test_data/trace_csvs/algolabels.txt")
+    script_dir = Path(__file__).parent
+
+    algo_labels_path = script_dir / "test_data/trace_csvs/algolabels.txt"
 
     # Use Path.open() to open the file
-    with file_path.open() as f:
+    with algo_labels_path.open() as f:
         algo_labels = f.read().split(",")
 
     # Reading instance space from Z.csv
-    z = np.genfromtxt("test_data/trace_csvs/Z.csv", delimiter=",", dtype=np.double)
+    z = np.genfromtxt(script_dir / "test_data/trace_csvs/Z.csv",
+                      delimiter=",",
+                      dtype=np.double)
 
     # Reading binary performance indicators from y_bin.csv
     y_bin = np.genfromtxt(
-        "test_data/trace_csvs/yhat.csv",
+        script_dir / "test_data/trace_csvs/yhat.csv",
         delimiter=",",
         dtype=np.int_,
     ).astype(np.bool_)
 
     # Reading performance metrics from p.csv
     p = np.genfromtxt(
-        "test_data/trace_csvs/selection0.csv",
+        script_dir / "test_data/trace_csvs/selection0.csv",
         delimiter=",",
         dtype=np.double,
     )
@@ -57,12 +61,12 @@ def test_trace_pythia() -> None:
 
     # Reading beta thresholds from beta.csv
     beta = np.genfromtxt(
-        "test_data/trace_csvs/beta.csv",
+        script_dir / "test_data/trace_csvs/beta.csv",
         delimiter=",",
         dtype=np.int_,
     ).astype(np.bool_)
 
-    # Setting TRACE options with a pi value of 0.55 and enabling smoothing
+    # Setting TRACE options with a purity value of 0.55 and enabling sim values
     trace_options = TraceOptions(True, 0.55)
 
     # Initialising and running the TRACE analysis
@@ -86,25 +90,29 @@ def test_trace_simulation() -> None:
     None
     """
     # Define the path to the file
-    file_path = Path("test_data/trace_csvs/algolabels.txt")
+    script_dir = Path(__file__).parent
+
+    algo_labels_path = script_dir / "test_data/trace_csvs/algolabels.txt"
 
     # Use Path.open() to open the file
-    with file_path.open() as f:
+    with algo_labels_path.open() as f:
         algo_labels = f.read().split(",")
 
     # Reading instance space from Z.csv
-    z = np.genfromtxt("test_data/trace_csvs/Z.csv", delimiter=",", dtype=np.double)
+    z = np.genfromtxt(script_dir / "test_data/trace_csvs/Z.csv",
+                      delimiter=",",
+                      dtype=np.double)
 
     # Reading binary performance indicators from y_bin2.csv
     y_bin2 = np.genfromtxt(
-        "test_data/trace_csvs/yhat2.csv",
+        script_dir / "test_data/trace_csvs/yhat2.csv",
         delimiter=",",
         dtype=np.int_,
     ).astype(np.bool_)
 
     # Reading performance metrics from p2.csv
     p2 = np.genfromtxt(
-        "test_data/trace_csvs/dataP.csv",
+        script_dir / "test_data/trace_csvs/dataP.csv",
         delimiter=",",
         dtype=np.double,
     )
@@ -112,12 +120,12 @@ def test_trace_simulation() -> None:
 
     # Reading beta thresholds from beta.csv
     beta = np.genfromtxt(
-        "test_data/trace_csvs/beta.csv",
+        script_dir / "test_data/trace_csvs/beta.csv",
         delimiter=",",
         dtype=np.int_,
     ).astype(np.bool_)
 
-    # Setting TRACE options with a pi value of 0.55 and disabling smoothing
+    # Setting TRACE options with a purity value of 0.55 and disabling sim values
     trace_options = TraceOptions(False, 0.55)
 
     # Initialising and running the TRACE analysis
