@@ -1,5 +1,6 @@
 """A runner to run a list of stages."""
 
+from collections.abc import Generator
 from typing import Any
 
 from matilda.stages.stage import Stage, StageArgument
@@ -41,9 +42,55 @@ class StageRunner:
 
         self.output_data = {}
 
+        raise NotImplementedError
+
         # TODO: Check the inputs are actually resolved, throw if not
 
-    def run(self, **initial_inputs: Any) -> tuple[Any]:  # noqa: ANN401
+    def run_iter(self, **initial_inputs: Any) -> Generator[None, tuple[Any], None]:  # noqa: ANN401
+        """
+        Run all stages, yielding after every run.
+
+        Yields
+        ------
+            Generator[None, tuple[Any], None]: _description_
+        """
+        raise NotImplementedError
+
+    def run_stage(self, stage: type[Stage]) -> tuple[Any]:
+        """
+        Run a single stage.
+
+        Errors if prerequisite stages haven't been ran.
+
+        Args
+        ----
+            stages list[type[Stage]]: A list of stages to run.
+        """
+        raise NotImplementedError
+
+    def run_many_stages_parallel(
+        self,
+        stages: list[type[Stage]],
+        **initial_inputs: Any,  # noqa: ANN401
+    ) -> tuple[tuple[Any]]:
+        """
+        Run multiple stages in parallel.
+
+        All prerequisite stages must have already been ran. The stages cannot be a
+        prerequisite for other stages being ran at the same time.
+
+        Args
+        ----
+            stages list[type[Stage]]: A list of stages to run.
+
+
+        Returns
+        -------
+            tuple[tuple[Any]]: _description_
+        """
+        raise NotImplementedError
+
+    def build(self, **initial_inputs: Any) -> tuple[Any]:  # noqa: ANN401
         """
         Run all stages from start to finish.
 
@@ -67,4 +114,4 @@ class StageRunner:
                 # Do some check that the output is the right type
                 self.output_data[output_name] = outputs[i]
 
-        return # TODO: all of outputs?
+        raise NotImplementedError

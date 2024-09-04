@@ -11,6 +11,7 @@ class StageArgument(NamedTuple):
     parameter_name: str
     parameter_type: type
 
+
 class Stage(ABC):
     """Generic stage."""
 
