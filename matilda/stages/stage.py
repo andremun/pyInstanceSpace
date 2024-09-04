@@ -1,4 +1,5 @@
 """Generic stage."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -27,8 +28,8 @@ class Stage(ABC):
         """Return outputs of the STAGE (run method)."""
         pass
 
-    @staticmethod
+
     @abstractmethod
-    def _run(*args: tuple[Any]) -> tuple[Any]:
+    def _run(*args: Any) -> tuple[Any]:
         """Run the stage."""
         pass
