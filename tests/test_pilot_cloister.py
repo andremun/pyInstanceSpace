@@ -23,7 +23,7 @@ DEFAULT_OPT = create_option(cloister=CloisterOptions(p_val=0.05, c_thres=0.7))
 
 def test_run_analytic_pilot_cloister() -> None:
     """Test Closister stage for analytic option from Pilot stage.
-    
+
     This test is for the analytic option from the pilot stage to determine if
     it works for the cloister stage as well.
     """
@@ -59,7 +59,7 @@ def test_run_analytic_pilot_cloister() -> None:
 
 def test_run_numerical_pilot_cloister_zedge() -> None:
     """Test Closister stage for analytic option from Pilot stage.
-    
+
     This test is for the numerical option from the pilot stage to determine if
     it works for the cloister stage as well.
     """
