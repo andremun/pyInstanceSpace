@@ -272,7 +272,7 @@ class PythiaOptions:
     cv_folds: int
     is_poly_krnl: bool
     use_weights: bool
-    use_lib_svm: bool
+    use_grid_search: bool
 
     # TODO: Add Params
     # params: np.array()
@@ -281,14 +281,14 @@ class PythiaOptions:
         cv_folds: int = DEFAULT_PYTHIA_CV_FOLDS,
         is_poly_krnl: bool = DEFAULT_PYTHIA_IS_POLY_KRNL,
         use_weights: bool = DEFAULT_PYTHIA_USE_WEIGHTS,
-        use_lib_svm: bool = DEFAULT_PYTHIA_USE_LIB_SVM,
+        use_grid_search: bool = DEFAULT_PYTHIA_USE_LIB_SVM,
     ) -> PythiaOptions:
         """Instantiate with default values."""
         return PythiaOptions(
             cv_folds=cv_folds,
             is_poly_krnl=is_poly_krnl,
             use_weights=use_weights,
-            use_lib_svm=use_lib_svm,
+            use_grid_search=use_grid_search,
         )
 
 
