@@ -43,6 +43,7 @@ class _NormaliseOut:
 class PrelimStage(Stage):
     """See file docstring."""
 
+    # need to add variables for data changed by stage as null initially
     def __init__(
         self,
         x: NDArray[np.double],
@@ -89,12 +90,14 @@ class PrelimStage(Stage):
         return [
             ["x", NDArray[np.double]],
             ["y", NDArray[np.double]],
+            # PrelimOptions
             ["max_perf", bool],
             ["abs_perf", bool],
             ["epsilon", float],
             ["beta_threshold", float],
             ["bound", bool],
             ["norm", bool],
+            # SelvarsOptions
             ["small_scale_flag", bool],
             ["small_scale", float],
             ["file_idx_flag", bool],
@@ -106,6 +109,7 @@ class PrelimStage(Stage):
             ["density_flag", bool],
         ]
 
+    # needs to be changes to output including prelim output, and data changed by stage
     @staticmethod
     def _outputs() -> list[tuple[str, type]]:
         """See file docstring."""
@@ -123,7 +127,8 @@ class PrelimStage(Stage):
             ("sigma_y", NDArray[np.double]),
             ("mu_y", NDArray[np.double]),
         ]
-        
+    
+    # will run prelim, filter_post_prelim, return prelim output and data changed by stage
     def _run(
         self,
         x: NDArray[np.double],
@@ -168,6 +173,9 @@ class PrelimStage(Stage):
             bound,
             norm,
         )
+        x, y, y_bin, y_best, p, num_good_algos, beta, med_val, iq_range, hi_bound, lo_bound, min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y = PrelimStage._filter_post_prelim()
+        
+        return (x, y, y_bin, y_best, p, num_good_algos, beta, med_val, iq_range, hi_bound, lo_bound, min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y)
 
     def _select_best_algorithms(
         self,
@@ -366,6 +374,7 @@ class PrelimStage(Stage):
             mu_y=mu_y,
         )
 
+    # prelim matlab file implementation, will return only prelim output
     def prelim(
         self,
         x: NDArray[np.double],
