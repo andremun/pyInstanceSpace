@@ -187,7 +187,7 @@ class Sifted:
 
         return self.x_aux
 
-    def select_features_by_clustering(self) -> NDArray[np.bool_]:
+    def select_features_by_clustering(self) -> NDArray[np.intc]:
         """Select features based on clustering."""
         print("-> Selecting features based on correlation clustering.")
         self.evaluate_cluster()
@@ -199,7 +199,7 @@ class Sifted:
             random_state=self.rng.integers(1000),
         )
 
-        cluster_labels = kmeans.fit_predict(self.x_aux.T)
+        cluster_labels: NDArray[np.intc] = kmeans.fit_predict(self.x_aux.T)
 
         # Create a boolean matrix where each column represents a cluster
         self.clust = np.zeros((self.x_aux.shape[1], self.opts.k), dtype=bool)
