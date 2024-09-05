@@ -187,7 +187,7 @@ class Sifted:
 
         return self.x_aux
 
-    def select_features_by_clustering(self) -> NDArray[np.double]:
+    def select_features_by_clustering(self) -> NDArray[np.bool_]:
         """Select features based on clustering."""
         print("-> Selecting features based on correlation clustering.")
         self.evaluate_cluster()
