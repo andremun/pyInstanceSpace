@@ -13,7 +13,7 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_val_predict
 from sklearn.svm import SVC
 from skopt import BayesSearchCV
 from skopt.space import Real
@@ -228,11 +228,13 @@ class Pythia:
 
         # TODO Section 3: Train SVM model for each algorithm & Evaluate performance.
         overall_start_time = time.time()
+        skf = StratifiedKFold(n_splits=opts.cv_folds, shuffle=True, random_state=0)
         for i in range(nalgos):
-            skf = StratifiedKFold(n_splits=opts.cv_folds, shuffle=True, random_state=0)
             # pythia_output.cp[i] = list(skf.split(z, y_bin[:, i]))
             algo_start_time = time.time()
-            res = pythia.fitmatsvm(z, y_bin[:, i], w[:, i], skf, kernel_fcn)
+            param_space = pythia.generate_params()
+            print(param_space)
+            res = pythia.fitmatsvm(z, y_bin[:, i], w[:, i], skf, kernel_fcn,param_space)
             pythia.record_perf(index=i, performance=res)
             # Generate output
             if i == nalgos - 1:
@@ -270,6 +272,7 @@ class Pythia:
         w: NDArray[np.double],
         skf: StratifiedKFold,  # Actually its an array and the type is dynamic
         k: str,
+        param_space: dict| None,
     ) -> SvmRes:
         """Train a SVM model using MATLAB's 'fitcsvm' function."""
         if k == "gaussian":
@@ -288,34 +291,38 @@ class Pythia:
             "C": Real(2**-10, 2**4, prior="log-uniform"),
             "gamma": Real(2**-10, 2**4, prior="log-uniform"),
         }
-
+        # param_space = Pythia.generate_params(self)
         svm_model = SVC(
             kernel=k,
             random_state=0,
             probability=True,
-            C=param_space["C"],
-            gamma=param_space["gamma"],
+            # C=param_space["C"],
+            # gamma=param_space["gamma"],
+            # cv = skf,
         )
+        grid_search = GridSearchCV(estimator=svm_model, cv=skf,param_grid=param_space)#param_grid=param_space)
+        # bayes_search = BayesSearchCV(
+        #     estimator=svm_model,
+        #     n_iter=30,
+        #     search_spaces=param_space,
+        #     cv=skf,
+        #     verbose=0,
+        #     random_state=0,
+        # )
+        grid_search.fit(z, y_bin, sample_weight=w,cv = skf,scoring = 'accuracy')
+        best_svm = grid_search.best_estimator_
+        c = grid_search.best_params_["C"]
+        g = grid_search.best_params_["gamma"]
 
-        bayes_search = BayesSearchCV(
-            estimator=svm_model,
-            n_iter=30,
-            search_spaces=param_space,
-            cv=skf,
-            verbose=0,
-            random_state=0,
-        )
+        # bayes_search.fit(z, y_bin, sample_weight=w)
 
-        bayes_search.fit(z, y_bin, sample_weight=w)
-
-        best_svm = bayes_search.best_estimator_
-        c = bayes_search.best_params_["C"]
-        g = bayes_search.best_params_["gamma"]
+        # best_svm = bayes_search.best_estimator_
+        # c = bayes_search.best_params_["C"]
+        # g = bayes_search.best_params_["gamma"]
 
         # Predictions on the training set
-        y_sub = best_svm.predict(z)
-        # probabilities of the positive class
-        p_sub = best_svm.predict_proba(z)[:, 1]
+        y_sub = cross_val_predict(best_svm, z, y_bin, cv=skf, method="predict")
+        p_sub = cross_val_predict(best_svm, z, y_bin, cv=skf, method="predict_proba")
 
         y_hat = best_svm.predict(z)
         p_hat = best_svm.predict_proba(z)[:, 1]
@@ -360,7 +367,6 @@ class Pythia:
             + str(np.round(100 * np.mean(self.accuracy), 1))
             + "%",
         )
-
     def check_hyparams(self, nalgos: int) -> NDArray:
         """Check hyperparameters."""
         if (
@@ -444,6 +450,30 @@ class Pythia:
         self.mu = np.mean(z, axis=0)
         self.sigma = np.std(z, ddof=1, axis=0)
 
+    def generate_params(self) -> dict:
+        """Generate parameters."""
+        rng = np.random.default_rng(seed=0)
+        maxgrid = 4
+        mingrid = -10
+        # Number of samples
+        nvals = 30
+
+        # Generate Latin Hypercube Samples
+        lhs = stats.qmc.LatinHypercube(d=2, seed=rng)
+        samples = lhs.random(nvals)
+
+        # Apply scaling and exponentiation
+        C_exponents = mingrid + samples[:, 0] * (maxgrid - mingrid)
+        gamma_exponents = mingrid + samples[:, 1] * (maxgrid - mingrid)
+
+        # Convert exponents to actual values in log scale (i.e., 10^exponent)
+        C_samples = 10 ** C_exponents
+        gamma_samples = 10 ** gamma_exponents
+
+        # Combine the two sets of samples into the parameter grid
+        param_grid = {'C': list(C_samples), 'gamma': list(gamma_samples)}
+
+        return param_grid
     def generate_summary(self) -> None:
         """Generate a summary of the results."""
         print("  -> PYTHIA is preparing the summary table.")
