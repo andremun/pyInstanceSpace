@@ -396,7 +396,7 @@ class Sifted:
         output = SiftedOut(
             rho=self.rho,
             pval=self.pval,
-            selvars=self.selvars,
+            idx=self.selvars,
             clust=self.clust,
         )
         return (data_changed, output)
