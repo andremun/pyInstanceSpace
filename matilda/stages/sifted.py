@@ -316,7 +316,7 @@ class Sifted:
         min_clusters = 2
         max_clusters = self.x_aux.shape[1]
 
-        silhouette_scores: dict[int, float] = {}
+        self.silhouette_scores: list[float] = []
         labels: dict[int, NDArray[np.intc]] = {}
 
         for n in range(min_clusters, max_clusters):
@@ -327,19 +327,23 @@ class Sifted:
             )
             cluster_labels = kmeans.fit_predict(self.x_aux.T)
             labels[n] = cluster_labels
-            silhouette_scores[n] = silhouette_score(
-                self.x_aux.T,
-                cluster_labels,
-                metric="correlation",
+            self.silhouette_scores.append(
+                silhouette_score(
+                    self.x_aux.T,
+                    cluster_labels,
+                    metric="correlation",
+                ),
             )
 
         # suggest k value that has highest silhoulette score if k is not the default
         # value and not the maximum nth cluster
-        max_k_silhoulette = max(silhouette_scores, key=lambda k: silhouette_scores[k])
+        max_k_silhoulette_index = np.argmax(self.silhouette_scores)
+        max_k_silhoulette = min_clusters + max_k_silhoulette_index
+
         if max_k_silhoulette not in (self.opts.k, max_clusters):
             print(
                 f"    Suggested k value {max_k_silhoulette} with silhoulette score of",
-                f"{silhouette_scores[max_k_silhoulette]:.4f}",
+                f"{self.silhouette_scores[max_k_silhoulette]:.4f}",
             )
 
         # matlab returning numOfObservation, inspected K value, criterion values,
@@ -397,6 +401,7 @@ class Sifted:
             rho=self.rho,
             pval=self.pval,
             idx=self.selvars,
+            silhouette_scores=self.silhouette_scores,
             clust=self.clust,
         )
         return (data_changed, output)
