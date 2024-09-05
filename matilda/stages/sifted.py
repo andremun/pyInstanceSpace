@@ -316,7 +316,8 @@ class Sifted:
         min_clusters = 2
         max_clusters = self.x_aux.shape[1]
 
-        silhouette_scores, labels = {}, {}
+        silhouette_scores: dict[int, float] = {}
+        labels: dict[int, NDArray[np.intc]] = {}
 
         for n in range(min_clusters, max_clusters):
             kmeans = KMeans(
