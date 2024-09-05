@@ -12,8 +12,8 @@ guided by the options specified in the `InstanceSpaceOptions` object.
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from stages.stage import Stage
-from utils.filter import Filter
+from matilda.stages.stage import Stage
+from matilda.utils.filter import filter
 from dataclasses import dataclass
 from scipy import optimize, stats
 from sklearn.model_selection import train_test_split
@@ -572,12 +572,11 @@ class PrelimStage(Stage):
             subset_index[aux] = True
         elif self.density_flag and self.density_flag:
             print("Creating a small scale experiment for validation based on density.")
-            subset_index = Filter.run(x, y, ybin, self.min_distance, self.selvars_type)
+            subset_index = filter(x, y, ybin, self.selvars_type, self.min_distance)
             print(f"Percentage of instances retained: {round(100. * np.mean(subset_index), 2)}%")
         else:
             print("Using the complete set of the instances.")
             subset_index = np.ones(ninst, dtype=bool)
-        
 
         # Apply the subset index
         self.x = self.x[subset_index, :]
