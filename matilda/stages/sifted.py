@@ -213,7 +213,7 @@ class Sifted:
         self.cv_partition = KFold(
             n_splits=Sifted.KFOLDS,
             shuffle=True,
-            random_state=None,
+            random_state=self.rng.integers(1000),
         )
 
         ga_instance = pygad.GA(
