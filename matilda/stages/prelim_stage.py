@@ -13,7 +13,31 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from stages.stage import Stage
+from utils.filter import Filter
 from dataclasses import dataclass
+from scipy import optimize, stats
+from sklearn.model_selection import train_test_split
+
+@dataclass(frozen=True)
+class _BoundOut:
+    x: NDArray[np.double]
+    med_val: NDArray[np.double]
+    iq_range: NDArray[np.double]
+    hi_bound: NDArray[np.double]
+    lo_bound: NDArray[np.double]
+    
+@dataclass(frozen=True)
+class _NormaliseOut:
+    x: NDArray[np.double]
+    min_x: NDArray[np.double]
+    lambda_x: NDArray[np.double]
+    mu_x: NDArray[np.double]
+    sigma_x: NDArray[np.double]
+    y: NDArray[np.double]
+    min_y: float
+    lambda_y: NDArray[np.double]
+    sigma_y: NDArray[np.double]
+    mu_y: NDArray[np.double]
 
 
 class PrelimStage(Stage):
@@ -100,27 +124,6 @@ class PrelimStage(Stage):
             ("mu_y", NDArray[np.double]),
         ]
         
-    @dataclass(frozen=True)
-    class _BoundOut:
-        x: NDArray[np.double]
-        med_val: NDArray[np.double]
-        iq_range: NDArray[np.double]
-        hi_bound: NDArray[np.double]
-        lo_bound: NDArray[np.double]
-        
-    @dataclass(frozen=True)
-    class _NormaliseOut:
-        x: NDArray[np.double]
-        min_x: NDArray[np.double]
-        lambda_x: NDArray[np.double]
-        mu_x: NDArray[np.double]
-        sigma_x: NDArray[np.double]
-        y: NDArray[np.double]
-        min_y: float
-        lambda_y: NDArray[np.double]
-        sigma_y: NDArray[np.double]
-        mu_y: NDArray[np.double]
-
     def _run(
         self,
         x: NDArray[np.double],
@@ -155,7 +158,16 @@ class PrelimStage(Stage):
         NDArray[np.double],
     ]:
         """See file docstring."""
-        raise NotImplementedError
+        x, y, y_bin, y_best, p, num_good_algos, beta, med_val, iq_range, hi_bound, lo_bound, min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y = self.prelim(
+            x,
+            y,
+            max_perf,
+            abs_perf,
+            epsilon,
+            beta_threshold,
+            bound,
+            norm,
+        )
 
     def _select_best_algorithms(
         self,
@@ -400,7 +412,6 @@ class PrelimStage(Stage):
             A tuple containing the processed data (as 'Data' object) and
             preliminary output information (as 'PrelimOut' object).
         """
-        # prelim = PrelimStage(x, y, max_perf, abs_perf, epsilon, beta_threshold, bound, norm)
         y_raw = y.copy()
         nalgos = y.shape[1]
 
@@ -512,3 +523,80 @@ class PrelimStage(Stage):
             sigma_y,
             mu_y,
         )
+
+    def _filter_post_prelim(self) -> tuple[
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        float,
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+    ]:
+
+        # Filter out algorithms with no "good" instances
+        idx = np.all(y_bin, axis=0)
+        if np.any(idx):
+            print("Warning: There are algorithms with no 'good' instances. They are being removed to increase speed.")
+            self.y = self.y[:, ~idx]
+            self.x = self.x[:, ~idx]
+            if self.feats is not None:
+                self.feats = self.feats.loc[:, ~idx]
+            if self.algos is not None:
+                self.algos = self.algos.loc[~idx]
+            
+            nalgos = self.y.shape[1]
+            if nalgos == 0:
+                raise ValueError("There are no 'good' algorithms. Please verify the binary performance measure. STOPPING!")
+        
+        ######################################################################################
+        # I have optimised the code below in comparision to MATLAB implementation
+
+        # Determine the subset of instances to use
+        ninst = self.x.shape[0]
+        if self.small_scale_flag and self.small_scale:
+            print(f"Creating a small scale experiment for validation. Percentage of subset: {round(100. * self.small_scale, 2)}%")
+            _, subset_index = train_test_split(np.arange(ninst), test_size=self.small_scale, random_state=42)
+            subset_index = np.zeros(ninst, dtype=bool)
+            subset_index[subset_index] = True
+        elif self.file_idx_flag and self.file_idx:
+            print("Using a subset of the instances.")
+            subset_index = np.zeros(ninst, dtype=bool)
+            aux = pd.read_csv(self.file_idx, header=None).values.flatten()
+            aux = aux[aux < ninst]
+            subset_index[aux] = True
+        elif self.density_flag and self.density_flag:
+            print("Creating a small scale experiment for validation based on density.")
+            subset_index = Filter.run(x, y, ybin, self.min_distance, self.selvars_type)
+            print(f"Percentage of instances retained: {round(100. * np.mean(subset_index), 2)}%")
+        else:
+            print("Using the complete set of the instances.")
+            subset_index = np.ones(ninst, dtype=bool)
+        
+
+        # Apply the subset index
+        self.x = self.x[subset_index, :]
+        self.y = self.y[subset_index, :]
+        self.xraw = self.xraw[subset_index, :]
+        self.yraw = self.yraw[subset_index, :]
+        self.ybin = self.ybin[subset_index, :]
+        self.beta = self.beta[subset_index]
+        self.numGoodAlgos = self.numGoodAlgos[subset_index]
+        self.ybest = self.ybest[subset_index]
+        self.p = self.p[subset_index]
+        self.instlabels = self.instlabels[subset_index]
+        
+        # Check if model.data has 'S' and filter it
+        if hasattr(self, 'S'):
+            self.S = self.S[subset_index]
+            
+        ######################################################################################
+
+
+        return (self.x, self.y, self.xraw, self.yraw, self.ybin, self.beta, self.numGoodAlgos, self.ybest, self.p, self.instlabels, self.S)
+
