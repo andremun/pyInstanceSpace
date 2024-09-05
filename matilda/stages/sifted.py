@@ -201,9 +201,6 @@ class Sifted:
 
         cluster_labels = kmeans.fit_predict(self.x_aux.T)
 
-        print('this is cluster label')
-        print(cluster_labels)
-
         # Create a boolean matrix where each column represents a cluster
         self.clust = np.zeros((self.x_aux.shape[1], self.opts.k), dtype=bool)
         for i in range(self.opts.k):
