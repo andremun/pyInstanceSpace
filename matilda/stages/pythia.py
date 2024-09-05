@@ -27,7 +27,7 @@ script_dir = Path(__file__).parents[2] / "tests" / "test_data" / "pythia" / "inp
 class SvmRes:
     def __init__(
         self,
-        svm: any,  # TODO: Change it to proper type
+        svm: SVC,  # TODO: Change it to proper type
         Ysub: NDArray[np.bool_],
         Psub: NDArray[np.double],
         Yhat: NDArray[np.bool_],
@@ -87,7 +87,7 @@ class Pythia:
     accuracy: list[float]
     selection0: NDArray[np.double]
     selection1: NDArray[np.double]  # Change it to proper type
-    cp: any  # Change it to proper type
+    cp: StratifiedKFold  # Change it to proper type
     # svm: any  # Change it to proper type
     summary: pd.DataFrame
 
@@ -133,7 +133,7 @@ class Pythia:
         self.pr0hat = np.zeros((self.x.shape[0], self.nalgos), dtype=np.double)
         # TODO: Check the type of cp and svm
         self.cp = []
-        # self.svm = []
+        self.svm = None
         self.cvcmat = np.zeros((self.nalgos, 4), dtype=int)
         self.box_consnt = []
         self.k_scale = []
@@ -203,6 +203,11 @@ class Pythia:
         print(
             "-------------------------------------------------------------------------",
         )
+        if opts.use_grid_search:
+            print(" -> PYTHIA is using grid search for hyper-parameter optimization.")
+        else:
+            print(" -> PYTHIA is using Bayesian optimization for hyper-parameter optimization.")
+
         if opts.use_weights:
             print(" -> PYTHIA is using cost-sensitive classification.")
             w = np.abs(y - np.nanmean(y))
@@ -230,11 +235,10 @@ class Pythia:
         overall_start_time = time.time()
         skf = StratifiedKFold(n_splits=opts.cv_folds, shuffle=True, random_state=0)
         for i in range(nalgos):
-            # pythia_output.cp[i] = list(skf.split(z, y_bin[:, i]))
             algo_start_time = time.time()
-            param_space = pythia.generate_params()
-            print(param_space)
-            res = pythia.fitmatsvm(z, y_bin[:, i], w[:, i], skf, kernel_fcn,param_space)
+            param_space = pythia.generate_params(opts.use_grid_search)
+
+            res = pythia.fitmatsvm(z, y_bin[:, i], w[:, i], skf, kernel_fcn,param_space,opts.use_grid_search)
             pythia.record_perf(index=i, performance=res)
             # Generate output
             if i == nalgos - 1:
@@ -273,6 +277,7 @@ class Pythia:
         skf: StratifiedKFold,  # Actually its an array and the type is dynamic
         k: str,
         param_space: dict| None,
+        use_grid_search: bool,
     ) -> SvmRes:
         """Train a SVM model using MATLAB's 'fitcsvm' function."""
         if k == "gaussian":
@@ -287,38 +292,34 @@ class Pythia:
                                 Supported kernels are 'gaussian', 'polynomial', and 'linear'.",
             )
 
-        param_space = {
-            "C": Real(2**-10, 2**4, prior="log-uniform"),
-            "gamma": Real(2**-10, 2**4, prior="log-uniform"),
-        }
+        # param_space = {
+        #     "C": Real(2**-10, 2**4, prior="log-uniform"),
+        #     "gamma": Real(2**-10, 2**4, prior="log-uniform"),
+        # }
         # param_space = Pythia.generate_params(self)
         svm_model = SVC(
-            kernel=k,
+            kernel="rbf",
             random_state=0,
             probability=True,
-            # C=param_space["C"],
-            # gamma=param_space["gamma"],
-            # cv = skf,
         )
-        grid_search = GridSearchCV(estimator=svm_model, cv=skf,param_grid=param_space)#param_grid=param_space)
-        # bayes_search = BayesSearchCV(
-        #     estimator=svm_model,
-        #     n_iter=30,
-        #     search_spaces=param_space,
-        #     cv=skf,
-        #     verbose=0,
-        #     random_state=0,
-        # )
-        grid_search.fit(z, y_bin, sample_weight=w,cv = skf,scoring = 'accuracy')
-        best_svm = grid_search.best_estimator_
-        c = grid_search.best_params_["C"]
-        g = grid_search.best_params_["gamma"]
-
-        # bayes_search.fit(z, y_bin, sample_weight=w)
-
-        # best_svm = bayes_search.best_estimator_
-        # c = bayes_search.best_params_["C"]
-        # g = bayes_search.best_params_["gamma"]
+        if(use_grid_search):
+            optimization = GridSearchCV(estimator=svm_model,
+                                   cv = skf,
+                                   param_grid=param_space,
+                                   n_jobs=-1)
+        else:
+            optimization = BayesSearchCV(
+                estimator=svm_model,
+                n_iter=30,
+                search_spaces=param_space,
+                cv=skf,
+                verbose=0,
+                random_state=0,
+            )
+        optimization.fit(z, y_bin, sample_weight=w)
+        best_svm = optimization.best_estimator_
+        c = optimization.best_params_["C"]
+        g = optimization.best_params_["gamma"]
 
         # Predictions on the training set
         y_sub = cross_val_predict(best_svm, z, y_bin, cv=skf, method="predict")
@@ -354,7 +355,6 @@ class Pythia:
             recall=recall,
         )
         return svm_result
-
     def display_avg_perf(self) -> None:
         print(
             " -> The average cross validated precision is: "
@@ -450,30 +450,28 @@ class Pythia:
         self.mu = np.mean(z, axis=0)
         self.sigma = np.std(z, ddof=1, axis=0)
 
-    def generate_params(self) -> dict:
+    def generate_params(self,use_grid_search:bool) -> dict:
         """Generate parameters."""
-        rng = np.random.default_rng(seed=0)
-        maxgrid = 4
-        mingrid = -10
-        # Number of samples
-        nvals = 30
+        if use_grid_search:
+            rng = np.random.default_rng(seed=0)
+            maxgrid = 4
+            mingrid = -10
+            # Number of samples
+            nvals = 30
 
-        # Generate Latin Hypercube Samples
-        lhs = stats.qmc.LatinHypercube(d=2, seed=rng)
-        samples = lhs.random(nvals)
+            # Generate Latin Hypercube Samples
+            lhs = stats.qmc.LatinHypercube(d=2, seed=rng)
+            samples = lhs.random(nvals)
+            C  = 2 ** ((maxgrid - mingrid) * samples[:,0] + mingrid)
+            gamma = 2 ** ((maxgrid - mingrid) * samples[:,1] + mingrid)
 
-        # Apply scaling and exponentiation
-        C_exponents = mingrid + samples[:, 0] * (maxgrid - mingrid)
-        gamma_exponents = mingrid + samples[:, 1] * (maxgrid - mingrid)
-
-        # Convert exponents to actual values in log scale (i.e., 10^exponent)
-        C_samples = 10 ** C_exponents
-        gamma_samples = 10 ** gamma_exponents
-
-        # Combine the two sets of samples into the parameter grid
-        param_grid = {'C': list(C_samples), 'gamma': list(gamma_samples)}
-
-        return param_grid
+            # Combine the two sets of samples into the parameter grid
+            param_grid = {'C': list(C), 'gamma': list(gamma)}
+            return param_grid
+        return {
+                "C": Real(2**-10, 2**4, prior="log-uniform"),
+                "gamma": Real(2**-10, 2**4, prior="log-uniform"),
+        }
     def generate_summary(self) -> None:
         """Generate a summary of the results."""
         print("  -> PYTHIA is preparing the summary table.")
@@ -490,7 +488,6 @@ class Pythia:
         self.y[~sel0] = np.nan
         y_full[~sel1] = np.nan
         y_svms[~self.y_hat] = np.nan
-        print(self.y_best.shape)
         # pgood = np.mean(np.any(self.y_bin & sel1, axis=1))
         data = {
             "Algorithms": [*self.algo_labels],  # "Oracle", "Selector"],
@@ -561,7 +558,7 @@ if __name__ == "__main__":
 
     opts = PythiaOptions(
         cv_folds=5,
-        use_lib_svm=True,
+        use_grid_search=True,
         use_weights=False,
         is_poly_krnl=False,
     )
