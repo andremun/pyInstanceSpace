@@ -81,7 +81,6 @@ class Sifted:
         self.opts = opts
 
         self.rng = np.random.default_rng(seed=0)
-        self.ga_cache = {}
 
     @staticmethod
     def run(
@@ -185,10 +184,9 @@ class Sifted:
         # Get indices of selected features
         self.selvars = np.where(selvars)[0]
         self.x_aux = self.x[:, self.selvars]
-        
+
         return self.x_aux
 
-        
     def select_features_by_clustering(self) -> NDArray[np.double]:
         """Select features based on clustering."""
         print("-> Selecting features based on correlation clustering.")
@@ -202,7 +200,7 @@ class Sifted:
         )
 
         cluster_labels = kmeans.fit_predict(self.x_aux.T)
-        
+
         print('this is cluster label')
         print(cluster_labels)
 
@@ -210,7 +208,7 @@ class Sifted:
         self.clust = np.zeros((self.x_aux.shape[1], self.opts.k), dtype=bool)
         for i in range(self.opts.k):
             self.clust[:, i] = (cluster_labels == i)
-            
+
         return cluster_labels
 
     def find_best_combination(self) -> None:
@@ -240,6 +238,7 @@ class Sifted:
             random_seed=0,
             init_range_low=1,
             init_range_high=self.x_aux.shape[1],
+            save_solutions=True,
         )
 
         ga_instance.run()
@@ -282,15 +281,11 @@ class Sifted:
                 squared error of the k-NN classification.
         """
         idx = np.zeros(self.x.shape[1], dtype=bool)
+
         for i, value in enumerate(solutions):
             aux = np.where(self.clust[:, i])[0]
             selected = aux[value % aux.size]
             idx[selected] = True
-
-        key = "".join(map(str, idx.astype(int)))
-
-        if key in self.ga_cache:
-            return self.ga_cache[key]
 
         _, out = Pilot.run(
             self.x[:, idx],
@@ -310,8 +305,6 @@ class Sifted:
                 scoring="neg_mean_squared_error",
             )
             y = max(y, -scores.mean())
-
-        self.ga_cache[key] = y
 
         return y
 
@@ -409,4 +402,3 @@ class Sifted:
             clust=self.clust,
         )
         return (data_changed, output)
-    
