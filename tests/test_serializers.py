@@ -11,6 +11,19 @@ from numpy.typing import NDArray
 from scipy.io import loadmat
 from shapely.geometry import Polygon
 
+from matilda.data.default_options import (
+    DEFAULT_SIFTED_CROSSOVER_PROBABILITY,
+    DEFAULT_SIFTED_CROSSOVER_TYPE,
+    DEFAULT_SIFTED_K_TOURNAMENT,
+    DEFAULT_SIFTED_KEEP_ELITISM,
+    DEFAULT_SIFTED_MUTATION_PROBABILITY,
+    DEFAULT_SIFTED_MUTATION_TYPE,
+    DEFAULT_SIFTED_NUM_GENERATION,
+    DEFAULT_SIFTED_NUM_PARENTS_MATING,
+    DEFAULT_SIFTED_PARENT_SELECTION_TYPE,
+    DEFAULT_SIFTED_SOL_PER_POP,
+    DEFAULT_SIFTED_STOP_CRITERIA,
+)
 from matilda.data.metadata import Metadata
 from matilda.data.model import (
     CloisterOut,
@@ -126,6 +139,18 @@ class _MatlabResults:
             n_trees=opts["sifted"]["NTREES"],
             max_iter=opts["sifted"]["MaxIter"],
             replicates=opts["sifted"]["Replicates"],
+            # Options for Configuring Python's PyGAD
+            num_generations=DEFAULT_SIFTED_NUM_GENERATION,
+            num_parents_mating=DEFAULT_SIFTED_NUM_PARENTS_MATING,
+            sol_per_pop=DEFAULT_SIFTED_SOL_PER_POP,
+            parent_selection_type=DEFAULT_SIFTED_PARENT_SELECTION_TYPE,
+            k_tournament=DEFAULT_SIFTED_K_TOURNAMENT,
+            keep_elitism=DEFAULT_SIFTED_KEEP_ELITISM,
+            crossover_type=DEFAULT_SIFTED_CROSSOVER_TYPE,
+            cross_over_probability=DEFAULT_SIFTED_CROSSOVER_PROBABILITY,
+            mutation_type=DEFAULT_SIFTED_MUTATION_TYPE,
+            mutation_probability=DEFAULT_SIFTED_MUTATION_PROBABILITY,
+            stop_criteria=DEFAULT_SIFTED_STOP_CRITERIA,
         )
         pilot_options = PilotOptions(
             analytic=opts["pilot"]["analytic"],
@@ -207,14 +232,13 @@ class _MatlabResults:
         sifted_state = StageState[SiftedOut](
             data=data,
             out=SiftedOut(
-                flag=-1,  # TODO: Find where this comes from
                 rho=self.workspace_data["model"]["sifted"]["rho"],
-                k=-1,  # TODO: Find where this comes from
-                n_trees=-1,  # TODO: Find where this comes from
-                max_lter=-1,  # TODO: Find where this comes from
-                replicates=-1,  # TODO: Find where this comes from
+                pval=self.workspace_data["model"]["sifted"]["p"],
+                selvars=self.workspace_data["model"]["sifted"]["selvars"],
                 # MATLAB indexes by 1
                 idx=self.workspace_data["model"]["featsel"]["idx"] - 1,
+                silhouette_scores=self.workspace_data["model"]["sifted"]["eva"]["CriterionValues"],
+                clust=self.workspace_data["model"]["sifted"]["clust"],
             ),
         )
         instance_space._sifted_state = sifted_state  # noqa: SLF001
