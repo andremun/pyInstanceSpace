@@ -7,6 +7,7 @@ import matplotlib as mpl
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from shapely.geometry import Polygon, MultiPolygon
 
 from matilda.data.model import (
     CloisterOut,
@@ -37,24 +38,49 @@ def save_instance_space_to_csv(
     for i in range(num_algorithms):
         best = trace_state.out.best[i]
         if best is not None and best.polygon is not None:
-            best_vertices = np.array(best.polygon.boundary.coords.xy).T[:-1]
-            best = trace_state.out.best[i]
+            boundaries: NDArray[Any] = np.empty((1, 2))
+            if isinstance(best.polygon, Polygon):
+                # Extract the boundary coordinates of a single Polygon
+                x, y = best.polygon.exterior.xy
+                boundary_coords = np.array([x, y]).T
+                boundaries = np.concatenate((boundaries, boundary_coords))
+
+            elif isinstance(best.polygon, MultiPolygon):
+                # Extract the boundary coordinates of each Polygon in MultiPolygon
+                for poly in best.polygon.geoms:
+                    x, y = poly.exterior.xy
+                    boundary_coords = np.array([x, y]).T
+                    boundaries = np.concatenate((boundaries, boundary_coords))
+
             algorithm_labels = trace_state.data.algo_labels[i]
             _write_array_to_csv(
-                best_vertices,
+                boundaries,
                 pd.Series(["z_1", "z_2"]),
-                _make_bind_labels(best_vertices),
+                _make_bind_labels(boundaries),
                 output_directory / f"footprint_{algorithm_labels}_best.csv",
             )
 
         good = trace_state.out.good[i]
         if good is not None and good.polygon is not None:
-            good_vertices = np.array(good.polygon.boundary.coords.xy).T[:-1]
+            boundaries: NDArray[Any] = np.empty((1, 2))
+            if isinstance(good.polygon, Polygon):
+                # Extract the boundary coordinates of a single Polygon
+                x, y = good.polygon.exterior.xy
+                boundary_coords = np.array([x, y]).T
+                boundaries = np.concatenate((boundaries, boundary_coords))
+
+            elif isinstance(good.polygon, MultiPolygon):
+                # Extract the boundary coordinates of each Polygon in MultiPolygon
+                for poly in good.polygon.geoms:
+                    x, y = poly.exterior.xy
+                    boundary_coords = np.array([x, y]).T
+                    boundaries = np.concatenate((boundaries, boundary_coords))
+
             algorithm_labels = trace_state.data.algo_labels[i]
             _write_array_to_csv(
-                good_vertices,
+                boundaries,
                 pd.Series(["z_1", "z_2"]),
-                _make_bind_labels(good_vertices),
+                _make_bind_labels(boundaries),
                 output_directory / f"footprint_{algorithm_labels}_good.csv",
             )
 
