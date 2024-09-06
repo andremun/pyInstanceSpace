@@ -237,9 +237,7 @@ class _MatlabResults:
                 selvars=self.workspace_data["model"]["sifted"]["selvars"],
                 # MATLAB indexes by 1
                 idx=self.workspace_data["model"]["featsel"]["idx"] - 1,
-                silhouette_scores=self.workspace_data["model"]["sifted"]["eva"][
-                    "CriterionValues"
-                ],
+                silhouette_scores=[],
                 clust=self.workspace_data["model"]["sifted"]["clust"],
             ),
         )
