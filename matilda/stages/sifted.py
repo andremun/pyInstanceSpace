@@ -396,11 +396,15 @@ class Sifted:
                 is changed during the Sifted stage and SiftedOut contains data generated
                 from Sifted stage.
         """
+        nfeat = self.x.shape[1]
+        idx = np.arange(nfeat)
+
         data_changed = SiftedDataChanged(x=self.x)
         output = SiftedOut(
             rho=self.rho,
             pval=self.pval,
-            idx=self.selvars,
+            selvars=self.selvars,
+            idx=idx[self.selvars],
             silhouette_scores=self.silhouette_scores,
             clust=self.clust,
         )

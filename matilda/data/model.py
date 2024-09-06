@@ -119,6 +119,7 @@ class SiftedOut:
 
     rho: NDArray[np.double] | None
     pval: NDArray[np.double] | None
+    selvars: NDArray[np.intc] | None
     idx: NDArray[np.intc] | None
     silhouette_scores: list[float] | None
     clust: NDArray[np.bool_] | None
