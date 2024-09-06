@@ -85,10 +85,10 @@ class Pythia:
     precision: list[float]
     recall: list[float]
     accuracy: list[float]
-    selection0: NDArray[np.double]
-    selection1: NDArray[np.double]  # Change it to proper type
+    selection0: NDArray[np.int32]
+    selection1: NDArray[np.int32]  # Change it to proper type
     cp: StratifiedKFold  # Change it to proper type
-    # svm: any  # Change it to proper type
+    svm: any  # Change it to proper type
     summary: pd.DataFrame
 
     def __init__(
@@ -131,7 +131,6 @@ class Pythia:
         self.y_hat = np.zeros((self.x.shape[0], self.nalgos), dtype=bool)
         self.pr0sub = np.zeros((self.x.shape[0], self.nalgos), dtype=np.double)
         self.pr0hat = np.zeros((self.x.shape[0], self.nalgos), dtype=np.double)
-        # TODO: Check the type of cp and svm
         self.cp = []
         self.svm = None
         self.cvcmat = np.zeros((self.nalgos, 4), dtype=int)
@@ -292,11 +291,6 @@ class Pythia:
                                 Supported kernels are 'gaussian', 'polynomial', and 'linear'.",
             )
 
-        # param_space = {
-        #     "C": Real(2**-10, 2**4, prior="log-uniform"),
-        #     "gamma": Real(2**-10, 2**4, prior="log-uniform"),
-        # }
-        # param_space = Pythia.generate_params(self)
         svm_model = SVC(
             kernel="rbf",
             random_state=0,
@@ -323,15 +317,12 @@ class Pythia:
 
         # Predictions on the training set
         y_sub = cross_val_predict(best_svm, z, y_bin, cv=skf, method="predict")
-        p_sub = cross_val_predict(best_svm, z, y_bin, cv=skf, method="predict_proba")
+        p_sub = cross_val_predict(best_svm, z, y_bin, cv=skf, method="predict_proba")[:, 1]
 
         y_hat = best_svm.predict(z)
         p_hat = best_svm.predict_proba(z)[:, 1]
 
-        p_sub = best_svm.predict(z)
-        p_hat = best_svm.predict(z)
-
-        cm = confusion_matrix(y_bin, y_hat)
+        cm = confusion_matrix(y_bin, y_sub)
         tn, fp, fn, tp = cm.ravel()
 
         accuracy = accuracy_score(y_bin, y_hat)
@@ -355,6 +346,7 @@ class Pythia:
             recall=recall,
         )
         return svm_result
+
     def display_avg_perf(self) -> None:
         print(
             " -> The average cross validated precision is: "
@@ -408,13 +400,17 @@ class Pythia:
         None
 
         """
+        default = 0
         if self.nalgos > 1:
-            best = np.max(self.y_hat * self.precision, axis=1)
-            self.selection0 = best
+            # Precision-weighted selection
+            precision = np.array(self.precision)
+            weighted_Yhat = self.y_hat.T * precision[:, np.newaxis]
+            best = np.max(weighted_Yhat, axis=0)
+            self.selection0 = np.argmax(weighted_Yhat, axis=0) + 1  # Algorithms indexed from 1
         else:
-            best = self.y_hat
-            # self.selection0 = self.y_hat
-        default = np.argmax(np.mean(self.y_bin, axis=0))
+            best = self.y_hat.T
+            self.selection0 = self.y_hat.T
+            default = np.argmax(np.mean(self.y_bin, axis=0))
         self.selection1 = self.selection0
         self.selection0[best <= 0] = 0
         self.selection1[best <= 0] = default
@@ -441,7 +437,7 @@ class Pythia:
             accuracy=self.accuracy,
             selection0=self.selection0,
             selection1=self.selection1,
-            # summary=self.summary,
+            summary=self.summary,
         )
         return (data_changed, pythia_output)
 
@@ -488,49 +484,49 @@ class Pythia:
         self.y[~sel0] = np.nan
         y_full[~sel1] = np.nan
         y_svms[~self.y_hat] = np.nan
-        # pgood = np.mean(np.any(self.y_bin & sel1, axis=1))
+
+        pgood = np.mean(np.any(self.y_bin & sel1, axis=1))
+
+        Ybin_flat = self.y_bin.flatten()
+        sel0_flat = sel0.flatten()
+
+        # Compute precision
+        precisionsel = precision_score(Ybin_flat, sel0_flat)
+
+        # Compute recall
+        recallsel = recall_score(Ybin_flat, sel0_flat)
+
+        # Compute confusion matrix
+        # cm = confusion_matrix(Ybin_flat, sel0_flat)
         data = {
-            "Algorithms": [*self.algo_labels],  # "Oracle", "Selector"],
-            "Avg_Perf_all_instances": avgperf,
-            # , [np.nanmean(self.y_best), np.nanmean(y_full)]),
-            "Std_Perf_all_instances": stdperf,
-            # np.append(stdperf, [],#[np.nanstd(self.y_best), np.nanstd(y_full)]),
-            # 3,
-            # ),
-            "Probability_of_good": np.nanmean(self.y_best),  # np.round(
-            # np.append(np.mean(self.y_best), [1, pgood]),
-            # ),
-            # "Avg_Perf_selected_instances": np.round(
-            #      np.append(np.nanmean(y_svms,[]))),#, [np.nan, np.nanmean(y_full)]),
-            #     3,
-            # ),
-            # "Std_Perf_selected_instances": np.round(
-            #     np.append(np.nanstd(y_svms),[]), #[np.nan, np.nanstd(y_full)]),
-            #     3,
-            # ),
+            "Algorithms": [*self.algo_labels,  "Oracle", "Selector"],
+            "Avg_Perf_all_instances": np.round(np.append(avgperf,[np.nanmean(self.y_best), np.nanmean(y_full)]),3),
+            "Std_Perf_all_instances": np.round(np.append(stdperf, [np.nanstd(self.y_best), np.nanstd(y_full)]),3
+                                               ),
+            "Probability_of_good": np.round(np.append(np.nanmean(self.y_bin,axis=0),[1,pgood]),3),
+            "Avg_Perf_selected_instances": np.round(
+                np.append(np.nanmean(y_svms,axis=0) ,[np.nan, np.nanmean(y_full)]),
+            3),
+            "Std_Perf_selected_instances": np.round(
+                np.append(np.nanstd(y_svms,axis = 0),[np.nan, np.nanstd(y_full)]),
+            3),
             "CV_model_accuracy": np.round(
-                100 * np.append(self.accuracy, []),
-                1,  # [np.nan, np.nan]),
-            ),
+                100 * np.append(self.accuracy,[np.nan, np.nan]),
+            3),
             "CV_model_precision": np.round(
-                100 * np.append(self.precision, []),
-                1,  # [np.nan, self.precision]),
-            ),
+                100 * np.append(self.precision, [np.nan, precisionsel]),
+            3),
             "CV_model_recall": np.round(
-                100 * np.append(self.recall, []),  # [np.nan, self.recall]),
-                1,
-            ),
+                100 * np.append(self.recall, [np.nan, recallsel]),
+            3),
             "BoxConstraint": np.round(
-                np.append(self.box_consnt, []),  # [np.nan, np.nan]),
-                3,
-            ),
+                np.append(self.box_consnt,[np.nan, np.nan]),3),
             "KernelScale": np.round(
-                np.append(self.k_scale, []),  # [np.nan, np.nan]),
-                3,
-            ),
+                np.append(self.k_scale, [np.nan, np.nan]),3),
         }
 
         df = pd.DataFrame(data).replace({np.nan: ""})
+        self.summary = df
         print("  -> PYTHIA has completed! Performance of the models:")
         print(df)
         df.to_csv("output.csv", mode="w")
