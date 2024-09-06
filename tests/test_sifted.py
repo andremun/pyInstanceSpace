@@ -110,7 +110,7 @@ def are_same_clusters(
 
     match_ratio = matching_elements / total_elements
 
-    return match_ratio >= threshold
+    return bool(match_ratio >= threshold)
 
 
 def test_run() -> None:
