@@ -219,9 +219,9 @@ class PythiaOut:
     precision: list[float]
     recall: list[float]
     accuracy: list[float]
-    selection0: NDArray[np.double]
-    selection1: Any  # Change it to proper type
-    #summary: pd.DataFrame
+    selection0: NDArray[np.int32]
+    selection1: NDArray[np.int32]  # Change it to proper type
+    summary: pd.DataFrame
 
 
 @dataclass(frozen=True)

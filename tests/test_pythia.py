@@ -24,7 +24,7 @@ def test_bayes_opt() -> None:
         cv_folds=5,
         is_poly_krnl=False,
         use_weights=False,
-        use_lib_svm=False,
+        use_grid_search=True,
     )
     z_input = pd.read_csv(csv_path_z_input, header=None).values
     y_input = pd.read_csv(csv_path_y_input, header=None).values
