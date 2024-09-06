@@ -204,7 +204,7 @@ class Sifted:
         # Create a boolean matrix where each column represents a cluster
         self.clust = np.zeros((self.x_aux.shape[1], self.opts.k), dtype=bool)
         for i in range(self.opts.k):
-            self.clust[:, i] = (cluster_labels == i)
+            self.clust[:, i] = cluster_labels == i
 
         return cluster_labels
 
@@ -297,14 +297,15 @@ class Sifted:
         for i in range(self.y.shape[1]):
             knn = KNeighborsClassifier(n_neighbors=Sifted.K_NEIGHBORS)
             scores = cross_val_score(
-                knn, z, self.y_bin[:, i],
+                knn,
+                z,
+                self.y_bin[:, i],
                 cv=self.cv_partition,
                 scoring="neg_mean_squared_error",
             )
             y = max(y, -scores.mean())
 
         return y
-
 
     def evaluate_cluster(self) -> NDArray[np.intc]:
         """Evaluate cluster based on silhouette scores.
@@ -383,7 +384,7 @@ class Sifted:
                     )
                 else:
                     # Set value to Nan if there is no valid pairs
-                    rho[i, j], pval[i,j] = np.nan, np.nan
+                    rho[i, j], pval[i, j] = np.nan, np.nan
 
         return (rho, pval)
 

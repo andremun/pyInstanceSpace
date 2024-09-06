@@ -71,10 +71,10 @@ def test_select_features_by_clustering() -> None:
 
 
 def are_same_clusters(
-        cluster_a: NDArray[np.intc],
-        cluster_b: NDArray[np.intc],
-        threshold: float=0.8,
-    ) -> bool:
+    cluster_a: NDArray[np.intc],
+    cluster_b: NDArray[np.intc],
+    threshold: float = 0.8,
+) -> bool:
     """Check if two clusters have same number of elements more than threshold set.
 
     Parameters
@@ -121,7 +121,7 @@ def test_run() -> None:
     correlation (>0.9) and other correlation values are low (<0.9)
     """
     csv_path_x = script_dir / "test_data/sifted/output/x_matlab.csv"
-    x_matlab = pd.read_csv(csv_path_x, header = None)
+    x_matlab = pd.read_csv(csv_path_x, header=None)
 
     data_change, _ = Sifted.run(input_x, input_y, input_ybin, feat_labels, opts)
     x_python = pd.DataFrame(data_change.x)
@@ -199,7 +199,7 @@ def correlation_matrix_check(df: pd.DataFrame, threshold: float) -> bool:
 
     # for every column, calculate percentage of only one value has modified correlation
     # equals to 1
-    col_condition = (df==1).sum(axis=0) == 1
+    col_condition = (df == 1).sum(axis=0) == 1
     col_percentage = col_condition.mean()
 
     total_percentage = (row_percentage + col_percentage) / 2
