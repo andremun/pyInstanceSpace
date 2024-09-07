@@ -7,14 +7,14 @@ from matilda.data.metadata import Metadata
 from matilda.data.options import InstanceSpaceOptions
 from matilda.stage_builder import StageBuilder
 from matilda.stage_runner import StageRunner
-from matilda.stages.cloister_stage import cloisterStage
-from matilda.stages.pilot_stage import pilotStage
-from matilda.stages.prelim_stage import prelimStage
-from matilda.stages.preprocessing_stage import preprocessingStage
-from matilda.stages.pythia_stage import pythiaStage
-from matilda.stages.sifted_stage import siftedStage
+from matilda.stages.cloister_stage import CloisterStage
+from matilda.stages.pilot_stage import PilotStage
+from matilda.stages.prelim_stage import PrelimStage
+from matilda.stages.preprocessing_stage import PreprocessingStage
+from matilda.stages.pythia_stage import PythiaStage
+from matilda.stages.sifted_stage import SiftedStage
 from matilda.stages.stage import Stage
-from matilda.stages.trace_stage import traceStage
+from matilda.stages.trace_stage import TraceStage
 
 
 class NewInstanceSpace:
@@ -26,13 +26,13 @@ class NewInstanceSpace:
     def __init__(
         self,
         stages: list[type[Stage]] = [
-            preprocessingStage,
-            prelimStage,
-            siftedStage,
-            pilotStage,
-            pythiaStage,
-            cloisterStage,
-            traceStage,
+            PreprocessingStage,
+            PrelimStage,
+            SiftedStage,
+            PilotStage,
+            PythiaStage,
+            CloisterStage,
+            TraceStage,
         ],
     ) -> None:
         """
