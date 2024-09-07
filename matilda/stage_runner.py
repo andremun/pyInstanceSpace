@@ -30,8 +30,7 @@ class StageRunner:
         input_arguments: dict[type[Stage], list[StageArgument]],
         output_arguments: dict[type[Stage], list[StageArgument]],
     ) -> None:
-        """
-        Create a StageRunner from a preresolved set of stages.
+        """Create a StageRunner from a preresolved set of stages.
 
         All stages inputs and outputs are assumed to already be resolved.
         """
@@ -50,8 +49,7 @@ class StageRunner:
         self,
         **initial_inputs: Any,  # noqa: ANN401
     ) -> Generator[None, tuple[Any], None]:
-        """
-        Run all stages, yielding after every run.
+        """Run all stages, yielding after every run.
 
         Yields
         ------
@@ -64,8 +62,7 @@ class StageRunner:
         stage: type[Stage],
         **arguments: Any,  # noqa: ANN401
     ) -> tuple[Any]:
-        """
-        Run a single stage.
+        """Run a single stage.
 
         Errors if prerequisite stages haven't been ran.
 
@@ -83,8 +80,7 @@ class StageRunner:
         stages: list[type[Stage]],
         **initial_inputs: Any,  # noqa: ANN401
     ) -> tuple[tuple[Any]]:
-        """
-        Run multiple stages in parallel.
+        """Run multiple stages in parallel.
 
         All prerequisite stages must have already been ran. The stages cannot be a
         prerequisite for other stages being ran at the same time.
@@ -93,7 +89,6 @@ class StageRunner:
         ----
             stages list[type[Stage]]: A list of stages to run.
 
-
         Returns
         -------
             tuple[tuple[Any]]: _description_
@@ -101,8 +96,7 @@ class StageRunner:
         raise NotImplementedError
 
     def run_all(self, **initial_inputs: Any) -> tuple[Any]:  # noqa: ANN401
-        """
-        Run all stages from start to finish.
+        """Run all stages from start to finish.
 
         Return the entire outputs data object when finished.
 
@@ -113,7 +107,6 @@ class StageRunner:
         for initial_input_name, initial_input_data in self.initial_input_arguments:
             # TODO: Check all inputs are present and correct. Otherwise Throw.
             pass
-
 
         for stage in self.stages:
             input_data: list[Any] = []
@@ -128,4 +121,15 @@ class StageRunner:
                 # Do some check that the output is the right type
                 self.output_data[output_name] = outputs[i]
 
+        raise NotImplementedError
+
+    def run_until_stage(
+        self, stage: type[Stage], **initial_inputs: Any,
+    ) -> tuple[Any]:
+        """Run all stages until the specified stage, as well as the specified stage.
+
+        Returns
+        -------
+            tuple[Any]: _description_
+        """
         raise NotImplementedError

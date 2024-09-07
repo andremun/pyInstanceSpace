@@ -35,8 +35,7 @@ class NewInstanceSpace:
             TraceStage,
         ],
     ) -> None:
-        """
-        Initialise the InstanceSpace.
+        """Initialise the InstanceSpace.
 
         Args:
             stages list[type[Stage]], optional: A list of stages to be ran.
@@ -62,16 +61,15 @@ class NewInstanceSpace:
         options: InstanceSpaceOptions,
         **arguments: Any,  # noqa: ANN401
     ) -> tuple[Any]:  # TODO: Replace this with model / get_model
-        """
-        Build the instance space.
+        """Build the instance space.
 
         Options will be broken down to sub fields to be passed to stages. You can
         override inputs to stages.
 
         Args
         ----
-            metadata (Metadata): _description_
-            options (InstanceSpaceOptions): _description_
+            metadata Metadata: _description_
+            options InstanceSpaceOptions: _description_
 
         Returns
         -------
@@ -90,8 +88,8 @@ class NewInstanceSpace:
 
         Args
         ----
-            metadata (Metadata): _description_
-            options (InstanceSpaceOptions): _description_
+            metadata Metadata: _description_
+            options InstanceSpaceOptions: _description_
 
         Yields
         ------
@@ -104,8 +102,7 @@ class NewInstanceSpace:
         stage: type[Stage],
         **arguments: Any,  # noqa: ANN401
     ) -> tuple[Any]:
-        """
-        Run a single stage.
+        """Run a single stage.
 
         All inputs to the stage must either be present from previously ran stages, or
         be given as arguments to this function. Arguments to this function have
@@ -113,7 +110,7 @@ class NewInstanceSpace:
 
         Args
         ----
-            stage (type[Stage]): Any inputs to the stage.
+            stage type[Stage]: Any inputs to the stage.
 
         Returns
         -------
@@ -124,14 +121,17 @@ class NewInstanceSpace:
     def run_until_stage(
         self,
         stage: type[Stage],
+        metadata: Metadata,
+        options: InstanceSpaceOptions,
         **arguments: Any,  # noqa: ANN401
     ) -> tuple[Any]:
-        """
-        Run all stages until the specified stage, as well as the specified stage.
+        """Run all stages until the specified stage, as well as the specified stage.
 
         Args
         ----
             stage type[Stage]: The stage to stop running stages after.
+            metadata Metadata: _description_
+            options InstanceSpaceOptions: _description_
             **arguments dict[str, Any]: if this is the first time stages are ran,
                 initial inputs, and overriding inputs for other stages. TODO: rewrite
                 this
@@ -140,14 +140,9 @@ class NewInstanceSpace:
         -------
             list[Any]: _description_
         """
-        if stage not in self._stages:
-            raise KeyError("stage not found in instance space.")
-
-        for intermediate_stage in self._stages:
-            stage_arguments = arguments[stage]
-            stage_output = self.runner.run_stage(stage, **arguments[stage])
-
-            if intermediate_stage == stage:
-                return stage_output
-
-        raise NotImplementedError
+        return self.runner.run_until_stage(
+            stage,
+            metadata=metadata,
+            options=options,
+            **arguments,
+        )
