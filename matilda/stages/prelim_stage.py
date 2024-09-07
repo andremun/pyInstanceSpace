@@ -11,12 +11,14 @@ guided by the options specified in the `InstanceSpaceOptions` object.
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
-from matilda.stages.stage import Stage
-from matilda.utils.filter import filter
 from dataclasses import dataclass
 from scipy import optimize, stats
 from sklearn.model_selection import train_test_split
+
+from numpy.typing import NDArray
+from matilda.stages.stage import Stage
+from matilda.utils.filter import filter
+
 
 @dataclass(frozen=True)
 class _BoundOut:
@@ -126,6 +128,14 @@ class PrelimStage(Stage):
             ("lambda_y", NDArray[np.double]),
             ("sigma_y", NDArray[np.double]),
             ("mu_y", NDArray[np.double]),
+            ("x", NDArray[np.double]),
+            ("y", NDArray[np.double]),
+            ("y_bin", NDArray[np.bool_]),
+            ("y_best", NDArray[np.double]),
+            ("p", NDArray[np.double]),
+            ("num_good_algos", NDArray[np.double]),
+            ("beta", NDArray[np.bool_]),
+            ("instlabels", pd.Series | None),
         ]
     
     # will run prelim, filter_post_prelim, return prelim output and data changed by stage
@@ -149,18 +159,26 @@ class PrelimStage(Stage):
         min_distance: float,
         density_flag: bool,
     ) -> tuple[
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        float,
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
+        NDArray[np.double], # med_val
+        NDArray[np.double], # iq_range
+        NDArray[np.double], # hi_bound
+        NDArray[np.double], # lo_bound
+        NDArray[np.double], # min_x
+        NDArray[np.double], # lambda_x
+        NDArray[np.double], # mu_x
+        NDArray[np.double], # sigma_x
+        float,              # min_y
+        NDArray[np.double], # lambda_y
+        NDArray[np.double], # sigma_y
+        NDArray[np.double], # mu_y
+        NDArray[np.double], # x
+        NDArray[np.double], # y
+        NDArray[np.bool_],  # y_bin
+        NDArray[np.double], # y_best
+        NDArray[np.double], # p
+        NDArray[np.double], # num_good_algos
+        NDArray[np.bool_],  # beta
+        pd.Series | None,   # instlabels
     ]:
         """See file docstring."""
         x, y, y_bin, y_best, p, num_good_algos, beta, med_val, iq_range, hi_bound, lo_bound, min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y = self.prelim(
@@ -173,7 +191,26 @@ class PrelimStage(Stage):
             bound,
             norm,
         )
-        x, y, y_bin, y_best, p, num_good_algos, beta, med_val, iq_range, hi_bound, lo_bound, min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y = PrelimStage._filter_post_prelim()
+        x, y, x_raw, y_raw, y_bin, beta, num_good_algos, y_best, p, instlabels = PrelimStage._filter_post_prelim(
+            x,
+            y,
+            y_bin,
+            y_best,
+            x_raw,
+            y_raw,
+            p,
+            num_good_algos,
+            beta,
+            small_scale_flag,
+            small_scale,
+            file_idx_flag,
+            file_idx,
+            feats,
+            algos,
+            selvars_type,
+            min_distance,
+            density_flag,
+        )
         
         return (x, y, y_bin, y_best, p, num_good_algos, beta, med_val, iq_range, hi_bound, lo_bound, min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y)
 
@@ -533,33 +570,50 @@ class PrelimStage(Stage):
             mu_y,
         )
 
-    def _filter_post_prelim(self) -> tuple[
+    def _filter_post_prelim(self,
+                            x: NDArray[np.double],
+                            y: NDArray[np.double],
+                            y_bin: NDArray[np.bool_],
+                            y_best: NDArray[np.double],
+                            x_raw: NDArray[np.double],
+                            y_raw: NDArray[np.double],
+                            p: NDArray[np.double],
+                            num_good_algos: NDArray[np.double],
+                            beta: NDArray[np.double],
+                            small_scale_flag: bool,
+                            small_scale: float,
+                            file_idx_flag: bool,
+                            file_idx: str,
+                            feats: pd.DataFrame | None,
+                            algos: pd.DataFrame | None,
+                            selvars_type: str,
+                            min_distance: float,
+                            density_flag: bool
+                            ) -> tuple[
         NDArray[np.double],
         NDArray[np.double],
         NDArray[np.double],
         NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
+        NDArray[np.bool_],
+        NDArray[np.bool_],
         NDArray[np.double],
         NDArray[np.double],
         float,
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
+        pd.Series | None,
     ]:
 
         # Filter out algorithms with no "good" instances
         idx = np.all(y_bin, axis=0)
         if np.any(idx):
             print("Warning: There are algorithms with no 'good' instances. They are being removed to increase speed.")
-            self.y = self.y[:, ~idx]
-            self.x = self.x[:, ~idx]
-            if self.feats is not None:
-                self.feats = self.feats.loc[:, ~idx]
-            if self.algos is not None:
-                self.algos = self.algos.loc[~idx]
+            y = y[:, ~idx]
+            x = x[:, ~idx]
+            if feats is not None:
+                feats = feats.loc[:, ~idx]
+            if algos is not None:
+                algos = algos.loc[~idx]
             
-            nalgos = self.y.shape[1]
+            nalgos = y.shape[1]
             if nalgos == 0:
                 raise ValueError("There are no 'good' algorithms. Please verify the binary performance measure. STOPPING!")
         
@@ -567,44 +621,43 @@ class PrelimStage(Stage):
         # I have optimised the code below in comparision to MATLAB implementation
 
         # Determine the subset of instances to use
-        ninst = self.x.shape[0]
-        if self.small_scale_flag and self.small_scale:
-            print(f"Creating a small scale experiment for validation. Percentage of subset: {round(100. * self.small_scale, 2)}%")
-            _, subset_index = train_test_split(np.arange(ninst), test_size=self.small_scale, random_state=42)
+        ninst = x.shape[0]
+        if small_scale_flag and small_scale:
+            print(f"Creating a small scale experiment for validation. Percentage of subset: {round(100. * small_scale, 2)}%")
+            _, subset_index = train_test_split(np.arange(ninst), test_size=small_scale, random_state=42)
             subset_index = np.zeros(ninst, dtype=bool)
             subset_index[subset_index] = True
-        elif self.file_idx_flag and self.file_idx:
+        elif file_idx_flag and file_idx:
             print("Using a subset of the instances.")
             subset_index = np.zeros(ninst, dtype=bool)
-            aux = pd.read_csv(self.file_idx, header=None).values.flatten()
+            aux = pd.read_csv(file_idx, header=None).values.flatten()
             aux = aux[aux < ninst]
             subset_index[aux] = True
-        elif self.density_flag and self.density_flag:
+        elif density_flag and density_flag:
             print("Creating a small scale experiment for validation based on density.")
-            subset_index = filter(x, y, ybin, self.selvars_type, self.min_distance)
+            subset_index = filter(x, y, y_bin, selvars_type, min_distance)
             print(f"Percentage of instances retained: {round(100. * np.mean(subset_index), 2)}%")
         else:
             print("Using the complete set of the instances.")
             subset_index = np.ones(ninst, dtype=bool)
 
         # Apply the subset index
-        self.x = self.x[subset_index, :]
-        self.y = self.y[subset_index, :]
-        self.xraw = self.xraw[subset_index, :]
-        self.yraw = self.yraw[subset_index, :]
-        self.ybin = self.ybin[subset_index, :]
-        self.beta = self.beta[subset_index]
-        self.numGoodAlgos = self.numGoodAlgos[subset_index]
-        self.ybest = self.ybest[subset_index]
-        self.p = self.p[subset_index]
-        self.instlabels = self.instlabels[subset_index]
+        x = x[subset_index, :]
+        y = y[subset_index, :]
+        x_raw = x_raw[subset_index, :]
+        y_raw = y_raw[subset_index, :]
+        y_bin = y_bin[subset_index, :]
+        beta = beta[subset_index]
+        num_good_algos = num_good_algos[subset_index]
+        y_best = y_best[subset_index]
+        p = p[subset_index]
+        instlabels = instlabels[subset_index]
         
         # Check if model.data has 'S' and filter it
-        if hasattr(self, 'S'):
-            self.S = self.S[subset_index]
+        # if hasattr(self, 'S'):
+        #    S = S[subset_index]
             
         ######################################################################################
 
-
-        return (self.x, self.y, self.xraw, self.yraw, self.ybin, self.beta, self.numGoodAlgos, self.ybest, self.p, self.instlabels, self.S)
+        return (x, y, x_raw, y_raw, y_bin, beta, num_good_algos, y_best, p, instlabels)
 
