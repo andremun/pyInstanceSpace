@@ -51,6 +51,7 @@ class Sifted:
     rho: NDArray[np.double]
     pval: NDArray[np.double]
     selvars: NDArray[np.intc]
+    idx: NDArray[np.intc]
     clust: NDArray[np.bool_]
     x_aux: NDArray[np.double]
     cv_partition: KFold
@@ -81,6 +82,7 @@ class Sifted:
         self.opts = opts
 
         self.rng = np.random.default_rng(seed=0)
+        self.idx = np.arange(x.shape[1])
 
     @staticmethod
     def run(
@@ -397,15 +399,12 @@ class Sifted:
                 is changed during the Sifted stage and SiftedOut contains data generated
                 from Sifted stage.
         """
-        nfeat = self.x.shape[1]
-        idx = np.arange(nfeat)
-
         data_changed = SiftedDataChanged(x=self.x)
         output = SiftedOut(
             rho=self.rho,
             pval=self.pval,
             selvars=self.selvars,
-            idx=idx[self.selvars],
+            idx=self.idx[self.selvars],
             silhouette_scores=self.silhouette_scores,
             clust=self.clust,
         )
