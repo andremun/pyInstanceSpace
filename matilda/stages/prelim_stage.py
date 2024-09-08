@@ -191,7 +191,7 @@ class PrelimStage(Stage):
             bound,
             norm,
         )
-        x, y, x_raw, y_raw, y_bin, beta, num_good_algos, y_best, p, instlabels = PrelimStage._filter_post_prelim(
+        subset_index, x, y, x_raw, y_raw, y_bin, beta, num_good_algos, y_best, p, instlabels = PrelimStage._filter_post_prelim(
             x,
             y,
             y_bin,
@@ -590,6 +590,7 @@ class PrelimStage(Stage):
                             min_distance: float,
                             density_flag: bool
                             ) -> tuple[
+        NDArray[np.any],
         NDArray[np.double],
         NDArray[np.double],
         NDArray[np.double],
@@ -599,7 +600,6 @@ class PrelimStage(Stage):
         NDArray[np.double],
         NDArray[np.double],
         float,
-        pd.Series | None,
     ]:
 
         # Filter out algorithms with no "good" instances
@@ -624,9 +624,10 @@ class PrelimStage(Stage):
         ninst = x.shape[0]
         if small_scale_flag and small_scale:
             print(f"Creating a small scale experiment for validation. Percentage of subset: {round(100. * small_scale, 2)}%")
-            _, subset_index = train_test_split(np.arange(ninst), test_size=small_scale, random_state=42)
-            subset_index = np.zeros(ninst, dtype=bool)
-            subset_index[subset_index] = True
+            _, subset_index = train_test_split(np.arange(ninst), test_size=small_scale, random_state=np.random.default_rng(seed=0).integers(1000))
+            subset_index_boolean = np.zeros(ninst, dtype=bool)
+            subset_index_boolean[subset_index] = True
+            subset_index = subset_index_boolean
         elif file_idx_flag and file_idx:
             print("Using a subset of the instances.")
             subset_index = np.zeros(ninst, dtype=bool)
@@ -651,13 +652,10 @@ class PrelimStage(Stage):
         num_good_algos = num_good_algos[subset_index]
         y_best = y_best[subset_index]
         p = p[subset_index]
-        instlabels = instlabels[subset_index]
-        
-        # Check if model.data has 'S' and filter it
-        # if hasattr(self, 'S'):
-        #    S = S[subset_index]
             
         ######################################################################################
+        
+        print('subset index', subset_index)
 
-        return (x, y, x_raw, y_raw, y_bin, beta, num_good_algos, y_best, p, instlabels)
+        return (subset_index, x, y, x_raw, y_raw, y_bin, beta, num_good_algos, y_best, p)
 

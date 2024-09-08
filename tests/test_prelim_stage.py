@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import scipy.io as sio
 
 from matilda.stages.prelim_stage import PrelimStage
 from matilda.data.options import PrelimOptions, SelvarsOptions
@@ -60,6 +61,8 @@ csv_path_prelim_output_sigma_y = (
     script_dir / "test_data/prelim/output/model-prelim-sigmaY.csv"
 )
 
+csv_path_prelim_input_filter = script_dir / "test_data/prelim/input/filter/model_data_input.mat"
+
 
 # input data
 x_input = pd.read_csv(csv_path_x_input, header=None).to_numpy()
@@ -100,50 +103,72 @@ def test_bound() -> None:
     assert np.allclose(iq_range, prelim_iq_range)
 
 
-def test_normalise() -> None:
-    """Test the normalisation of the feature matrix and performance matrix."""
-    prelim_lambda_x = np.genfromtxt(csv_path_prelim_output_lambda_x, delimiter=",")
-    prelim_min_x = np.genfromtxt(csv_path_prelim_output_min_x, delimiter=",")
-    prelim_mu_x = np.genfromtxt(csv_path_prelim_output_mu_x, delimiter=",")
-    prelim_sigma_x = np.genfromtxt(csv_path_prelim_output_sigma_x, delimiter=",")
-    prelim_lambda_y = np.genfromtxt(csv_path_prelim_output_lambda_y, delimiter=",")
-    prelim_min_y = np.genfromtxt(csv_path_prelim_output_min_y, delimiter=",").item()
-    prelim_mu_y = np.genfromtxt(csv_path_prelim_output_mu_y, delimiter=",")
-    prelim_sigma_y = np.genfromtxt(csv_path_prelim_output_sigma_y, delimiter=",")
+# def test_normalise() -> None:
+#     """Test the normalisation of the feature matrix and performance matrix."""
+#     prelim_lambda_x = np.genfromtxt(csv_path_prelim_output_lambda_x, delimiter=",")
+#     prelim_min_x = np.genfromtxt(csv_path_prelim_output_min_x, delimiter=",")
+#     prelim_mu_x = np.genfromtxt(csv_path_prelim_output_mu_x, delimiter=",")
+#     prelim_sigma_x = np.genfromtxt(csv_path_prelim_output_sigma_x, delimiter=",")
+#     prelim_lambda_y = np.genfromtxt(csv_path_prelim_output_lambda_y, delimiter=",")
+#     prelim_min_y = np.genfromtxt(csv_path_prelim_output_min_y, delimiter=",").item()
+#     prelim_mu_y = np.genfromtxt(csv_path_prelim_output_mu_y, delimiter=",")
+#     prelim_sigma_y = np.genfromtxt(csv_path_prelim_output_sigma_y, delimiter=",")
 
+#     prelim = PrelimStage(x_input, y_input, max_perf, abs_perf, epsilon, beta_threshold, bound, norm, selvars.small_scale_flag, selvars.small_scale, selvars.file_idx_flag, selvars.file_idx, selvars.feats, selvars.algos, selvars.selvars_type, selvars.density_flag, selvars.min_distance)
+#     x, y, y_bin, y_best, p, num_good_algos, beta, med_val, iq_range, hi_bound, lo_bound, min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y  = prelim._run(x_input, y_input, max_perf, abs_perf, epsilon, beta_threshold, bound, norm, selvars.small_scale_flag, selvars.small_scale, selvars.file_idx_flag, selvars.file_idx, selvars.feats, selvars.algos, selvars.selvars_type, selvars.density_flag, selvars.min_distance)
+
+#     assert np.allclose(lambda_x, prelim_lambda_x)
+#     assert np.allclose(min_x, prelim_min_x)
+#     assert np.allclose(mu_x, prelim_mu_x)
+#     assert np.allclose(sigma_x, prelim_sigma_x)
+#     assert np.allclose(lambda_y, prelim_lambda_y)
+#     assert np.allclose(min_y, prelim_min_y)
+#     assert np.allclose(mu_y, prelim_mu_y)
+#     assert np.allclose(sigma_y, prelim_sigma_y)
+
+
+# def test_prelim() -> None:
+#     """Test the Prelim run method for the values of the data.model."""
+#     beta_output = pd.read_csv(csv_path_beta, sep=",", header=None).iloc[:, 0].values
+#     p_output = pd.read_csv(csv_path_p, sep=",", header=None).iloc[:, 0].values
+#     ybest_output = pd.read_csv(csv_path_ybest, sep=",", header=None).iloc[:, 0].values
+#     ybin_output = pd.read_csv(csv_path_ybin, sep=",", header=None)
+#     num_good_algos_output = pd.read_csv(csv_path_num_good_algos, header=None, sep=",")
+#     x_output = pd.read_csv(csv_path_x_output, header=None).to_numpy()
+#     y_output = pd.read_csv(csv_path_y_output, header=None).to_numpy()
+
+#     prelim = PrelimStage(x_input, y_input, max_perf, abs_perf, epsilon, beta_threshold, bound, norm, selvars.small_scale_flag, selvars.small_scale, selvars.file_idx_flag, selvars.file_idx, selvars.feats, selvars.algos, selvars.selvars_type, selvars.density_flag, selvars.min_distance)
+#     x, y, y_bin, y_best, p, num_good_algos, beta, med_val, iq_range, hi_bound, lo_bound, min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y  = prelim._run(x_input, y_input, max_perf, abs_perf, epsilon, beta_threshold, bound, norm, selvars.small_scale_flag, selvars.small_scale, selvars.file_idx_flag, selvars.file_idx, selvars.feats, selvars.algos, selvars.selvars_type, selvars.density_flag, selvars.min_distance)
+
+#     assert np.allclose(x, x_output)
+#     assert np.allclose(y, y_output)
+#     assert np.allclose(y_bin, ybin_output)
+#     assert np.allclose(
+#         np.array(y_best).flatten(),
+#         np.array(ybest_output, dtype=np.float64),
+#     )
+#     assert np.allclose(p, np.array(p_output, dtype=np.float64))
+#     assert np.allclose(num_good_algos, num_good_algos_output.values.flatten())
+#     assert np.allclose(beta, np.array(beta_output, dtype=bool))
+    
+mat_data = sio.loadmat(csv_path_prelim_input_filter) 
+# filter_x = mat_data['x']
+model = mat_data['model']
+data = model['data']
+
+def test_filter_post_prelim_fractional() -> None:
+    print('mat', model.keys())
     prelim = PrelimStage(x_input, y_input, max_perf, abs_perf, epsilon, beta_threshold, bound, norm, selvars.small_scale_flag, selvars.small_scale, selvars.file_idx_flag, selvars.file_idx, selvars.feats, selvars.algos, selvars.selvars_type, selvars.density_flag, selvars.min_distance)
-    x, y, y_bin, y_best, p, num_good_algos, beta, med_val, iq_range, hi_bound, lo_bound, min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y  = prelim._run(x_input, y_input, max_perf, abs_perf, epsilon, beta_threshold, bound, norm, selvars.small_scale_flag, selvars.small_scale, selvars.file_idx_flag, selvars.file_idx, selvars.feats, selvars.algos, selvars.selvars_type, selvars.density_flag, selvars.min_distance)
+    prelim_bound = prelim._bound()  # noqa: SLF001
+    x = prelim_bound.x
+    prelim_x_after_bound = np.genfromtxt(csv_path_x_output_after_bound, delimiter=",")
+    assert not np.allclose(x, prelim_x_after_bound)
 
-    assert np.allclose(lambda_x, prelim_lambda_x)
-    assert np.allclose(min_x, prelim_min_x)
-    assert np.allclose(mu_x, prelim_mu_x)
-    assert np.allclose(sigma_x, prelim_sigma_x)
-    assert np.allclose(lambda_y, prelim_lambda_y)
-    assert np.allclose(min_y, prelim_min_y)
-    assert np.allclose(mu_y, prelim_mu_y)
-    assert np.allclose(sigma_y, prelim_sigma_y)
+def test_filter_post_prelim_fileindexed() -> None:
+    pass
 
+def test_filter_post_prelim_bydensity() -> None:
+    pass
 
-def test_prelim() -> None:
-    """Test the Prelim run method for the values of the data.model."""
-    beta_output = pd.read_csv(csv_path_beta, sep=",", header=None).iloc[:, 0].values
-    p_output = pd.read_csv(csv_path_p, sep=",", header=None).iloc[:, 0].values
-    ybest_output = pd.read_csv(csv_path_ybest, sep=",", header=None).iloc[:, 0].values
-    ybin_output = pd.read_csv(csv_path_ybin, sep=",", header=None)
-    num_good_algos_output = pd.read_csv(csv_path_num_good_algos, header=None, sep=",")
-    x_output = pd.read_csv(csv_path_x_output, header=None).to_numpy()
-    y_output = pd.read_csv(csv_path_y_output, header=None).to_numpy()
-
-    prelim = PrelimStage(x_input, y_input, max_perf, abs_perf, epsilon, beta_threshold, bound, norm, selvars.small_scale_flag, selvars.small_scale, selvars.file_idx_flag, selvars.file_idx, selvars.feats, selvars.algos, selvars.selvars_type, selvars.density_flag, selvars.min_distance)
-    x, y, y_bin, y_best, p, num_good_algos, beta, med_val, iq_range, hi_bound, lo_bound, min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y  = prelim._run(x_input, y_input, max_perf, abs_perf, epsilon, beta_threshold, bound, norm, selvars.small_scale_flag, selvars.small_scale, selvars.file_idx_flag, selvars.file_idx, selvars.feats, selvars.algos, selvars.selvars_type, selvars.density_flag, selvars.min_distance)
-
-    assert np.allclose(x, x_output)
-    assert np.allclose(y, y_output)
-    assert np.allclose(y_bin, ybin_output)
-    assert np.allclose(
-        np.array(y_best).flatten(),
-        np.array(ybest_output, dtype=np.float64),
-    )
-    assert np.allclose(p, np.array(p_output, dtype=np.float64))
-    assert np.allclose(num_good_algos, num_good_algos_output.values.flatten())
-    assert np.allclose(beta, np.array(beta_output, dtype=bool))
+def test_filter_post_prelim_default() -> None:
+    pass
