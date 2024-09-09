@@ -234,7 +234,7 @@ class Sifted:
             mutation_probability=self.opts.mutation_probability,
             # stop_criteria: saturate_5 or reach_0 (don't know if it is possible both)
             stop_criteria=self.opts.stop_criteria,
-            random_seed=0,
+            random_seed=int(self.rng.integers(1000)),
             init_range_low=1,
             init_range_high=self.x_aux.shape[1],
             save_solutions=True,
