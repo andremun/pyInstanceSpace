@@ -13,7 +13,7 @@ from matilda.stages.prelim_stage import PrelimStage
 from matilda.stages.preprocessing_stage import PreprocessingStage
 from matilda.stages.pythia_stage import PythiaStage
 from matilda.stages.sifted_stage import SiftedStage
-from matilda.stages.stage import Stage
+from matilda.stages.stage import Stage, StageArgument
 from matilda.stages.trace_stage import TraceStage
 
 
@@ -51,9 +51,12 @@ class NewInstanceSpace:
                 stage._outputs(),  # noqa: SLF001
             )
 
-        self.runner = stage_builder.build()
-
-        raise NotImplementedError
+        self.runner = stage_builder.build(
+            [
+                StageArgument("metadata", Metadata),
+                StageArgument("options", InstanceSpaceOptions),
+            ],
+        )
 
     def build(
         self,
@@ -76,6 +79,7 @@ class NewInstanceSpace:
             tuple[Any]: The output of all stages
 
         """
+        # TODO: split out metadata and options into component fields
         return self.runner.run_all(metadata=metadata, options=options, **arguments)
 
     def run_iter(
@@ -95,6 +99,7 @@ class NewInstanceSpace:
         ------
             Generator[None, tuple[Any], None]: _description_
         """
+        # TODO: split out metadata and options into component fields
         yield from self.runner.run_iter(metadata=metadata, options=options, **arguments)
 
     def run_stage(
@@ -140,6 +145,7 @@ class NewInstanceSpace:
         -------
             list[Any]: _description_
         """
+        # TODO: split out metadata and options into component fields
         return self.runner.run_until_stage(
             stage,
             metadata=metadata,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, NamedTuple
+from typing import Any, Generic, NamedTuple, TypeVar
 
 
 class StageArgument(NamedTuple):
@@ -29,6 +29,19 @@ class Stage(ABC):
         pass
 
     @abstractmethod
-    def _run(*args: Any) -> tuple[Any]:
+    def _run(*args: Any) -> NamedTuple:  # noqa: ANN401
         """Run the stage."""
         pass
+
+
+T = TypeVar("T", bound=type[Stage])
+
+
+class RunBefore(Generic[T]):
+    """Marks that a stage should be run before another stage."""
+
+
+class RunAfter(Generic[T]):
+    """Marks that a stage should be run after another stage."""
+
+    pass

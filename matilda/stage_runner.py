@@ -15,27 +15,24 @@ class StageRunner:
     # List of stages to be ran
     # TODO: We could do this as a list[list[...]] and specify stages that can be ran
     # in parallel
-    stages: list[type[Stage]]
+    stages: list[list[type[Stage]]]
 
     # Types and names of inputs and outputs of stages, used for order resolution and
     # dependency injection.
-    initial_input_arguments: list[StageArgument]
-    input_arguments: dict[type[Stage], list[StageArgument]]
-    output_arguments: dict[type[Stage], list[StageArgument]]
+    input_arguments: dict[type[Stage], set[StageArgument]]
+    output_arguments: dict[type[Stage], set[StageArgument]]
 
     def __init__(
         self,
-        stages: list[type[Stage]],
-        initial_input_arguments: list[StageArgument],
-        input_arguments: dict[type[Stage], list[StageArgument]],
-        output_arguments: dict[type[Stage], list[StageArgument]],
+        stages: list[list[type[Stage]]],
+        input_arguments: dict[type[Stage], set[StageArgument]],
+        output_arguments: dict[type[Stage], set[StageArgument]],
     ) -> None:
         """Create a StageRunner from a preresolved set of stages.
 
         All stages inputs and outputs are assumed to already be resolved.
         """
         self.stages = stages
-        self.initial_input_arguments = initial_input_arguments
         self.input_arguments = input_arguments
         self.output_arguments = output_arguments
 
@@ -104,27 +101,29 @@ class StageRunner:
         -------
             tuple[Any]: _description_
         """
-        for initial_input_name, initial_input_data in self.initial_input_arguments:
+        for initial_input_name, initial_input_data in initial_inputs.items():
             # TODO: Check all inputs are present and correct. Otherwise Throw.
             pass
 
-        for stage in self.stages:
-            input_data: list[Any] = []
-            for input_name, input_type in self.input_arguments[stage]:
-                input_data.append(self.output_data[input_name])
-                # TODO: Do some check that input is the right type
+        # for schedule_item in self.stages:
+        #     for stage in schedule_item:
+        #         input_data: list[Any] = []
+        #         for input_name, input_type in self.input_arguments[stage]:
+        #             input_data.append(self.output_data[input_name])
+        #             # TODO: Do some check that input is the right type
 
-            outputs = stage._run(*input_data)  # noqa: SLF001
+        #         outputs = stage._run(*input_data)
 
-            for i in range(len(outputs)):
-                output_name, output_type = self.output_arguments[stage][i]
-                # Do some check that the output is the right type
-                self.output_data[output_name] = outputs[i]
+        #         for output_name, output_value in outputs._asdict().items():
+        #             # Do some check that the output is the right type
+        #             self.output_data[output_name] = output_value
 
         raise NotImplementedError
 
     def run_until_stage(
-        self, stage: type[Stage], **initial_inputs: Any,
+        self,
+        stage: type[Stage],
+        **initial_inputs: Any,  # noqa: ANN401
     ) -> tuple[Any]:
         """Run all stages until the specified stage, as well as the specified stage.
 
