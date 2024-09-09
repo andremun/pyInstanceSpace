@@ -153,6 +153,20 @@ class StageBuilder:
                 mutating_stages,
             )
 
+            # Check for stages with the same output running at the same time
+            for stage in stages_can_run_post_mutating_check:
+                for other_stage in stages_can_run_post_mutating_check - {stage}:
+                    shared_outputs = (
+                        self.stage_outputs[stage] & self.stage_outputs[other_stage]
+                    )
+                    if len(shared_outputs) > 0:
+                        raise StageResolutionError(
+                            f"The order {stage} and {other_stage} run is ambiguous. "
+                            + "Add a RunBefore to one of them to explicitly specify an "
+                            + "ordering for them. Reason: Same output resolved at "
+                            + "same time.",
+                        )
+
             # Add outputs of stages that can run to the list of available inputs
             for stage in stages_can_run_post_mutating_check:
                 for argument in self.stage_outputs[stage]:
@@ -264,9 +278,10 @@ class StageBuilder:
 
                 if len(common_mutated_arguments) > 0:
                     raise StageResolutionError(
-                        f"Mutating Stages {stage} and {other_stage} both run "
-                        + "at the same time. Add a RunBefore to one of them to "
-                        + "dictate an ordering for them.",
+                        f"The order {stage} and {other_stage} run is ambiguous. "
+                        + "Add a RunBefore to one of them to explicitly specify an "
+                        + "ordering for them. Reason: Mutating stage with shared "
+                        + "mutating argument.",
                     )
 
         # Find a list of arguments mutated by mutating stages
