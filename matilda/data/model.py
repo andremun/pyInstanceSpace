@@ -117,10 +117,10 @@ class PrelimDataChanged:
 class SiftedOut:
     """Results of the sifting process in the data analysis pipeline."""
 
+    selvars: NDArray[np.intc]
+    idx: NDArray[np.intc]
     rho: NDArray[np.double] | None
     pval: NDArray[np.double] | None
-    selvars: NDArray[np.intc] | None
-    idx: NDArray[np.intc] | None
     silhouette_scores: list[float] | None
     clust: NDArray[np.bool_] | None
 
