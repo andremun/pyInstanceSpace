@@ -15,6 +15,9 @@ class _StageRestrictions(NamedTuple):
     run_before: set[type[Stage]]
     run_after: set[type[Stage]]
 
+class StageResolutionError(Exception):
+    """An error during stage resolution."""
+
 
 class StageBuilder:
     """A stage builder to resolve a collection of stages.
@@ -132,7 +135,7 @@ class StageBuilder:
 
             previous_resolved_stages = resolved_stages.copy()
 
-            stages_can_run: list[type[Stage]] = []
+            stages_can_run: set[type[Stage]] = set()
 
             # Find stages to run
             for stage in self.stages - resolved_stages:
@@ -142,19 +145,22 @@ class StageBuilder:
                     available_inputs,
                     ordering_restrictions,
                 ):
-                    stages_can_run.append(stage)
+                    stages_can_run.add(stage)
 
-            # TODO: Work out the mutating stage rule here
+            # Do the mutating stage rule
+            stages_can_run_post_mutating_check = self._mutating_stages_check(
+                stages_can_run,
+                mutating_stages,
+            )
 
             # Add outputs of stages that can run to the list of available inputs
-            for stage in stages_can_run:
+            for stage in stages_can_run_post_mutating_check:
                 for argument in self.stage_outputs[stage]:
                     available_inputs.add(argument)
                     resolved_stages.add(stage)
 
-            stage_order.append(stages_can_run)
+            stage_order.append(list(stages_can_run_post_mutating_check))
 
-        raise NotImplementedError
         return stage_order
 
     @staticmethod
@@ -239,6 +245,47 @@ class StageBuilder:
 
         return all_required_inputs_resolved and restrictions_resolved
 
-    @staticmethod
-    def _matching_mutating_stages() -> set[type[Stage]]:
-        raise NotImplementedError
+    def _mutating_stages_check(
+        self,
+        stages_can_run: set[type[Stage]],
+        mutating_stages: dict[type[Stage], set[StageArgument]],
+    ) -> set[type[Stage]]:
+        mutating_stages_can_run = set(mutating_stages.keys()) & stages_can_run
+
+        if len(mutating_stages_can_run) == 0:
+            return stages_can_run
+
+        # Check for duplicate mutating stages of the same argument
+        for stage in mutating_stages_can_run:
+            for other_stage in mutating_stages_can_run - {stage}:
+                common_mutated_arguments = (
+                    mutating_stages[stage] & mutating_stages[other_stage]
+                )
+
+                if len(common_mutated_arguments) > 0:
+                    raise StageResolutionError(
+                        f"Mutating Stages {stage} and {other_stage} both run "
+                        + "at the same time. Add a RunBefore to one of them to "
+                        + "dictate an ordering for them.",
+                    )
+
+        # Find a list of arguments mutated by mutating stages
+        mutating_stage_arguments = set()
+        for stage in mutating_stages_can_run:
+            mutating_stage_arguments |= mutating_stages[stage]
+
+        stages_can_run_post_mutating_check = set()
+
+        # Remove any stages with an argument being mutated by a mutating stage
+        for stage in stages_can_run:
+            mutating_arguments_in_stage_input = (
+                mutating_stage_arguments & self.stage_inputs[stage]
+            )
+
+            if stage in mutating_stages:
+                mutating_arguments_in_stage_input -= mutating_stages[stage]
+
+            if len(mutating_arguments_in_stage_input) == 0:
+                stages_can_run_post_mutating_check.add(stage)
+
+        return stages_can_run_post_mutating_check
