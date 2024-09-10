@@ -63,7 +63,7 @@ class SvmRes:
         self.recall = recall
 
 LARGE_NUM_INSTANCE:int = 1000
-
+IF_PARAMS_FILE:int = 2
 class Pythia:
     """See file docstring."""
 
@@ -237,7 +237,7 @@ class Pythia:
             else:
                 print(
                     f"    -> PYTHIA has trained a model for '{algo_labels[i]}'"+
-                    ",there are {nalgos - i - 1} models left to train.",
+                    f",there are {nalgos - i - 1} models left to train.",
                 )
             print(f"      -> Elapsed time: {time.time() - algo_start_time:.2f}s")
 
@@ -422,9 +422,9 @@ class Pythia:
 
     def check_precalcparams(self) -> list| None:
         """Check pre-calculated hyper-parameters."""
-        if len(sys.argv) == 2:
+        if len(sys.argv) == IF_PARAMS_FILE:
             try:
-                with open(sys.argv[1]) as file:
+                with Path.open(sys.argv[1]) as file:
                     data = json.load(file)
             except json.JSONDecodeError as e:
                 print(f"Error: Failed to decode JSON. {e}")
