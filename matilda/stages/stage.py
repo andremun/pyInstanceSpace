@@ -3,35 +3,31 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from types import UnionType
 from typing import Any, Generic, NamedTuple, TypeVar
 
-
-class StageArgument(NamedTuple):
-    """An input or output of a stage."""
-
-    parameter_name: str
-    parameter_type: type
+IN = TypeVar("IN", bound=NamedTuple)
 
 
-class Stage(ABC):
+class Stage(ABC, Generic[IN]):
     """Generic stage."""
 
     @staticmethod
     @abstractmethod
-    def _inputs() -> list[StageArgument]:
+    def _inputs() -> type[NamedTuple]:
         """Return inputs of the STAGE (run method)."""
-        pass
+        raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def _outputs() -> list[StageArgument]:
+    def _outputs() -> type[NamedTuple]:
         """Return outputs of the STAGE (run method)."""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
-    def _run(*args: Any) -> NamedTuple:  # noqa: ANN401
+    def _run(self, inputs: IN) -> NamedTuple:
         """Run the stage."""
-        pass
+        raise NotImplementedError
 
 
 T = TypeVar("T", bound=type[Stage])

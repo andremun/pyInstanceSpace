@@ -1,9 +1,10 @@
 """A runner to run a list of stages."""
 
 from collections.abc import Generator
-from typing import Any
+from typing import Any, NamedTuple
 
-from matilda.stages.stage import Stage, StageArgument
+from matilda.stage_builder import StageArgument
+from matilda.stages.stage import Stage
 
 
 class StageRunner:
@@ -44,7 +45,7 @@ class StageRunner:
 
     def run_iter(
         self,
-        **initial_inputs: Any,  # noqa: ANN401
+        additional_arguments: NamedTuple,
     ) -> Generator[None, tuple[Any], None]:
         """Run all stages, yielding after every run.
 
@@ -57,7 +58,7 @@ class StageRunner:
     def run_stage(
         self,
         stage: type[Stage],
-        **arguments: Any,  # noqa: ANN401
+        additional_arguments: NamedTuple,
     ) -> tuple[Any]:
         """Run a single stage.
 
@@ -75,7 +76,7 @@ class StageRunner:
     def run_many_stages_parallel(
         self,
         stages: list[type[Stage]],
-        **initial_inputs: Any,  # noqa: ANN401
+        additional_arguments: NamedTuple,
     ) -> tuple[tuple[Any]]:
         """Run multiple stages in parallel.
 
@@ -92,7 +93,7 @@ class StageRunner:
         """
         raise NotImplementedError
 
-    def run_all(self, **initial_inputs: Any) -> tuple[Any]:  # noqa: ANN401
+    def run_all(self, additional_arguments: NamedTuple) -> tuple[Any]:
         """Run all stages from start to finish.
 
         Return the entire outputs data object when finished.
@@ -101,9 +102,9 @@ class StageRunner:
         -------
             tuple[Any]: _description_
         """
-        for initial_input_name, initial_input_data in initial_inputs.items():
-            # TODO: Check all inputs are present and correct. Otherwise Throw.
-            pass
+        # for initial_input_name, initial_input_data in initial_inputs.items():
+        #     # TODO: Check all inputs are present and correct. Otherwise Throw.
+        #     pass
 
         # for schedule_item in self.stages:
         #     for stage in schedule_item:
@@ -123,7 +124,7 @@ class StageRunner:
     def run_until_stage(
         self,
         stage: type[Stage],
-        **initial_inputs: Any,  # noqa: ANN401
+        additional_arguments: NamedTuple,
     ) -> tuple[Any]:
         """Run all stages until the specified stage, as well as the specified stage.
 

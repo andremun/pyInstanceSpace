@@ -3,7 +3,7 @@
 from typing import NamedTuple, Self, get_args
 
 from matilda.stage_runner import StageRunner
-from matilda.stages.stage import RunAfter, RunBefore, Stage, StageArgument
+from matilda.stages.stage import RunAfter, RunBefore, Stage
 
 
 class _BeforeAfterRestriction(NamedTuple):
@@ -15,8 +15,16 @@ class _StageRestrictions(NamedTuple):
     run_before: set[type[Stage]]
     run_after: set[type[Stage]]
 
+
 class StageResolutionError(Exception):
     """An error during stage resolution."""
+
+
+class StageArgument(NamedTuple):
+    """An input or output of a stage."""
+
+    parameter_name: str
+    parameter_type: type
 
 
 class StageBuilder:
