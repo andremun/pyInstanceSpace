@@ -27,7 +27,7 @@ script_dir = Path(__file__).parents[2] / "tests" / "test_data" / "pythia" / "inp
 class SvmRes:
     def __init__(
         self,
-        svm: SVC,  # TODO: Change it to proper type
+        svm: SVC,
         Ysub: NDArray[np.bool_],
         Psub: NDArray[np.double],
         Yhat: NDArray[np.bool_],
@@ -88,7 +88,7 @@ class Pythia:
     selection0: NDArray[np.int32]
     selection1: NDArray[np.int32]  # Change it to proper type
     cp: StratifiedKFold  # Change it to proper type
-    svm: any  # Change it to proper type
+    svm: SVC  # Change it to proper type
     summary: pd.DataFrame
 
     def __init__(
@@ -198,7 +198,6 @@ class Pythia:
         )
 
         params = pythia.check_hyparams(nalgos)
-        # print(params)
         print(
             "-------------------------------------------------------------------------",
         )
@@ -372,7 +371,6 @@ class Pythia:
         return self.hyparams
 
     def record_perf(self, index: int, performance: SvmRes) -> None:
-        # print(performance)
         """Record performance."""
         self.y_sub[:, [index]] = performance.Ysub.reshape(-1, 1)
         self.pr0sub[:, [index]] = performance.Psub.reshape(-1, 1)
@@ -449,21 +447,19 @@ class Pythia:
     def generate_params(self,use_grid_search:bool) -> dict:
         """Generate parameters."""
         if use_grid_search:
-            rng = np.random.default_rng(seed=0)
             maxgrid = 4
             mingrid = -10
             # Number of samples
             nvals = 30
 
             # Generate Latin Hypercube Samples
-            lhs = stats.qmc.LatinHypercube(d=2, seed=rng)
+            lhs = stats.qmc.LatinHypercube(d=2, seed=self.rng)
             samples = lhs.random(nvals)
             C  = 2 ** ((maxgrid - mingrid) * samples[:,0] + mingrid)
             gamma = 2 ** ((maxgrid - mingrid) * samples[:,1] + mingrid)
 
             # Combine the two sets of samples into the parameter grid
-            param_grid = {'C': list(C), 'gamma': list(gamma)}
-            return param_grid
+            return {'C': list(C), 'gamma': list(gamma)}
         return {
                 "C": Real(2**-10, 2**4, prior="log-uniform"),
                 "gamma": Real(2**-10, 2**4, prior="log-uniform"),
@@ -487,17 +483,15 @@ class Pythia:
 
         pgood = np.mean(np.any(self.y_bin & sel1, axis=1))
 
-        Ybin_flat = self.y_bin.flatten()
+        ybin_flat = self.y_bin.flatten()
         sel0_flat = sel0.flatten()
 
         # Compute precision
-        precisionsel = precision_score(Ybin_flat, sel0_flat)
+        precisionsel = precision_score(ybin_flat, sel0_flat)
 
         # Compute recall
-        recallsel = recall_score(Ybin_flat, sel0_flat)
+        recallsel = recall_score(ybin_flat, sel0_flat)
 
-        # Compute confusion matrix
-        # cm = confusion_matrix(Ybin_flat, sel0_flat)
         data = {
             "Algorithms": [*self.algo_labels,  "Oracle", "Selector"],
             "Avg_Perf_all_instances": np.round(np.append(avgperf,[np.nanmean(self.y_best), np.nanmean(y_full)]),3),
