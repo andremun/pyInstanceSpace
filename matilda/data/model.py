@@ -293,3 +293,32 @@ class Model:
     pythia: PythiaOut
     trace: TraceOut
     opts: InstanceSpaceOptions
+
+
+    """
+        PYTHIA function for algorithm selection and performance evaluation using SVM.
+
+        Args:
+        ----
+            z (NDArray[np.double]): Feature matrix with shape (instances, features), where each row is an instance 
+            and each column is a feature.
+            y (NDArray[np.double]): Target matrix containing performance values of the algorithms. Each column 
+            corresponds to the performance of an algorithm.
+            y_bin (NDArray[np.bool_]): Binary matrix indicating the success/failure of each algorithm for each instance.
+            1 indicates success, and 0 indicates failure.
+        y_best (NDArray[np.double]): Vector containing the best performance value for each instance.
+        algo_labels (list[str]): List of algorithm labels corresponding to the algorithms in `y` and `y_bin`.
+        opts (PythiaOptions): A configuration object that contains hyperparameters and options for running 
+            the PYTHIA algorithm (e.g., kernel function, number of folds for cross-validation, etc.).
+
+        Returns:
+        -------
+        tuple[PythiaDataChanged, PythiaOut]:
+            A tuple where:
+            - `PythiaDataChanged`: Contains modified data after running the
+              algorithm
+            - `PythiaOut`: Contains output metrics and results,
+              including SVM models, cross-validation results,
+              and performance summaries for each algorithm.
+
+        """
