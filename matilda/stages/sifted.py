@@ -51,6 +51,7 @@ class Sifted:
     rho: NDArray[np.double]
     pval: NDArray[np.double]
     selvars: NDArray[np.intc]
+    idx: NDArray[np.intc]
     clust: NDArray[np.bool_]
     x_aux: NDArray[np.double]
     cv_partition: KFold
@@ -81,7 +82,7 @@ class Sifted:
         self.opts = opts
 
         self.rng = np.random.default_rng(seed=0)
-        self.ga_cache = {}
+        self.idx = np.arange(x.shape[1])
 
     @staticmethod
     def run(
@@ -185,11 +186,10 @@ class Sifted:
         # Get indices of selected features
         self.selvars = np.where(selvars)[0]
         self.x_aux = self.x[:, self.selvars]
-        
+
         return self.x_aux
 
-        
-    def select_features_by_clustering(self) -> NDArray[np.double]:
+    def select_features_by_clustering(self) -> NDArray[np.intc]:
         """Select features based on clustering."""
         print("-> Selecting features based on correlation clustering.")
         self.evaluate_cluster()
@@ -201,13 +201,13 @@ class Sifted:
             random_state=self.rng.integers(1000),
         )
 
-        cluster_labels = kmeans.fit_predict(self.x_aux.T)
-        
+        cluster_labels: NDArray[np.intc] = kmeans.fit_predict(self.x_aux.T)
+
         # Create a boolean matrix where each column represents a cluster
         self.clust = np.zeros((self.x_aux.shape[1], self.opts.k), dtype=bool)
         for i in range(self.opts.k):
-            self.clust[:, i] = (cluster_labels == i)
-            
+            self.clust[:, i] = cluster_labels == i
+
         return cluster_labels
 
     def find_best_combination(self) -> None:
@@ -234,9 +234,10 @@ class Sifted:
             mutation_probability=self.opts.mutation_probability,
             # stop_criteria: saturate_5 or reach_0 (don't know if it is possible both)
             stop_criteria=self.opts.stop_criteria,
-            random_seed=0,
+            random_seed=int(self.rng.integers(1000)),
             init_range_low=1,
             init_range_high=self.x_aux.shape[1],
+            save_solutions=True,
         )
 
         ga_instance.run()
@@ -281,15 +282,11 @@ class Sifted:
                 squared error of the k-NN classification.
         """
         idx = np.zeros(self.x.shape[1], dtype=bool)
+
         for i, value in enumerate(solutions):
             aux = np.where(self.clust[:, i])[0]
             selected = aux[value % aux.size]
             idx[selected] = True
-
-        key = "".join(map(str, idx.astype(int)))
-
-        if key in self.ga_cache:
-            return self.ga_cache[key]
 
         _, out = Pilot.run(
             self.x[:, idx],
@@ -304,16 +301,15 @@ class Sifted:
         for i in range(self.y.shape[1]):
             knn = KNeighborsClassifier(n_neighbors=Sifted.K_NEIGHBORS)
             scores = cross_val_score(
-                knn, z, self.y_bin[:, i],
+                knn,
+                z,
+                self.y_bin[:, i],
                 cv=self.cv_partition,
                 scoring="neg_mean_squared_error",
             )
             y = max(y, -scores.mean())
 
-        self.ga_cache[key] = y
-
         return y
-
 
     def evaluate_cluster(self) -> NDArray[np.intc]:
         """Evaluate cluster based on silhouette scores.
@@ -325,7 +321,8 @@ class Sifted:
         min_clusters = 2
         max_clusters = self.x_aux.shape[1]
 
-        silhouette_scores, labels = {}, {}
+        self.silhouette_scores: list[float] = []
+        labels: dict[int, NDArray[np.intc]] = {}
 
         for n in range(min_clusters, max_clusters):
             kmeans = KMeans(
@@ -335,19 +332,23 @@ class Sifted:
             )
             cluster_labels = kmeans.fit_predict(self.x_aux.T)
             labels[n] = cluster_labels
-            silhouette_scores[n] = silhouette_score(
-                self.x_aux.T,
-                cluster_labels,
-                metric="correlation",
+            self.silhouette_scores.append(
+                silhouette_score(
+                    self.x_aux.T,
+                    cluster_labels,
+                    metric="correlation",
+                ),
             )
 
         # suggest k value that has highest silhoulette score if k is not the default
         # value and not the maximum nth cluster
-        max_k_silhoulette = max(silhouette_scores, key=lambda k: silhouette_scores[k])
+        max_k_silhoulette_index = np.argmax(self.silhouette_scores)
+        max_k_silhoulette = min_clusters + max_k_silhoulette_index
+
         if max_k_silhoulette not in (self.opts.k, max_clusters):
             print(
                 f"    Suggested k value {max_k_silhoulette} with silhoulette score of",
-                f"{silhouette_scores[max_k_silhoulette]:.4f}",
+                f"{self.silhouette_scores[max_k_silhoulette]:.4f}",
             )
 
         # matlab returning numOfObservation, inspected K value, criterion values,
@@ -387,7 +388,7 @@ class Sifted:
                     )
                 else:
                     # Set value to Nan if there is no valid pairs
-                    rho[i, j], pval[i,j] = np.nan, np.nan
+                    rho[i, j], pval[i, j] = np.nan, np.nan
 
         return (rho, pval)
 
@@ -405,7 +406,8 @@ class Sifted:
             rho=self.rho,
             pval=self.pval,
             selvars=self.selvars,
+            idx=self.idx[self.selvars],
+            silhouette_scores=self.silhouette_scores,
             clust=self.clust,
         )
         return (data_changed, output)
-    
