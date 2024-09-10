@@ -8,17 +8,23 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from scipy import stats
+from scipy import stats  # type: ignore
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
     precision_score,
     recall_score,
 )
-from sklearn.model_selection import GridSearchCV, StratifiedKFold, cross_val_predict
-from sklearn.svm import SVC
-from skopt import BayesSearchCV
-from skopt.space import Real
+
+# type: ignore
+from sklearn.model_selection import (  # type: ignore
+    GridSearchCV,
+    StratifiedKFold,
+    cross_val_predict,
+)
+from sklearn.svm import SVC  # type: ignore
+from skopt import BayesSearchCV  # type: ignore
+from skopt.space import Real  # type: ignore
 
 from matilda.data.model import PythiaDataChanged, PythiaOut
 from matilda.data.options import PythiaOptions
@@ -169,9 +175,7 @@ class Pythia:
         pythia = Pythia(z, y, y_bin, y_best, algo_labels, opts)
 
         print("  -> Initializing PYTHIA.")
-        pythia.compute_sigma_mu(z)
-        z = stats.zscore(z, ddof=1)
-
+        z = pythia.compute_znorm(z)
         ninst, nalgos = y_bin.shape
 
         if ninst > LARGE_NUM_INSTANCE and not opts.is_poly_krnl:
@@ -415,16 +419,20 @@ class Pythia:
         )
         return (data_changed, pythia_output)
 
-    def compute_sigma_mu(self, z: NDArray[np.double]) -> None:
-        """Compute sigma and mu."""
+    def compute_znorm(self, z: NDArray[np.double]) -> NDArray[np.double]:
+        """Compute Standardized z, standard deviations and mean."""
+        z = stats.zscore(z, ddof=1)
+        # Getting mean (mu) and standard deviation (sigma)
         self.mu = np.mean(z, axis=0)
         self.sigma = np.std(z, ddof=1, axis=0)
+        return z
 
     def check_precalcparams(self) -> list| None:
         """Check pre-calculated hyper-parameters."""
         if len(sys.argv) == IF_PARAMS_FILE:
             try:
-                with Path.open(sys.argv[1]) as file:
+                path = Path(sys.argv[1])
+                with path.open("r") as file:
                     data = json.load(file)
             except json.JSONDecodeError as e:
                 print(f"Error: Failed to decode JSON. {e}")
@@ -505,11 +513,11 @@ class Pythia:
                 np.append(np.nanmean(self.y_bin,axis=0),[1,pgood]),3),
             "Avg_Perf_selected_instances": np.round(
                 np.append(np.nanmean(y_svms,axis=0) ,
-                          [np.nan, np.nanmean(y_full)]),
+                        np.array([np.nan, np.nanmean(y_full)])),
             3),
             "Std_Perf_selected_instances": np.round(
                 np.append(np.nanstd(y_svms,axis = 0),
-                          [np.nan, np.nanstd(y_full)]),
+                          np.array([np.nan, np.nanstd(y_full)])),
             3),
             "CV_model_accuracy": np.round(
                 100 * np.append(self.accuracy,[np.nan, np.nan]),
