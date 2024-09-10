@@ -203,9 +203,6 @@ class Sifted:
 
         cluster_labels = kmeans.fit_predict(self.x_aux.T)
         
-        print('this is cluster label')
-        print(cluster_labels)
-
         # Create a boolean matrix where each column represents a cluster
         self.clust = np.zeros((self.x_aux.shape[1], self.opts.k), dtype=bool)
         for i in range(self.opts.k):
@@ -218,7 +215,7 @@ class Sifted:
         self.cv_partition = KFold(
             n_splits=Sifted.KFOLDS,
             shuffle=True,
-            random_state=None,
+            random_state=self.rng.integers(1000),
         )
 
         ga_instance = pygad.GA(
@@ -244,7 +241,9 @@ class Sifted:
 
         ga_instance.run()
 
-        best_solution, _, _ = ga_instance.best_solution()
+        best_solution, best_solution_fitness, _ = ga_instance.best_solution()
+        
+        print(f'Cost value of the GA algorithm is:  {best_solution_fitness}')
 
         # Decode the chromosome
         decoder = np.zeros(self.x_aux.shape[1], dtype=bool)
