@@ -1,5 +1,7 @@
 """PYTHIA function for algorithm selection and performance evaluation using SVM."""
 
+import json
+import sys
 import time
 from pathlib import Path
 
@@ -25,14 +27,16 @@ script_dir = Path(__file__).parents[2] / "tests" / "test_data" / "pythia" / "inp
 
 
 class SvmRes:
+    """SVM result class."""
+
     def __init__(
         self,
         svm: SVC,
-        Ysub: NDArray[np.bool_],
-        Psub: NDArray[np.double],
-        Yhat: NDArray[np.bool_],
-        Phat: NDArray[np.double],
-        C: float,
+        ysub: NDArray[np.bool_],
+        psub: NDArray[np.double],
+        yhat: NDArray[np.bool_],
+        phat: NDArray[np.double],
+        c: float,
         g: float,
         tn: int,
         fp: int,
@@ -41,13 +45,13 @@ class SvmRes:
         accuracy: float,
         precision: float,
         recall: float,
-    ):
+    ) -> None:
         self.svm = svm
-        self.Ysub = Ysub
-        self.Psub = Psub
-        self.Yhat = Yhat
-        self.Phat = Phat
-        self.C = C
+        self.Ysub = ysub
+        self.Psub = psub
+        self.Yhat = yhat
+        self.Phat = phat
+        self.C = c
         self.g = g
         self.tn = tn
         self.fp = fp
@@ -57,17 +61,17 @@ class SvmRes:
         self.precision = precision
         self.recall = recall
 
-    def __str__(self) -> str:
-        return (
-            f"SvmRes(\n"
-            f"  Ysub: {self.Ysub.flatten()},\n"
-            f"  Psub: {self.Psub.flatten()},\n"
-            f"  Yhat: {self.Yhat.flatten()},\n"
-            f"  Phat: {self.Phat.flatten()},\n"
-            f"  C: {self.C},\n"
-            f"  g: {self.g}\n"
-            f")"
-        )
+    # def __str__(self) -> str:
+    #     return (
+    #         f"SvmRes(\n"
+    #         f"  Ysub: {self.Ysub.flatten()},\n"
+    #         f"  Psub: {self.Psub.flatten()},\n"
+    #         f"  Yhat: {self.Yhat.flatten()},\n"
+    #         f"  Phat: {self.Phat.flatten()},\n"
+    #         f"  C: {self.C},\n"
+    #         f"  g: {self.g}\n"
+    #         f")"
+    #     )
 
 
 class Pythia:
@@ -76,19 +80,19 @@ class Pythia:
     mu: list[float]
     sigma: list[float]
     cvcmat: NDArray[np.int32]
-    y_sub: NDArray[np.bool_]  # = np.zeros((self.nalgos, self.x), dtype=bool)
-    y_hat: NDArray[np.bool_]  # = np.zeros((self.nalgos, self.x),dtype=bool)
-    pr0hat: NDArray[np.double]  # = np.zeros((self.nalgos, self.x),dtype=np.double)
-    pr0sub: NDArray[np.double]  # = np.zeros((self.nalgos, self.x),dtype=np.double)
+    y_sub: NDArray[np.bool_]
+    y_hat: NDArray[np.bool_]
+    pr0hat: NDArray[np.double]
+    pr0sub: NDArray[np.double]
     box_consnt: list[float]
     k_scale: list[float]
     precision: list[float]
     recall: list[float]
     accuracy: list[float]
     selection0: NDArray[np.int32]
-    selection1: NDArray[np.int32]  # Change it to proper type
-    cp: StratifiedKFold  # Change it to proper type
-    svm: SVC  # Change it to proper type
+    selection1: NDArray[np.int32]
+    cp: StratifiedKFold
+    svm: SVC
     summary: pd.DataFrame
 
     def __init__(
@@ -98,7 +102,6 @@ class Pythia:
         y_bin: NDArray[np.bool_],
         y_best: NDArray[np.double],
         algo_labels: list[str],
-        hyparams: NDArray[np.double] | None,
         opts: PythiaOptions,
     ) -> None:
         """
@@ -124,13 +127,14 @@ class Pythia:
         self.y_best = y_best
         self.algo_labels = algo_labels
         self.opts = opts
-        self.hyparams = hyparams
         self.nalgos = len(algo_labels)
 
         self.y_sub = np.zeros((self.x.shape[0], self.nalgos), dtype=bool)
         self.y_hat = np.zeros((self.x.shape[0], self.nalgos), dtype=bool)
         self.pr0sub = np.zeros((self.x.shape[0], self.nalgos), dtype=np.double)
         self.pr0hat = np.zeros((self.x.shape[0], self.nalgos), dtype=np.double)
+
+        self.preparams = self.check_precalcparams()
         self.cp = []
         self.svm = None
         self.cvcmat = np.zeros((self.nalgos, 4), dtype=int)
@@ -148,7 +152,6 @@ class Pythia:
         y_bin: NDArray[np.bool_],
         y_best: NDArray[np.double],
         algo_labels: list[str],
-        hyparams: NDArray[np.double] | None,
         opts: PythiaOptions,
     ) -> tuple[PythiaDataChanged, PythiaOut]:
         """
@@ -172,7 +175,9 @@ class Pythia:
             Summary of performance for each algorithm.
 
         """
-        pythia = Pythia(z, y, y_bin, y_best, algo_labels, hyparams, opts)
+        # pythia = Pythia(z, y, y_bin, y_best, algo_labels, hyparams, opts)
+        pythia = Pythia(z, y, y_bin, y_best, algo_labels, opts)
+
         print("  -> Initializing PYTHIA.")
         pythia.compute_sigma_mu(z)
         z = stats.zscore(z, ddof=1)
@@ -182,7 +187,7 @@ class Pythia:
         kernel_fcn = "gaussian"
         if opts.is_poly_krnl:
             kernel_fcn = "polynomial"
-        elif ninst > 1000:  # noqa: PLR2004
+        elif ninst > 1000:
             print(
                 "  -> For datasets larger than 1K Instances, PYTHIA works better with a Polynomial kernel.",
             )
@@ -197,7 +202,6 @@ class Pythia:
             "-------------------------------------------------------------------------",
         )
 
-        params = pythia.check_hyparams(nalgos)
         print(
             "-------------------------------------------------------------------------",
         )
@@ -211,7 +215,6 @@ class Pythia:
             w = np.abs(y - np.nanmean(y))
             w[w == 0] = np.min(w[w != 0])
             w[np.isnan(w)] = np.max(w[~np.isnan(w)])
-            w_aux = w
         else:
             print(" -> PYTHIA is not using cost-sensitive classification.")
             w = np.ones((ninst, nalgos), dtype=int)
@@ -229,14 +232,14 @@ class Pythia:
         )
         print("  -> Training has started. PYTHIA may take a while to complete...")
 
-        # TODO Section 3: Train SVM model for each algorithm & Evaluate performance.
+        # Section 3: Train SVM model for each algorithm & Evaluate performance.
         overall_start_time = time.time()
         skf = StratifiedKFold(n_splits=opts.cv_folds, shuffle=True, random_state=0)
         for i in range(nalgos):
             algo_start_time = time.time()
-            param_space = pythia.generate_params(opts.use_grid_search)
-
-            res = pythia.fitmatsvm(z, y_bin[:, i], w[:, i], skf, kernel_fcn,param_space,opts.use_grid_search)
+            param_space = pythia.get_params(i)
+            res = pythia.fitmatsvm(z, y_bin[:, i], w[:, i], skf, 
+                                   kernel_fcn,param_space,opts.use_grid_search)
             pythia.record_perf(index=i, performance=res)
             # Generate output
             if i == nalgos - 1:
@@ -272,7 +275,7 @@ class Pythia:
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         w: NDArray[np.double],
-        skf: StratifiedKFold,  # Actually its an array and the type is dynamic
+        skf: StratifiedKFold,
         k: str,
         param_space: dict| None,
         use_grid_search: bool,
@@ -330,11 +333,11 @@ class Pythia:
 
         svm_result = SvmRes(
             svm=best_svm,
-            Yhat=y_hat,
-            Ysub=y_sub,
-            Psub=p_sub,
-            Phat=p_hat,
-            C=c,
+            yhat=y_hat,
+            ysub=y_sub,
+            psub=p_sub,
+            phat=p_hat,
+            c=c,
             g=g,
             tn=tn,
             fp=fp,
@@ -358,18 +361,13 @@ class Pythia:
             + str(np.round(100 * np.mean(self.accuracy), 1))
             + "%",
         )
-    def check_hyparams(self, nalgos: int) -> NDArray:
-        """Check hyperparameters."""
-        if (
-            self.hyparams is None
-            or self.hyparams.shape != (nalgos, 2)
-            or self.hyparams.dtype != np.double
-        ):
-            print("-> Using pre-calculated hyper-parameters for the SVM.")
-            return np.full((nalgos, 2), np.nan)
-        print("-> Using pre-calculated hyper-parameters for the SVM.")
-        return self.hyparams
 
+    def get_params(self,index:int) -> dict:
+        """Check hyperparameters."""
+        if self.preparams is not None:
+            return self.preparams[index]
+        else:
+            return self.generate_params(self.opts.use_grid_search)
     def record_perf(self, index: int, performance: SvmRes) -> None:
         """Record performance."""
         self.y_sub[:, [index]] = performance.Ysub.reshape(-1, 1)
@@ -444,6 +442,28 @@ class Pythia:
         self.mu = np.mean(z, axis=0)
         self.sigma = np.std(z, ddof=1, axis=0)
 
+    def check_precalcparams(self) -> list| None:
+        """Check pre-calculated hyper-parameters."""
+        if len(sys.argv) == 2:
+            try:
+                with open(sys.argv[1], 'r') as file:
+                    data = json.load(file)
+            except json.JSONDecodeError as e:
+                print(f"Error: Failed to decode JSON. {e}")
+                return None
+            if not isinstance(data, dict) or "C" not in data or "gamma" not in data:
+                print("Invalid format as parameter file.")
+                return None
+            for key in ['C', 'gamma']:
+                if not (isinstance(data[key], list) and len(data[key]) == self.nalgos and all(isinstance(i, (int, float)) for i in data[key])):
+                    print(f"Error: length of {key} must match to number of algorithms.")
+                    return None
+            print("-> Using pre-calculated hyper-parameters for the SVM.")
+            c_list = data.get("C", [])
+            gamma_list = data.get("gamma", [])
+            return [{"C": c, "gamma": g} for c, g in zip(c_list, gamma_list)]
+        return None
+
     def generate_params(self,use_grid_search:bool) -> dict:
         """Generate parameters."""
         if use_grid_search:
@@ -459,7 +479,7 @@ class Pythia:
             gamma = 2 ** ((maxgrid - mingrid) * samples[:,1] + mingrid)
 
             # Combine the two sets of samples into the parameter grid
-            return {'C': list(C), 'gamma': list(gamma)}
+            return {"C": list(C), "gamma": list(gamma)}
         return {
                 "C": Real(2**-10, 2**4, prior="log-uniform"),
                 "gamma": Real(2**-10, 2**4, prior="log-uniform"),
@@ -495,8 +515,7 @@ class Pythia:
         data = {
             "Algorithms": [*self.algo_labels,  "Oracle", "Selector"],
             "Avg_Perf_all_instances": np.round(np.append(avgperf,[np.nanmean(self.y_best), np.nanmean(y_full)]),3),
-            "Std_Perf_all_instances": np.round(np.append(stdperf, [np.nanstd(self.y_best), np.nanstd(y_full)]),3
-                                               ),
+            "Std_Perf_all_instances": np.round(np.append(stdperf, [np.nanstd(self.y_best), np.nanstd(y_full)]),3),
             "Probability_of_good": np.round(np.append(np.nanmean(self.y_bin,axis=0),[1,pgood]),3),
             "Avg_Perf_selected_instances": np.round(
                 np.append(np.nanmean(y_svms,axis=0) ,[np.nan, np.nanmean(y_full)]),
@@ -538,11 +557,8 @@ if __name__ == "__main__":
     y_input = pd.read_csv(csv_path_y).values.astype(np.double)
     y_bin_input = pd.read_csv(csv_path_ybin).values.astype(np.bool_)
     y_best_input = pd.read_csv(csv_path_ybest).values.astype(np.double)
-    hyparams_input = (
-        pd.read_csv(csv_path_hyparams).values.astype(np.double)
-        if csv_path_hyparams.exists()
-        else None
-    )
+    hyparams_input = sys.argv[1] if len(sys.argv) == 2 else None
+
 
     algo_input = pd.read_csv(csv_path_algo, header=None).values.flatten().tolist()
 
@@ -559,6 +575,5 @@ if __name__ == "__main__":
         y_bin_input,
         y_best_input,
         algo_input,
-        hyparams_input,
         opts,
     )
