@@ -243,8 +243,8 @@ class Sifted:
         ga_instance.run()
 
         best_solution, best_solution_fitness, _ = ga_instance.best_solution()
-        
-        print(f'Cost value of the GA algorithm is:  {best_solution_fitness}')
+
+        print(f"Cost value of the GA algorithm is:  {best_solution_fitness}")
 
         # Decode the chromosome
         decoder = np.zeros(self.x_aux.shape[1], dtype=bool)
