@@ -62,8 +62,8 @@ class StageBuilder:
     def add_stage(
         self,
         stage: type[Stage],
-        inputs: list[StageArgument],
-        outputs: list[StageArgument],
+        inputs: NamedTuple,
+        outputs: NamedTuple,
     ) -> Self:
         """Add a stage to the builder.
 
@@ -92,8 +92,8 @@ class StageBuilder:
                 )
 
         self.stages.add(stage)
-        self.stage_inputs[stage] = set(inputs)
-        self.stage_outputs[stage] = set(outputs)
+        self.stage_inputs[stage] = self._named_tuple_to_stage_arguments(inputs)
+        self.stage_outputs[stage] = self._named_tuple_to_stage_arguments(outputs)
 
         return self
 
@@ -312,3 +312,14 @@ class StageBuilder:
                 stages_can_run_post_mutating_check.add(stage)
 
         return stages_can_run_post_mutating_check
+
+    @staticmethod
+    def _named_tuple_to_stage_arguments(
+        named_tuple: NamedTuple,
+    ) -> set[StageArgument]:
+        stage_arguments: set[StageArgument] = set()
+
+        for argument_name, argument_type in named_tuple.__annotations__.items():
+            stage_arguments.add(StageArgument(argument_name, argument_type))
+
+        return stage_arguments
