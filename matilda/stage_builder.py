@@ -27,6 +27,9 @@ class StageArgument(NamedTuple):
     parameter_type: type
 
 
+StageScheduleElement = list[type[Stage]]
+
+
 class StageBuilder:
     """A stage builder to resolve a collection of stages.
 
@@ -109,15 +112,20 @@ class StageBuilder:
         """
         stage_order = self._resolve_stages(initial_input_annotations)
 
-        return StageRunner(stage_order, self.stage_inputs, self.stage_outputs)
+        return StageRunner(
+            stage_order,
+            self.stage_inputs,
+            self.stage_outputs,
+            set(initial_input_annotations),
+        )
 
     def _resolve_stages(
         self,
         initial_input_annotations: list[StageArgument],
-    ) -> list[list[type[Stage]]]:
+    ) -> list[StageScheduleElement]:
         resolved_stages: set[type[Stage]] = set()
 
-        stage_order: list[list[type[Stage]]] = []
+        stage_order: list[StageScheduleElement] = []
 
         available_inputs: set[StageArgument] = set(initial_input_annotations)
 

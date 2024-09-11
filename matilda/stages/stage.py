@@ -23,8 +23,9 @@ class Stage(ABC, Generic[IN]):
         """Return outputs of the STAGE (run method)."""
         raise NotImplementedError
 
+    @staticmethod
     @abstractmethod
-    def _run(self, inputs: IN) -> NamedTuple:
+    def _run(inputs: IN) -> NamedTuple:
         """Run the stage."""
         raise NotImplementedError
 

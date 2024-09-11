@@ -1,7 +1,6 @@
 """TODO: document instance space module."""
 
 from collections.abc import Generator
-from dataclasses import asdict
 from typing import Any
 
 from matilda.data.metadata import Metadata
@@ -84,7 +83,7 @@ class NewInstanceSpace:
 
         """
         # TODO: split out metadata and options into component fields
-        return self.runner.run_all(**asdict(metadata), **asdict(options), **arguments)
+        return self.runner.run_all(**metadata.__dict__, **options.__dict__, **arguments)
 
     def run_iter(
         self,
@@ -105,8 +104,8 @@ class NewInstanceSpace:
         """
         # TODO: split out metadata and options into component fields
         yield from self.runner.run_iter(
-            **asdict(metadata),
-            **asdict(options),
+            **metadata.__dict__,
+            **options.__dict__,
             **arguments,
         )
 
@@ -156,7 +155,7 @@ class NewInstanceSpace:
         # TODO: split out metadata and options into component fields
         return self.runner.run_until_stage(
             stage,
-            **asdict(metadata),
-            **asdict(options),
+            **metadata.__dict__,
+            **options.__dict__,
             **arguments,
         )
