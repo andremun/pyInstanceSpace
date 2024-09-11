@@ -6,7 +6,7 @@ from typing import Any
 from matilda.data.metadata import Metadata
 from matilda.data.options import InstanceSpaceOptions
 from matilda.stage_builder import StageArgument, StageBuilder
-from matilda.stage_runner import StageRunner
+from matilda.stage_runner import AnnotatedStageOutput, StageRunner
 from matilda.stages.cloister_stage import CloisterStage
 from matilda.stages.pilot_stage import PilotStage
 from matilda.stages.prelim_stage import PrelimStage
@@ -90,7 +90,7 @@ class NewInstanceSpace:
         metadata: Metadata,
         options: InstanceSpaceOptions,
         **arguments: Any,  # noqa: ANN401
-    ) -> Generator[None, tuple[Any], None]:
+    ) -> Generator[AnnotatedStageOutput, None, None]:
         """Run all stages, yielding between so the data can be examined.
 
         Args

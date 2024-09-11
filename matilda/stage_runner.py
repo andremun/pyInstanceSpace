@@ -11,6 +11,12 @@ from matilda.stages.stage import Stage
 class StageRunningError(Exception):
     """An error during stage running."""
 
+class AnnotatedStageOutput(NamedTuple):
+    """The yielded output of running a stage."""
+
+    stage: type[Stage]
+    output: NamedTuple
+
 
 class StageRunner:
     """A runner to run a list of stages."""
@@ -65,14 +71,20 @@ class StageRunner:
     def run_iter(
         self,
         **additional_arguments: Any,  # noqa: ANN401
-    ) -> Generator[None, tuple[Any], None]:
+    ) -> Generator[AnnotatedStageOutput, None, None]:
         """Run all stages, yielding after every run.
 
         Yields
         ------
             Generator[None, tuple[Any], None]: _description_
         """
-        raise NotImplementedError
+        self._rollback_to_schedule_index(0)
+
+        self._available_arguments = additional_arguments.__dict__
+
+        for schedule in self._stages:
+            for stage in schedule:
+                yield AnnotatedStageOutput(stage, self.run_stage(stage))
 
     def run_stage(
         self,
@@ -147,7 +159,7 @@ class StageRunner:
         """
         raise NotImplementedError
 
-    def run_all(self, additional_arguments: NamedTuple) -> tuple[Any]:
+    def run_all(self, additional_arguments: NamedTuple) -> None:
         """Run all stages from start to finish.
 
         Return the entire outputs data object when finished.
@@ -156,24 +168,15 @@ class StageRunner:
         -------
             tuple[Any]: _description_
         """
-        # for initial_input_name, initial_input_data in initial_inputs.items():
-        #     # TODO: Check all inputs are present and correct. Otherwise Throw.
-        #     pass
+        self._rollback_to_schedule_index(0)
 
-        # for schedule_item in self._stages:
-        #     for stage in schedule_item:
-        #         input_data: list[Any] = []
-        #         for input_name, input_type in self._input_arguments[stage]:
-        #             input_data.append(self.output_data[input_name])
-        #             # TODO: Do some check that input is the right type
+        self._available_arguments = additional_arguments.__dict__
 
-        #         outputs = stage._run(*input_data)
+        for schedule in self._stages:
+            for stage in schedule:
+                self.run_stage(stage)
 
-        #         for output_name, output_value in outputs._asdict().items():
-        #             # Do some check that the output is the right type
-        #             self.output_data[output_name] = output_value
-
-        raise NotImplementedError
+        # TODO: Work out what this should return. Maybe just the dict of outputs?
 
     def run_until_stage(
         self,
