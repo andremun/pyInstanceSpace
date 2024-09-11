@@ -10,6 +10,8 @@ and evaluates the performance footprints for different algorithms.
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
+from pandas.testing import assert_frame_equal
 
 from matilda.data.options import TraceOptions
 from matilda.stages.trace import Trace
@@ -31,9 +33,9 @@ def test_trace_pythia() -> None:
     None
     """
     # Define the path to the file
-    script_dir = Path(__file__).parent
+    main_dir = Path(__file__).parent
 
-    algo_labels_path = script_dir / "test_data/trace_csvs/algolabels.txt"
+    algo_labels_path = main_dir / "test_data/trace_csvs/algolabels.txt"
 
     # Use Path.open() to open the file
     with algo_labels_path.open() as f:
@@ -41,21 +43,21 @@ def test_trace_pythia() -> None:
 
     # Reading instance space from Z.csv
     z = np.genfromtxt(
-        script_dir / "test_data/trace_csvs/Z.csv",
+        main_dir / "test_data/trace_csvs/Z.csv",
         delimiter=",",
         dtype=np.double,
     )
 
     # Reading binary performance indicators from y_bin.csv
     y_bin = np.genfromtxt(
-        script_dir / "test_data/trace_csvs/yhat.csv",
+        main_dir / "test_data/trace_csvs/yhat.csv",
         delimiter=",",
         dtype=np.int_,
     ).astype(np.bool_)
 
     # Reading performance metrics from p.csv
     p = np.genfromtxt(
-        script_dir / "test_data/trace_csvs/selection0.csv",
+        main_dir / "test_data/trace_csvs/selection0.csv",
         delimiter=",",
         dtype=np.double,
     )
@@ -63,7 +65,7 @@ def test_trace_pythia() -> None:
 
     # Reading beta thresholds from beta.csv
     beta = np.genfromtxt(
-        script_dir / "test_data/trace_csvs/beta.csv",
+        main_dir / "test_data/trace_csvs/beta.csv",
         delimiter=",",
         dtype=np.int_,
     ).astype(np.bool_)
@@ -73,7 +75,25 @@ def test_trace_pythia() -> None:
 
     # Initialising and running the TRACE analysis
     trace = Trace()
-    trace.run(z, y_bin, p.astype(np.double), beta, algo_labels, trace_options)
+    _, trace_output = trace.run(
+        z,
+        y_bin,
+        p.astype(np.double),
+        beta,
+        algo_labels,
+        trace_options,
+    )
+
+    correct_result_path = main_dir / "test_data/trace_csvs/correct_results_pythia.csv"
+    expected_output = pd.read_csv(correct_result_path).sort_values("Algorithm")
+    received_output = trace_output.summary.sort_values("Algorithm")
+
+    # Use assert_frame_equal with tolerance
+    try:
+        assert_frame_equal(expected_output, received_output, rtol=1e-2, atol=1e-2)
+        print("DataFrames are almost equal.")
+    except AssertionError as e:
+        print("DataFrames are not equal:", e)
 
 
 def test_trace_simulation() -> None:
@@ -134,4 +154,23 @@ def test_trace_simulation() -> None:
 
     # Initialising and running the TRACE analysis
     trace = Trace()
-    trace.run(z, y_bin2, p2.astype(np.double), beta, algo_labels, trace_options)
+    _, trace_output = trace.run(
+        z,
+        y_bin2,
+        p2.astype(np.double),
+        beta,
+        algo_labels,
+        trace_options,
+    )
+    correct_result_path = (
+        script_dir / "test_data/trace_csvs/correct_results_simulation.csv"
+    )
+    expected_output = pd.read_csv(correct_result_path).sort_values("Algorithm")
+    received_output = trace_output.summary.sort_values("Algorithm")
+
+    # Use assert_frame_equal with tolerance
+    try:
+        assert_frame_equal(expected_output, received_output, rtol=1e-2, atol=1e-2)
+        print("DataFrames are almost equal.")
+    except AssertionError as e:
+        print("DataFrames are not equal:", e)
