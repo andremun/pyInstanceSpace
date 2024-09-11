@@ -180,16 +180,27 @@ class StageRunner:
 
     def run_until_stage(
         self,
-        stage: type[Stage],
+        stop_at_stage: type[Stage],
         additional_arguments: NamedTuple,
-    ) -> tuple[Any]:
+    ) -> None:
         """Run all stages until the specified stage, as well as the specified stage.
 
         Returns
         -------
             tuple[Any]: _description_
         """
-        raise NotImplementedError
+        self._rollback_to_schedule_index(0)
+
+        self._available_arguments = additional_arguments.__dict__
+
+        for schedule in self._stages:
+            if stop_at_stage in schedule:
+                break
+
+            for stage in schedule:
+                self.run_stage(stage)
+
+        # TODO: Work out what this should return. Maybe just the dict of outputs?
 
     @staticmethod
     def _check_stage_order_is_runnable(
