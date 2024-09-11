@@ -12,6 +12,8 @@ from typing import Any, Generic, TypeVar
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from sklearn.model_selection import StratifiedKFold  # type: ignore
+from sklearn.svm import SVC  # type: ignore
 
 from matilda.data.options import InstanceSpaceOptions
 
@@ -207,8 +209,8 @@ class PythiaOut:
 
     mu: list[float]
     sigma: list[float]
-    cp: Any  # Change it to proper type
-    svm: Any  # Change it to proper type
+    cp: StratifiedKFold  # Change it to proper type
+    svm: SVC  # Change it to proper type
     cvcmat: NDArray[np.int32]
     y_sub: NDArray[np.bool_]
     y_hat: NDArray[np.bool_]
@@ -220,7 +222,8 @@ class PythiaOut:
     recall: list[float]
     accuracy: list[float]
     selection0: NDArray[np.int32]
-    selection1: NDArray[np.int32]  # Change it to proper type
+    selection1: NDArray[np.int32]
+    w: NDArray[np.double]
     summary: pd.DataFrame
 
 
@@ -279,6 +282,7 @@ class TraceDataChanged:
 @dataclass(frozen=True)
 class Model:
     """Contain data and output.
+
     Combines all components into a full model representation, including data and
     analysis results.
     """
@@ -293,32 +297,3 @@ class Model:
     pythia: PythiaOut
     trace: TraceOut
     opts: InstanceSpaceOptions
-
-
-    """
-        PYTHIA function for algorithm selection and performance evaluation using SVM.
-
-        Args:
-        ----
-            z (NDArray[np.double]): Feature matrix with shape (instances, features), where each row is an instance 
-            and each column is a feature.
-            y (NDArray[np.double]): Target matrix containing performance values of the algorithms. Each column 
-            corresponds to the performance of an algorithm.
-            y_bin (NDArray[np.bool_]): Binary matrix indicating the success/failure of each algorithm for each instance.
-            1 indicates success, and 0 indicates failure.
-        y_best (NDArray[np.double]): Vector containing the best performance value for each instance.
-        algo_labels (list[str]): List of algorithm labels corresponding to the algorithms in `y` and `y_bin`.
-        opts (PythiaOptions): A configuration object that contains hyperparameters and options for running 
-            the PYTHIA algorithm (e.g., kernel function, number of folds for cross-validation, etc.).
-
-        Returns:
-        -------
-        tuple[PythiaDataChanged, PythiaOut]:
-            A tuple where:
-            - `PythiaDataChanged`: Contains modified data after running the
-              algorithm
-            - `PythiaOut`: Contains output metrics and results,
-              including SVM models, cross-validation results,
-              and performance summaries for each algorithm.
-
-        """
