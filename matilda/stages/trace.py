@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import numpy as np
 from numpy.typing import NDArray
+from shapely.geometry import MultiPolygon, Polygon
 
-from matilda.data.model import Footprint, PolyShape, TraceDataChanged, TraceOut
+from matilda.data.model import Footprint, TraceDataChanged, TraceOut
 from matilda.data.options import TraceOptions
 
 
@@ -163,10 +164,9 @@ class Trace:
 
     def tight(
         self,
-        polygon: PolyShape,
-    ) -> PolyShape:
-        """
-        Refer the original Matlab function to get more info.
+        polygon: Polygon | MultiPolygon,
+    ) -> Polygon | None:
+        """Refer the original Matlab function to get more info.
 
         Parameters
         ----------
@@ -192,9 +192,8 @@ class Trace:
     def fitpoly(
         self,
         poly_data: NDArray[np.double],
-    ) -> PolyShape:
-        """
-        Fits a polygon to the given data points according to TRACE criteria.
+    ) -> Polygon | None:
+        """Fits a polygon to the given data points according to TRACE criteria.
 
         Parameters
         ----------
