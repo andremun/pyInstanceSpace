@@ -67,7 +67,7 @@ default_pythia = PythiaOptions(
     cv_folds=5,
     is_poly_krnl=False,
     use_weights=False,
-    use_lib_svm=False,
+    use_grid_search=False,
 )
 default_trace = TraceOptions(
     use_sim=True,

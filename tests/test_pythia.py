@@ -125,29 +125,18 @@ def test_grid_gaussian() -> None:
     for i in range(len(algo_input)):
         total += 3
         # check if the accuracy is higher than the matlab output
-        if pythiaOut.accuracy[i] * 100 >= matlab_accuracy[i]:
+        if pythiaOut.accuracy[i] * 100 >= matlab_accuracy[i] or abs(pythiaOut.accuracy[i] * 100 - matlab_accuracy[i]) <= tol:
             correct += 1
-        # if lower, check if the difference is within the tolerance
-        else:
-            if abs(pythiaOut.accuracy[i] * 100 - matlab_accuracy[i]) <= tol:
-                correct += 1
 
         # check precision
-        if pythiaOut.precision[i] * 100 >= matlab_precision[i]:
+        if pythiaOut.precision[i] * 100 >= matlab_precision[i] or abs(pythiaOut.precision[i] * 100 - matlab_precision[i]) <= tol:
             correct += 1
-        else:
-            if abs(pythiaOut.precision[i] * 100 - matlab_precision[i]) <= tol:
-                correct += 1
 
         # check recall
-        if pythiaOut.recall[i] * 100 >= matlab_recall[i]:
+        if pythiaOut.recall[i] * 100 >= matlab_recall[i] or abs(pythiaOut.recall[i] * 100 - matlab_recall[i]) <= tol:
             correct += 1
-        else:
-            if abs(pythiaOut.recall[i] * 100 - matlab_recall[i]) <= tol:
-                correct += 1
 
     assert correct / total >= threshold
-
 
 if __name__ == "__main__":
     test_bayes_opt()
