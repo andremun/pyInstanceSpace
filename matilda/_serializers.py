@@ -7,7 +7,7 @@ import matplotlib as mpl
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from shapely.geometry import Polygon, MultiPolygon
+from shapely.geometry import MultiPolygon, Polygon
 
 from matilda.data.model import (
     CloisterOut,
