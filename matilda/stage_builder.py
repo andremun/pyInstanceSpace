@@ -62,8 +62,8 @@ class StageBuilder:
     def add_stage(
         self,
         stage: type[Stage],
-        inputs: NamedTuple,
-        outputs: NamedTuple,
+        inputs: type[NamedTuple],
+        outputs: type[NamedTuple],
     ) -> Self:
         """Add a stage to the builder.
 
@@ -84,7 +84,7 @@ class StageBuilder:
                 f"Stage {stage} has already been added, and cannot be added again.",
             )
 
-        for output_name, output_type in outputs:
+        for output_name, output_type in self._named_tuple_to_stage_arguments(outputs):
             if issubclass(output_type, RunBefore) or issubclass(output_type, RunAfter):
                 raise TypeError(
                     f"Argument {output_name} is a {output_type}. "
@@ -315,7 +315,7 @@ class StageBuilder:
 
     @staticmethod
     def _named_tuple_to_stage_arguments(
-        named_tuple: NamedTuple,
+        named_tuple: type[NamedTuple],
     ) -> set[StageArgument]:
         stage_arguments: set[StageArgument] = set()
 

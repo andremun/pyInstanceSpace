@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from types import UnionType
-from typing import Any, Generic, NamedTuple, TypeVar
+from typing import Generic, NamedTuple, TypeVar
 
 IN = TypeVar("IN", bound=NamedTuple)
 

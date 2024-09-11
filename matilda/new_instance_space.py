@@ -1,11 +1,12 @@
 """TODO: document instance space module."""
 
 from collections.abc import Generator
+from dataclasses import asdict
 from typing import Any
 
 from matilda.data.metadata import Metadata
 from matilda.data.options import InstanceSpaceOptions
-from matilda.stage_builder import StageBuilder
+from matilda.stage_builder import StageArgument, StageBuilder
 from matilda.stage_runner import StageRunner
 from matilda.stages.cloister_stage import CloisterStage
 from matilda.stages.pilot_stage import PilotStage
@@ -13,7 +14,7 @@ from matilda.stages.prelim_stage import PrelimStage
 from matilda.stages.preprocessing_stage import PreprocessingStage
 from matilda.stages.pythia_stage import PythiaStage
 from matilda.stages.sifted_stage import SiftedStage
-from matilda.stages.stage import Stage, StageArgument
+from matilda.stages.stage import Stage
 from matilda.stages.trace_stage import TraceStage
 
 
@@ -51,10 +52,13 @@ class NewInstanceSpace:
                 stage._outputs(),  # noqa: SLF001
             )
 
+        # TODO: do this manually, I am just pulling it out of annotations to get it
+        # working
         self.runner = stage_builder.build(
-            [
-                StageArgument("metadata", Metadata),
-                StageArgument("options", InstanceSpaceOptions),
+            [StageArgument(k, v) for k, v in Metadata.__annotations__.items()]
+            + [
+                StageArgument(k, v)
+                for k, v in InstanceSpaceOptions.__annotations__.items()
             ],
         )
 
@@ -80,7 +84,7 @@ class NewInstanceSpace:
 
         """
         # TODO: split out metadata and options into component fields
-        return self.runner.run_all(metadata=metadata, options=options, **arguments)
+        return self.runner.run_all(**asdict(metadata), **asdict(options), **arguments)
 
     def run_iter(
         self,
@@ -100,7 +104,11 @@ class NewInstanceSpace:
             Generator[None, tuple[Any], None]: _description_
         """
         # TODO: split out metadata and options into component fields
-        yield from self.runner.run_iter(metadata=metadata, options=options, **arguments)
+        yield from self.runner.run_iter(
+            **asdict(metadata),
+            **asdict(options),
+            **arguments,
+        )
 
     def run_stage(
         self,
@@ -148,7 +156,7 @@ class NewInstanceSpace:
         # TODO: split out metadata and options into component fields
         return self.runner.run_until_stage(
             stage,
-            metadata=metadata,
-            options=options,
+            **asdict(metadata),
+            **asdict(options),
             **arguments,
         )
