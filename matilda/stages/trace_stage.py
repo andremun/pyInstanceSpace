@@ -144,7 +144,6 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
     def __init__(
         self,
         z: NDArray[np.double],
-        y_bin: NDArray[np.bool_],
         p: NDArray[np.double],
         beta: NDArray[np.bool_],
         algo_labels: list[str],
@@ -165,7 +164,6 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
         None
         """
         self.z = z
-        self.y_bin = y_bin
         self.p = p
         self.beta = beta
         self.algo_labels = algo_labels
@@ -212,7 +210,8 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
     ("summary", pd.DataFrame),
 ]
 
-    def _run(self, options:TraceOptions) -> (TraceDataChanged, TraceOut):
+    def _run(self, y_bin_pythia: NDArray[np.bool_], y_bin_data:NDArray[np.bool_],
+             opts:TraceOptions) -> tuple[TraceDataChanged, TraceOut]:
         """Use the method for running the trace stage as well as surrounding buildIS.
 
         Args
@@ -224,16 +223,15 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
             tuple[Footprint, list[Footprint], list[Footprint], Footprint, pd.DataFrame]
                 The results of the trace stage
         """
-        # All the code including the code in the buildIS should be here
+        self.opts = opts
+        if self.opts.use_sim:
+            self.y_bin = y_bin_pythia
+        else:
+            self.y_bin = y_bin_data
 
-    def trace(
-            self,
-        z: NDArray[np.double],
-        y_bin: NDArray[np.bool_],
-        p: NDArray[np.double],
-        beta: NDArray[np.bool_],
-        algo_labels: list[str],
-    ) -> tuple[TraceDataChanged, TraceOut]:
+        self.trace()
+
+    def trace(self) -> tuple[TraceDataChanged, TraceOut]:
         """Perform the TRACE footprint analysis.
 
         Parameters:
@@ -259,14 +257,9 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
             An instance of TraceOut containing the analysis results, including
             the calculated footprints and summary statistics.
         """
-        self.z = z
-        self.y_bin = y_bin
-        self.p = p
-        self.beta = beta
-        self.algo_labels = algo_labels
-        self.opts = opts
 
         # Create a boolean array to calculate the space footprint
+
         true_array: NDArray[np.bool_] = np.array(
             [True for _ in self.y_bin],
             dtype=np.bool_,
