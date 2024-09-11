@@ -4,7 +4,6 @@ from collections.abc import Generator
 from typing import Any, NamedTuple
 
 from matilda.stage_builder import StageArgument, StageScheduleElement
-from matilda.stages.prelim_stage import _PrelimInputs
 from matilda.stages.stage import Stage
 
 

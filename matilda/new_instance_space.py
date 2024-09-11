@@ -66,7 +66,7 @@ class NewInstanceSpace:
         metadata: Metadata,
         options: InstanceSpaceOptions,
         **arguments: Any,  # noqa: ANN401
-    ) -> tuple[Any]:  # TODO: Replace this with model / get_model
+    ) -> None:  # TODO: Replace this with model / get_model
         """Build the instance space.
 
         Options will be broken down to sub fields to be passed to stages. You can
@@ -83,7 +83,7 @@ class NewInstanceSpace:
 
         """
         # TODO: split out metadata and options into component fields
-        return self.runner.run_all(**metadata.__dict__, **options.__dict__, **arguments)
+        self.runner.run_all(**metadata.__dict__, **options.__dict__, **arguments)
 
     def run_iter(
         self,
@@ -136,7 +136,7 @@ class NewInstanceSpace:
         metadata: Metadata,
         options: InstanceSpaceOptions,
         **arguments: Any,  # noqa: ANN401
-    ) -> tuple[Any]:
+    ) -> None:
         """Run all stages until the specified stage, as well as the specified stage.
 
         Args
@@ -153,7 +153,7 @@ class NewInstanceSpace:
             list[Any]: _description_
         """
         # TODO: split out metadata and options into component fields
-        return self.runner.run_until_stage(
+        self.runner.run_until_stage(
             stage,
             **metadata.__dict__,
             **options.__dict__,
