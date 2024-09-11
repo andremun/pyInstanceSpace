@@ -28,8 +28,10 @@ class NotEnoughFeatureError(Exception):
     def __init__(self, msg: str) -> None:
         """Initialise the NotEnoughFeatureError.
 
-        Args:
-            msg (str): error message to be displayed.
+        Parameters
+        ----------
+        msg : str
+            error message to be displayed.
         """
         super().__init__(msg)
 
@@ -58,13 +60,18 @@ class Sifted:
     ) -> None:
         """Initialize the Sifted stage.
 
-        Args
-        ----
-            x (NDarray): The feature matrix (instances x features) to process.
-            y (NDArray): The algorithm matrix (instances x algorithm performances).
-            y_bin (NDArray): Binary labels for algorithm perfromance from prelim.
-            feat_labels(list[str]): List of feature labels.
-            opts (SiftedOptions): Sifted options.
+        Parameters
+        ----------
+        x : NDArray[np.double]
+            Feature matrix (instances x features) to process.
+        y : NDArray[np.double]
+            Algorithm matrix (instances x algorithm performances).
+        y_bin : NDArray[np.bool_]
+            Binary labels for algorithm performance.
+        feat_labels : list[str]
+            List of feature labels.
+        opts : SiftedOptions
+            Sifted options used for processing.
         """
         self.x = x
         self.y = y
@@ -82,19 +89,26 @@ class Sifted:
     ) -> tuple[SiftedDataChanged, SiftedOut]:
         """Process data matrices and options to produce a sifted dataset.
 
-        Args
-        ----
-            x: The feature matrix (instances x features).
-            y: The performance matrix (instances x algorithms).
-            y_bin: The binary performance matrix
-            feat_labels: A list of feature labels.
-            opts: An instance of `SiftedOptions` containing processing
-                parameters.
+        Parameters
+        ----------
+        x : NDArray[np.double]
+            Feature matrix (instances x features).
+        y : NDArray[np.double]
+            Performance matrix (instances x algorithms).
+        y_bin : NDArray[np.bool_]
+            Binary performance matrix.
+        feat_labels : list[str]
+            List of feature labels.
+        opts : SiftedOptions
+            An instance of SiftedOptions containing processing parameters.
 
         Returns
         -------
-            A tuple containing the processed feature matrix and
-            SiftedOut
+        data_changed : SiftedDataChanged
+            Processed feature matrix after feature selection.
+        output : SiftedOut
+            Output data from the Sifted stage including selected features and
+            performance metrics.
         """
         sifted = Sifted(x=x, y=y, y_bin=y_bin, feat_labels=feat_labels, opts=opts)
 
@@ -182,7 +196,14 @@ class Sifted:
 
         Returns
         -------
-            tuple[NDArray[np.double], NDArray[np.double], NDArray[np.double],
+        x_aux : NDArray[np.double]
+            Filtered feature matrix after selection.
+        rho : NDArray[np.double]
+            Pearson correlation coefficients between features and performance.
+        pval : NDArray[np.double]
+            p-values for the correlation coefficients.
+        selvars : NDArray[np.intc]
+            Indices of the selected features.
         """
         rho, pval = self.compute_correlation(self.x, self.y)
 
@@ -219,7 +240,22 @@ class Sifted:
         x_aux: NDArray[np.double],
         rng: np.random.Generator,
     ) -> tuple[NDArray[np.bool_], NDArray[np.intc]]:
-        """Select features based on clustering."""
+        """Select features based on clustering.
+
+        Parameters
+        ----------
+        x_aux : NDArray[np.double]
+            Auxiliary feature matrix used for clustering.
+        rng : np.random.Generator
+            Random number generator for reproducibility.
+
+        Returns
+        -------
+        clust : NDArray[np.bool_]
+            Boolean matrix where each column represents a cluster.
+        cluster_labels : NDArray[np.intc]
+            Labels for the clusters.
+        """
         kmeans = KMeans(
             n_clusters=self.opts.k,
             max_iter=self.opts.max_iter,
@@ -243,7 +279,26 @@ class Sifted:
         selvars: NDArray[np.intc],
         rng: np.random.Generator,
     ) -> tuple[NDArray[np.double], NDArray[np.intc]]:
-        """Find the best combination of features, using genetic algorithm."""
+        """Find the best combination of features, using genetic algorithm.
+
+        Parameters
+        ----------
+        x_aux : NDArray[np.double]
+            Auxiliary feature matrix used in the optimization process.
+        clust : NDArray[np.bool_]
+            Boolean matrix where each column represents a cluster.
+        selvars : NDArray[np.intc]
+            Selected variables to be processed.
+        rng : np.random.Generator
+            Random number generator for reproducibility.
+
+        Returns
+        -------
+        selected_x : NDArray[np.double]
+            Matrix with selected features after optimization.
+        decoded_selvars : NDArray[np.intc]
+            Indices of the selected features.
+        """
         cv_partition = KFold(
             n_splits=Sifted.KFOLDS,
             shuffle=True,
@@ -257,17 +312,20 @@ class Sifted:
         ) -> float:
             """Fitness function to evaluate the quality of solution in GA.
 
-            Args
-            ----
-                instance (pygad.GA): The instance of the genetic algorithm.
-                solutions (NDArray[np.intc]): The array of integer values representing
-                    the solution to be evaluated.
-                solution_idx (int): The index of the solution being evaluated.
+            Parameters
+            ----------
+            instance : pygad.GA
+                The instance of the genetic algorithm.
+            solutions : NDArray[np.intc]
+                The array of integer values representing the solution to be evaluated.
+            solution_idx : int
+                The index of the solution being evaluated.
 
             Returns
             -------
-                float: The fitness score of the solution, representing the negative mean
-                    squared error of the k-NN classification.
+            float
+                The fitness score of the solution, representing the negative mean
+                squared error of the k-NN classification.
             """
             idx = np.zeros(self.x.shape[1], dtype=bool)
 
@@ -351,9 +409,19 @@ class Sifted:
     ) -> tuple[list[float], NDArray[np.intc]]:
         """Evaluate cluster based on silhouette scores.
 
+        Parameters
+        ----------
+        x_aux : NDArray[np.double]
+            Auxiliary feature matrix used for clustering.
+        rng : np.random.Generator
+            Random number generator for reproducibility.
+
         Returns
         -------
-            dict[int, NDArray]: A dictionary containing the labels of the clusters
+        silhouette_scores : list[float]
+            Silhouette scores for different cluster configurations.
+        cluster_labels : NDArray[np.intc]
+            Labels for the selected cluster configuration.
         """
         min_clusters = 2
         max_clusters = x_aux.shape[1]
@@ -392,7 +460,7 @@ class Sifted:
         # and optimal K, but in python lets do k value first need to deal with, if
         # user choose optimal silhouette value, should change the output
         # check if silhoulette value is in bell shape, meaning increasing then
-        # decreasing if max is not last, then can recommend max value, if last then how?
+        # decreasing if max is not last, then can recommend max value.
         return silhouette_scores, labels[self.opts.k]
 
     def compute_correlation(
@@ -402,10 +470,19 @@ class Sifted:
     ) -> tuple[NDArray[np.double], NDArray[np.double]]:
         """Calculate the Pearson correlation coefficient for the dataset by row.
 
-        Returns:
+        Parameters
+        ----------
+        x : NDArray[np.double]
+            Feature matrix for the correlation calculation.
+        y : NDArray[np.double]
+            Performance matrix for correlation.
+
+        Returns
         -------
-            tuple(NDArray[np.double], NDArray[np.double]: rho and p value calculated
-                by Pearson correlation.
+        rho : NDArray[np.double]
+            Pearson correlation coefficients between features and performance.
+        pval : NDArray[np.double]
+            p-values for the correlation coefficients.
         """
         rows = x.shape[1]
         cols = y.shape[1]
@@ -445,11 +522,30 @@ class Sifted:
     ) -> tuple[SiftedDataChanged, SiftedOut]:
         """Generate outputs of Sifted stage.
 
+        Parameters
+        ----------
+        x : NDArray[np.double]
+            Processed feature matrix.
+        selvars : NDArray[np.intc]
+            Indices of the selected features.
+        idx : NDArray[np.intc]
+            Indices of all features.
+        rho : NDArray[np.double], optional
+            Pearson correlation coefficients.
+        pval : NDArray[np.double], optional
+            p-values for the correlation coefficients.
+        silhouette_scores : list of float, optional
+            Silhouette scores for clustering.
+        clust : NDArray[np.bool_], optional
+            Boolean matrix where each column represents a cluster.
+
         Returns
         -------
-            tuple[SiftedDataChanged, SiftedOut]: SiftedDataChanged contains data that
-                is changed during the Sifted stage and SiftedOut contains data generated
-                from Sifted stage.
+        data_changed : SiftedDataChanged
+            Data that is changed during the Sifted stage.
+        output : SiftedOut
+            Output data generated from the Sifted stage, including selected features
+            and performance metrics.
         """
         data_changed = SiftedDataChanged(x=x)
         output = SiftedOut(
