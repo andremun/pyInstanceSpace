@@ -49,7 +49,7 @@ def test_select_features_by_performance() -> None:
     xaux_matlab = np.genfromtxt(csv_path_xaux, delimiter=",")
 
     sifted = Sifted(input_x, input_y, input_ybin, feat_labels, opts)
-    xaux_python = sifted.select_features_by_performance()
+    xaux_python, _, _, _ = sifted.select_features_by_performance()
 
     assert np.allclose(xaux_matlab, xaux_python, atol=1e-04)
 
@@ -63,9 +63,12 @@ def test_select_features_by_clustering() -> None:
     csv_path_cluster = script_dir / "test_data/sifted/output/clusters_matlab.csv"
     cluster_matlab = np.genfromtxt(csv_path_cluster, delimiter=",")
 
+    rng = np.random.default_rng(seed=0)
+
     sifted = Sifted(input_x, input_y, input_ybin, feat_labels, opts)
-    sifted.select_features_by_performance()
-    cluster_python = sifted.select_features_by_clustering()
+    x_aux, _, _, _ = sifted.select_features_by_performance()
+    sifted.evaluate_cluster(x_aux, rng)
+    _, cluster_python = sifted.select_features_by_clustering(x_aux, rng)
 
     assert are_same_clusters(cluster_matlab, cluster_python)
 

@@ -48,15 +48,6 @@ class Sifted:
     feat_labels: NDArray[np.str_]
     opts: SiftedOptions
 
-    rho: NDArray[np.double]
-    pval: NDArray[np.double]
-    selvars: NDArray[np.intc]
-    idx: NDArray[np.intc]
-    clust: NDArray[np.bool_]
-    x_aux: NDArray[np.double]
-    cv_partition: KFold
-    ga_cache: dict[str, float]
-
     def __init__(
         self,
         x: NDArray[np.double],
@@ -80,9 +71,6 @@ class Sifted:
         self.y_bin = y_bin
         self.feat_labels = np.array(feat_labels)
         self.opts = opts
-
-        self.rng = np.random.default_rng(seed=0)
-        self.idx = np.arange(x.shape[1])
 
     @staticmethod
     def run(
@@ -111,6 +99,8 @@ class Sifted:
         sifted = Sifted(x=x, y=y, y_bin=y_bin, feat_labels=feat_labels, opts=opts)
 
         nfeats = x.shape[1]
+        idx = np.arange(nfeats)
+        rng = np.random.default_rng(seed=0)
 
         if nfeats <= 1:
             raise NotEnoughFeatureError(
@@ -122,12 +112,14 @@ class Sifted:
                 "-> There are 3 or less features to do selection.",
                 "Skipping feature selection.",
             )
-            sifted.selvars = np.arange(nfeats)
-            return sifted.get_output()
+            selvars = np.arange(nfeats)
+            return sifted.generate_output(x=x, selvars=selvars, idx=idx)
 
-        sifted.select_features_by_performance()
+        print("-> Selecting features based on correlation with performance.")
 
-        nfeats = sifted.x_aux.shape[1]
+        x_aux, rho, pval, selvars = sifted.select_features_by_performance()
+
+        nfeats = x_aux.shape[1]
 
         if nfeats <= 1:
             raise NotEnoughFeatureError(
@@ -139,38 +131,66 @@ class Sifted:
                 "-> There are 3 or less features to do selection.",
                 "Skipping correlation clustering selection.",
             )
-            sifted.x = sifted.x_aux
-            return sifted.get_output()
+            return sifted.generate_output(
+                x=x_aux,
+                selvars=selvars,
+                idx=idx,
+                rho=rho,
+                pval=pval,
+            )
 
         if nfeats <= opts.k:
             print(
                 "-> There are less features than clusters.",
                 "Skipping correlation clustering selection.",
             )
-            sifted.x = sifted.x_aux
-            return sifted.get_output()
+            return sifted.generate_output(
+                x=x_aux,
+                selvars=selvars,
+                idx=idx,
+                rho=rho,
+                pval=pval,
+            )
 
-        sifted.select_features_by_clustering()
-        sifted.find_best_combination()
+        print("-> Selecting features based on correlation clustering.")
 
-        return sifted.get_output()
+        silhouette_scores, _ = sifted.evaluate_cluster(x_aux, rng)
 
-    def select_features_by_performance(self) -> NDArray[np.double]:
+        clust, _ = sifted.select_features_by_clustering(x_aux, rng)
+
+        x_aux, selvars = sifted.find_best_combination(x_aux, clust, selvars, rng)
+
+        return sifted.generate_output(
+            x=x_aux,
+            selvars=selvars,
+            idx=idx,
+            rho=rho,
+            pval=pval,
+            silhouette_scores=silhouette_scores,
+            clust=clust,
+        )
+
+    def select_features_by_performance(
+            self,
+        ) -> tuple[
+            NDArray[np.double],
+            NDArray[np.double],
+            NDArray[np.double],
+            NDArray[np.intc],
+        ]:
         """Select features based on correlation with performance."""
-        print("-> Selecting features based on correlation with performance.")
-
-        self.rho, self.pval = self.compute_correlation()
+        rho, pval = self.compute_correlation(self.x, self.y)
 
         # Create a boolean mask where calculated pval exceeds threshold
-        insignificant_pval = self.pval > Sifted.PVAL_THRESHOLD
+        insignificant_pval = pval > Sifted.PVAL_THRESHOLD
 
         # Filter out insignificant correlations and take absolute values of correlations
-        rho = self.rho
-        rho[np.isnan(self.rho) | insignificant_pval] = 0
-        rho = np.abs(rho)
+        filtered_rho = rho
+        filtered_rho[np.isnan(rho) | insignificant_pval] = 0
+        filtered_rho = np.abs(filtered_rho)
 
         # Sort the correlations in descending order
-        row = np.argsort(-rho, axis=0)
+        row = np.argsort(-filtered_rho, axis=0)
         # sorted_rho = np.take_along_axis(rho, row, axis=0)
 
         nfeats = self.x.shape[1]
@@ -184,42 +204,98 @@ class Sifted:
             selvars[np.unique(row[i, rho[i, :] >= self.opts.rho])] = True
 
         # Get indices of selected features
-        self.selvars = np.where(selvars)[0]
-        self.x_aux = self.x[:, self.selvars]
+        selvars = np.where(selvars)[0]
+        x_aux = self.x[:, selvars]
 
-        return self.x_aux
+        return (x_aux, rho, pval, selvars)
 
-    def select_features_by_clustering(self) -> NDArray[np.intc]:
+    def select_features_by_clustering(
+            self,
+            x_aux: NDArray[np.double],
+            rng: np.random.Generator,
+        ) -> tuple[NDArray[np.bool_], NDArray[np.intc]]:
         """Select features based on clustering."""
-        print("-> Selecting features based on correlation clustering.")
-        self.evaluate_cluster()
-
         kmeans = KMeans(
             n_clusters=self.opts.k,
             max_iter=self.opts.max_iter,
             n_init=self.opts.replicates,
-            random_state=self.rng.integers(1000),
+            random_state=rng.integers(1000),
         )
 
-        cluster_labels: NDArray[np.intc] = kmeans.fit_predict(self.x_aux.T)
+        cluster_labels: NDArray[np.intc] = kmeans.fit_predict(x_aux.T)
 
         # Create a boolean matrix where each column represents a cluster
-        self.clust = np.zeros((self.x_aux.shape[1], self.opts.k), dtype=bool)
+        clust = np.zeros((x_aux.shape[1], self.opts.k), dtype=bool)
         for i in range(self.opts.k):
-            self.clust[:, i] = cluster_labels == i
+            clust[:, i] = cluster_labels == i
 
-        return cluster_labels
+        return clust, cluster_labels
 
-    def find_best_combination(self) -> None:
+    def find_best_combination(
+            self,
+            x_aux: NDArray[np.double],
+            clust: NDArray[np.bool_],
+            selvars: NDArray[np.intc],
+            rng: np.random.Generator,
+        ) -> tuple[NDArray[np.double], NDArray[np.intc]]:
         """Find the best combination of features, using genetic algorithm."""
-        self.cv_partition = KFold(
+        cv_partition = KFold(
             n_splits=Sifted.KFOLDS,
             shuffle=True,
-            random_state=self.rng.integers(1000),
+            random_state=rng.integers(1000),
         )
 
+        def cost_fcn(
+            instance: pygad.GA,
+            solutions: NDArray[np.intc],
+            solution_idx: int,
+        ) -> float:
+            """Fitness function to evaluate the quality of solution in GA.
+
+            Args
+            ----
+                instance (pygad.GA): The instance of the genetic algorithm.
+                solutions (NDArray[np.intc]): The array of integer values representing
+                    the solution to be evaluated.
+                solution_idx (int): The index of the solution being evaluated.
+
+            Returns
+            -------
+                float: The fitness score of the solution, representing the negative mean
+                    squared error of the k-NN classification.
+            """
+            idx = np.zeros(self.x.shape[1], dtype=bool)
+
+            for i, value in enumerate(solutions):
+                aux = np.where(clust[:, i])[0]
+                selected = aux[value % aux.size]
+                idx[selected] = True
+
+            _, out = Pilot.run(
+                self.x[:, idx],
+                self.y,
+                self.feat_labels[idx].tolist(),
+                PilotOptions.default(),
+            )
+
+            z = out.z
+
+            y = -np.inf
+            for i in range(self.y.shape[1]):
+                knn = KNeighborsClassifier(n_neighbors=Sifted.K_NEIGHBORS)
+                scores: NDArray[np.double] = cross_val_score(
+                    knn,
+                    z,
+                    self.y_bin[:, i],
+                    cv=cv_partition,
+                    scoring="neg_mean_squared_error",
+                )
+                y = max(y, -scores.mean())
+
+            return y
+
         ga_instance = pygad.GA(
-            fitness_func=self.cost_fcn,
+            fitness_func=cost_fcn,
             num_generations=self.opts.num_generations,
             num_parents_mating=self.opts.num_parents_mating,
             sol_per_pop=self.opts.sol_per_pop,
@@ -234,9 +310,9 @@ class Sifted:
             mutation_probability=self.opts.mutation_probability,
             # stop_criteria: saturate_5 or reach_0 (don't know if it is possible both)
             stop_criteria=self.opts.stop_criteria,
-            random_seed=int(self.rng.integers(1000)),
+            random_seed=int(rng.integers(1000)),
             init_range_low=1,
-            init_range_high=self.x_aux.shape[1],
+            init_range_high=x_aux.shape[1],
             save_solutions=True,
         )
 
@@ -247,71 +323,27 @@ class Sifted:
         print(f"Cost value of the GA algorithm is:  {best_solution_fitness}")
 
         # Decode the chromosome
-        decoder = np.zeros(self.x_aux.shape[1], dtype=bool)
+        decoder = np.zeros(x_aux.shape[1], dtype=bool)
         for i in range(self.opts.k):
-            aux = np.where(self.clust[:, i])[0]
+            aux = np.where(clust[:, i])[0]
             selected = aux[int(best_solution[i]) % aux.size]
             decoder[selected] = True
 
-        self.selvars = np.array(self.selvars)[decoder]
-        self.x = self.x[:, self.selvars]
+        decoded_selvars = np.array(selvars)[decoder]
+        selected_x = self.x[:, decoded_selvars]
 
         print(
-            f"-> Keeping {self.x.shape[1]} out of {self.x_aux.shape[1]}",
+            f"-> Keeping {selected_x.shape[1]} out of {x_aux.shape[1]}",
             "features (clustering).",
         )
 
-    def cost_fcn(
-        self,
-        instance: pygad.GA,  # noqa: ARG002
-        solutions: NDArray[np.intc],
-        solution_idx: int,  # noqa: ARG002
-    ) -> float:
-        """Fitness function to evaluate the quality of solution in genetic algorithm.
+        return selected_x, decoded_selvars
 
-        Args
-        ----
-            instance (pygad.GA): The instance of the genetic algorithm.
-            solutions (NDArray[np.intc]): The array of integer values representing the
-                solution to be evaluated.
-            solution_idx (int): The index of the solution being evaluated.
-
-        Returns
-        -------
-            float: The fitness score of the solution, representing the negative mean
-                squared error of the k-NN classification.
-        """
-        idx = np.zeros(self.x.shape[1], dtype=bool)
-
-        for i, value in enumerate(solutions):
-            aux = np.where(self.clust[:, i])[0]
-            selected = aux[value % aux.size]
-            idx[selected] = True
-
-        _, out = Pilot.run(
-            self.x[:, idx],
-            self.y,
-            self.feat_labels[idx].tolist(),
-            PilotOptions.default(),
-        )
-
-        z = out.z
-
-        y = -np.inf
-        for i in range(self.y.shape[1]):
-            knn = KNeighborsClassifier(n_neighbors=Sifted.K_NEIGHBORS)
-            scores = cross_val_score(
-                knn,
-                z,
-                self.y_bin[:, i],
-                cv=self.cv_partition,
-                scoring="neg_mean_squared_error",
-            )
-            y = max(y, -scores.mean())
-
-        return y
-
-    def evaluate_cluster(self) -> NDArray[np.intc]:
+    def evaluate_cluster(
+            self,
+            x_aux: NDArray[np.double],
+            rng: np.random.Generator,
+        ) -> tuple[list[float], NDArray[np.intc]]:
         """Evaluate cluster based on silhouette scores.
 
         Returns
@@ -319,22 +351,22 @@ class Sifted:
             dict[int, NDArray]: A dictionary containing the labels of the clusters
         """
         min_clusters = 2
-        max_clusters = self.x_aux.shape[1]
+        max_clusters = x_aux.shape[1]
 
-        self.silhouette_scores: list[float] = []
+        silhouette_scores: list[float] = []
         labels: dict[int, NDArray[np.intc]] = {}
 
         for n in range(min_clusters, max_clusters):
             kmeans = KMeans(
                 n_clusters=n,
                 n_init="auto",
-                random_state=self.rng.integers(1000),
+                random_state=rng.integers(1000),
             )
-            cluster_labels = kmeans.fit_predict(self.x_aux.T)
+            cluster_labels = kmeans.fit_predict(x_aux.T)
             labels[n] = cluster_labels
-            self.silhouette_scores.append(
+            silhouette_scores.append(
                 silhouette_score(
-                    self.x_aux.T,
+                    x_aux.T,
                     cluster_labels,
                     metric="correlation",
                 ),
@@ -342,13 +374,13 @@ class Sifted:
 
         # suggest k value that has highest silhoulette score if k is not the default
         # value and not the maximum nth cluster
-        max_k_silhoulette_index = np.argmax(self.silhouette_scores)
+        max_k_silhoulette_index = np.argmax(silhouette_scores)
         max_k_silhoulette = min_clusters + max_k_silhoulette_index
 
         if max_k_silhoulette not in (self.opts.k, max_clusters):
             print(
                 f"    Suggested k value {max_k_silhoulette} with silhoulette score of",
-                f"{self.silhouette_scores[max_k_silhoulette]:.4f}",
+                f"{silhouette_scores[max_k_silhoulette]:.4f}",
             )
 
         # matlab returning numOfObservation, inspected K value, criterion values,
@@ -356,9 +388,13 @@ class Sifted:
         # user choose optimal silhouette value, should change the output
         # check if silhoulette value is in bell shape, meaning increasing then
         # decreasing if max is not last, then can recommend max value, if last then how?
-        return labels[self.opts.k]
+        return silhouette_scores, labels[self.opts.k]
 
-    def compute_correlation(self) -> tuple[NDArray[np.double], NDArray[np.double]]:
+    def compute_correlation(
+            self,
+            x: NDArray[np.double],
+            y: NDArray[np.double],
+        ) -> tuple[NDArray[np.double], NDArray[np.double]]:
         """Calculate the Pearson correlation coefficient for the dataset by row.
 
         Returns:
@@ -366,16 +402,16 @@ class Sifted:
             tuple(NDArray[np.double], NDArray[np.double]: rho and p value calculated
                 by Pearson correlation.
         """
-        rows = self.x.shape[1]
-        cols = self.y.shape[1]
+        rows = x.shape[1]
+        cols = y.shape[1]
 
         rho = np.zeros((rows, cols))
         pval = np.zeros((rows, cols))
 
         for i in range(rows):
             for j in range(cols):
-                x_col = self.x[:, i]
-                y_col = self.y[:, j]
+                x_col = x[:, i]
+                y_col = y[:, j]
 
                 # Filter out NaN values of pairs
                 valid_indices = ~np.isnan(x_col) & ~np.isnan(y_col)
@@ -392,7 +428,16 @@ class Sifted:
 
         return (rho, pval)
 
-    def get_output(self) -> tuple[SiftedDataChanged, SiftedOut]:
+    def generate_output(
+            self,
+            x: NDArray[np.double],
+            selvars: NDArray[np.intc],
+            idx: NDArray[np.intc],
+            rho: NDArray[np.double] | None = None,
+            pval: NDArray[np.double] | None = None,
+            silhouette_scores: list[float] | None = None,
+            clust: NDArray[np.bool_] | None = None,
+        ) -> tuple[SiftedDataChanged, SiftedOut]:
         """Generate outputs of Sifted stage.
 
         Returns
@@ -401,13 +446,13 @@ class Sifted:
                 is changed during the Sifted stage and SiftedOut contains data generated
                 from Sifted stage.
         """
-        data_changed = SiftedDataChanged(x=self.x)
+        data_changed = SiftedDataChanged(x=x)
         output = SiftedOut(
-            rho=self.rho,
-            pval=self.pval,
-            selvars=self.selvars,
-            idx=self.idx[self.selvars],
-            silhouette_scores=self.silhouette_scores,
-            clust=self.clust,
+            selvars=selvars,
+            idx=idx[selvars],
+            rho=rho,
+            pval=pval,
+            silhouette_scores=silhouette_scores,
+            clust=clust,
         )
         return (data_changed, output)
