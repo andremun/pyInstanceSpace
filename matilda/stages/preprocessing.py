@@ -357,7 +357,10 @@ class Preprocessing:
         return data
 
     @staticmethod
-    def split_data(data: Data, opts: InstanceSpaceOptions, model: Model) -> Model:
+    def split_data(data: Data, opts: InstanceSpaceOptions, model: Data) -> None:
+        # return type used to be the model
+        # model: Model
+
         """Split the data into training and testing sets.
 
         Parameters
@@ -498,6 +501,7 @@ class Preprocessing:
         )
 
         # create a new model object with the processed data
+        """
         return Model(
             data=processed_data,
             data_dense=data_dense,
@@ -509,4 +513,5 @@ class Preprocessing:
             pythia=model.pythia,
             trace=model.trace,
             opts=model.opts,
-        )
+        )"""
+

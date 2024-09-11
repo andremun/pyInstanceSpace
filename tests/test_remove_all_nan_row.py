@@ -42,52 +42,31 @@ def test_remove_instances_with_two_row_missing() -> None:
     large_y = rng.random((10, 5))
     large_y[1, :] = np.nan  # second row all NaN
 
-    data = Data(
-        inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
-        feat_labels=[f"feature{i}" for i in range(10)],
-        algo_labels=[f"algo{i}" for i in range(5)],
+    inst_labels = pd.Series(["inst" + str(i) for i in range(10)])
+    feat_labels = [f"feature{i}" for i in range(10)]
+
+
+    new_x, new_y, new_inst_labels, new_feat_labels, _ = Preprocessing.remove_instances_with_many_missing_values(
         x=large_x,
         y=large_y,
-        x_raw=np.array([], dtype=np.double),
-        y_raw=np.array([], dtype=np.double),
-        y_bin=np.array([], dtype=np.bool_),
-        y_best=np.array([], dtype=np.double),
-        p=np.array([], dtype=np.double),
-        num_good_algos=np.array([], dtype=np.double),
-        beta=np.array([], dtype=np.bool_),
-        s=None,
-        uniformity=None,
+        inst_labels=inst_labels,
+        feat_labels=feat_labels,
+        s=None
     )
-
-    out = Preprocessing.remove_instances_with_many_missing_values(data)
 
     expected_rows = 8  # two rows (instances) should be removed
     expected_x_columns = 9  # first column should be removed
     expected_y_columns = 5
 
-    # Check instances removal
-    assert (
-        out.x.shape[0] == expected_rows
-    ), "Instances with all NaN values not removed correctly"
-    assert (
-        out.y.shape[0] == expected_rows
-    ), "Instances with all NaN values not removed correctly"
-    assert (
-        out.inst_labels.shape[0] == expected_rows
-    ), "Instance labels not updated after removal"
+    # Assertions to verify correct modifications
+    assert new_x.shape == (expected_rows, expected_x_columns), "X dimensions are incorrect after removal"
+    assert new_y.shape == (expected_rows, expected_y_columns), "Y dimensions are incorrect after removal"
+    assert new_inst_labels.size == expected_rows, "Incorrect number of instance labels after removal"
+    assert len(new_feat_labels) == expected_x_columns, "Feature labels were not updated correctly"
 
-    # Check feature dimensions
-    assert out.x.shape[1] == expected_x_columns, "x dimensions should not change"
-    assert out.y.shape[1] == expected_y_columns, "y dimensions should not change"
-
-    # Check inst_labels content
-    assert out.inst_labels.tolist() == [
-        "inst" + str(i) for i in range(2, 10)
-    ], "inst_labels content not right"
-
-    assert out.feat_labels == [
-        f"feature{i}" for i in range(1, 10)
-    ], "feat_labels content not right"
+    # Check instance labels content
+    assert new_inst_labels.tolist() == ["inst" + str(i) for i in range(2, 10)], "Instance labels content incorrect"
+    assert new_feat_labels == [f"feature{i}" for i in range(1, 10)], "Feature labels content incorrect"
 
 
 def test_remove_instances_with_3_row_missing() -> None:
@@ -109,73 +88,36 @@ def test_remove_instances_with_3_row_missing() -> None:
     large_y = rng.random((10, 5))
     large_y[4, :] = np.nan  # fifth row all NaN
     large_y[3, :] = np.nan  # forth row all NaN
+
+    inst_labels = pd.Series(["inst" + str(i) for i in range(10)])
+    feat_labels = [f"feature{i}" for i in range(10)]
     s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
 
-    data = Data(
-        inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
-        feat_labels=[f"feature{i}" for i in range(10)],
-        algo_labels=[f"algo{i}" for i in range(5)],
+
+    new_x, new_y, new_inst_labels, new_feat_labels, new_s = Preprocessing.remove_instances_with_many_missing_values(
         x=large_x,
         y=large_y,
-        x_raw=np.array([], dtype=np.double),
-        y_raw=np.array([], dtype=np.double),
-        y_bin=np.array([], dtype=np.bool_),
-        y_best=np.array([], dtype=np.double),
-        p=np.array([], dtype=np.double),
-        num_good_algos=np.array([], dtype=np.double),
-        beta=np.array([], dtype=np.bool_),
-        s=s,
-        uniformity=None,
+        inst_labels=inst_labels,
+        feat_labels=feat_labels,
+        s=s
     )
-
-    out = Preprocessing.remove_instances_with_many_missing_values(data)
-
     expected_rows = 7
-
-    # Check instances removal
-    assert (
-        out.x.shape[0] == expected_rows
-    ), "Instances with all NaN values not removed correctly"
-    assert (
-        out.y.shape[0] == expected_rows
-    ), "Instances with all NaN values not removed correctly"
-    assert (
-        out.inst_labels.shape[0] == expected_rows
-    ), "Instance labels not updated after removal"
 
     expected_x_columns = 10
     expected_y_columns = 5
 
-    # Check feature dimensions are unchanged
-    assert out.x.shape[1] == expected_x_columns, "x dimensions should not change"
-    assert out.y.shape[1] == expected_y_columns, "y dimensions should not change"
+    # Assertions to verify correct modifications
+    assert new_x.shape == (expected_rows, expected_x_columns), "X dimensions are incorrect after removal"
+    assert new_y.shape == (expected_rows, expected_y_columns), "Y dimensions are incorrect after removal"
+    assert new_inst_labels.size == expected_rows, "Incorrect number of instance labels after removal"
+    assert new_feat_labels == feat_labels, "Feature labels should not change"
 
-    # Check inst_labels content
-    assert out.inst_labels.tolist() == [
-        "inst0",
-        "inst1",
-        "inst5",
-        "inst6",
-        "inst7",
-        "inst8",
-        "inst9",
-    ], "inst_labels content not right"
+    # Check instance labels content
+    assert new_inst_labels.tolist() == ["inst" + str(i) for i in range(10) if
+                                        i not in [2, 3, 4]], "Instance labels content incorrect"
 
-    # Check feat_labels content
-    assert out.feat_labels == [
-        f"feature{i}" for i in range(10)
-    ], "feat_labels content not right"
-
-    assert out.s is not None, "s content should be valid"
-    assert out.s.tolist() == [
-        "source0",
-        "source1",
-        "source5",
-        "source6",
-        "source7",
-        "source8",
-        "source9",
-    ], "s content not right"
+    # Check source series content
+    assert new_s.tolist() == ["source" + str(i) for i in range(10) if i not in [2, 3, 4]], "Source content incorrect"
 
 
 def test_remove_instances_keep_same() -> None:
@@ -199,60 +141,36 @@ def test_remove_instances_keep_same() -> None:
     large_y = rng.random((10, 5))
     large_y[6, :2] = np.nan  # 7th row first 2columns NaN
 
+    inst_labels = pd.Series(["inst" + str(i) for i in range(10)])
+    feat_labels = [f"feature{i}" for i in range(10)]
     s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
 
-    data = Data(
-        inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
-        feat_labels=[f"feature{i}" for i in range(10)],
-        algo_labels=[f"algo{i}" for i in range(5)],
+    new_x, new_y, new_inst_labels, new_feat_labels, new_s = Preprocessing.remove_instances_with_many_missing_values(
         x=large_x,
         y=large_y,
-        x_raw=np.array([], dtype=np.double),
-        y_raw=np.array([], dtype=np.double),
-        y_bin=np.array([], dtype=np.bool_),
-        y_best=np.array([], dtype=np.double),
-        p=np.array([], dtype=np.double),
-        num_good_algos=np.array([], dtype=np.double),
-        beta=np.array([], dtype=np.bool_),
-        s=s,
-        uniformity=None,
+        inst_labels=inst_labels,
+        feat_labels=feat_labels,
+        s=s
     )
-
-    out = Preprocessing.remove_instances_with_many_missing_values(data)
 
     expected_rows = 10
     expected_x_columns = 5
     expected_y_columns = 5
 
-    # Check instances removal
-    assert (
-        out.x.shape[0] == expected_rows
-    ), "Instances with all NaN values not removed correctly"
-    assert (
-        out.y.shape[0] == expected_rows
-    ), "Instances with all NaN values not removed correctly"
-    assert (
-        out.inst_labels.shape[0] == expected_rows
-    ), "Instance labels not updated after removal"
+    # Assertions to verify correct modifications
+    assert new_x.shape == (expected_rows, expected_x_columns), "X dimensions are incorrect after removal"
+    assert new_y.shape == (expected_rows, expected_y_columns), "Y dimensions are incorrect; all should remain"
+    assert new_inst_labels.size == expected_rows, "Instance labels should not change"
+    assert len(new_feat_labels) == expected_x_columns, "Feature labels should be updated correctly"
 
-    # Check feature dimensions are unchanged
-    assert out.x.shape[1] == expected_x_columns, "x dimensions should not change"
-    assert out.y.shape[1] == expected_y_columns, "y dimensions should not change"
+    # Check instance labels content
+    assert new_inst_labels.tolist() == ["inst" + str(i) for i in range(10)], "Instance labels content incorrect"
 
-    # Check inst_labels content
-    assert out.inst_labels.tolist() == [
-        "inst" + str(i) for i in range(0, 10)
-    ], "inst_labels content not right"
+    # Check feature labels content
+    assert new_feat_labels == [f"feature{i}" for i in range(5, 10)], "Feature labels content incorrect"
 
-    # Check feat_labels content
-    assert out.feat_labels == [
-        "feature" + str(i) for i in range(5, 10)
-    ], "feat_labels content not right"
-
-    assert out.s is not None, "s content should be valid"
-    assert out.s.tolist() == [
-        "source" + str(i) for i in range(10)
-    ], "s content not right"
+    # Check source series content
+    assert new_s.tolist() == ["source" + str(i) for i in range(10)], "Source content incorrect"
 
 
 def test_duplicated_data_edge() -> None:
@@ -285,61 +203,31 @@ def test_duplicated_data_edge() -> None:
 
     large_y = rng.random((10, 5))
     large_y[6, :2] = np.nan  # 7th row first 2 columns NaN
+
+    inst_labels = pd.Series(["inst" + str(i) for i in range(10)])
+    feat_labels = [f"feature{i}" for i in range(10)]
     s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
 
-    data = Data(
-        inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
-        feat_labels=[f"feature{i}" for i in range(10)],
-        algo_labels=[f"algo{i}" for i in range(5)],
+    new_x, new_y, new_inst_labels, new_feat_labels, new_s = Preprocessing.remove_instances_with_many_missing_values(
         x=large_x,
         y=large_y,
-        x_raw=np.array([], dtype=np.double),
-        y_raw=np.array([], dtype=np.double),
-        y_bin=np.array([], dtype=np.bool_),
-        y_best=np.array([], dtype=np.double),
-        p=np.array([], dtype=np.double),
-        num_good_algos=np.array([], dtype=np.double),
-        beta=np.array([], dtype=np.bool_),
-        s=s,
-        uniformity=None,
+        inst_labels=inst_labels,
+        feat_labels=feat_labels,
+        s=s
     )
-
-    out = Preprocessing.remove_instances_with_many_missing_values(data)
 
     expected_rows = 10
     expected_x_columns = 5
     expected_y_columns = 5
 
     # Check instances removal
-    assert (
-        out.x.shape[0] == expected_rows
-    ), "Instances with all NaN values not removed correctly"
-    assert (
-        out.y.shape[0] == expected_rows
-    ), "Instances with all NaN values not removed correctly"
-    assert (
-        out.inst_labels.shape[0] == expected_rows
-    ), "Instance labels not updated after removal"
-
-    # Check feature dimensions are unchanged
-    assert out.x.shape[1] == expected_x_columns, "x dimensions should not change"
-    assert out.y.shape[1] == expected_y_columns, "y dimensions should not change"
-
-    # Check inst_labels content
-    assert out.inst_labels.tolist() == [
-        "inst" + str(i) for i in range(0, 10)
-    ], "inst_labels content not right"
-
-    # Check feat_labels content
-    assert out.feat_labels == [
-        "feature" + str(i) for i in range(5, 10)
-    ], "feat_labels content not right"
-
-    assert out.s is not None, "s content should be valid"
-
-    assert out.s.tolist() == [
-        "source" + str(i) for i in range(0, 10)
-    ], "s content not right"
+    assert new_x.shape == (expected_rows, expected_x_columns), "X dimensions are incorrect after removal"
+    assert new_y.shape == (expected_rows, expected_y_columns), "Y dimensions are incorrect; all should remain"
+    assert new_inst_labels.size == expected_rows, "Instance labels should not change"
+    assert len(new_feat_labels) == expected_x_columns, "Feature labels should be updated correctly"
+    assert new_inst_labels.tolist() == ["inst" + str(i) for i in range(10)], "Instance labels content incorrect"
+    assert new_feat_labels == [f"feature{i}" for i in range(5, 10)], "Feature labels content incorrect"
+    assert new_s.tolist() == ["source" + str(i) for i in range(10)], "Source content incorrect"
 
 
 def test_duplicated_data() -> None:
@@ -382,24 +270,16 @@ def test_duplicated_data() -> None:
     beta = rng.choice([True, False], size=(10, 5))
     s = pd.Series(["string" + str(i) for i in range(10)])
 
-    data = Data(
-        inst_labels=pd.Series(["inst" + str(i) for i in range(10)]),
-        feat_labels=[f"feature{i}" for i in range(10)],
-        algo_labels=[f"algo{i}" for i in range(5)],
+    inst_labels = pd.Series(["inst" + str(i) for i in range(10)])
+    feat_labels = [f"feature{i}" for i in range(10)]
+
+    new_x, new_y, new_inst_labels, new_feat_labels, new_s = Preprocessing.remove_instances_with_many_missing_values(
         x=large_x,
         y=large_y,
-        x_raw=x_raw,
-        y_raw=y_raw,
-        y_bin=y_bin,
-        y_best=y_best,
-        p=p,
-        num_good_algos=num_good_algos,
-        beta=beta,
-        s=s,
-        uniformity=None,
+        inst_labels=inst_labels,
+        feat_labels=feat_labels,
+        s=s
     )
-
-    out = Preprocessing.remove_instances_with_many_missing_values(data)
 
     expected_rows = 10
     expected_x_columns = 10
@@ -407,61 +287,32 @@ def test_duplicated_data() -> None:
 
     # Check instances removal
     assert (
-        out.x.shape[0] == expected_rows
+        new_x.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-        out.y.shape[0] == expected_rows
+        new_y.shape[0] == expected_rows
     ), "Instances with all NaN values not removed correctly"
     assert (
-        out.inst_labels.shape[0] == expected_rows
+        new_inst_labels.shape[0] == expected_rows
     ), "Instance labels not updated after removal"
 
     # Check feature dimensions are unchanged
-    assert out.x.shape[1] == expected_x_columns, "x dimensions should not change"
-    assert out.y.shape[1] == expected_y_columns, "y dimensions should not change"
+    assert new_x.shape[1] == expected_x_columns, "x dimensions should not change"
+    assert new_y.shape[1] == expected_y_columns, "y dimensions should not change"
 
     # Check inst_labels content
-    assert out.inst_labels.tolist() == [
+    assert new_inst_labels.tolist() == [
         "inst" + str(i) for i in range(0, 10)
     ], "inst_labels content not right"
 
     # Check feat_labels content
-    assert out.feat_labels == [
+    assert new_feat_labels == [
         "feature" + str(i) for i in range(0, 10)
     ], "feat_labels content not right"
 
-    # Check algo_labels content
-    assert out.algo_labels == [
-        "algo" + str(i) for i in range(0, 5)
-    ], "algo_labels content not right"
-
-    # Check x_raw content
-    assert np.array_equal(out.x_raw, x_raw), "x_raw content not right"
-
-    # Check y_raw content
-    assert np.array_equal(out.y_raw, y_raw), "y_raw content not right"
-
-    # Check y_bin content
-    assert np.array_equal(out.y_bin, y_bin), "y_bin content not right"
-
-    # Check y_best content
-    assert np.array_equal(out.y_best, y_best), "y_best content not right"
-
-    # Check p content
-    assert np.array_equal(out.p, p), "p content not right"
-
-    # Check num_good_algos content
-    assert np.array_equal(
-        out.num_good_algos,
-        num_good_algos,
-    ), "num_good_algos content not right"
-
-    # Check beta content
-    assert np.array_equal(out.beta, beta), "beta content not right"
-
-    assert out.s is not None, "s content should be valid"
+    assert new_s is not None, "s content should be valid"
 
     # Check s content
-    assert out.s.tolist() == [
+    assert new_s.tolist() == [
         "string" + str(i) for i in range(10)
     ], "s content not right"
