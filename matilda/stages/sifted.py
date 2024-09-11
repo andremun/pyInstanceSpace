@@ -171,14 +171,19 @@ class Sifted:
         )
 
     def select_features_by_performance(
-            self,
-        ) -> tuple[
-            NDArray[np.double],
-            NDArray[np.double],
-            NDArray[np.double],
-            NDArray[np.intc],
-        ]:
-        """Select features based on correlation with performance."""
+        self,
+    ) -> tuple[
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.intc],
+    ]:
+        """Select features based on correlation with performance.
+
+        Returns
+        -------
+            tuple[NDArray[np.double], NDArray[np.double], NDArray[np.double],
+        """
         rho, pval = self.compute_correlation(self.x, self.y)
 
         # Create a boolean mask where calculated pval exceeds threshold
@@ -210,10 +215,10 @@ class Sifted:
         return (x_aux, rho, pval, selvars)
 
     def select_features_by_clustering(
-            self,
-            x_aux: NDArray[np.double],
-            rng: np.random.Generator,
-        ) -> tuple[NDArray[np.bool_], NDArray[np.intc]]:
+        self,
+        x_aux: NDArray[np.double],
+        rng: np.random.Generator,
+    ) -> tuple[NDArray[np.bool_], NDArray[np.intc]]:
         """Select features based on clustering."""
         kmeans = KMeans(
             n_clusters=self.opts.k,
@@ -232,12 +237,12 @@ class Sifted:
         return clust, cluster_labels
 
     def find_best_combination(
-            self,
-            x_aux: NDArray[np.double],
-            clust: NDArray[np.bool_],
-            selvars: NDArray[np.intc],
-            rng: np.random.Generator,
-        ) -> tuple[NDArray[np.double], NDArray[np.intc]]:
+        self,
+        x_aux: NDArray[np.double],
+        clust: NDArray[np.bool_],
+        selvars: NDArray[np.intc],
+        rng: np.random.Generator,
+    ) -> tuple[NDArray[np.double], NDArray[np.intc]]:
         """Find the best combination of features, using genetic algorithm."""
         cv_partition = KFold(
             n_splits=Sifted.KFOLDS,
@@ -340,10 +345,10 @@ class Sifted:
         return selected_x, decoded_selvars
 
     def evaluate_cluster(
-            self,
-            x_aux: NDArray[np.double],
-            rng: np.random.Generator,
-        ) -> tuple[list[float], NDArray[np.intc]]:
+        self,
+        x_aux: NDArray[np.double],
+        rng: np.random.Generator,
+    ) -> tuple[list[float], NDArray[np.intc]]:
         """Evaluate cluster based on silhouette scores.
 
         Returns
@@ -391,10 +396,10 @@ class Sifted:
         return silhouette_scores, labels[self.opts.k]
 
     def compute_correlation(
-            self,
-            x: NDArray[np.double],
-            y: NDArray[np.double],
-        ) -> tuple[NDArray[np.double], NDArray[np.double]]:
+        self,
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+    ) -> tuple[NDArray[np.double], NDArray[np.double]]:
         """Calculate the Pearson correlation coefficient for the dataset by row.
 
         Returns:
@@ -429,15 +434,15 @@ class Sifted:
         return (rho, pval)
 
     def generate_output(
-            self,
-            x: NDArray[np.double],
-            selvars: NDArray[np.intc],
-            idx: NDArray[np.intc],
-            rho: NDArray[np.double] | None = None,
-            pval: NDArray[np.double] | None = None,
-            silhouette_scores: list[float] | None = None,
-            clust: NDArray[np.bool_] | None = None,
-        ) -> tuple[SiftedDataChanged, SiftedOut]:
+        self,
+        x: NDArray[np.double],
+        selvars: NDArray[np.intc],
+        idx: NDArray[np.intc],
+        rho: NDArray[np.double] | None = None,
+        pval: NDArray[np.double] | None = None,
+        silhouette_scores: list[float] | None = None,
+        clust: NDArray[np.bool_] | None = None,
+    ) -> tuple[SiftedDataChanged, SiftedOut]:
         """Generate outputs of Sifted stage.
 
         Returns
