@@ -19,7 +19,63 @@ csv_path_y_bin_input = script_dir / "test_data/pythia/input/ybin.csv"
 
 
 def test_bayes_opt() -> None:
-    """Test that the output of the `bayes_opt` function is as expected."""
+    """Test that the output of the function is as expected when BO is required."""
+    pythia_option = PythiaOptions(
+        cv_folds=5,
+        is_poly_krnl=False,
+        use_weights=False,
+        use_grid_search=False,
+    )
+    z_input = pd.read_csv(csv_path_z_input, header=None).values
+    y_input = pd.read_csv(csv_path_y_input, header=None).values
+    algo_input = pd.read_csv(csv_path_algo_input, header=None).squeeze().tolist()
+    y_best_input = pd.read_csv(csv_path_y_best_input, header=None).values
+    y_bin_input = pd.read_csv(csv_path_y_bin_input, header=None).values
+    z_input = np.array(z_input)
+    y_input = np.array(y_input)
+    y_best_input = np.array(y_best_input)
+    y_bin_input = np.array(y_bin_input)
+    [_, pythiaOut] = Pythia.run(  # noqa: N806
+        z_input,
+        y_input,
+        y_bin_input,
+        y_best_input,
+        algo_input,
+        pythia_option,
+    )
+
+    # read the actual output
+    matlab_output = pd.read_csv(output_dir / "BO/gaussian.csv")
+
+    # get the accuracy, precision, recall
+    matlab_accuracy = matlab_output["CV_model_accuracy"].values
+    matlab_precision = matlab_output["CV_model_precision"].values
+    matlab_recall = matlab_output["CV_model_recall"].values
+
+    tol = 2.5
+
+    # compare the output and check the tolerance, the tolerance should within 2.5%
+    # if 90% passed, the test is considered passed
+    total = 0
+    correct = 0
+    threshold = 0.9
+
+    for i in range(len(algo_input)):
+        total += 3
+        if np.allclose(matlab_accuracy[i], pythiaOut.accuracy[i] * 100, atol=tol):
+            correct += 1
+
+        if np.allclose(matlab_precision[i], pythiaOut.precision[i] * 100, atol=tol):
+            correct += 1
+
+        if np.allclose(matlab_recall[i], pythiaOut.recall[i] * 100, atol=tol):
+            correct += 1
+
+    assert correct / total >= threshold
+
+
+def test_grid_gaussian() -> None:
+    """Test that the output of the function is as expected when grid search & gaussian ."""
     pythia_option = PythiaOptions(
         cv_folds=5,
         is_poly_krnl=False,
@@ -41,17 +97,22 @@ def test_bayes_opt() -> None:
         y_bin_input,
         y_best_input,
         algo_input,
-        None,
         pythia_option,
     )
 
     # read the actual output
-    matlab_output = pd.read_csv(output_dir / "BO/gaussian.csv")
-
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values
-    matlab_precision = matlab_output["CV_model_precision"].values
-    matlab_recall = matlab_output["CV_model_recall"].values
+    matlab_accuracy = pd.read_csv(
+        output_dir / "gridsearch_gaussian/accuracy.csv",
+        header=None,
+    ).values
+    matlab_precision = pd.read_csv(
+        output_dir / "gridsearch_gaussian/precision.csv",
+        header=None,
+    ).values
+    matlab_recall = pd.read_csv(
+        output_dir / "gridsearch_gaussian/recall.csv",
+        header=None,
+    ).values
 
     tol = 2.5
 
@@ -60,19 +121,34 @@ def test_bayes_opt() -> None:
     total = 0
     correct = 0
     threshold = 0.9
+
     for i in range(len(algo_input)):
         total += 3
-        if np.allclose(matlab_accuracy[i], pythiaOut.accuracy[i] * 100, atol=tol):
+        # check if the accuracy is higher than the matlab output
+        if pythiaOut.accuracy[i] * 100 >= matlab_accuracy[i]:
             correct += 1
+        # if lower, check if the difference is within the tolerance
+        else:
+            if abs(pythiaOut.accuracy[i] * 100 - matlab_accuracy[i]) <= tol:
+                correct += 1
 
-        if np.allclose(matlab_precision[i], pythiaOut.precision[i] * 100, atol=tol):
+        # check precision
+        if pythiaOut.precision[i] * 100 >= matlab_precision[i]:
             correct += 1
+        else:
+            if abs(pythiaOut.precision[i] * 100 - matlab_precision[i]) <= tol:
+                correct += 1
 
-        if np.allclose(matlab_recall[i], pythiaOut.recall[i] * 100, atol=tol):
+        # check recall
+        if pythiaOut.recall[i] * 100 >= matlab_recall[i]:
             correct += 1
+        else:
+            if abs(pythiaOut.recall[i] * 100 - matlab_recall[i]) <= tol:
+                correct += 1
 
     assert correct / total >= threshold
 
 
 if __name__ == "__main__":
     test_bayes_opt()
+    test_grid_gaussian()
