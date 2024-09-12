@@ -11,6 +11,8 @@ import json
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Self, TypeVar
+import numpy as np
+from numpy.typing import NDArray
 
 import pandas as pd
 
@@ -274,8 +276,7 @@ class PythiaOptions:
     use_weights: bool
     use_grid_search: bool
 
-    # TODO: Add Params
-    # params: np.array()
+    params: NDArray[np.float]| None
     @staticmethod
     def default(
         cv_folds: int = DEFAULT_PYTHIA_CV_FOLDS,

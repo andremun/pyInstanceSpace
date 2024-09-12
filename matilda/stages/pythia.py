@@ -119,9 +119,9 @@ class Pythia:
         self.pr0sub = np.zeros((self.z.shape[0], self.nalgos), dtype=np.double)
         self.pr0hat = np.zeros((self.z.shape[0], self.nalgos), dtype=np.double)
 
-        self.preparams = self.check_precalcparams()
-        self.cp = []
-        self.svm = None
+        self.params = self.check_precalcparams(opts.params)
+        self.cp = StratifiedKFold(n_splits=opts.cv_folds, shuffle=True, random_state=0)
+        self.svm = []
         self.cvcmat = np.zeros((self.nalgos, 4), dtype=int)
         self.box_consnt = []
         self.k_scale = []
@@ -225,7 +225,7 @@ class Pythia:
                 z,
                 y_bin[:, i],
                 w[:, i],
-                skf,
+                pythia.cp,
                 opts.is_poly_krnl,
                 param_space,
                 opts.use_grid_search,
@@ -279,6 +279,8 @@ class Pythia:
             kernel=kernel,
             random_state=0,
             probability=True,
+            degree=2,
+            coef0=1
         )
         if use_grid_search:
             optimization = GridSearchCV(
@@ -336,8 +338,8 @@ class Pythia:
 
     def get_params(self, index: int) -> dict:
         """Check hyperparameters."""
-        if self.preparams is not None:
-            return self.preparams[index]
+        if self.params is not None:
+            return self.params[index]
         return self.generate_params(self.opts.use_grid_search)
 
     def record_perf(self, i: int, res: SvmRes) -> None:
@@ -424,33 +426,18 @@ class Pythia:
         self.sigma = np.std(z, ddof=1, axis=0)
         return z
 
-    def check_precalcparams(self) -> list | None:
+    def check_precalcparams(self,params) -> list | None:
         """Check pre-calculated hyper-parameters."""
-        if len(sys.argv) == IF_PARAMS_FILE:
-            try:
-                path = Path(sys.argv[1])
-                with path.open("r") as file:
-                    data = json.load(file)
-            except json.JSONDecodeError as e:
-                print(f"Error: Failed to decode JSON. {e}")
-                return None
-            if not isinstance(data, dict) or "C" not in data or "gamma" not in data:
-                print("Invalid format as parameter file.")
-                return None
-            for key in ["C", "gamma"]:
-                if not (
-                    isinstance(data[key], list)
-                    and len(data[key]) == self.nalgos
-                    and all(isinstance(i, int | float) for i in data[key])
-                ):
-                    print(f"Error: length of {key} must match to number of algorithms.")
-                    return None
-            print("-> Using pre-calculated hyper-parameters for the SVM.")
-            c_list = data.get("C", [])
-            gamma_list = data.get("gamma", [])
-            return [{"C": c, "gamma": g} for c, g in zip(c_list, gamma_list)]
-
-        return None
+        if params is None:
+            return None
+        if params.shape != (self.nalgos,2):
+            print("-> Error: Incorrect number of hyper-parameters.")
+            print("Parameters will be auto-generated.")
+            return None
+        print("-> Using pre-calculated hyper-parameters for the SVM.")
+        c_list = params[:,0]
+        gamma_list = params[:,1]
+        return [{"C": c, "gamma": g} for c, g in zip(c_list, gamma_list)]
 
     def generate_params(self, use_grid_search: bool) -> dict:
         """Generate parameters."""
@@ -572,6 +559,8 @@ if __name__ == "__main__":
         use_grid_search=True,
         use_weights=False,
         is_poly_krnl=False,
+
+        params=None
     )
 
     data_change, pythia_output = Pythia.run(
