@@ -204,7 +204,7 @@ class PythiaOut:
     sigma: list[float]
     cp: StratifiedKFold  # Change it to proper type
     svm: SVC  # Change it to proper type
-    cvcmat: NDArray[np.int32]
+    cvcmat: NDArray[np.integer]
     y_sub: NDArray[np.bool_]
     y_hat: NDArray[np.bool_]
     pr0_sub: NDArray[np.double]

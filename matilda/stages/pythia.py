@@ -1,7 +1,5 @@
 """PYTHIA function for algorithm selection and performance evaluation using SVM."""
 
-import json
-import sys
 import time
 from pathlib import Path
 
@@ -119,7 +117,7 @@ class Pythia:
         self.pr0sub = np.zeros((self.z.shape[0], self.nalgos), dtype=np.double)
         self.pr0hat = np.zeros((self.z.shape[0], self.nalgos), dtype=np.double)
 
-        self.params = self.check_precalcparams(opts.params)
+        self.precalcparams = self.check_precalcparams(opts.params)
         self.cp = StratifiedKFold(n_splits=opts.cv_folds, shuffle=True, random_state=0)
         self.svm = []
         self.cvcmat = np.zeros((self.nalgos, 4), dtype=int)
@@ -217,7 +215,6 @@ class Pythia:
 
         # Section 3: Train SVM model for each algorithm & Evaluate performance.
         overall_start_time = time.time()
-        skf = StratifiedKFold(n_splits=opts.cv_folds, shuffle=True, random_state=0)
         for i in range(nalgos):
             algo_start_time = time.time()
             param_space = pythia.get_params(i)
@@ -280,7 +277,7 @@ class Pythia:
             random_state=0,
             probability=True,
             degree=2,
-            coef0=1
+            coef0=1,
         )
         if use_grid_search:
             optimization = GridSearchCV(
@@ -338,8 +335,8 @@ class Pythia:
 
     def get_params(self, index: int) -> dict:
         """Check hyperparameters."""
-        if self.params is not None:
-            return self.params[index]
+        if self.precalcparams is not None:
+            return self.precalcparams[index]
         return self.generate_params(self.opts.use_grid_search)
 
     def record_perf(self, i: int, res: SvmRes) -> None:
@@ -348,9 +345,10 @@ class Pythia:
         self.pr0sub[:, [i]] = res.Psub.reshape(-1, 1)
         self.y_hat[:, [i]] = res.Yhat.reshape(-1, 1)
         self.pr0hat[:, [i]] = res.Phat.reshape(-1, 1)
-
         self.box_consnt.append(res.C)
         self.k_scale.append(res.g)
+        self.svm.append(res.svm)
+
         cm = confusion_matrix(self.y_bin[:, i], res.Ysub)
         tn, fp, fn, tp = cm.ravel()
 
@@ -385,8 +383,9 @@ class Pythia:
             self.selection0 = np.argmax(weighted_yhat, axis=0) + 1
         else:
             best = self.y_hat.T
-            self.selection0 = self.y_hat.T
-            default = np.argmax(np.mean(self.y_bin, axis=0))
+            self.selection0 = self.y_hat.T.astype(np.int32)
+            default = int(np.argmax(np.mean(self.y_bin, axis=0)))
+
         self.selection1 = self.selection0
         self.selection0[best <= 0] = 0
         self.selection1[best <= 0] = default
@@ -400,7 +399,7 @@ class Pythia:
             mu=self.mu,
             sigma=self.sigma,
             cp=self.cp,
-            svm=[],
+            svm=self.svm,
             cvcmat=self.cvcmat,
             y_sub=self.y_sub,
             y_hat=self.y_hat,
@@ -419,24 +418,24 @@ class Pythia:
         return (data_changed, pythia_output)
 
     def compute_znorm(self, z: NDArray[np.double]) -> NDArray[np.double]:
-        """Compute Standardized z, standard deviations and mean."""
+        """Compute mormalized z, standard deviations and mean."""
         z = stats.zscore(z, ddof=1)
         # Getting mean (mu) and standard deviation (sigma)
         self.mu = np.mean(z, axis=0)
         self.sigma = np.std(z, ddof=1, axis=0)
         return z
 
-    def check_precalcparams(self,params) -> list | None:
+    def check_precalcparams(self, params: NDArray | None) -> list | None:
         """Check pre-calculated hyper-parameters."""
         if params is None:
             return None
-        if params.shape != (self.nalgos,2):
+        if params.shape != (self.nalgos, 2):
             print("-> Error: Incorrect number of hyper-parameters.")
             print("Parameters will be auto-generated.")
             return None
         print("-> Using pre-calculated hyper-parameters for the SVM.")
-        c_list = params[:,0]
-        gamma_list = params[:,1]
+        c_list = params[:, 0]
+        gamma_list = params[:, 1]
         return [{"C": c, "gamma": g} for c, g in zip(c_list, gamma_list)]
 
     def generate_params(self, use_grid_search: bool) -> dict:
@@ -559,8 +558,7 @@ if __name__ == "__main__":
         use_grid_search=True,
         use_weights=False,
         is_poly_krnl=False,
-
-        params=None
+        params=None,
     )
 
     data_change, pythia_output = Pythia.run(
