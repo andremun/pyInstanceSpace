@@ -5,9 +5,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from stages.stage import Stage
 
 from matilda.data.options import PythiaOptions
+from matilda.stages.stage import Stage
 
 
 class PythiaStage(Stage):

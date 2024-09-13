@@ -11,7 +11,8 @@ from one edge of the space to the opposite.
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from stages.stage import Stage
+
+from matilda.stages.stage import Stage
 
 
 class PilotStage(Stage):

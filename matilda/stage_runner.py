@@ -3,8 +3,16 @@
 from collections.abc import Generator
 from typing import Any, NamedTuple
 
-from matilda.stage_builder import StageArgument, StageScheduleElement
 from matilda.stages.stage import Stage
+
+StageScheduleElement = list[type[Stage]]
+
+
+class StageArgument(NamedTuple):
+    """An input or output of a stage."""
+
+    parameter_name: str
+    parameter_type: type
 
 
 class StageRunningError(Exception):
@@ -30,7 +38,7 @@ class StageRunner:
     _stage_to_schedule_index: dict[type[Stage], int]
 
     # List of stages to be ran
-    _stages: list[StageScheduleElement]
+    _stage_order: list[StageScheduleElement]
 
     _current_schedule_item: int
     _stages_ran: dict[type[Stage], bool]
@@ -46,19 +54,19 @@ class StageRunner:
 
         All stages inputs and outputs are assumed to already be resolved.
         """
-        self._stages = stages
+        self._stage_order = stages
 
         self._schedule_output_data = []
         self._current_schedule_item = 0
 
         self._available_arguments = {}
         self._stage_to_schedule_index = {}
-        self._stages_ran = {}
+        self._stage_order_ran = {}
 
-        for i, schedule in enumerate(self._stages):
+        for i, schedule in enumerate(self._stage_order):
             for stage in schedule:
                 self._stage_to_schedule_index[stage] = i
-                self._stages_ran[stage] = False
+                self._stage_order_ran[stage] = False
 
         self._check_stage_order_is_runnable(
             stages,
@@ -81,7 +89,7 @@ class StageRunner:
 
         self._available_arguments = additional_arguments.__dict__
 
-        for schedule in self._stages:
+        for schedule in self._stage_order:
             for stage in schedule:
                 yield AnnotatedStageOutput(stage, self.run_stage(stage))
 
@@ -171,7 +179,7 @@ class StageRunner:
 
         self._available_arguments = additional_arguments.__dict__
 
-        for schedule in self._stages:
+        for schedule in self._stage_order:
             for stage in schedule:
                 self.run_stage(stage)
 
@@ -192,7 +200,7 @@ class StageRunner:
 
         self._available_arguments = additional_arguments.__dict__
 
-        for schedule in self._stages:
+        for schedule in self._stage_order:
             if stop_at_stage in schedule:
                 break
 
@@ -232,8 +240,8 @@ class StageRunner:
 
     def _progress_schedule(self) -> None:
         current_schedule_finished = True
-        for stage in self._stages[self._current_schedule_item]:
-            if not self._stages_ran[stage]:
+        for stage in self._stage_order[self._current_schedule_item]:
+            if not self._stage_order_ran[stage]:
                 current_schedule_finished = False
                 break
 

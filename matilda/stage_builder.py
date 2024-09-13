@@ -2,7 +2,7 @@
 
 from typing import NamedTuple, Self, get_args
 
-from matilda.stage_runner import StageRunner
+from matilda.stage_runner import StageArgument, StageRunner, StageScheduleElement
 from matilda.stages.stage import RunAfter, RunBefore, Stage
 
 
@@ -18,17 +18,6 @@ class _StageRestrictions(NamedTuple):
 
 class StageResolutionError(Exception):
     """An error during stage resolution."""
-
-
-class StageArgument(NamedTuple):
-    """An input or output of a stage."""
-
-    parameter_name: str
-    parameter_type: type
-
-
-StageScheduleElement = list[type[Stage]]
-
 
 class StageBuilder:
     """A stage builder to resolve a collection of stages.
@@ -65,8 +54,6 @@ class StageBuilder:
     def add_stage(
         self,
         stage: type[Stage],
-        inputs: type[NamedTuple],
-        outputs: type[NamedTuple],
     ) -> Self:
         """Add a stage to the builder.
 
@@ -87,6 +74,9 @@ class StageBuilder:
                 f"Stage {stage} has already been added, and cannot be added again.",
             )
 
+        inputs = stage._inputs()  # noqa: SLF001
+        outputs = stage._outputs()  # noqa: SLF001
+
         for output_name, output_type in self._named_tuple_to_stage_arguments(outputs):
             if issubclass(output_type, RunBefore) or issubclass(output_type, RunAfter):
                 raise TypeError(
@@ -100,7 +90,7 @@ class StageBuilder:
 
         return self
 
-    def build(self, initial_input_annotations: list[StageArgument]) -> StageRunner:
+    def build(self, initial_input_arguments: type[NamedTuple]) -> StageRunner:
         """Resolve the stages, and produce a StageRunner to run them.
 
         This will check that all stages can be ran with inputs from previous stages, and
@@ -110,24 +100,27 @@ class StageBuilder:
         -------
             StageRunner: A StageRunner for the given stages
         """
+        initial_input_annotations = self._named_tuple_to_stage_arguments(
+            initial_input_arguments,
+        )
         stage_order = self._resolve_stages(initial_input_annotations)
 
         return StageRunner(
             stage_order,
             self.stage_inputs,
             self.stage_outputs,
-            set(initial_input_annotations),
+            initial_input_annotations,
         )
 
     def _resolve_stages(
         self,
-        initial_input_annotations: list[StageArgument],
+        initial_input_annotations: set[StageArgument],
     ) -> list[StageScheduleElement]:
         resolved_stages: set[type[Stage]] = set()
 
         stage_order: list[StageScheduleElement] = []
 
-        available_inputs: set[StageArgument] = set(initial_input_annotations)
+        available_inputs: set[StageArgument] = initial_input_annotations
 
         previous_resolved_stages: set[type[Stage]] | None = None
 

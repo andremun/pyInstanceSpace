@@ -3,7 +3,6 @@
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from stages.stage import Stage
 
 from matilda.data.options import (
     AutoOptions,
@@ -18,6 +17,7 @@ from matilda.data.options import (
     SiftedOptions,
     TraceOptions,
 )
+from matilda.stages.stage import Stage
 
 
 class PreprocessingStage(Stage):
