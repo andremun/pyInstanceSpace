@@ -16,7 +16,6 @@ from matilda.data.model import (
     PrelimOut,
     PythiaOut,
     SiftedOut,
-    StageState,
     TraceOut,
 )
 

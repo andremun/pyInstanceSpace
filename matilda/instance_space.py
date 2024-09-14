@@ -6,6 +6,16 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from matilda.data.metadata import Metadata, from_csv_file
+from matilda.data.model import (
+    CloisterOut,
+    Data,
+    FeatSel,
+    PilotOut,
+    PrelimOut,
+    PythiaOut,
+    SiftedOut,
+    TraceOut,
+)
 from matilda.data.options import InstanceSpaceOptions, from_json_file
 from matilda.model import Model
 from matilda.stage_builder import StageArgument, StageBuilder
@@ -23,13 +33,14 @@ from matilda.stages.trace_stage import TraceStage
 class InstanceSpace:
     """TODO: Describe what an instance space IS."""
 
-    runner: StageRunner
+    _runner: StageRunner
     _stages: list[type[Stage]]
 
     _metadata: Metadata
     _options: InstanceSpaceOptions
 
     _model: Model | None
+    _final_output: dict[str, Any] | None
 
     def __init__(
         self,
@@ -71,7 +82,7 @@ class InstanceSpace:
                 additional_initial_inputs,
             )
 
-        self.runner = stage_builder.build(annotations)
+        self._runner = stage_builder.build(annotations)
 
     @property
     def metadata(self) -> Metadata:
@@ -85,10 +96,34 @@ class InstanceSpace:
 
     @property
     def model(self) -> Model:
-        """Get options."""
-        # TODO: Make this try to assemble a model
+        """Get model.
+
+        Raises
+        ------
+            StageRunningError: If the InstanceSpace hasn't been built, will raise a
+                StageRunningError.
+
+        Returns
+        -------
+            Model: _description_
+        """
         if not self._model:
-            raise StageRunningError("InstanceSpace has not been completely ran.")
+            if not self._final_output:
+                raise StageRunningError("InstanceSpace has not been completely ran.")
+
+            data = Data.from_stage_runner_output(self._final_output)
+            self._model = Model(
+                data=data,
+                data_dense=data,  # TODO: Work out what data_dense is
+                feat_sel=FeatSel.from_stage_runner_output(self._final_output),
+                prelim=PrelimOut.from_stage_runner_output(self._final_output),
+                sifted=SiftedOut.from_stage_runner_output(self._final_output),
+                pilot=PilotOut.from_stage_runner_output(self._final_output),
+                cloister=CloisterOut.from_stage_runner_output(self._final_output),
+                pythia=PythiaOut.from_stage_runner_output(self._final_output),
+                trace=TraceOut.from_stage_runner_output(self._final_output),
+                opts=self._options,
+            )
 
         return self._model
 
@@ -114,7 +149,7 @@ class InstanceSpace:
 
         """
         # TODO: split out metadata and options into component fields
-        self.runner.run_all(**metadata.__dict__, **options.__dict__, **arguments)
+        self._runner.run_all(**metadata.__dict__, **options.__dict__, **arguments)
 
         raise NotImplementedError
 
@@ -136,7 +171,7 @@ class InstanceSpace:
             Generator[None, tuple[Any], None]: _description_
         """
         # TODO: split out metadata and options into component fields
-        yield from self.runner.run_iter(
+        yield from self._runner.run_iter(
             **metadata.__dict__,
             **options.__dict__,
             **arguments,
@@ -161,7 +196,7 @@ class InstanceSpace:
         -------
             list[Any]: The output of the stage
         """
-        return self.runner.run_stage(stage, **arguments)
+        return self._runner.run_stage(stage, **arguments)
 
     def run_until_stage(
         self,
@@ -186,7 +221,7 @@ class InstanceSpace:
             list[Any]: _description_
         """
         # TODO: split out metadata and options into component fields
-        self.runner.run_until_stage(
+        self._runner.run_until_stage(
             stage,
             **metadata.__dict__,
             **options.__dict__,
