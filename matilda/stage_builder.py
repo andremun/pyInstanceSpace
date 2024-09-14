@@ -90,7 +90,9 @@ class StageBuilder:
 
         return self
 
-    def build(self, initial_input_arguments: type[NamedTuple]) -> StageRunner:
+    def build(
+        self, initial_input_arguments: type[NamedTuple] | set[StageArgument]
+    ) -> StageRunner:
         """Resolve the stages, and produce a StageRunner to run them.
 
         This will check that all stages can be ran with inputs from previous stages, and
@@ -100,9 +102,13 @@ class StageBuilder:
         -------
             StageRunner: A StageRunner for the given stages
         """
-        initial_input_annotations = self._named_tuple_to_stage_arguments(
-            initial_input_arguments,
-        )
+        if isinstance(initial_input_arguments, set):
+            initial_input_annotations = initial_input_arguments
+        else:
+            initial_input_annotations = self._named_tuple_to_stage_arguments(
+                initial_input_arguments,
+            )
+
         stage_order = self._resolve_stages(initial_input_annotations)
 
         return StageRunner(

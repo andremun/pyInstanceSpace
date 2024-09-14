@@ -1,12 +1,15 @@
 """TODO: document instance space module."""
 
 from collections.abc import Generator
-from typing import Any
+from dataclasses import fields
+from pathlib import Path
+from typing import Any, NamedTuple
 
-from matilda.data.metadata import Metadata
-from matilda.data.options import InstanceSpaceOptions
+from matilda.data.metadata import Metadata, from_csv_file
+from matilda.data.options import InstanceSpaceOptions, from_json_file
+from matilda.model import Model
 from matilda.stage_builder import StageArgument, StageBuilder
-from matilda.stage_runner import AnnotatedStageOutput, StageRunner
+from matilda.stage_runner import AnnotatedStageOutput, StageRunner, StageRunningError
 from matilda.stages.cloister import CloisterStage
 from matilda.stages.pilot_stage import PilotStage
 from matilda.stages.prelim_stage import PrelimStage
@@ -23,8 +26,15 @@ class InstanceSpace:
     runner: StageRunner
     _stages: list[type[Stage]]
 
+    _metadata: Metadata
+    _options: InstanceSpaceOptions
+
+    _model: Model | None
+
     def __init__(
         self,
+        metadata: Metadata,
+        options: InstanceSpaceOptions,
         stages: list[type[Stage]] = [
             PreprocessingStage,
             PrelimStage,
@@ -34,35 +44,60 @@ class InstanceSpace:
             CloisterStage,
             TraceStage,
         ],
+        additional_initial_inputs: type[NamedTuple] | None = None,
     ) -> None:
         """Initialise the InstanceSpace.
 
         Args:
             stages list[type[Stage]], optional: A list of stages to be ran.
         """
+        self._metadata = metadata
+        self._options = options
         self._stages = stages
+
+        self._model = None
 
         stage_builder = StageBuilder()
 
         for stage in stages:
             stage_builder.add_stage(stage)
 
-        # TODO: do this manually, I am just pulling it out of annotations to get it
-        # working
-        self.runner = stage_builder.build(
-            [StageArgument(k, v) for k, v in Metadata.__annotations__.items()]
-            + [
-                StageArgument(k, v)
-                for k, v in InstanceSpaceOptions.__annotations__.items()
-            ],
-        )
+        annotations = {StageArgument(k, v) for k, v in Metadata.__annotations__.items()}
+        annotations |= {
+            StageArgument(k, v) for k, v in InstanceSpaceOptions.__annotations__.items()
+        }
+        if additional_initial_inputs is not None:
+            annotations |= stage_builder._named_tuple_to_stage_arguments(  # noqa: SLF001
+                additional_initial_inputs,
+            )
+
+        self.runner = stage_builder.build(annotations)
+
+    @property
+    def metadata(self) -> Metadata:
+        """Get metadata."""
+        return self._metadata
+
+    @property
+    def options(self) -> InstanceSpaceOptions:
+        """Get options."""
+        return self._options
+
+    @property
+    def model(self) -> Model:
+        """Get options."""
+        # TODO: Make this try to assemble a model
+        if not self._model:
+            raise StageRunningError("InstanceSpace has not been completely ran.")
+
+        return self._model
 
     def build(
         self,
         metadata: Metadata,
         options: InstanceSpaceOptions,
         **arguments: Any,  # noqa: ANN401
-    ) -> None:  # TODO: Replace this with model / get_model
+    ) -> Model:  # TODO: Replace this with model / get_model
         """Build the instance space.
 
         Options will be broken down to sub fields to be passed to stages. You can
@@ -80,6 +115,8 @@ class InstanceSpace:
         """
         # TODO: split out metadata and options into component fields
         self.runner.run_all(**metadata.__dict__, **options.__dict__, **arguments)
+
+        raise NotImplementedError
 
     def run_iter(
         self,
@@ -155,3 +192,72 @@ class InstanceSpace:
             **options.__dict__,
             **arguments,
         )
+
+
+def instance_space_from_files(
+    metadata_filepath: Path,
+    options_filepath: Path,
+) -> InstanceSpace | None:
+    """Construct an instance space object from 2 files.
+
+    Args
+    ----
+        metadata_filepath (Path): Path to the metadata csv file.
+        options_filepath (Path): Path to the options json file.
+
+    Returns
+    -------
+        InstanceSpace | None: A new instance space object instantiated
+        with metadata and options from the specified files, or None
+        if the initialization fails.
+
+    """
+    print("-------------------------------------------------------------------------")
+    print("-> Loading the data.")
+
+    metadata = from_csv_file(metadata_filepath)
+
+    if metadata is None:
+        print("Failed to initialize metadata")
+        return None
+
+    print("-> Successfully loaded the data.")
+    print("-------------------------------------------------------------------------")
+    print("-> Loading the options.")
+
+    options = from_json_file(options_filepath)
+
+    if options is None:
+        print("Failed to initialize options")
+        return None
+
+    print("-> Successfully loaded the options.")
+
+    print("-> Listing options to be used:")
+    for field_name in fields(InstanceSpaceOptions):
+        field_value = getattr(options, field_name.name)
+        print(f"{field_name.name}: {field_value}")
+
+    return InstanceSpace(metadata, options)
+
+
+def instance_space_from_directory(directory: Path) -> InstanceSpace | None:
+    """Construct an instance space object from 2 files.
+
+    Args
+    ----
+        directory (str): Path to correctly formatted directory,
+        where the .csv file is metadata.csv, and .json file is
+        options.json
+
+    Returns
+    -------
+        InstanceSpace | None: A new instance space
+        object instantiated with metadata and options from
+        the specified directory, or None if the initialization fails.
+
+    """
+    metadata_path = Path(directory / "metadata.csv")
+    options_path = Path(directory / "options.json")
+
+    return instance_space_from_files(metadata_path, options_path)

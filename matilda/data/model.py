@@ -288,3 +288,9 @@ class TraceDataChanged:
     def merge_with(self, data: Data) -> Data:
         """Merge changed fields of data with a Data object."""
         raise NotImplementedError
+
+@dataclass(frozen=True)
+class FeatSel:
+    """Holds indices for feature selection."""
+
+    idx: NDArray[np.intc]
