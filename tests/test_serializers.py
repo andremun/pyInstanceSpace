@@ -20,7 +20,6 @@ from matilda.data.model import (
     PrelimOut,
     PythiaOut,
     SiftedOut,
-    StageState,
     TraceOut,
 )
 from matilda.data.options import (
@@ -38,7 +37,7 @@ from matilda.data.options import (
     SiftedOptions,
     TraceOptions,
 )
-from matilda.instance_space import InstanceSpace, _Stage
+from matilda.instance_space import InstanceSpace
 
 script_dir = Path(__file__).parent
 
