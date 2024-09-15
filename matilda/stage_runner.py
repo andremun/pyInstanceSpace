@@ -3,7 +3,7 @@
 from collections.abc import Generator
 from typing import Any, NamedTuple
 
-from matilda.stages.stage import StageClass
+from matilda.stages.stage import OUT, Stage, StageClass
 
 StageScheduleElement = list[StageClass]
 
@@ -79,12 +79,12 @@ class StageRunner:
     def run_iter(
         self,
         **additional_arguments: Any,  # noqa: ANN401
-    ) -> Generator[AnnotatedStageOutput, None, None]:
+    ) -> Generator[AnnotatedStageOutput, None, dict[str, Any]]:
         """Run all stages, yielding after every run.
 
         Yields
         ------
-            Generator[None, tuple[Any], None]: _description_
+            Generator[AnnotatedStageOutput, None, dict[str, Any]]: _description_
         """
         self._rollback_to_schedule_index(0)
 
@@ -94,11 +94,13 @@ class StageRunner:
             for stage in schedule:
                 yield AnnotatedStageOutput(stage, self.run_stage(stage))
 
+        return self._available_arguments
+
     def run_stage(
         self,
-        stage: StageClass,
+        stage: type[Stage[Any, OUT]],
         **additional_arguments: Any,  # noqa: ANN401
-    ) -> NamedTuple:
+    ) -> OUT:
         """Run a single stage.
 
         Errors if prerequisite stages haven't been ran.
@@ -151,7 +153,7 @@ class StageRunner:
         self,
         stages: list[StageClass],
         additional_arguments: NamedTuple,
-    ) -> tuple[tuple[Any]]:
+    ) -> dict[str, Any]:
         """Run multiple stages in parallel.
 
         All prerequisite stages must have already been ran. The stages cannot be a
@@ -167,7 +169,7 @@ class StageRunner:
         """
         raise NotImplementedError
 
-    def run_all(self, additional_arguments: NamedTuple) -> None:
+    def run_all(self, additional_arguments: NamedTuple) -> dict[str, Any]:
         """Run all stages from start to finish.
 
         Return the entire outputs data object when finished.
@@ -184,13 +186,15 @@ class StageRunner:
             for stage in schedule:
                 self.run_stage(stage)
 
+        return self._available_arguments
+
         # TODO: Work out what this should return. Maybe just the dict of outputs?
 
     def run_until_stage(
         self,
         stop_at_stage: StageClass,
         additional_arguments: NamedTuple,
-    ) -> None:
+    ) -> dict[str, Any]:
         """Run all stages until the specified stage, as well as the specified stage.
 
         Returns
@@ -207,6 +211,8 @@ class StageRunner:
 
             for stage in schedule:
                 self.run_stage(stage)
+
+        return self._available_arguments
 
         # TODO: Work out what this should return. Maybe just the dict of outputs?
 

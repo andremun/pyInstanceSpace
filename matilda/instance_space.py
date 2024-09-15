@@ -168,7 +168,7 @@ class InstanceSpace:
         self,
         stage: StageClass,
         **arguments: Any,  # noqa: ANN401
-    ) -> tuple[Any]:
+    ) -> NamedTuple:
         """Run a single stage.
 
         All inputs to the stage must either be present from previously ran stages, or
@@ -183,7 +183,10 @@ class InstanceSpace:
         -------
             list[Any]: The output of the stage
         """
-        return self._runner.run_stage(stage, **arguments)
+        # Need to type coerce the output of the stage because generics
+        stage_out: NamedTuple = self._runner.run_stage(stage, **arguments)
+
+        return stage_out
 
     def run_until_stage(
         self,

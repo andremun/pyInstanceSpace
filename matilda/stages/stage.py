@@ -41,7 +41,7 @@ Usage::
     list_of_classes: list[StageClass] = [PrelimStage, CloisterStage]
 """
 
-T = TypeVar("T", bound=type[Stage])
+T = TypeVar("T", bound=StageClass)
 
 
 class RunBefore(Generic[T]):
