@@ -38,6 +38,7 @@ from matilda.data.options import (
     TraceOptions,
 )
 from matilda.instance_space import InstanceSpace
+from matilda.model import Model
 
 script_dir = Path(__file__).parent
 
@@ -74,25 +75,7 @@ class _MatlabResults:
             simplify_cells=True,
         )["clean_trace"]
 
-    def get_instance_space(self) -> InstanceSpace:
-        # Construct InstanceSpace without calling init
-        instance_space = InstanceSpace.__new__(InstanceSpace)
-
-        stages = {}
-        for stage in _Stage:
-            stages[stage] = True
-        instance_space._stages = stages  # noqa: SLF001
-
-        metadata = Metadata(
-            feature_names=self.workspace_data["model"]["data"]["featlabels"],
-            algorithm_names=self.workspace_data["model"]["data"]["algolabels"],
-            instance_labels=self.workspace_data["model"]["data"]["instlabels"],
-            instance_sources=self.s_data["S_cell"],
-            features=self.workspace_data["model"]["data"]["Xraw"],
-            algorithms=self.workspace_data["model"]["data"]["Yraw"],
-        )
-        instance_space._metadata = metadata  # noqa: SLF001
-
+    def get_model(self) -> Model:
         opts = self.workspace_data["model"]["opts"]
         parallel_options = ParallelOptions(
             flag=opts["parallel"]["flag"],
@@ -164,7 +147,6 @@ class _MatlabResults:
             trace=trace_options,
             outputs=output_options,
         )
-        instance_space._options = options  # noqa: SLF001
 
         data = Data(
             inst_labels=self.workspace_data["model"]["data"]["instlabels"],
@@ -182,68 +164,51 @@ class _MatlabResults:
             s=self.s_data["S_cell"],
             uniformity=None,
         )
-        instance_space._data = data  # noqa: SLF001
 
-        prelim_state = StageState[PrelimOut](
-            data=data,
-            out=PrelimOut(
-                med_val=self.workspace_data["model"]["prelim"]["medval"],
-                iq_range=self.workspace_data["model"]["prelim"]["iqrange"],
-                hi_bound=self.workspace_data["model"]["prelim"]["hibound"],
-                lo_bound=self.workspace_data["model"]["prelim"]["lobound"],
-                min_x=self.workspace_data["model"]["prelim"]["minX"],
-                lambda_x=self.workspace_data["model"]["prelim"]["lambdaX"],
-                mu_x=self.workspace_data["model"]["prelim"]["muX"],
-                sigma_x=self.workspace_data["model"]["prelim"]["sigmaY"],
-                min_y=self.workspace_data["model"]["prelim"]["minY"],
-                lambda_y=self.workspace_data["model"]["prelim"]["lambdaY"],
-                mu_y=self.workspace_data["model"]["prelim"]["muY"],
-                sigma_y=self.workspace_data["model"]["prelim"]["sigmaY"],
-            ),
+        prelim_out = PrelimOut(
+            med_val=self.workspace_data["model"]["prelim"]["medval"],
+            iq_range=self.workspace_data["model"]["prelim"]["iqrange"],
+            hi_bound=self.workspace_data["model"]["prelim"]["hibound"],
+            lo_bound=self.workspace_data["model"]["prelim"]["lobound"],
+            min_x=self.workspace_data["model"]["prelim"]["minX"],
+            lambda_x=self.workspace_data["model"]["prelim"]["lambdaX"],
+            mu_x=self.workspace_data["model"]["prelim"]["muX"],
+            sigma_x=self.workspace_data["model"]["prelim"]["sigmaY"],
+            min_y=self.workspace_data["model"]["prelim"]["minY"],
+            lambda_y=self.workspace_data["model"]["prelim"]["lambdaY"],
+            mu_y=self.workspace_data["model"]["prelim"]["muY"],
+            sigma_y=self.workspace_data["model"]["prelim"]["sigmaY"],
         )
-        instance_space._prelim_state = prelim_state  # noqa: SLF001
 
-        sifted_state = StageState[SiftedOut](
-            data=data,
-            out=SiftedOut(
-                flag=-1,  # TODO: Find where this comes from
-                rho=self.workspace_data["model"]["sifted"]["rho"],
-                k=-1,  # TODO: Find where this comes from
-                n_trees=-1,  # TODO: Find where this comes from
-                max_lter=-1,  # TODO: Find where this comes from
-                replicates=-1,  # TODO: Find where this comes from
-                # MATLAB indexes by 1
-                idx=self.workspace_data["model"]["featsel"]["idx"] - 1,
-            ),
+        sifted_out = SiftedOut(
+            flag=-1,  # TODO: Find where this comes from
+            rho=self.workspace_data["model"]["sifted"]["rho"],
+            k=-1,  # TODO: Find where this comes from
+            n_trees=-1,  # TODO: Find where this comes from
+            max_lter=-1,  # TODO: Find where this comes from
+            replicates=-1,  # TODO: Find where this comes from
+            # MATLAB indexes by 1
+            idx=self.workspace_data["model"]["featsel"]["idx"] - 1,
         )
-        instance_space._sifted_state = sifted_state  # noqa: SLF001
 
-        pilot_state = StageState[PilotOut](
-            data=data,
-            out=PilotOut(
-                X0=self.workspace_data["model"]["pilot"]["X0"],
-                alpha=self.workspace_data["model"]["pilot"]["alpha"],
-                eoptim=self.workspace_data["model"]["pilot"]["eoptim"],
-                perf=self.workspace_data["model"]["pilot"]["perf"],
-                a=self.workspace_data["model"]["pilot"]["A"],
-                z=self.workspace_data["model"]["pilot"]["Z"],
-                c=self.workspace_data["model"]["pilot"]["C"],
-                b=self.workspace_data["model"]["pilot"]["B"],
-                error=self.workspace_data["model"]["pilot"]["error"],
-                r2=self.workspace_data["model"]["pilot"]["R2"],
-                summary=self.workspace_data["model"]["pilot"]["summary"],
-            ),
+        pilot_out = PilotOut(
+            X0=self.workspace_data["model"]["pilot"]["X0"],
+            alpha=self.workspace_data["model"]["pilot"]["alpha"],
+            eoptim=self.workspace_data["model"]["pilot"]["eoptim"],
+            perf=self.workspace_data["model"]["pilot"]["perf"],
+            a=self.workspace_data["model"]["pilot"]["A"],
+            z=self.workspace_data["model"]["pilot"]["Z"],
+            c=self.workspace_data["model"]["pilot"]["C"],
+            b=self.workspace_data["model"]["pilot"]["B"],
+            error=self.workspace_data["model"]["pilot"]["error"],
+            r2=self.workspace_data["model"]["pilot"]["R2"],
+            summary=self.workspace_data["model"]["pilot"]["summary"],
         )
-        instance_space._pilot_state = pilot_state  # noqa: SLF001
 
-        cloister_state = StageState[CloisterOut](
-            data=data,
-            out=CloisterOut(
-                z_edge=self.workspace_data["model"]["cloist"]["Zedge"],
-                z_ecorr=self.workspace_data["model"]["cloist"]["Zecorr"],
-            ),
+        cloister_out = CloisterOut(
+            z_edge=self.workspace_data["model"]["cloist"]["Zedge"],
+            z_ecorr=self.workspace_data["model"]["cloist"]["Zecorr"],
         )
-        instance_space._cloister_state = cloister_state  # noqa: SLF001
 
         def translate_footprint(in_from_matlab: dict[str, Any]) -> Footprint:
             if len(in_from_matlab["polygon"]):
@@ -267,19 +232,15 @@ class _MatlabResults:
 
             return footprint
 
-        trace_state = StageState[TraceOut](
-            data=data,
-            out=TraceOut(
-                # TODO: This will need to be translated to our footprint struct
-                space=translate_footprint(self.clean_trace["space"]),
-                good=[translate_footprint(i) for i in self.clean_trace["good"]],
-                best=[translate_footprint(i) for i in self.clean_trace["best"]],
-                # TODO: This will need to be translated to our footprint struct
-                hard=translate_footprint(self.clean_trace["hard"]),
-                summary=self.workspace_data["model"]["trace"]["summary"],
-            ),
+        trace_out = TraceOut(
+            # TODO: This will need to be translated to our footprint struct
+            space=translate_footprint(self.clean_trace["space"]),
+            good=[translate_footprint(i) for i in self.clean_trace["good"]],
+            best=[translate_footprint(i) for i in self.clean_trace["best"]],
+            # TODO: This will need to be translated to our footprint struct
+            hard=translate_footprint(self.clean_trace["hard"]),
+            summary=self.workspace_data["model"]["trace"]["summary"],
         )
-        instance_space._trace_state = trace_state  # noqa: SLF001
 
         summary = self.workspace_data["model"]["pythia"]["summary"]
         for i in range(summary.shape[0]):
@@ -287,31 +248,31 @@ class _MatlabResults:
                 if type(summary[i, j]) is np.ndarray:
                     summary[i, j] = None
 
-        pythia_state = StageState[PythiaOut](
-            data=data,
-            out=PythiaOut(
-                mu=self.workspace_data["model"]["pythia"]["mu"],
-                sigma=self.workspace_data["model"]["pythia"]["sigma"],
-                cp=self.workspace_data["model"]["pythia"]["cp"],
-                svm=self.workspace_data["model"]["pythia"]["svm"],
-                cvcmat=self.workspace_data["model"]["pythia"]["cvcmat"],
-                y_sub=self.workspace_data["model"]["pythia"]["Ysub"],
-                y_hat=self.workspace_data["model"]["pythia"]["Yhat"],
-                pr0_sub=self.workspace_data["model"]["pythia"]["Pr0sub"],
-                pr0_hat=self.workspace_data["model"]["pythia"]["Pr0hat"],
-                box_consnt=self.workspace_data["model"]["pythia"]["boxcosnt"],
-                k_scale=self.workspace_data["model"]["pythia"]["kscale"],
-                precision=self.workspace_data["model"]["pythia"]["precision"],
-                recall=self.workspace_data["model"]["pythia"]["recall"],
-                accuracy=self.workspace_data["model"]["pythia"]["accuracy"],
-                selection0=self.workspace_data["model"]["pythia"]["selection0"],
-                selection1=self.workspace_data["model"]["pythia"]["selection1"],
-                summary=self.workspace_data["model"]["pythia"]["summary"],
-            ),
+        pythia_out = PythiaOut(
+            mu=self.workspace_data["model"]["pythia"]["mu"],
+            sigma=self.workspace_data["model"]["pythia"]["sigma"],
+            cp=self.workspace_data["model"]["pythia"]["cp"],
+            svm=self.workspace_data["model"]["pythia"]["svm"],
+            cvcmat=self.workspace_data["model"]["pythia"]["cvcmat"],
+            y_sub=self.workspace_data["model"]["pythia"]["Ysub"],
+            y_hat=self.workspace_data["model"]["pythia"]["Yhat"],
+            pr0_sub=self.workspace_data["model"]["pythia"]["Pr0sub"],
+            pr0_hat=self.workspace_data["model"]["pythia"]["Pr0hat"],
+            box_consnt=self.workspace_data["model"]["pythia"]["boxcosnt"],
+            k_scale=self.workspace_data["model"]["pythia"]["kscale"],
+            precision=self.workspace_data["model"]["pythia"]["precision"],
+            recall=self.workspace_data["model"]["pythia"]["recall"],
+            accuracy=self.workspace_data["model"]["pythia"]["accuracy"],
+            selection0=self.workspace_data["model"]["pythia"]["selection0"],
+            selection1=self.workspace_data["model"]["pythia"]["selection1"],
+            summary=self.workspace_data["model"]["pythia"]["summary"],
         )
-        instance_space._pythia_state = pythia_state  # noqa: SLF001
 
-        return instance_space
+        return Model(
+            data=data,
+            data_dense=data,
+            feat_sel=
+        )
 
 
 def test_save_to_csv() -> None:
