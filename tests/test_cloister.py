@@ -86,7 +86,8 @@ class TestCloister:
         options = CloisterOptions.default()
 
         rho_python = CloisterStage._compute_correlation(
-            input_x, options,
+            input_x,
+            options,
         )
         rho_matlab = output_data.rho
 
@@ -219,7 +220,9 @@ class TestCloister:
         options = CloisterOptions.default()
 
         _, remove = CloisterStage._generate_boundaries(
-            input_x, rho_boundary, options,
+            input_x,
+            rho_boundary,
+            options,
         )
         remove_matlab = output_data.remove
 

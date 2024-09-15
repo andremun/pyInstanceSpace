@@ -20,7 +20,7 @@ class _StageAOutput(NamedTuple):
     b: str
 
 
-class StageA(Stage):
+class StageA(Stage[_StageAInput, _StageAOutput]):
     """Basic stage for tests."""
 
     @staticmethod

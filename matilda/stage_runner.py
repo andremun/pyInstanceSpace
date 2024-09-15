@@ -3,9 +3,9 @@
 from collections.abc import Generator
 from typing import Any, NamedTuple
 
-from matilda.stages.stage import Stage
+from matilda.stages.stage import StageClass
 
-StageScheduleElement = list[type[Stage]]
+StageScheduleElement = list[StageClass]
 
 
 class StageArgument(NamedTuple):
@@ -22,7 +22,7 @@ class StageRunningError(Exception):
 class AnnotatedStageOutput(NamedTuple):
     """The yielded output of running a stage."""
 
-    stage: type[Stage]
+    stage: StageClass
     output: NamedTuple
 
 
@@ -36,19 +36,19 @@ class StageRunner:
     _available_arguments: dict[str, Any]
 
     # Cached index for when a stage is going to be ran, calculated in the constructor
-    _stage_to_schedule_index: dict[type[Stage], int]
+    _stage_to_schedule_index: dict[StageClass, int]
 
     # List of stages to be ran
     _stage_order: list[StageScheduleElement]
 
     _current_schedule_item: int
-    _stages_ran: dict[type[Stage], bool]
+    _stages_ran: dict[StageClass, bool]
 
     def __init__(
         self,
         stages: list[StageScheduleElement],
-        input_arguments: dict[type[Stage], set[StageArgument]],
-        output_arguments: dict[type[Stage], set[StageArgument]],
+        input_arguments: dict[StageClass, set[StageArgument]],
+        output_arguments: dict[StageClass, set[StageArgument]],
         initial_input_annotations: set[StageArgument],
     ) -> None:
         """Create a StageRunner from a preresolved set of stages.
@@ -96,7 +96,7 @@ class StageRunner:
 
     def run_stage(
         self,
-        stage: type[Stage],
+        stage: StageClass,
         **additional_arguments: Any,  # noqa: ANN401
     ) -> NamedTuple:
         """Run a single stage.
@@ -105,7 +105,7 @@ class StageRunner:
 
         Args
         ----
-            stages list[type[Stage]]: A list of stages to run.
+            stages list[StageClass]: A list of stages to run.
             **arguments dict[str, Any]: Inputs for the stage. If inputs aren't provided
                 the runner will try to get them from previously ran stages. If they
                 still aren't present the stage will raise an error.
@@ -149,7 +149,7 @@ class StageRunner:
 
     def run_many_stages_parallel(
         self,
-        stages: list[type[Stage]],
+        stages: list[StageClass],
         additional_arguments: NamedTuple,
     ) -> tuple[tuple[Any]]:
         """Run multiple stages in parallel.
@@ -159,7 +159,7 @@ class StageRunner:
 
         Args
         ----
-            stages list[type[Stage]]: A list of stages to run.
+            stages list[StageClass]: A list of stages to run.
 
         Returns
         -------
@@ -188,7 +188,7 @@ class StageRunner:
 
     def run_until_stage(
         self,
-        stop_at_stage: type[Stage],
+        stop_at_stage: StageClass,
         additional_arguments: NamedTuple,
     ) -> None:
         """Run all stages until the specified stage, as well as the specified stage.
@@ -213,8 +213,8 @@ class StageRunner:
     @staticmethod
     def _check_stage_order_is_runnable(
         stages: list[StageScheduleElement],
-        input_arguments: dict[type[Stage], set[StageArgument]],
-        output_arguments: dict[type[Stage], set[StageArgument]],
+        input_arguments: dict[StageClass, set[StageArgument]],
+        output_arguments: dict[StageClass, set[StageArgument]],
         initial_input_annotations: set[StageArgument],
     ) -> None:
         available_arguments = initial_input_annotations.copy()

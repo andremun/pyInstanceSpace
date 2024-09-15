@@ -95,7 +95,8 @@ class PrelimOut:
         cls: type[T],
         stage_runner_output: dict[str, Any],
     ) -> T:
-        """Initialise a PrelimOut object from the output of an InstanceSpace StageRunner.
+        """
+        Initialise a PrelimOut object from the output of an InstanceSpace StageRunner.
 
         Args
         ----

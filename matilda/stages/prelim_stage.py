@@ -53,7 +53,7 @@ class _PrelimStageOutputs(NamedTuple):
     mu_y: NDArray[np.double]
 
 
-class PrelimStage(Stage):
+class PrelimStage(Stage[_PrelimStageInputs, _PrelimStageOutputs]):
     """See file docstring."""
 
     @staticmethod

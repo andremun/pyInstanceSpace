@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Generic, NamedTuple, TypeVar
+from typing import Any, Generic, NamedTuple, TypeVar
 
 IN = TypeVar("IN", bound=NamedTuple)
+OUT = TypeVar("OUT", bound=NamedTuple)
 
 
-class Stage(ABC, Generic[IN]):
+class Stage(ABC, Generic[IN, OUT]):
     """Generic stage."""
 
     @staticmethod
@@ -25,10 +26,20 @@ class Stage(ABC, Generic[IN]):
 
     @staticmethod
     @abstractmethod
-    def _run(inputs: IN) -> NamedTuple:
+    def _run(inputs: IN) -> OUT:
         """Run the stage."""
         raise NotImplementedError
 
+
+StageClass = type[Stage[Any, Any]]
+"""The class of a stage.
+
+Used to annotate type when referencing a stage generically.
+
+Usage::
+
+    list_of_classes: list[StageClass] = [PrelimStage, CloisterStage]
+"""
 
 T = TypeVar("T", bound=type[Stage])
 
@@ -39,5 +50,3 @@ class RunBefore(Generic[T]):
 
 class RunAfter(Generic[T]):
     """Marks that a stage should be run after another stage."""
-
-    pass

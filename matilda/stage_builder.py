@@ -3,17 +3,17 @@
 from typing import NamedTuple, Self, get_args
 
 from matilda.stage_runner import StageArgument, StageRunner, StageScheduleElement
-from matilda.stages.stage import RunAfter, RunBefore, Stage
+from matilda.stages.stage import RunAfter, RunBefore, StageClass
 
 
 class _BeforeAfterRestriction(NamedTuple):
-    before: type[Stage]
-    after: type[Stage]
+    before: StageClass
+    after: StageClass
 
 
 class _StageRestrictions(NamedTuple):
-    run_before: set[type[Stage]]
-    run_after: set[type[Stage]]
+    run_before: set[StageClass]
+    run_after: set[StageClass]
 
 
 class StageResolutionError(Exception):
@@ -42,9 +42,9 @@ class StageBuilder:
     This input has no effect on the stage itself, and will not be passed to the stage.
     """
 
-    stages: set[type[Stage]]
-    stage_inputs: dict[type[Stage], set[StageArgument]]
-    stage_outputs: dict[type[Stage], set[StageArgument]]
+    stages: set[StageClass]
+    stage_inputs: dict[StageClass, set[StageArgument]]
+    stage_outputs: dict[StageClass, set[StageArgument]]
 
     def __init__(self) -> None:
         """Initialise a StageBuilder."""
@@ -54,7 +54,7 @@ class StageBuilder:
 
     def add_stage(
         self,
-        stage: type[Stage],
+        stage: StageClass,
     ) -> Self:
         """Add a stage to the builder.
 
@@ -62,7 +62,7 @@ class StageBuilder:
 
         Args
         ----
-            stage type[Stage]: A Stage class
+            stage StageClass: A Stage class
             inputs list[StageArgument]: A list of inputs that the stage takes
             outputs list[StageArgument]: A list of outputs the stage produces
 
@@ -92,7 +92,8 @@ class StageBuilder:
         return self
 
     def build(
-        self, initial_input_arguments: type[NamedTuple] | set[StageArgument],
+        self,
+        initial_input_arguments: type[NamedTuple] | set[StageArgument],
     ) -> StageRunner:
         """Resolve the stages, and produce a StageRunner to run them.
 
@@ -123,16 +124,16 @@ class StageBuilder:
         self,
         initial_input_annotations: set[StageArgument],
     ) -> list[StageScheduleElement]:
-        resolved_stages: set[type[Stage]] = set()
+        resolved_stages: set[StageClass] = set()
 
         stage_order: list[StageScheduleElement] = []
 
         available_inputs: set[StageArgument] = initial_input_annotations
 
-        previous_resolved_stages: set[type[Stage]] | None = None
+        previous_resolved_stages: set[StageClass] | None = None
 
         # Find mutating stages
-        mutating_stages: dict[type[Stage], set[StageArgument]] = (
+        mutating_stages: dict[StageClass, set[StageArgument]] = (
             self._get_mutating_stages()
         )
 
@@ -151,7 +152,7 @@ class StageBuilder:
 
             previous_resolved_stages = resolved_stages.copy()
 
-            stages_can_run: set[type[Stage]] = set()
+            stages_can_run: set[StageClass] = set()
 
             # Find stages to run
             for stage in self.stages - resolved_stages:
@@ -206,8 +207,8 @@ class StageBuilder:
             )
         }
 
-    def _get_mutating_stages(self) -> dict[type[Stage], set[StageArgument]]:
-        mutating_stages: dict[type[Stage], set[StageArgument]] = {}
+    def _get_mutating_stages(self) -> dict[StageClass, set[StageArgument]]:
+        mutating_stages: dict[StageClass, set[StageArgument]] = {}
 
         for stage in self.stages:
             mutating_arguments: set[StageArgument] = set()
@@ -242,10 +243,10 @@ class StageBuilder:
     @staticmethod
     def _get_restrictions_for_stage(
         ordering_restrictions: set[_BeforeAfterRestriction],
-        stage: type[Stage],
+        stage: StageClass,
     ) -> _StageRestrictions:
-        run_before: set[type[Stage]] = set()
-        run_after: set[type[Stage]] = set()
+        run_before: set[StageClass] = set()
+        run_after: set[StageClass] = set()
 
         for before, after in ordering_restrictions:
             if before == stage:
@@ -257,8 +258,8 @@ class StageBuilder:
 
     def _stage_resolves(
         self,
-        stage: type[Stage],
-        resolved_stages: set[type[Stage]],
+        stage: StageClass,
+        resolved_stages: set[StageClass],
         available_inputs: set[StageArgument],
         ordering_restrictions: set[_BeforeAfterRestriction],
     ) -> bool:
@@ -277,9 +278,9 @@ class StageBuilder:
 
     def _mutating_stages_check(
         self,
-        stages_can_run: set[type[Stage]],
-        mutating_stages: dict[type[Stage], set[StageArgument]],
-    ) -> set[type[Stage]]:
+        stages_can_run: set[StageClass],
+        mutating_stages: dict[StageClass, set[StageArgument]],
+    ) -> set[StageClass]:
         mutating_stages_can_run = set(mutating_stages.keys()) & stages_can_run
 
         if len(mutating_stages_can_run) == 0:

@@ -8,15 +8,20 @@ from typing import Any, NamedTuple
 from matilda.data.metadata import Metadata, from_csv_file
 from matilda.data.options import InstanceSpaceOptions, from_json_file
 from matilda.model import Model
-from matilda.stage_builder import StageArgument, StageBuilder
-from matilda.stage_runner import AnnotatedStageOutput, StageRunner, StageRunningError
+from matilda.stage_builder import StageBuilder
+from matilda.stage_runner import (
+    AnnotatedStageOutput,
+    StageArgument,
+    StageRunner,
+    StageRunningError,
+)
 from matilda.stages.cloister import CloisterStage
 from matilda.stages.pilot_stage import PilotStage
 from matilda.stages.prelim_stage import PrelimStage
 from matilda.stages.preprocessing_stage import PreprocessingStage
 from matilda.stages.pythia_stage import PythiaStage
 from matilda.stages.sifted_stage import SiftedStage
-from matilda.stages.stage import Stage
+from matilda.stages.stage import StageClass
 from matilda.stages.trace_stage import TraceStage
 
 
@@ -24,7 +29,7 @@ class InstanceSpace:
     """TODO: Describe what an instance space IS."""
 
     _runner: StageRunner
-    _stages: list[type[Stage]]
+    _stages: list[StageClass]
 
     _metadata: Metadata
     _options: InstanceSpaceOptions
@@ -36,7 +41,7 @@ class InstanceSpace:
         self,
         metadata: Metadata,
         options: InstanceSpaceOptions,
-        stages: list[type[Stage]] = [
+        stages: list[StageClass] = [
             PreprocessingStage,
             PrelimStage,
             SiftedStage,
@@ -50,7 +55,7 @@ class InstanceSpace:
         """Initialise the InstanceSpace.
 
         Args:
-            stages list[type[Stage]], optional: A list of stages to be ran.
+            stages list[StageClass], optional: A list of stages to be ran.
         """
         self._metadata = metadata
         self._options = options
@@ -161,7 +166,7 @@ class InstanceSpace:
 
     def run_stage(
         self,
-        stage: type[Stage],
+        stage: StageClass,
         **arguments: Any,  # noqa: ANN401
     ) -> tuple[Any]:
         """Run a single stage.
@@ -172,7 +177,7 @@ class InstanceSpace:
 
         Args
         ----
-            stage type[Stage]: Any inputs to the stage.
+            stage StageClass: Any inputs to the stage.
 
         Returns
         -------
@@ -182,7 +187,7 @@ class InstanceSpace:
 
     def run_until_stage(
         self,
-        stage: type[Stage],
+        stage: StageClass,
         metadata: Metadata,
         options: InstanceSpaceOptions,
         **arguments: Any,  # noqa: ANN401
@@ -191,7 +196,7 @@ class InstanceSpace:
 
         Args
         ----
-            stage type[Stage]: The stage to stop running stages after.
+            stage StageClass: The stage to stop running stages after.
             metadata Metadata: _description_
             options InstanceSpaceOptions: _description_
             **arguments dict[str, Any]: if this is the first time stages are ran,
