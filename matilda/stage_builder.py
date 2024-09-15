@@ -19,6 +19,7 @@ class _StageRestrictions(NamedTuple):
 class StageResolutionError(Exception):
     """An error during stage resolution."""
 
+
 class StageBuilder:
     """A stage builder to resolve a collection of stages.
 
@@ -91,7 +92,7 @@ class StageBuilder:
         return self
 
     def build(
-        self, initial_input_arguments: type[NamedTuple] | set[StageArgument]
+        self, initial_input_arguments: type[NamedTuple] | set[StageArgument],
     ) -> StageRunner:
         """Resolve the stages, and produce a StageRunner to run them.
 

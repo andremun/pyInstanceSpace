@@ -11,10 +11,10 @@ from numpy.typing import NDArray
 from scipy.io import loadmat
 from shapely.geometry import Polygon
 
-from matilda.data.metadata import Metadata
 from matilda.data.model import (
     CloisterOut,
     Data,
+    FeatSel,
     Footprint,
     PilotOut,
     PrelimOut,
@@ -37,7 +37,6 @@ from matilda.data.options import (
     SiftedOptions,
     TraceOptions,
 )
-from matilda.instance_space import InstanceSpace
 from matilda.model import Model
 
 script_dir = Path(__file__).parent
@@ -268,18 +267,29 @@ class _MatlabResults:
             summary=self.workspace_data["model"]["pythia"]["summary"],
         )
 
+        feat_sel = FeatSel(
+            idx=self.workspace_data["model"]["featsel"]["idx"] - 1,
+        )
+
         return Model(
             data=data,
             data_dense=data,
-            feat_sel=
+            feat_sel=feat_sel,
+            prelim=prelim_out,
+            sifted=sifted_out,
+            pilot=pilot_out,
+            cloister=cloister_out,
+            pythia=pythia_out,
+            trace=trace_out,
+            opts=options,
         )
 
 
 def test_save_to_csv() -> None:
     """Test saving information from a completed instance space to CSVs."""
-    instance_space = _MatlabResults().get_instance_space()
+    model = _MatlabResults().get_model()
 
-    instance_space.save_to_csv(script_dir / "test_data/serializers/actual_output/csv")
+    model.save_to_csv(script_dir / "test_data/serializers/actual_output/csv")
 
     test_data_dir = script_dir / "test_data/serializers"
 
@@ -301,9 +311,9 @@ def test_save_to_csv() -> None:
 
 def test_save_for_web() -> None:
     """Test saving information for export to the web frontend."""
-    instance_space = _MatlabResults().get_instance_space()
+    model = _MatlabResults().get_model()
 
-    instance_space.save_for_web(script_dir / "test_data/serializers/actual_output/web")
+    model.save_for_web(script_dir / "test_data/serializers/actual_output/web")
 
     test_data_dir = script_dir / "test_data/serializers"
 

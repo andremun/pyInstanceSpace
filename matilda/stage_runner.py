@@ -18,6 +18,7 @@ class StageArgument(NamedTuple):
 class StageRunningError(Exception):
     """An error during stage running."""
 
+
 class AnnotatedStageOutput(NamedTuple):
     """The yielded output of running a stage."""
 

@@ -6,16 +6,6 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from matilda.data.metadata import Metadata, from_csv_file
-from matilda.data.model import (
-    CloisterOut,
-    Data,
-    FeatSel,
-    PilotOut,
-    PrelimOut,
-    PythiaOut,
-    SiftedOut,
-    TraceOut,
-)
 from matilda.data.options import InstanceSpaceOptions, from_json_file
 from matilda.model import Model
 from matilda.stage_builder import StageArgument, StageBuilder
@@ -78,8 +68,10 @@ class InstanceSpace:
             StageArgument(k, v) for k, v in InstanceSpaceOptions.__annotations__.items()
         }
         if additional_initial_inputs is not None:
-            annotations |= stage_builder._named_tuple_to_stage_arguments(  # noqa: SLF001
-                additional_initial_inputs,
+            annotations |= (
+                stage_builder._named_tuple_to_stage_arguments(  # noqa: SLF001
+                    additional_initial_inputs,
+                )
             )
 
         self._runner = stage_builder.build(annotations)
@@ -140,7 +132,6 @@ class InstanceSpace:
 
         """
         self._runner.run_all(**metadata.__dict__, **options.__dict__, **arguments)
-
 
         raise NotImplementedError
 

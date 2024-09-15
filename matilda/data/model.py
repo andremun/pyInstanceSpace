@@ -7,7 +7,7 @@ to data analysis and model building.
 
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Generic, Self, TypeVar
+from typing import Any, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -396,6 +396,7 @@ class TraceOut:
             hard=stage_runner_output["hard"],
             summary=stage_runner_output["summary"],
         )
+
 
 @dataclass(frozen=True)
 class FeatSel:

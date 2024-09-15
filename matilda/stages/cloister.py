@@ -206,7 +206,6 @@ class CloisterStage(Stage):
 
         return (z_edge, z_ecorr)
 
-
     @staticmethod
     def _compute_correlation(
         x: NDArray[np.double],

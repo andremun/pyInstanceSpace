@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
 from typing_extensions import TypeVar
 
 from matilda._serializers import save_instance_space_for_web, save_instance_space_to_csv
