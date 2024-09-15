@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+from typing_extensions import TypeVar
 
 from matilda._serializers import save_instance_space_for_web, save_instance_space_to_csv
 from matilda.data.model import (
@@ -31,6 +33,41 @@ class Model:
     pythia: PythiaOut
     trace: TraceOut
     opts: InstanceSpaceOptions
+
+    T = TypeVar("T", bound="Model")
+
+    @classmethod
+    def from_stage_runner_output(
+        cls: type[T],
+        stage_runner_output: dict[str, Any],
+        options: InstanceSpaceOptions,
+    ) -> T:
+        """Initialise a Model object from the output of an InstanceSpace StageRunner.
+
+        Args
+        ----
+            cls (type[T]): the class
+            stage_runner_output (dict[str, Any]): output of StageRunner for an
+                InstanceSpace
+
+        Returns
+        -------
+            Model: a Model object
+        """
+        data = Data.from_stage_runner_output(stage_runner_output)
+
+        return cls(
+            data=data,
+            data_dense=data,  # TODO: Work out what data_dense is
+            feat_sel=FeatSel.from_stage_runner_output(stage_runner_output),
+            prelim=PrelimOut.from_stage_runner_output(stage_runner_output),
+            sifted=SiftedOut.from_stage_runner_output(stage_runner_output),
+            pilot=PilotOut.from_stage_runner_output(stage_runner_output),
+            cloister=CloisterOut.from_stage_runner_output(stage_runner_output),
+            pythia=PythiaOut.from_stage_runner_output(stage_runner_output),
+            trace=TraceOut.from_stage_runner_output(stage_runner_output),
+            opts=options,
+        )
 
     def save_to_csv(self, output_directory: Path) -> None:
         """Save csv outputs to a directory."""

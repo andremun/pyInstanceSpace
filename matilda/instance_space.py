@@ -111,18 +111,9 @@ class InstanceSpace:
             if not self._final_output:
                 raise StageRunningError("InstanceSpace has not been completely ran.")
 
-            data = Data.from_stage_runner_output(self._final_output)
-            self._model = Model(
-                data=data,
-                data_dense=data,  # TODO: Work out what data_dense is
-                feat_sel=FeatSel.from_stage_runner_output(self._final_output),
-                prelim=PrelimOut.from_stage_runner_output(self._final_output),
-                sifted=SiftedOut.from_stage_runner_output(self._final_output),
-                pilot=PilotOut.from_stage_runner_output(self._final_output),
-                cloister=CloisterOut.from_stage_runner_output(self._final_output),
-                pythia=PythiaOut.from_stage_runner_output(self._final_output),
-                trace=TraceOut.from_stage_runner_output(self._final_output),
-                opts=self._options,
+            self._model = Model.from_stage_runner_output(
+                self._final_output,
+                self._options,
             )
 
         return self._model
@@ -148,8 +139,8 @@ class InstanceSpace:
             tuple[Any]: The output of all stages
 
         """
-        # TODO: split out metadata and options into component fields
         self._runner.run_all(**metadata.__dict__, **options.__dict__, **arguments)
+
 
         raise NotImplementedError
 
