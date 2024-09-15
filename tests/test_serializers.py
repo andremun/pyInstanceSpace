@@ -332,6 +332,8 @@ def test_save_to_csv() -> None:
         expected_file_path = test_data_dir / "expected_output/csv" / csv_file
         actual_file_path = test_data_dir / "actual_output/csv" / csv_file
 
+        print(actual_file_path)
+
         # Expected file isn't a directory, and actual file exists
         assert Path.is_file(expected_file_path)
         assert Path.is_file(actual_file_path)
