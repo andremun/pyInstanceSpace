@@ -53,24 +53,6 @@ class Preprocessing:
             A tuple containing the processed data (as 'PreprocessingDataChanged' object)
             and dummy object for further implementation (as 'PreprocessingOut' object).
         """
-        data = Data(
-            inst_labels=matadata.instance_labels,
-            feat_labels=matadata.feature_names,
-            algo_labels=matadata.algorithm_names,
-            x=matadata.features,
-            y=matadata.algorithms,
-            # if I do not fill them at the end of the preprocessing stage,
-            # get rid of those dummy ones (just the preprocessing changed data)
-            x_raw=np.array([], dtype=np.double),
-            y_raw=np.array([], dtype=np.double),
-            y_bin=np.array([], dtype=np.double),
-            y_best=np.array([], dtype=np.double),
-            p=np.array([], dtype=np.double),
-            num_good_algos=np.array([], dtype=np.double),
-            beta=np.array([], dtype=np.bool_),
-            s=None,
-            uniformity=None,
-        )
 
         new_x, new_y, new_feat_labels, new_algo_labels = Preprocessing.select_features_and_algorithms(matadata.features,
             matadata.algorithms, matadata.feature_names, matadata.algorithm_names, opts)
