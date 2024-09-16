@@ -21,7 +21,7 @@ from matilda.stages.prelim_stage import PrelimStage
 from matilda.stages.preprocessing_stage import PreprocessingStage
 from matilda.stages.pythia_stage import PythiaStage
 from matilda.stages.sifted_stage import SiftedStage
-from matilda.stages.stage import StageClass
+from matilda.stages.stage import IN, OUT, Stage, StageClass
 from matilda.stages.trace_stage import TraceStage
 
 
@@ -166,9 +166,9 @@ class InstanceSpace:
 
     def run_stage(
         self,
-        stage: StageClass,
+        stage: type[Stage[IN, OUT]],
         **arguments: Any,  # noqa: ANN401
-    ) -> NamedTuple:
+    ) -> OUT:
         """Run a single stage.
 
         All inputs to the stage must either be present from previously ran stages, or
@@ -184,9 +184,7 @@ class InstanceSpace:
             list[Any]: The output of the stage
         """
         # Need to type coerce the output of the stage because generics
-        stage_out: NamedTuple = self._runner.run_stage(stage, **arguments)
-
-        return stage_out
+        return self._runner.run_stage(stage, **arguments)
 
     def run_until_stage(
         self,
