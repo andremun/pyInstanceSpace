@@ -13,9 +13,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from matilda.data.model import (
-    Data,
-)
 from matilda.stages.preprocessing import Preprocessing
 
 path_root = Path(__file__).parents[1]
@@ -45,13 +42,14 @@ def test_remove_instances_with_two_row_missing() -> None:
     inst_labels = pd.Series(["inst" + str(i) for i in range(10)])
     feat_labels = [f"feature{i}" for i in range(10)]
 
-
-    new_x, new_y, new_inst_labels, new_feat_labels, _ = Preprocessing.remove_instances_with_many_missing_values(
-        x=large_x,
-        y=large_y,
-        inst_labels=inst_labels,
-        feat_labels=feat_labels,
-        s=None
+    new_x, new_y, new_inst_labels, new_feat_labels, _ = (
+        Preprocessing.remove_instances_with_many_missing_values(
+            x=large_x,
+            y=large_y,
+            inst_labels=inst_labels,
+            feat_labels=feat_labels,
+            s=None,
+        )
     )
 
     expected_rows = 8  # two rows (instances) should be removed
@@ -59,14 +57,28 @@ def test_remove_instances_with_two_row_missing() -> None:
     expected_y_columns = 5
 
     # Assertions to verify correct modifications
-    assert new_x.shape == (expected_rows, expected_x_columns), "X dimensions are incorrect after removal"
-    assert new_y.shape == (expected_rows, expected_y_columns), "Y dimensions are incorrect after removal"
-    assert new_inst_labels.size == expected_rows, "Incorrect number of instance labels after removal"
-    assert len(new_feat_labels) == expected_x_columns, "Feature labels were not updated correctly"
+    assert new_x.shape == (
+        expected_rows,
+        expected_x_columns,
+    ), "X dimensions are incorrect after removal"
+    assert new_y.shape == (
+        expected_rows,
+        expected_y_columns,
+    ), "Y dimensions are incorrect after removal"
+    assert (
+        new_inst_labels.size == expected_rows
+    ), "Incorrect number of instance labels after removal"
+    assert (
+        len(new_feat_labels) == expected_x_columns
+    ), "Feature labels were not updated correctly"
 
     # Check instance labels content
-    assert new_inst_labels.tolist() == ["inst" + str(i) for i in range(2, 10)], "Instance labels content incorrect"
-    assert new_feat_labels == [f"feature{i}" for i in range(1, 10)], "Feature labels content incorrect"
+    assert new_inst_labels.tolist() == [
+        "inst" + str(i) for i in range(2, 10)
+    ], "Instance labels content incorrect"
+    assert new_feat_labels == [
+        f"feature{i}" for i in range(1, 10)
+    ], "Feature labels content incorrect"
 
 
 def test_remove_instances_with_3_row_missing() -> None:
@@ -93,13 +105,14 @@ def test_remove_instances_with_3_row_missing() -> None:
     feat_labels = [f"feature{i}" for i in range(10)]
     s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
 
-
-    new_x, new_y, new_inst_labels, new_feat_labels, new_s = Preprocessing.remove_instances_with_many_missing_values(
-        x=large_x,
-        y=large_y,
-        inst_labels=inst_labels,
-        feat_labels=feat_labels,
-        s=s
+    new_x, new_y, new_inst_labels, new_feat_labels, new_s = (
+        Preprocessing.remove_instances_with_many_missing_values(
+            x=large_x,
+            y=large_y,
+            inst_labels=inst_labels,
+            feat_labels=feat_labels,
+            s=s,
+        )
     )
     expected_rows = 7
 
@@ -107,17 +120,28 @@ def test_remove_instances_with_3_row_missing() -> None:
     expected_y_columns = 5
 
     # Assertions to verify correct modifications
-    assert new_x.shape == (expected_rows, expected_x_columns), "X dimensions are incorrect after removal"
-    assert new_y.shape == (expected_rows, expected_y_columns), "Y dimensions are incorrect after removal"
-    assert new_inst_labels.size == expected_rows, "Incorrect number of instance labels after removal"
+    assert new_x.shape == (
+        expected_rows,
+        expected_x_columns,
+    ), "X dimensions are incorrect after removal"
+    assert new_y.shape == (
+        expected_rows,
+        expected_y_columns,
+    ), "Y dimensions are incorrect after removal"
+    assert (
+        new_inst_labels.size == expected_rows
+    ), "Incorrect number of instance labels after removal"
     assert new_feat_labels == feat_labels, "Feature labels should not change"
 
     # Check instance labels content
-    assert new_inst_labels.tolist() == ["inst" + str(i) for i in range(10) if
-                                        i not in [2, 3, 4]], "Instance labels content incorrect"
+    assert new_inst_labels.tolist() == [
+        "inst" + str(i) for i in range(10) if i not in [2, 3, 4]
+    ], "Instance labels content incorrect"
 
     # Check source series content
-    assert new_s.tolist() == ["source" + str(i) for i in range(10) if i not in [2, 3, 4]], "Source content incorrect"
+    assert new_s.tolist() == [
+        "source" + str(i) for i in range(10) if i not in [2, 3, 4]
+    ], "Source content incorrect"
 
 
 def test_remove_instances_keep_same() -> None:
@@ -145,12 +169,14 @@ def test_remove_instances_keep_same() -> None:
     feat_labels = [f"feature{i}" for i in range(10)]
     s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
 
-    new_x, new_y, new_inst_labels, new_feat_labels, new_s = Preprocessing.remove_instances_with_many_missing_values(
-        x=large_x,
-        y=large_y,
-        inst_labels=inst_labels,
-        feat_labels=feat_labels,
-        s=s
+    new_x, new_y, new_inst_labels, new_feat_labels, new_s = (
+        Preprocessing.remove_instances_with_many_missing_values(
+            x=large_x,
+            y=large_y,
+            inst_labels=inst_labels,
+            feat_labels=feat_labels,
+            s=s,
+        )
     )
 
     expected_rows = 10
@@ -158,19 +184,33 @@ def test_remove_instances_keep_same() -> None:
     expected_y_columns = 5
 
     # Assertions to verify correct modifications
-    assert new_x.shape == (expected_rows, expected_x_columns), "X dimensions are incorrect after removal"
-    assert new_y.shape == (expected_rows, expected_y_columns), "Y dimensions are incorrect; all should remain"
+    assert new_x.shape == (
+        expected_rows,
+        expected_x_columns,
+    ), "X dimensions are incorrect after removal"
+    assert new_y.shape == (
+        expected_rows,
+        expected_y_columns,
+    ), "Y dimensions are incorrect; all should remain"
     assert new_inst_labels.size == expected_rows, "Instance labels should not change"
-    assert len(new_feat_labels) == expected_x_columns, "Feature labels should be updated correctly"
+    assert (
+        len(new_feat_labels) == expected_x_columns
+    ), "Feature labels should be updated correctly"
 
     # Check instance labels content
-    assert new_inst_labels.tolist() == ["inst" + str(i) for i in range(10)], "Instance labels content incorrect"
+    assert new_inst_labels.tolist() == [
+        "inst" + str(i) for i in range(10)
+    ], "Instance labels content incorrect"
 
     # Check feature labels content
-    assert new_feat_labels == [f"feature{i}" for i in range(5, 10)], "Feature labels content incorrect"
+    assert new_feat_labels == [
+        f"feature{i}" for i in range(5, 10)
+    ], "Feature labels content incorrect"
 
     # Check source series content
-    assert new_s.tolist() == ["source" + str(i) for i in range(10)], "Source content incorrect"
+    assert new_s.tolist() == [
+        "source" + str(i) for i in range(10)
+    ], "Source content incorrect"
 
 
 def test_duplicated_data_edge() -> None:
@@ -208,12 +248,14 @@ def test_duplicated_data_edge() -> None:
     feat_labels = [f"feature{i}" for i in range(10)]
     s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
 
-    new_x, new_y, new_inst_labels, new_feat_labels, new_s = Preprocessing.remove_instances_with_many_missing_values(
-        x=large_x,
-        y=large_y,
-        inst_labels=inst_labels,
-        feat_labels=feat_labels,
-        s=s
+    new_x, new_y, new_inst_labels, new_feat_labels, new_s = (
+        Preprocessing.remove_instances_with_many_missing_values(
+            x=large_x,
+            y=large_y,
+            inst_labels=inst_labels,
+            feat_labels=feat_labels,
+            s=s,
+        )
     )
 
     expected_rows = 10
@@ -221,13 +263,27 @@ def test_duplicated_data_edge() -> None:
     expected_y_columns = 5
 
     # Check instances removal
-    assert new_x.shape == (expected_rows, expected_x_columns), "X dimensions are incorrect after removal"
-    assert new_y.shape == (expected_rows, expected_y_columns), "Y dimensions are incorrect; all should remain"
+    assert new_x.shape == (
+        expected_rows,
+        expected_x_columns,
+    ), "X dimensions are incorrect after removal"
+    assert new_y.shape == (
+        expected_rows,
+        expected_y_columns,
+    ), "Y dimensions are incorrect; all should remain"
     assert new_inst_labels.size == expected_rows, "Instance labels should not change"
-    assert len(new_feat_labels) == expected_x_columns, "Feature labels should be updated correctly"
-    assert new_inst_labels.tolist() == ["inst" + str(i) for i in range(10)], "Instance labels content incorrect"
-    assert new_feat_labels == [f"feature{i}" for i in range(5, 10)], "Feature labels content incorrect"
-    assert new_s.tolist() == ["source" + str(i) for i in range(10)], "Source content incorrect"
+    assert (
+        len(new_feat_labels) == expected_x_columns
+    ), "Feature labels should be updated correctly"
+    assert new_inst_labels.tolist() == [
+        "inst" + str(i) for i in range(10)
+    ], "Instance labels content incorrect"
+    assert new_feat_labels == [
+        f"feature{i}" for i in range(5, 10)
+    ], "Feature labels content incorrect"
+    assert new_s.tolist() == [
+        "source" + str(i) for i in range(10)
+    ], "Source content incorrect"
 
 
 def test_duplicated_data() -> None:
@@ -273,12 +329,14 @@ def test_duplicated_data() -> None:
     inst_labels = pd.Series(["inst" + str(i) for i in range(10)])
     feat_labels = [f"feature{i}" for i in range(10)]
 
-    new_x, new_y, new_inst_labels, new_feat_labels, new_s = Preprocessing.remove_instances_with_many_missing_values(
-        x=large_x,
-        y=large_y,
-        inst_labels=inst_labels,
-        feat_labels=feat_labels,
-        s=s
+    new_x, new_y, new_inst_labels, new_feat_labels, new_s = (
+        Preprocessing.remove_instances_with_many_missing_values(
+            x=large_x,
+            y=large_y,
+            inst_labels=inst_labels,
+            feat_labels=feat_labels,
+            s=s,
+        )
     )
 
     expected_rows = 10

@@ -98,12 +98,22 @@ def test_manual_selection() -> None:
 
     opts = create_dummy_opt(selvars)
 
-    new_x, new_y, new_feat_labels, new_algo_labels = Preprocessing.select_features_and_algorithms(
-        large_x, large_y, feat_labels, algo_labels, opts
+    new_x, new_y, new_feat_labels, new_algo_labels = (
+        Preprocessing.select_features_and_algorithms(
+            large_x,
+            large_y,
+            feat_labels,
+            algo_labels,
+            opts,
+        )
     )
 
     assert new_feat_labels == [
-        "feature1", "feature3", "feature5", "feature7", "feature9"
+        "feature1",
+        "feature3",
+        "feature5",
+        "feature7",
+        "feature9",
     ], "Feature selection failed"
     assert new_algo_labels == ["algo1", "algo3"], "Algorithm selection failed"
 
@@ -142,12 +152,21 @@ def test_manual_wrong_names() -> None:
 
     opts = create_dummy_opt(selvars)
 
-    new_x, new_y, new_feat_labels, new_algo_labels = Preprocessing.select_features_and_algorithms(
-        large_x, large_y, feat_labels, algo_labels, opts
+    new_x, new_y, new_feat_labels, new_algo_labels = (
+        Preprocessing.select_features_and_algorithms(
+            large_x,
+            large_y,
+            feat_labels,
+            algo_labels,
+            opts,
+        )
     )
 
     assert new_feat_labels == [
-        "feature1", "feature3", "feature5", "feature9"
+        "feature1",
+        "feature3",
+        "feature5",
+        "feature9",
     ], "Feature selection failed"
     assert new_algo_labels == ["algo3"], "Algorithm selection failed"
 
@@ -184,8 +203,14 @@ def test_manual_none_feats_empty_algo() -> None:
 
     opts = create_dummy_opt(selvars)
 
-    new_x, new_y, new_feat_labels, new_algo_labels = Preprocessing.select_features_and_algorithms(
-        large_x, large_y, feat_labels, algo_labels, opts
+    new_x, new_y, new_feat_labels, new_algo_labels = (
+        Preprocessing.select_features_and_algorithms(
+            large_x,
+            large_y,
+            feat_labels,
+            algo_labels,
+            opts,
+        )
     )
 
     assert new_feat_labels == feat_labels, "Feature selection failed"
@@ -223,8 +248,14 @@ def test_manual_empty_feats_none_algo() -> None:
 
     opts = create_dummy_opt(selvars)
 
-    new_x, new_y, new_feat_labels, new_algo_labels = Preprocessing.select_features_and_algorithms(
-        large_x, large_y, feat_labels, algo_labels, opts
+    new_x, new_y, new_feat_labels, new_algo_labels = (
+        Preprocessing.select_features_and_algorithms(
+            large_x,
+            large_y,
+            feat_labels,
+            algo_labels,
+            opts,
+        )
     )
 
     assert new_feat_labels == [
