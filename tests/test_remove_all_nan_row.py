@@ -139,6 +139,7 @@ def test_remove_instances_with_3_row_missing() -> None:
     ], "Instance labels content incorrect"
 
     # Check source series content
+    assert new_s is not None
     assert new_s.tolist() == [
         "source" + str(i) for i in range(10) if i not in [2, 3, 4]
     ], "Source content incorrect"
@@ -208,6 +209,7 @@ def test_remove_instances_keep_same() -> None:
     ], "Feature labels content incorrect"
 
     # Check source series content
+    assert new_s is not None
     assert new_s.tolist() == [
         "source" + str(i) for i in range(10)
     ], "Source content incorrect"
@@ -281,6 +283,7 @@ def test_duplicated_data_edge() -> None:
     assert new_feat_labels == [
         f"feature{i}" for i in range(5, 10)
     ], "Feature labels content incorrect"
+    assert new_s is not None
     assert new_s.tolist() == [
         "source" + str(i) for i in range(10)
     ], "Source content incorrect"

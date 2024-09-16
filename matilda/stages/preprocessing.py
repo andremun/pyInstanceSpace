@@ -58,23 +58,25 @@ class Preprocessing:
             )
         )
 
-        after_washing = Preprocessing.remove_instances_with_many_missing_values(
-            new_x,
-            new_y,
-            matadata.instance_sources,
-            new_feat_labels,
-            matadata.instance_labels,
+        updated_x, updated_y, updated_inst_labels, updated_feat_labels, updated_s = (
+            Preprocessing.remove_instances_with_many_missing_values(
+                new_x,
+                new_y,
+                matadata.instance_sources,
+                new_feat_labels,
+                matadata.instance_labels,
+            )
         )
 
         # From here return the tuple[PreprocessingDataChanged, PreprocessingOut(dummy)]
 
         pre_data_changed = PreprocessingDataChanged(
-            inst_labels=after_washing.inst_labels,
-            feat_labels=after_washing.feat_labels,
-            algo_labels=after_washing.algo_labels,
-            x=after_washing.x,
-            y=after_washing.y,
-            s=after_washing.s,
+            inst_labels=updated_inst_labels,
+            feat_labels=updated_feat_labels,
+            algo_labels=new_algo_labels,
+            x=updated_x,
+            y=updated_y,
+            s=updated_s,
         )
 
         preprocess_out = PreprocessingOut()
@@ -180,7 +182,7 @@ class Preprocessing:
         s: pd.Series | None,  # type: ignore[type-arg]
         feat_labels: list[str],
         inst_labels: pd.Series,  # type: ignore[type-arg]
-    ) -> tuple[NDArray[np.double], NDArray[np.double], pd.Series, list[str], pd.Series]:  # type: ignore[type-arg]
+    ) -> tuple[NDArray[np.double], NDArray[np.double], pd.Series, list[str], pd.Series | None]:  # type: ignore[type-arg]
         """Remove rows (instances) and features (X columns).
 
         Parameters
