@@ -177,10 +177,10 @@ class Preprocessing:
     def remove_instances_with_many_missing_values(
         x: NDArray[np.double],
         y: NDArray[np.double],
-        s: pd.Series | None,
+        s: pd.Series | None,  # type: ignore[type-arg]
         feat_labels: list[str],
-        inst_labels: pd.Series,
-    ) -> tuple[NDArray[np.double], NDArray[np.double], pd.Series, list[str], pd.Series]:
+        inst_labels: pd.Series,  # type: ignore[type-arg]
+    ) -> tuple[NDArray[np.double], NDArray[np.double], pd.Series, list[str], pd.Series]:  # type: ignore[type-arg]
         """Remove rows (instances) and features (X columns).
 
         Parameters
