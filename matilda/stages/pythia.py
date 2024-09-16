@@ -177,7 +177,12 @@ class Pythia:
             print(
                 "-------------------------------------------------------------------------",
             )
-        print(" => PYTHIA is using gaussian kernel")
+
+        if opts.is_poly_krnl:
+            print(" => PYTHIA is using polynomial kernel")
+        else:
+            print(" => PYTHIA is using gaussian kernel")
+
         print(
             "-------------------------------------------------------------------------",
         )
