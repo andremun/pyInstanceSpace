@@ -66,76 +66,76 @@ POLYGON_MIN_POINT_REQUIREMENT = 3
 class Trace:
     """A class to manage the TRACE analysis process for performance footprints.
 
-The TRACE class is designed to analyze the performance of different algorithms by
-generating geometric footprints that represent areas of good, best, and beta
-performance. The footprints are constructed based on clustering of instance data
-and are evaluated for their density and purity relative to specific algorithmic
-performance metrics.
+    The TRACE class is designed to analyze the performance of different algorithms by
+    generating geometric footprints that represent areas of good, best, and beta
+    performance. The footprints are constructed based on clustering of instance data
+    and are evaluated for their density and purity relative to specific algorithmic
+    performance metrics.
 
-Attributes:
-----------
-z : NDArray[np.double]
+    Attributes:
+    ----------
+    z : NDArray[np.double]
     The space of instances, represented as an array of data points (features).
-y_bin : NDArray[np.bool_]
+    y_bin : NDArray[np.bool_]
     Binary indicators of performance, where each column corresponds to an
     algorithm's performance.
-p : NDArray[np.int_]
+    p : NDArray[np.int_]
     Performance metrics for algorithms, represented as integers where each value
     corresponds to the index of an algorithm.
-beta : NDArray[np.bool_]
+    beta : NDArray[np.bool_]
     Specific binary thresholds for footprint calculation.
-algo_labels : list[str]
+    algo_labels : list[str]
     List of labels for each algorithm.
-opts : TraceOptions
+    opts : TraceOptions
     Configuration options for TRACE and its subroutines, controlling the behavior
     of the analysis.
 
-Methods:
--------
-__init__(self) -> None:
+    Methods:
+    -------
+    __init__(self) -> None:
     Initializes the Trace class without any parameters.
 
-run(self, z: NDArray[np.double], y_bin: NDArray[np.bool_], p: NDArray[np.int_],
+    run(self, z: NDArray[np.double], y_bin: NDArray[np.bool_], p: NDArray[np.int_],
     beta: NDArray[np.bool_], algo_labels: list[str], opts: TraceOptions)
     -> tuple[TraceDataChanged, TraceOut]:
     Performs the TRACE footprint analysis and returns the results, including
     footprints and a summary.
 
-build(self, y_bin: NDArray[np.bool_]) -> Footprint:
+    build(self, y_bin: NDArray[np.bool_]) -> Footprint:
     Constructs a footprint polygon using DBSCAN clustering based on the provided
     binary indicators.
 
-contra(self, base: Footprint, test: Footprint, y_base: NDArray[np.bool_],
+    contra(self, base: Footprint, test: Footprint, y_base: NDArray[np.bool_],
        y_test: NDArray[np.bool_]) -> tuple[Footprint, Footprint]:
     Detects and resolves contradictions between two footprint polygons.
 
-tight(self, polygon: Polygon | MultiPolygon, y_bin: NDArray[np.bool_])
+    tight(self, polygon: Polygon | MultiPolygon, y_bin: NDArray[np.bool_])
     -> Polygon | None:
     Refines an existing polygon by removing slivers and improving its shape.
 
-fit_poly(self, polydata: NDArray[np.double], y_bin: NDArray[np.bool_])
+    fit_poly(self, polydata: NDArray[np.double], y_bin: NDArray[np.bool_])
     -> Polygon | None:
     Fits a polygon to the given data points, ensuring it adheres to purity constraints.
 
-summary(self, footprint: Footprint, space_area: float, space_density: float)
+    summary(self, footprint: Footprint, space_area: float, space_density: float)
     -> list[float]:
     Summarizes the footprint metrics, returning a list of values such as area,
     normalized area, density, normalized density, and purity.
 
-throw(self) -> Footprint:
+    throw(self) -> Footprint:
     Generates an empty footprint with default values, indicating insufficient data.
 
-run_dbscan(self, y_bin: NDArray[np.bool_], data: NDArray[np.double])
+    run_dbscan(self, y_bin: NDArray[np.bool_], data: NDArray[np.double])
     -> NDArray[np.int_]:
     Performs DBSCAN clustering on the dataset and returns an array of cluster labels.
 
-process_algorithm(self, i: int) -> tuple[int, Footprint, Footprint]:
+    process_algorithm(self, i: int) -> tuple[int, Footprint, Footprint]:
     Processes a single algorithm to calculate its good and best performance footprints.
 
-parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint],
+    parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint],
     list[Footprint]]:
     Performs parallel processing to calculate footprints for multiple algorithms.
-"""
+    """
 
     z: NDArray[np.double]
     y_bin: NDArray[np.bool_]
@@ -283,16 +283,16 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
         algorithm_names_df = pd.DataFrame(self.algo_labels, columns=["Algorithm"])
 
         data_labels = [
-                "Area_Good",
-                "Area_Good_Normalised",
-                "Density_Good",
-                "Density_Good_Normalised",
-                "Purity_Good",
-                "Area_Best",
-                "Area_Best_Normalised",
-                "Density_Best",
-                "Density_Best_Normalised",
-                "Purity_Best",
+            "Area_Good",
+            "Area_Good_Normalised",
+            "Density_Good",
+            "Density_Good_Normalised",
+            "Purity_Good",
+            "Area_Best",
+            "Area_Best_Normalised",
+            "Density_Best",
+            "Density_Best_Normalised",
+            "Purity_Best",
         ]
 
         # Populate the summary table with metrics for each algorithm's
