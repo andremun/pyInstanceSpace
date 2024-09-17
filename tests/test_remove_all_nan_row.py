@@ -320,13 +320,6 @@ def test_duplicated_data() -> None:
     large_y = rng.random((10, 5))
     large_y[6, :2] = np.nan  # 7th row first 2 columns NaN
 
-    x_raw = rng.random((10, 10))
-    y_raw = rng.random((10, 5))
-    y_bin = rng.choice([True, False], size=(10, 5))
-    y_best = rng.random((10, 5))
-    p = rng.random((10, 5))
-    num_good_algos = np.array([], dtype=np.double)
-    beta = rng.choice([True, False], size=(10, 5))
     s = pd.Series(["string" + str(i) for i in range(10)])
 
     inst_labels = pd.Series(["inst" + str(i) for i in range(10)])

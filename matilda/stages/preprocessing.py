@@ -111,15 +111,27 @@ class Preprocessing:
 
         Remove instances with too many missing values.
 
-        Parameters
+        Args
         ----------
-        data
-            the Data class that contains the content of instances, with
-            algorithm and feature labels
-        opts
-            the Option class that contains setting for analysis.
+        x : NDArray[np.double]
+            2D numpy array representing the feature matrix (instances x features).
+        y : NDArray[np.double]
+            2D numpy array representing the algorithm matrix (instances x algorithms).
+        feat_labels : list[str]
+            List of labels corresponding to the features in 'x'.
+        algo_labels : list[str]
+            List of labels corresponding to the algorithms in 'y'.
+        opts : InstanceSpaceOptions
+            An instance of InstanceSpaceOptions that contains settings.
 
-        :return Data: the Data class that has been modified based on the settings
+        Returns
+        -------
+        tuple[NDArray[np.double], NDArray[np.double], list[str], list[str]]
+            A tuple containing:
+            - Modified feature matrix after feature selection and instance removal.
+            - Modified algorithm matrix after algorithm selection and instance removal.
+            - List of selected feature labels.
+            - List of selected algorithm labels.
         """
         print("---------------------------------------------------")
         new_x = x
@@ -182,7 +194,9 @@ class Preprocessing:
         s: pd.Series | None,  # type: ignore[type-arg]
         feat_labels: list[str],
         inst_labels: pd.Series,  # type: ignore[type-arg]
-    ) -> tuple[NDArray[np.double], NDArray[np.double], pd.Series, list[str], pd.Series | None]:  # type: ignore[type-arg]
+    ) -> tuple[
+        NDArray[np.double], NDArray[np.double], pd.Series, list[str], pd.Series | None,
+    ]:  # type: ignore[type-arg]
         """Remove rows (instances) and features (X columns).
 
         Parameters
