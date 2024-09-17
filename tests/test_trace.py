@@ -89,11 +89,8 @@ def test_trace_pythia() -> None:
     received_output = trace_output.summary.sort_values("Algorithm")
 
     # Use assert_frame_equal with tolerance
-    try:
-        assert_frame_equal(expected_output, received_output, rtol=1e-2, atol=1e-2)
-        print("DataFrames are almost equal.")
-    except AssertionError as e:
-        print("DataFrames are not equal:", e)
+    assert_frame_equal(expected_output, received_output, rtol=1e-2, atol=1e-2)
+    print("DataFrames are almost equal.")
 
 
 def test_trace_simulation() -> None:
@@ -169,8 +166,5 @@ def test_trace_simulation() -> None:
     received_output = trace_output.summary.sort_values("Algorithm")
 
     # Use assert_frame_equal with tolerance
-    try:
-        assert_frame_equal(expected_output, received_output, rtol=1e-2, atol=1e-2)
-        print("DataFrames are almost equal.")
-    except AssertionError as e:
-        print("DataFrames are not equal:", e)
+    assert_frame_equal(expected_output, received_output, rtol=1e-2, atol=1e-2)
+    print("DataFrames are almost equal.")

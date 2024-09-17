@@ -182,6 +182,10 @@ class Trace:
                 time.time()
             )  # Track the start time for processing this base algorithm
 
+            algo_1: NDArray[np.bool_] = np.array(
+                [int(v) == i for v in self.p],
+                dtype=np.bool_,
+            )
             for j in range(i + 1, n_algos):
                 print(
                     f"      -> TRACE is comparing '"
@@ -191,10 +195,7 @@ class Trace:
 
                 # Create boolean arrays indicating which points correspond
                 # to each algorithm's best performance
-                algo_1: NDArray[np.bool_] = np.array(
-                    [int(v) == i for v in self.p],
-                    dtype=np.bool_,
-                )
+
                 algo_2: NDArray[np.bool_] = np.array(
                     [int(v) == j for v in self.p],
                     dtype=np.bool_,
