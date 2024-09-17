@@ -1,70 +1,4 @@
-"""TRACE Stage Module for Performance-Based Footprint Estimation.
-
-This module implements the TRACE stage, which analyzes the performance of multiple
-algorithms by generating geometric footprints. These footprints represent the areas
-of good, best, and beta performance based on the clustering of instance data. The
-footprints are further evaluated for their density and purity in relation to the
-performance metrics of the algorithms.
-
-The TRACE stage has several key steps:
-1. Cluster the instance data using DBSCAN to identify regions of interest.
-2. Generate geometric footprints representing algorithm performance.
-3. Detect and resolve contradictions between algorithm footprints.
-4. Compute performance metrics such as area, density, and purity for each footprint.
-5. Optionally smoothen the polygonal boundaries for more refined footprint shapes.
-
-This module is structured around the `Trace` class, which encapsulates the entire
-process of footprint estimation and performance evaluation. Methods are provided
-to cluster data, generate polygons, resolve contradictions between footprints, and
-compute statistical metrics.
-
-Dependencies:
-- alphashape
-- multiprocessing
-- numpy
-- pandas
-- scipy
-- shapely
-- sklearn
-
-Classes
--------
-Trace :
-    The primary class that implements the TRACE stage, providing methods to generate
-    footprints and compute performance-based metrics.
-
-Footprint :
-    A dataclass representing a footprint with geometric and statistical properties.
-
-Functions
----------
-from_polygon(polygon, z, y_bin, smoothen=False):
-    A function to create a Footprint object from a given polygon and corresponding
-    instance data, optionally smoothing the polygon borders.
-"""
-
-import math
-import multiprocessing
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
-import alphashape
-import numpy as np
-import pandas as pd
-from numpy.typing import NDArray
-from scipy.special import gamma
-from shapely.geometry import MultiPoint, MultiPolygon, Polygon
-from shapely.ops import triangulate, unary_union
-from sklearn.cluster import DBSCAN
-
-from matilda.data.model import Footprint, TraceDataChanged, TraceOut
-from matilda.data.options import TraceOptions
-
-POLYGON_MIN_POINT_REQUIREMENT = 3
-
-
-class Trace:
-    """A class to manage the TRACE analysis process for performance footprints.
+"""A class to manage the TRACE analysis process for performance footprints.
 
 The TRACE class is designed to analyze the performance of different algorithms by
 generating geometric footprints that represent areas of good, best, and beta
@@ -136,6 +70,29 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
     list[Footprint]]:
     Performs parallel processing to calculate footprints for multiple algorithms.
 """
+
+import math
+import multiprocessing
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import alphashape
+import numpy as np
+import pandas as pd
+from numpy.typing import NDArray
+from scipy.special import gamma
+from shapely.geometry import MultiPoint, MultiPolygon, Polygon
+from shapely.ops import triangulate, unary_union
+from sklearn.cluster import DBSCAN
+
+from matilda.data.model import Footprint, TraceDataChanged, TraceOut
+from matilda.data.options import TraceOptions
+
+POLYGON_MIN_POINT_REQUIREMENT = 3
+
+
+class Trace:
+    """See file docstring."""
 
     z: NDArray[np.double]
     y_bin: NDArray[np.bool_]
