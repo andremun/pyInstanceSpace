@@ -85,8 +85,8 @@ def test_trace_pythia() -> None:
     )
 
     correct_result_path = main_dir / "test_data/trace_csvs/correct_results_pythia.csv"
-    expected_output = pd.read_csv(correct_result_path).sort_values("Algorithm")
-    received_output = trace_output.summary.sort_values("Algorithm")
+    expected_output = pd.read_csv(correct_result_path)
+    received_output = trace_output.summary
 
     # Use assert_frame_equal with tolerance
     assert_frame_equal(expected_output, received_output, rtol=1e-2, atol=1e-2)

@@ -283,7 +283,6 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
         algorithm_names_df = pd.DataFrame(self.algo_labels, columns=["Algorithm"])
 
         data_labels = [
-            [
                 "Area_Good",
                 "Area_Good_Normalised",
                 "Density_Good",
@@ -294,7 +293,6 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
                 "Density_Best",
                 "Density_Best_Normalised",
                 "Purity_Best",
-            ],
         ]
 
         # Populate the summary table with metrics for each algorithm's

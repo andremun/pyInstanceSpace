@@ -1,4 +1,4 @@
-Algorithm,"('Area_Good',)","('Area_Good_Normalised',)","('Density_Good',)","('Density_Good_Normalised',)","('Purity_Good',)","('Area_Best',)","('Area_Best_Normalised',)","('Density_Best',)","('Density_Best_Normalised',)","('Purity_Best',)"
+Algorithm,Area_Good,Area_Good_Normalised,Density_Good,Density_Good_Normalised,Purity_Good,Area_Best,Area_Best_Normalised,Density_Best,Density_Best_Normalised,Purity_Best
 NB,11.603865242094438,0.5944617915298632,8,0.8872705152972056,0.9108910891089109,0.031776947236546456,0.0016279214373380437,0,0.0,0.0
 LDA,9.401008048878996,0.48161021955427064,9,0.9981793297093563,0.956989247311828,0.02242619101843505,0.0011488856007779316,0,0.0,0.0
 QDA,3.720949271281007,0.19062287641649642,9,0.9981793297093563,0.9117647058823529,0.0,0.0,0,0.0,0.0
