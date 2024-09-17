@@ -12,9 +12,9 @@ from typing import Any, Generic, TypeVar
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from shapely.geometry import Polygon
 from sklearn.model_selection import StratifiedKFold  # type: ignore
 from sklearn.svm import SVC  # type: ignore
-from shapely.geometry import Polygon
 
 
 @dataclass(frozen=True)
@@ -214,8 +214,8 @@ class PythiaOut:
     precision: list[float]
     recall: list[float]
     accuracy: list[float]
-    selection0: NDArray[np.int32]
-    selection1: NDArray[np.int32]
+    selection0: NDArray[np.integer]
+    selection1: NDArray[np.integer]
     w: NDArray[np.double]
     summary: pd.DataFrame
 

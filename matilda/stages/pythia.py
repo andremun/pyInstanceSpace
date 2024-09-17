@@ -12,9 +12,7 @@ from sklearn.metrics import (
     confusion_matrix,
     precision_score,
     recall_score,
-)
-
-# type: ignore
+)  # type: ignore
 from sklearn.model_selection import (  # type: ignore
     GridSearchCV,
     StratifiedKFold,
@@ -481,7 +479,7 @@ class Pythia:
         y_full[~sel1] = np.nan
         y_svms[~self.y_hat] = np.nan
 
-        pgood = np.mean(np.any(self.y_bin & sel1, axis=1))
+        pgood = np.mean(np.any(np.logical_and(self.y_bin, sel1), axis=1))
 
         ybin_flat = self.y_bin.flatten()
         sel0_flat = sel0.flatten()
@@ -540,37 +538,3 @@ class Pythia:
         self.summary = df
         print("  -> PYTHIA has completed! Performance of the models:")
         print(df)
-        df.to_csv("output.csv", mode="w")
-
-
-if __name__ == "__main__":
-    csv_path_z = script_dir / "Z.csv"
-    csv_path_y = script_dir / "y.csv"
-    csv_path_hyparams = script_dir / "hyparams.csv"
-    csv_path_ybin = script_dir / "ybin.csv"
-    csv_path_ybest = script_dir / "ybest.csv"
-    csv_path_algo = script_dir / "algolabels.csv"
-
-    z_input = pd.read_csv(csv_path_z).values.astype(np.double)
-    y_input = pd.read_csv(csv_path_y).values.astype(np.double)
-    y_bin_input = pd.read_csv(csv_path_ybin).values.astype(np.bool_)
-    y_best_input = pd.read_csv(csv_path_ybest).values.astype(np.double)
-
-    algo_input = pd.read_csv(csv_path_algo, header=None).values.flatten().tolist()
-
-    opts = PythiaOptions(
-        cv_folds=5,
-        use_grid_search=True,
-        use_weights=False,
-        is_poly_krnl=False,
-        params=None,
-    )
-
-    data_change, pythia_output = Pythia.run(
-        z_input,
-        y_input,
-        y_bin_input,
-        y_best_input,
-        algo_input,
-        opts,
-    )

@@ -275,7 +275,7 @@ class PythiaOptions:
     is_poly_krnl: bool
     use_weights: bool
     use_grid_search: bool
-    params: NDArray[np.float] | None
+    params: NDArray[np.double] | None
 
     @staticmethod
     def default(
