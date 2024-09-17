@@ -194,18 +194,37 @@ class Preprocessing:
         s: pd.Series | None,  # type: ignore[type-arg]
         feat_labels: list[str],
         inst_labels: pd.Series,  # type: ignore[type-arg]
-    ) -> tuple[
-        NDArray[np.double], NDArray[np.double], pd.Series, list[str], pd.Series | None,
-    ]:  # type: ignore[type-arg]
+    ) -> tuple[  # type: ignore[type-arg]
+        NDArray[np.double],
+        NDArray[np.double],
+        pd.Series,
+        list[str],
+        pd.Series | None,
+    ]:
         """Remove rows (instances) and features (X columns).
 
-        Parameters
+        Args
         ----------
-        data
-            the Data class that contains the content of instances, with
-            algorithm and feature labels
+        x : NDArray[np.double]
+            2D numpy array representing the feature matrix (instances x features).
+        y : NDArray[np.double]
+            2D numpy array representing the algorithm matrix (instances x algorithms).
 
-        :return Data: Data class that has been updated based on the Washing criterion
+        s : pd.Series | None
+            Optional series containing the source of instances.
+        feat_labels : list[str]
+            List of labels corresponding to the features in 'x'.
+        inst_labels : pd.Series
+            Series containing labels for each instance.
+
+        Returns
+        -------
+        tuple[NDArray[np.double], NDArray[np.double],
+        pd.Series, list[str], pd.Series | None]
+            A tuple containing the modified feature matrix 'x',
+            the modified algorithm matrix 'y',updated instance labels,
+            list of feature labels that remain after removal, and optionally
+            modified series 's' if provided.
 
          Washing criterion:
             1. For any row, if that row in both X and Y are NaN, remove
