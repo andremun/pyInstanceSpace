@@ -38,7 +38,7 @@ def save_instance_space_to_csv(
     for i in range(num_algorithms):
         best = trace_state.out.best[i]
         if best is not None and best.polygon is not None:
-            best_bounds: NDArray[Any] = np.empty((1, 2))
+            best_bounds: NDArray[Any] = np.empty((0, 2))
             if isinstance(best.polygon, Polygon):
                 # Extract the boundary coordinates of a single Polygon
                 x, y = best.polygon.exterior.xy
@@ -52,6 +52,8 @@ def save_instance_space_to_csv(
                     boundary_coords = np.array([x, y]).T
                     best_bounds = np.concatenate((best_bounds, boundary_coords))
 
+            best_bounds = best_bounds[:-1, :]
+
             algorithm_labels = trace_state.data.algo_labels[i]
             _write_array_to_csv(
                 best_bounds,
@@ -62,7 +64,7 @@ def save_instance_space_to_csv(
 
         good = trace_state.out.good[i]
         if good is not None and good.polygon is not None:
-            good_bounds: NDArray[Any] = np.empty((1, 2))
+            good_bounds: NDArray[Any] = np.empty((0, 2))
             if isinstance(good.polygon, Polygon):
                 # Extract the boundary coordinates of a single Polygon
                 x, y = good.polygon.exterior.xy
@@ -75,6 +77,8 @@ def save_instance_space_to_csv(
                     x, y = poly.exterior.xy
                     boundary_coords = np.array([x, y]).T
                     good_bounds = np.concatenate((good_bounds, boundary_coords))
+
+            good_bounds = good_bounds[:-1, :]
 
             algorithm_labels = trace_state.data.algo_labels[i]
             _write_array_to_csv(
