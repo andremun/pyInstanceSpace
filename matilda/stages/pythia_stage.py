@@ -6,21 +6,21 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from scipy import stats  # type: ignore
+from scipy import stats
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
     precision_score,
     recall_score,
-)  # type: ignore
-from sklearn.model_selection import (  # type: ignore
+)
+from sklearn.model_selection import (
     GridSearchCV,
     StratifiedKFold,
     cross_val_predict,
 )
-from sklearn.svm import SVC  # type: ignore
-from skopt import BayesSearchCV  # type: ignore
-from skopt.space import Real  # type: ignore
+from sklearn.svm import SVC
+from skopt import BayesSearchCV
+from skopt.space import Real
 
 from matilda.data.options import PythiaOptions
 from matilda.stages.stage import Stage
@@ -150,6 +150,9 @@ class PythiaStage(Stage):
         NDArray[np.integer],
         pd.DataFrame,
     ]:
+        print("=========================================================================")
+        print("-> Summoning PYTHIA to train the prediction models.")
+        print("=========================================================================")
         print("  -> Initializing PYTHIA.")
         ninst, nalgos = y_bin.shape
 
@@ -158,7 +161,7 @@ class PythiaStage(Stage):
         pr0sub = np.zeros(y_bin.shape, dtype=np.double)
         pr0hat = np.zeros(y_bin.shape, dtype=np.double)
 
-        precalcparams = check_precalcparams(opts.params, nalgos)
+        precalcparams = PythiaStage.check_precalcparams(opts.params, nalgos)
         cp = StratifiedKFold(n_splits=opts.cv_folds, shuffle=True, random_state=0)
         svm = []
         cvcmat = np.zeros((nalgos, 4), dtype=int)
@@ -279,8 +282,7 @@ class PythiaStage(Stage):
 
         print(f"Total elapsed time:  {time.time() - overall_start_time:.2f}s")
         print(
-            "--------------------------------------------------"
-            + "-----------------------",
+            "-------------------------------------------------------------------------",
         )
         print(" -> PYTHIA has completed training the models.")
         PythiaStage.display_overall_perf(precision, accuracy)
@@ -377,7 +379,6 @@ class PythiaStage(Stage):
             1,
         ]
 
-        # y_hat: Predicted class labels (binary) for each sample in 'z' using the trained best SVM model
         y_hat = best_svm.predict(z)
         p_hat = best_svm.predict_proba(z)[:, 1]
 

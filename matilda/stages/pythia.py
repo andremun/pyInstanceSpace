@@ -2,26 +2,25 @@
 
 import time
 from dataclasses import dataclass
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from scipy import stats  # type: ignore
+from scipy import stats
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
     precision_score,
     recall_score,
-)  # type: ignore
-from sklearn.model_selection import (  # type: ignore
+)
+from sklearn.model_selection import (
     GridSearchCV,
     StratifiedKFold,
     cross_val_predict,
 )
-from sklearn.svm import SVC  # type: ignore
-from skopt import BayesSearchCV  # type: ignore
-from skopt.space import Real  # type: ignore
+from sklearn.svm import SVC
+from skopt import BayesSearchCV
+from skopt.space import Real
 
 from matilda.data.model import PythiaDataChanged, PythiaOut
 from matilda.data.options import PythiaOptions
@@ -149,6 +148,9 @@ class Pythia:
         """
         pythia = Pythia(z, y, y_bin, y_best, algo_labels, opts)
 
+        print("=========================================================================")
+        print("-> Summoning PYTHIA to train the prediction models.")
+        print("=========================================================================")
         print("  -> Initializing PYTHIA.")
         z = pythia.compute_znorm(z)
         ninst, nalgos = y_bin.shape

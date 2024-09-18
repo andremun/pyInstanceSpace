@@ -164,5 +164,10 @@ module = [
     'scipy.linalg',
     'scipy.optimize',
     'scipy.io',
+    'sklearn.metrics',
+    'sklearn.model_selection',
+    'sklearn.svm',
+    'skopt',
+    'skopt.space',
 ]
 ignore_missing_imports = 'True'
