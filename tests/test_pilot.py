@@ -96,7 +96,7 @@ def test_run_analytic() -> None:
     feat_labels_sample = sd.feat_labels_sample
     opts = PilotOptions(True, 5)
     pilot = Pilot()
-    result = pilot.run(x_sample, y_sample, feat_labels_sample, opts)[1]
+    _, result = pilot.run(x_sample, y_sample, feat_labels_sample, opts)
 
     a = result.a
     b = result.b
@@ -122,7 +122,7 @@ def test_run_numerical() -> None:
     opts_sample = sd.opts_sample
     opts = PilotOptions(opts_sample.analytic, opts_sample.n_tries)
     pilot = Pilot()
-    result = pilot.run(x_sample, y_sample, feat_labels_sample, opts)[1]
+    _, result = pilot.run(x_sample, y_sample, feat_labels_sample, opts)
     eoptim = result.eoptim
     perf = result.perf
 

@@ -7,7 +7,6 @@ algorithms by unveiling linear trends in the data, increasing
 from one edge of the space to the opposite.
 
 """
-from matilda.stages.stage import Stage
 
 import numpy as np
 import pandas as pd
@@ -17,13 +16,14 @@ from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
 from scipy.stats import pearsonr
 
-from matilda.data.model import PilotDataChanged, PilotOut
 from matilda.data.options import PilotOptions
+from matilda.stages.stage import Stage
 
-class PilotStage(Stage):
-    def __init__(self, x: NDArray[np.double],
-        y: NDArray[np.double],
-        feat_labels: list[str]) -> None:
+
+class Pilot(Stage):
+    def __init__(
+        self, x: NDArray[np.double], y: NDArray[np.double], feat_labels: list[str],
+    ) -> None:
         """Initialize the Pilot stage.
 
         The Initialize functon is used to create a Pilot class.
@@ -59,9 +59,9 @@ class PilotStage(Stage):
         return [
             ["x", NDArray[np.double]],
             ["y", NDArray[np.double]],
-            ["feat_labels", list[str]]
-            ]
-    
+            ["feat_labels", list[str]],
+        ]
+
     @staticmethod
     def _outputs() -> list[tuple[str, type]]:
         """Use the method for determining the outputs for pilot.
@@ -76,30 +76,34 @@ class PilotStage(Stage):
                 List of outputs for the stage
         """
         return [
-                ["X0", NDArray[np.double] | None],  # not sure about the dimensions
-                ["alpha", NDArray[np.double] | None],
-                ["eoptim", NDArray[np.double] | None],
-                ["perf", NDArray[np.double] | None],
-                ["a", NDArray[np.double]],
-                ["z", NDArray[np.double]],
-                ["c", NDArray[np.double]],
-                ["b", NDArray[np.double]],
-                ["error", NDArray[np.double]],  # or just the double
-                ["r2", NDArray[np.double]],
-                ["summary", pd.DataFrame]
+            ["X0", NDArray[np.double] | None],  # not sure about the dimensions
+            ["alpha", NDArray[np.double] | None],
+            ["eoptim", NDArray[np.double] | None],
+            ["perf", NDArray[np.double] | None],
+            ["a", NDArray[np.double]],
+            ["z", NDArray[np.double]],
+            ["c", NDArray[np.double]],
+            ["b", NDArray[np.double]],
+            ["error", NDArray[np.double]],  # or just the double
+            ["r2", NDArray[np.double]],
+            ["summary", pd.DataFrame],
         ]
 
-    def _run(self, options: PilotOptions) -> tuple[NDArray[np.double] | None,
-                                         NDArray[np.double] | None,
-                                         NDArray[np.double] | None,
-                                         NDArray[np.double] | None, 
-                                         NDArray[np.double], NDArray[np.double], 
-                                         NDArray[np.double], NDArray[np.double], 
-                                         NDArray[np.double], NDArray[np.double], 
-                                         pd.DataFrame]:
-        
+    def _run(self, options: PilotOptions) -> tuple[
+        NDArray[np.double] | None,
+        NDArray[np.double] | None,
+        NDArray[np.double] | None,
+        NDArray[np.double] | None,
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        pd.DataFrame,
+    ]:
         """Implement all the code in and around this class in buildIS
-        
+
         Args
         -------
         options : PilotOptions
@@ -115,7 +119,7 @@ class PilotStage(Stage):
             NDArray[np.double] | None
         perf
             NDArray[np.double] | None
-        a   
+        a
             NDArray[np.double]
         z
             NDArray[np.double]
@@ -134,16 +138,24 @@ class PilotStage(Stage):
         return pilotStage.pilot(self.x, self.y, self.feat_labels)
 
     @staticmethod
-    def pilot(x: NDArray[np.double],
+    def pilot(
+        x: NDArray[np.double],
         y: NDArray[np.double],
-        feat_labels: list[str], options: PilotOptions) -> tuple[NDArray[np.double] | None,
-                                         NDArray[np.double] | None,
-                                         NDArray[np.double] | None,
-                                         NDArray[np.double] | None, 
-                                         NDArray[np.double], NDArray[np.double], 
-                                         NDArray[np.double], NDArray[np.double], 
-                                         NDArray[np.double], NDArray[np.double], 
-                                         pd.DataFrame]:
+        feat_labels: list[str],
+        options: PilotOptions,
+    ) -> tuple[
+        NDArray[np.double] | None,
+        NDArray[np.double] | None,
+        NDArray[np.double] | None,
+        NDArray[np.double] | None,
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        pd.DataFrame,
+    ]:
         """Run the PILOT dimensionality reduction algorithm.
 
         Args
@@ -167,7 +179,7 @@ class PilotStage(Stage):
             NDArray[np.double] | None
         perf
             NDArray[np.double] | None
-        a   
+        a
             NDArray[np.double]
         z
             NDArray[np.double]
@@ -197,7 +209,9 @@ class PilotStage(Stage):
 
         # Analytical solution
         if options.analytic:
-            out_a, out_z, out_c, out_b, error, r2 = pilotStage.analytic_solve(x, x_bar, n, m)
+            out_a, out_z, out_c, out_b, error, r2 = pilotStage.analytic_solve(
+                x, x_bar, n, m,
+            )
 
         # Numerical solution
         else:
@@ -265,11 +279,33 @@ class PilotStage(Stage):
         if alpha is not None and x0 is not None:
             alph: NDArray[np.float16] = alpha.astype(np.float16)
             x_init: NDArray[np.double] = x0
-            pout = [x_init, alph, eoptim, perf, 
-                    out_a, out_z, out_c, out_b, error, r2, summary]
+            pout = [
+                x_init,
+                alph,
+                eoptim,
+                perf,
+                out_a,
+                out_z,
+                out_c,
+                out_b,
+                error,
+                r2,
+                summary,
+            ]
         else:
-            pout = [x0, alpha, eoptim, perf, 
-                    out_a, out_z, out_c, out_b, error, r2, summary]
+            pout = [
+                x0,
+                alpha,
+                eoptim,
+                perf,
+                out_a,
+                out_z,
+                out_c,
+                out_b,
+                error,
+                r2,
+                summary,
+            ]
 
         print(
             "-------------------------------------------------------------------------",
@@ -278,7 +314,6 @@ class PilotStage(Stage):
         print(out_a)
 
         return pout
-
 
     @staticmethod
     def analytic_solve(
@@ -464,7 +499,6 @@ class PilotStage(Stage):
 
         return idx, al, ept, prf
 
-
     @staticmethod
     def error_function(
         alpha: NDArray[np.float64],
@@ -502,4 +536,3 @@ class PilotStage(Stage):
         return float(
             np.nanmean(np.nanmean((x_bar - x_bar_approx) ** 2, axis=1), axis=0),
         )
-        
