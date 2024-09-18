@@ -1,12 +1,4 @@
-"""PILOT: Obtaining a two-dimensional projection.
-
-Projecting Instances with Linearly Observable Trends (PILOT)
-is a dimensionality reduction algorithm which aims to facilitate
-the identification of relationships between instances and
-algorithms by unveiling linear trends in the data, increasing
-from one edge of the space to the opposite.
-
-"""
+from matilda.stages.stage import Stage
 
 import numpy as np
 import pandas as pd
@@ -19,24 +11,93 @@ from scipy.stats import pearsonr
 from matilda.data.model import PilotDataChanged, PilotOut
 from matilda.data.options import PilotOptions
 
-
-class Pilot:
-    """Class for projection of instances into a low-dimensional space."""
-
-    def __init__(self) -> None:
-        """Initialize the Pilot stage.
-
-        The Initialize functon is used to create a Pilot class.
-        """
-        pass
+class pilot(Stage):
+    def __init__(self, x: NDArray[np.double],
+        y: NDArray[np.double],
+        feat_labels: list[str]) -> None:
+        self.x = x
+        self.y = y
+        self.feat_labels = feat_labels
 
     @staticmethod
-    def run(
-        x: NDArray[np.double],
+    def _inputs() -> list[tuple[str, type]]:
+        return [
+            ["x", NDArray[np.double]],
+            ["y", NDArray[np.double]],
+            ["feat_labels", list[str]]
+            ]
+    
+    @staticmethod
+    def _outputs() -> list[tuple[str, type]]:
+        return [
+                ["X0", NDArray[np.double] | None],  # not sure about the dimensions
+                ["alpha", NDArray[np.double] | None],
+                ["eoptim", NDArray[np.double] | None],
+                ["perf", NDArray[np.double] | None],
+                ["a", NDArray[np.double]],
+                ["z", NDArray[np.double]],
+                ["c", NDArray[np.double]],
+                ["b", NDArray[np.double]],
+                ["error", NDArray[np.double]],  # or just the double
+                ["r2", NDArray[np.double]],
+                ["summary", pd.DataFrame]
+        ]
+
+    def _run(self, options: PilotOptions) -> tuple[NDArray[np.double] | None,
+                                         NDArray[np.double] | None,
+                                         NDArray[np.double] | None,
+                                         NDArray[np.double] | None, 
+                                         NDArray[np.double], NDArray[np.double], 
+                                         NDArray[np.double], NDArray[np.double], 
+                                         NDArray[np.double], NDArray[np.double], 
+                                         pd.DataFrame]:
+        
+        """Implement all the code in and around this class in buildIS
+        
+        Args
+        -------
+        options : PilotOptions
+            The options enabled for the Pilot Class
+
+        Return
+        -------
+        X0
+            NDArray[np.double] | None  # not sure about the dimensions
+        alpha
+            NDArray[np.double] | None
+        eoptim
+            NDArray[np.double] | None
+        perf
+            NDArray[np.double] | None
+        a   
+            NDArray[np.double]
+        z
+            NDArray[np.double]
+        c
+            NDArray[np.double]
+        b
+            NDArray[np.double]
+        error
+            NDArray[np.double]  # or just the double
+        r2
+            NDArray[np.double]
+        summary
+            pd.DataFrame
+
+        """
+        return pilotStage.pilot(self.x, self.y, self.feat_labels)
+
+    @staticmethod
+    def pilot(x: NDArray[np.double],
         y: NDArray[np.double],
-        feat_labels: list[str],
-        opts: PilotOptions,
-    ) -> tuple[PilotDataChanged, PilotOut]:
+        feat_labels: list[str], options: PilotOptions) -> tuple[NDArray[np.double] | None,
+                                         NDArray[np.double] | None,
+                                         NDArray[np.double] | None,
+                                         NDArray[np.double] | None, 
+                                         NDArray[np.double], NDArray[np.double], 
+                                         NDArray[np.double], NDArray[np.double], 
+                                         NDArray[np.double], NDArray[np.double], 
+                                         pd.DataFrame]:
         """Run the PILOT dimensionality reduction algorithm.
 
         Args
@@ -47,16 +108,33 @@ class Pilot:
             The data points for the selected feature
         feat_labels :  list[str]
             List feature names
-        opts : PilotOptions
+        options : PilotOptions
             The options enabled for the Pilot Class
 
         Return
         -------
-        PilotDataChanged
-            The data that has been changed in-place
-
-        PilotOut
-            The output class that contains all the outputs for Pilot
+        X0
+            NDArray[np.double] | None  # not sure about the dimensions
+        alpha
+            NDArray[np.double] | None
+        eoptim
+            NDArray[np.double] | None
+        perf
+            NDArray[np.double] | None
+        a   
+            NDArray[np.double]
+        z
+            NDArray[np.double]
+        c
+            NDArray[np.double]
+        b
+            NDArray[np.double]
+        error
+            NDArray[np.double]  # or just the double
+        r2
+            NDArray[np.double]
+        summary
+            pd.DataFrame
 
         """
         n = x.shape[1]
@@ -72,35 +150,35 @@ class Pilot:
         perf = None
 
         # Analytical solution
-        if opts.analytic:
-            out_a, out_z, out_c, out_b, error, r2 = Pilot.analytic_solve(x, x_bar, n, m)
+        if options.analytic:
+            out_a, out_z, out_c, out_b, error, r2 = pilotStage.analytic_solve(x, x_bar, n, m)
 
         # Numerical solution
         else:
             if (
-                hasattr(opts, "alpha")
-                and opts.alpha is not None
-                and opts.alpha.shape == (2 * m + 2 * n, 1)
+                hasattr(options, "alpha")
+                and options.alpha is not None
+                and options.alpha.shape == (2 * m + 2 * n, 1)
             ):
                 print(" -> PILOT is using a pre-calculated solution.")
-                alpha = opts.alpha
+                alpha = options.alpha
             else:
-                if hasattr(opts, "x0") and opts.x0 is not None:
+                if hasattr(options, "x0") and options.x0 is not None:
                     print(
                         "  -> PILOT is using a user defined starting points"
                         " for BFGS.",
                     )
-                    x0 = opts.x0
+                    x0 = options.x0
                 else:
                     print("  -> PILOT is using random starting points for BFGS.")
                     rng = np.random.default_rng()
-                    x0 = 2 * rng.random((2 * m + 2 * n, opts.n_tries)) - 1
+                    x0 = 2 * rng.random((2 * m + 2 * n, options.n_tries)) - 1
 
-                alpha = np.zeros((2 * m + 2 * n, opts.n_tries))
-                eoptim = np.zeros(opts.n_tries)
-                perf = np.zeros(opts.n_tries)
+                alpha = np.zeros((2 * m + 2 * n, options.n_tries))
+                eoptim = np.zeros(options.n_tries)
+                perf = np.zeros(options.n_tries)
 
-                idx, alpha, eoptim, perf = Pilot.numerical_solve(
+                idx, alpha, eoptim, perf = pilotStage.numerical_solve(
                     x,
                     hd,
                     x0,
@@ -110,7 +188,7 @@ class Pilot:
                     alpha,
                     eoptim,
                     perf,
-                    opts,
+                    options,
                 )
 
             out_a = alpha[: 2 * n, idx].reshape(2, n)
@@ -122,7 +200,7 @@ class Pilot:
             error = np.sum((x_bar - x_hat) ** 2)
             r2 = np.diag(np.corrcoef(x_bar, x_hat) ** 2).astype(np.double)
 
-        if opts.analytic:
+        if options.analytic:
             summary = pd.DataFrame(out_a)
             summary.rename(
                 columns={
@@ -141,34 +219,11 @@ class Pilot:
         if alpha is not None and x0 is not None:
             alph: NDArray[np.float16] = alpha.astype(np.float16)
             x_init: NDArray[np.double] = x0
-            pout = PilotOut(
-                X0=x_init,
-                alpha=alph,
-                eoptim=eoptim,
-                perf=perf,
-                a=out_a,
-                z=out_z,
-                c=out_c,
-                b=out_b,
-                error=error,
-                r2=r2,
-                summary=summary,
-            )
+            pout = [x_init, alph, eoptim, perf, 
+                    out_a, out_z, out_c, out_b, error, r2, summary]
         else:
-            pout = PilotOut(
-                X0=x0,
-                alpha=alpha,
-                eoptim=eoptim,
-                perf=perf,
-                a=out_a,
-                z=out_z,
-                c=out_c,
-                b=out_b,
-                error=error,
-                r2=r2,
-                summary=summary,
-            )
-        pda = PilotDataChanged()
+            pout = [x0, alpha, eoptim, perf, 
+                    out_a, out_z, out_c, out_b, error, r2, summary]
 
         print(
             "-------------------------------------------------------------------------",
@@ -176,7 +231,8 @@ class Pilot:
         print("  -> PILOT has completed. The projection matrix A is:")
         print(out_a)
 
-        return (pda, pout)
+        return pout
+
 
     @staticmethod
     def analytic_solve(
@@ -337,7 +393,7 @@ class Pilot:
         for i in range(opts.n_tries):
             initial_guess = x0[:, i]
             result = optim.fmin_bfgs(
-                Pilot.error_function,
+                pilotStage.error_function,
                 initial_guess,
                 args=(x_bar, n, m),
                 full_output=True,
@@ -361,6 +417,7 @@ class Pilot:
             prf: NDArray[np.double] = perf
 
         return idx, al, ept, prf
+
 
     @staticmethod
     def error_function(
@@ -399,3 +456,4 @@ class Pilot:
         return float(
             np.nanmean(np.nanmean((x_bar - x_bar_approx) ** 2, axis=1), axis=0),
         )
+        
