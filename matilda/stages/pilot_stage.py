@@ -20,7 +20,7 @@ from scipy.stats import pearsonr
 from matilda.data.model import PilotDataChanged, PilotOut
 from matilda.data.options import PilotOptions
 
-class pilotStage(Stage):
+class PilotStage(Stage):
     def __init__(self, x: NDArray[np.double],
         y: NDArray[np.double],
         feat_labels: list[str]) -> None:
