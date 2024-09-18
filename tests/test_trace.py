@@ -14,7 +14,7 @@ import pandas as pd
 from pandas.testing import assert_frame_equal
 
 from matilda.data.options import TraceOptions
-from matilda.stages.trace import Trace
+from matilda.stages.trace_stage import TraceStage, TraceInputs, TraceOutputs
 
 
 def test_trace_pythia() -> None:
@@ -55,13 +55,28 @@ def test_trace_pythia() -> None:
         dtype=np.int_,
     ).astype(np.bool_)
 
+    # Reading binary performance indicators from y_bin2.csv
+    y_bin2 = np.genfromtxt(
+        main_dir / "test_data/trace_csvs/yhat2.csv",
+        delimiter=",",
+        dtype=np.int_,
+    ).astype(np.bool_)
+
     # Reading performance metrics from p.csv
-    p = np.genfromtxt(
+    p1 = np.genfromtxt(
         main_dir / "test_data/trace_csvs/selection0.csv",
         delimiter=",",
         dtype=np.double,
     )
-    p = p - 1  # Adjusting indices to be zero-based
+    p1 = p1 - 1  # Adjusting indices to be zero-based
+
+    # Reading performance metrics from p2.csv
+    p2 = np.genfromtxt(
+        main_dir / "test_data/trace_csvs/dataP.csv",
+        delimiter=",",
+        dtype=np.double,
+    )
+    p2 = p2 - 1  # Adjusting indices to be zero-based
 
     # Reading beta thresholds from beta.csv
     beta = np.genfromtxt(
@@ -74,15 +89,17 @@ def test_trace_pythia() -> None:
     trace_options = TraceOptions(True, 0.55)
 
     # Initialising and running the TRACE analysis
-    trace = Trace()
-    _, trace_output = trace.run(
-        z,
-        y_bin,
-        p.astype(np.double),
+    trace = TraceStage()
+    trace_inputs: TraceInputs = TraceInputs(z,
+        p1.astype(np.double),
+        p2.astype(np.double),
         beta,
         algo_labels,
-        trace_options,
-    )
+        y_bin,
+        y_bin2,
+        trace_options,)
+
+    trace_output: TraceOutputs = trace._run(trace_inputs)
 
     correct_result_path = main_dir / "test_data/trace_csvs/correct_results_pythia.csv"
     expected_output = pd.read_csv(correct_result_path)
@@ -124,12 +141,27 @@ def test_trace_simulation() -> None:
         dtype=np.double,
     )
 
+    # Reading binary performance indicators from y_bin.csv
+    y_bin = np.genfromtxt(
+        script_dir / "test_data/trace_csvs/yhat.csv",
+        delimiter=",",
+        dtype=np.int_,
+    ).astype(np.bool_)
+
     # Reading binary performance indicators from y_bin2.csv
     y_bin2 = np.genfromtxt(
         script_dir / "test_data/trace_csvs/yhat2.csv",
         delimiter=",",
         dtype=np.int_,
     ).astype(np.bool_)
+
+    # Reading performance metrics from p.csv
+    p1 = np.genfromtxt(
+        script_dir / "test_data/trace_csvs/selection0.csv",
+        delimiter=",",
+        dtype=np.double,
+    )
+    p1 = p1 - 1  # Adjusting indices to be zero-based
 
     # Reading performance metrics from p2.csv
     p2 = np.genfromtxt(
@@ -150,15 +182,17 @@ def test_trace_simulation() -> None:
     trace_options = TraceOptions(False, 0.55)
 
     # Initialising and running the TRACE analysis
-    trace = Trace()
-    _, trace_output = trace.run(
-        z,
-        y_bin2,
-        p2.astype(np.double),
-        beta,
-        algo_labels,
-        trace_options,
-    )
+    trace = TraceStage()
+    trace_inputs: TraceInputs = TraceInputs(z,
+                                            p1.astype(np.double),
+                                            p2.astype(np.double),
+                                            beta,
+                                            algo_labels,
+                                            y_bin,
+                                            y_bin2,
+                                            trace_options)
+
+    trace_output: TraceOutputs = trace._run(trace_inputs)
     correct_result_path = (
         script_dir / "test_data/trace_csvs/correct_results_simulation.csv"
     )

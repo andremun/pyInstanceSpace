@@ -59,6 +59,7 @@ from scipy.special import gamma
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
 from shapely.ops import triangulate, unary_union
 from sklearn.cluster import DBSCAN
+from typing import NamedTuple
 
 from matilda.data.model import Footprint, TraceDataChanged, TraceOut
 from matilda.data.options import TraceOptions
@@ -67,7 +68,26 @@ from matilda.stages.stage import Stage
 POLYGON_MIN_POINT_REQUIREMENT = 3
 
 
-class TraceStage(Stage):
+class TraceInputs(NamedTuple):
+    z: NDArray[np.double]
+    p_pythia: NDArray[np.double]
+    p_data: NDArray[np.double]
+    beta: NDArray[np.bool_]
+    algo_labels: list[str]
+    y_bin_pythia: NDArray[np.bool_]
+    y_bin_data: NDArray[np.bool_]
+    trace_options: TraceOptions
+
+
+class TraceOutputs(NamedTuple):
+    space: Footprint
+    good: list[Footprint]
+    best: list[Footprint]
+    hard: Footprint
+    summary: pd.DataFrame
+
+
+class TraceStage(Stage[TraceInputs, TraceOutputs]):
     """A class to manage the TRACE analysis process for performance footprints.
 
 The TRACE class is designed to analyze the performance of different algorithms by
@@ -141,35 +161,8 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
     Performs parallel processing to calculate footprints for multiple algorithms.
 """
 
-    def __init__(
-        self,
-        z: NDArray[np.double],
-        p: NDArray[np.double],
-        beta: NDArray[np.bool_],
-        algo_labels: list[str],
-    ) -> None:
-        """Initialise the Trace stage.
-
-            Args
-            ----
-        z (NDArray[np.double]): The space of instances
-        y_bin (NDArray[np.bool_]): Binary indicators of performance
-        p (NDArray[np.double]): Performance metrics for algorithms
-        beta (NDArray[np.bool_]): Specific beta threshold for footprint calculation
-        algo_labels (list[str]): Labels for each algorithm. Note that the datatype
-            is still in deciding
-
-        Returns
-        -------
-        None
-        """
-        self.z = z
-        self.p = p
-        self.beta = beta
-        self.algo_labels = algo_labels
-
     @staticmethod
-    def _inputs() -> list[tuple[str, type]]:
+    def _inputs() -> type[NamedTuple]:
         """Use the method for determining the inputs for trace.
 
         Args
@@ -181,16 +174,10 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
             list[tuple[str, type]]
                 List of inputs for the stage
         """
-        return [
-    ("z", NDArray[np.double]),
-    ("y_bin", NDArray[np.bool_]),
-    ("p", NDArray[np.double]),
-    ("beta", NDArray[np.bool_]),
-    ("algo_labels", list[str]),
-]
+        return TraceInputs
 
     @staticmethod
-    def _outputs() -> list[tuple[str, type]]:
+    def _outputs() -> type[NamedTuple]:
         """Use the method for determining the outputs for trace.
 
         Args
@@ -202,16 +189,9 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
             list[tuple[str, type]]
                 List of outputs for the stage
         """
-        return [
-    ("space", Footprint),
-    ("good", list[Footprint]),
-    ("best", list[Footprint]),
-    ("hard", Footprint),
-    ("summary", pd.DataFrame),
-]
+        return TraceOutputs
 
-    def _run(self, y_bin_pythia: NDArray[np.bool_], y_bin_data:NDArray[np.bool_],
-             opts:TraceOptions) -> tuple[TraceDataChanged, TraceOut]:
+    def _run(self, inputs: TraceInputs) -> TraceOutputs:
         """Use the method for running the trace stage as well as surrounding buildIS.
 
         Args
@@ -223,15 +203,21 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
             tuple[Footprint, list[Footprint], list[Footprint], Footprint, pd.DataFrame]
                 The results of the trace stage
         """
-        self.opts = opts
+        self.z = inputs.z
+        self.beta = inputs.beta
+        self.opts = inputs.trace_options
+        self.algo_labels = inputs.algo_labels
+
         if self.opts.use_sim:
-            self.y_bin = y_bin_pythia
+            self.y_bin = inputs.y_bin_pythia
+            self.p = inputs.p_pythia
+            return self.trace()
         else:
-            self.y_bin = y_bin_data
+            self.y_bin = inputs.y_bin_data
+            self.p = inputs.p_data
+            return self.trace()
 
-        self.trace()
-
-    def trace(self) -> tuple[TraceDataChanged, TraceOut]:
+    def trace(self) -> TraceOutputs:
         """Perform the TRACE footprint analysis.
 
         Parameters:
@@ -296,6 +282,11 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
                 time.time()
             )  # Track the start time for processing this base algorithm
 
+            algo_1: NDArray[np.bool_] = np.array(
+                [int(v) == i for v in self.p],
+                dtype=np.bool_,
+            )
+
             for j in range(i + 1, n_algos):
                 print(
                     f"      -> TRACE is comparing '"
@@ -305,10 +296,7 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
 
                 # Create boolean arrays indicating which points correspond
                 # to each algorithm's best performance
-                algo_1: NDArray[np.bool_] = np.array(
-                    [int(v) == i for v in self.p],
-                    dtype=np.bool_,
-                )
+
                 algo_2: NDArray[np.bool_] = np.array(
                     [int(v) == j for v in self.p],
                     dtype=np.bool_,
@@ -352,7 +340,6 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
         algorithm_names_df = pd.DataFrame(self.algo_labels, columns=["Algorithm"])
 
         data_labels = [
-            [
                 "Area_Good",
                 "Area_Good_Normalised",
                 "Density_Good",
@@ -363,8 +350,7 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
                 "Density_Best",
                 "Density_Best_Normalised",
                 "Purity_Best",
-            ],
-        ]
+            ]
 
         # Populate the summary table with metrics for each algorithm's
         # good and best footprints
@@ -392,10 +378,11 @@ parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint]
         print(final_df)
 
         # Return the results as a TraceOut dataclass instance
-        return (
-            TraceDataChanged(),
-            TraceOut(space=space, good=good, best=best, hard=hard, summary=final_df),
-        )
+        return TraceOutputs(space=space,
+                            good=good,
+                            best=best,
+                            hard=hard,
+                            summary=final_df)
 
     def build(self, y_bin: NDArray[np.bool_]) -> Footprint:
         """Construct a footprint polygon using DBSCAN clustering.
