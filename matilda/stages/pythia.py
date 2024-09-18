@@ -1,6 +1,7 @@
 """PYTHIA function for algorithm selection and performance evaluation using SVM."""
 
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -25,30 +26,18 @@ from skopt.space import Real  # type: ignore
 from matilda.data.model import PythiaDataChanged, PythiaOut
 from matilda.data.options import PythiaOptions
 
-script_dir = Path(__file__).parents[2] / "tests" / "test_data" / "pythia" / "input"
 
-
-class SvmRes:
+@dataclass(frozen=True)
+class _SvmRes:
     """SVM result class."""
 
-    def __init__(
-        self,
-        svm: SVC,
-        ysub: NDArray[np.bool_],
-        psub: NDArray[np.double],
-        yhat: NDArray[np.bool_],
-        phat: NDArray[np.double],
-        c: float,
-        g: float,
-    ) -> None:
-        """Initialize the SVM result object."""
-        self.svm = svm
-        self.Ysub = ysub
-        self.Psub = psub
-        self.Yhat = yhat
-        self.Phat = phat
-        self.C = c
-        self.g = g
+    svm: SVC
+    Ysub: NDArray[np.bool_]
+    Psub: NDArray[np.double]
+    Yhat: NDArray[np.bool_]
+    Phat: NDArray[np.double]
+    c: float
+    g: float
 
 
 LARGE_NUM_INSTANCE: int = 1000
@@ -70,8 +59,8 @@ class Pythia:
     precision: list[float]
     recall: list[float]
     accuracy: list[float]
-    selection0: NDArray[np.int32]
-    selection1: NDArray[np.int32]
+    selection0: NDArray[np.integer]
+    selection1: NDArray[np.integer]
     cp: StratifiedKFold
     svm: SVC
     summary: pd.DataFrame
@@ -201,7 +190,6 @@ class Pythia:
         else:
             print(" -> PYTHIA is not using cost-sensitive classification.")
             w = np.ones((ninst, nalgos), dtype=int)
-        pythia.record_weights(w)
         print(
             "-------------------------------------------------------------------------",
         )
@@ -250,7 +238,7 @@ class Pythia:
             + "-----------------------",
         )
         print(" -> PYTHIA has completed training the models.")
-        pythia.display_avg_perf()
+        pythia.display_overall_perf()
 
         pythia.determine_selections()
 
@@ -261,7 +249,7 @@ class Pythia:
         """Generate a summary of the results."""
         pythia.generate_summary()
 
-        return pythia.get_output()
+        return pythia.get_output(w)
 
     @staticmethod
     def fitmatsvm(
@@ -272,7 +260,7 @@ class Pythia:
         is_poly_kernel: bool,
         param_space: dict | None,
         use_grid_search: bool,
-    ) -> SvmRes:
+    ) -> _SvmRes:
         """Train a SVM model using MATLAB's 'fitcsvm' function."""
         kernel = "poly" if is_poly_kernel else "rbf"
         svm_model = SVC(
@@ -312,17 +300,17 @@ class Pythia:
         y_hat = best_svm.predict(z)
         p_hat = best_svm.predict_proba(z)[:, 1]
 
-        return SvmRes(
+        return _SvmRes(
             svm=best_svm,
-            yhat=y_hat,
-            ysub=y_sub,
-            psub=p_sub,
-            phat=p_hat,
+            Yhat=y_hat,
+            Ysub=y_sub,
+            Psub=p_sub,
+            Phat=p_hat,
             c=c,
             g=g,
         )
 
-    def display_avg_perf(self) -> None:
+    def display_overall_perf(self) -> None:
         """Calculate overall performance."""
         print(
             " -> The average cross validated precision is: "
@@ -342,13 +330,13 @@ class Pythia:
             return self.precalcparams[index]
         return self.generate_params(self.opts.use_grid_search)
 
-    def record_perf(self, i: int, res: SvmRes) -> None:
+    def record_perf(self, i: int, res: _SvmRes) -> None:
         """Record performance."""
         self.y_sub[:, [i]] = res.Ysub.reshape(-1, 1)
         self.pr0sub[:, [i]] = res.Psub.reshape(-1, 1)
         self.y_hat[:, [i]] = res.Yhat.reshape(-1, 1)
         self.pr0hat[:, [i]] = res.Phat.reshape(-1, 1)
-        self.box_consnt.append(res.C)
+        self.box_consnt.append(res.c)
         self.k_scale.append(res.g)
         self.svm.append(res.svm)
 
@@ -363,10 +351,6 @@ class Pythia:
         self.accuracy.append(accuracy)
         self.precision.append(precision)
         self.recall.append(recall)
-
-    def record_weights(self, w: NDArray[np.intc]) -> None:
-        """Record weights."""
-        self.w = w
 
     def determine_selections(self) -> None:
         """
@@ -395,6 +379,7 @@ class Pythia:
 
     def get_output(
         self,
+        w: NDArray[np.double],
     ) -> tuple[PythiaDataChanged, PythiaOut]:
         """Generate output."""
         data_changed = PythiaDataChanged()
@@ -416,7 +401,7 @@ class Pythia:
             selection0=self.selection0,
             selection1=self.selection1,
             summary=self.summary,
-            w=self.w,
+            w=w,
         )
         return (data_changed, pythia_output)
 
@@ -434,7 +419,7 @@ class Pythia:
             return None
         if params.shape != (self.nalgos, 2):
             print("-> Error: Incorrect number of hyper-parameters.")
-            print("Parameters will be auto-generated.")
+            print("Hyper-parameters will be auto-generated.")
             return None
         print("-> Using pre-calculated hyper-parameters for the SVM.")
         c_list = params[:, 0]

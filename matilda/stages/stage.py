@@ -19,7 +19,7 @@ class Stage(ABC):
         """Return outputs of the STAGE (run method)."""
         pass
 
-   
+
     @abstractmethod
     def _run(*args: Any) -> tuple[Any]:
         """Run the stage."""

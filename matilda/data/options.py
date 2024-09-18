@@ -11,10 +11,10 @@ import json
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Self, TypeVar
-import numpy as np
-from numpy.typing import NDArray
 
+import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 from matilda.data.default_options import (
     DEFAULT_AUTO_PREPROC,

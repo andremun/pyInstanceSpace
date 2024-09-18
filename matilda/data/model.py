@@ -7,7 +7,7 @@ to data analysis and model building.
 
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -202,8 +202,8 @@ class PythiaOut:
 
     mu: list[float]
     sigma: list[float]
-    cp: StratifiedKFold  # Change it to proper type
-    svm: SVC  # Change it to proper type
+    cp: StratifiedKFold
+    svm: list[SVC]
     cvcmat: NDArray[np.integer]
     y_sub: NDArray[np.bool_]
     y_hat: NDArray[np.bool_]
