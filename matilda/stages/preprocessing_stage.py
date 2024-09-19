@@ -3,7 +3,6 @@
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from stages.stage import Stage
 
 from matilda.data.options import (
     AutoOptions,
@@ -18,6 +17,7 @@ from matilda.data.options import (
     SiftedOptions,
     TraceOptions,
 )
+from matilda.stages.stage import Stage
 
 
 class PreprocessingStage(Stage):
@@ -27,8 +27,8 @@ class PreprocessingStage(Stage):
         self,
         feature_names: list[str],
         algorithm_names: list[str],
-        instance_labels: pd.Series,
-        instance_sources: pd.Series | None,
+        instance_labels: pd.Series[str],
+        instance_sources: pd.Series[float] | None,
         features: NDArray[np.double],
         algorithms: NDArray[np.double],
         perf: PerformanceOptions,
@@ -66,35 +66,35 @@ class PreprocessingStage(Stage):
     def _inputs() -> list[tuple[str, type]]:
         """See file docstring."""
         return [
-            ["feature_names", list[str]],
-            ["algorithm_names", list[str]],
-            ["instance_labels", pd.Series],
-            ["instance_sources", pd.Series | None],
-            ["features", NDArray[np.double]],
-            ["algorithms", NDArray[np.double]],
-            ["perf", PerformanceOptions],
-            ["auto", AutoOptions],
-            ["bound", BoundOptions],
-            ["norm", NormOptions],
-            ["selvars", SelvarsOptions],
-            ["sifted", SiftedOptions],
-            ["pilot", PilotOptions],
-            ["cloister", CloisterOptions],
-            ["pythia", PythiaOptions],
-            ["trace", TraceOptions],
-            ["outputs", OutputOptions],
+            ("feature_names", list[str]),
+            ("algorithm_names", list[str]),
+            ("instance_labels", pd.Series),
+            ("instance_sources", pd.Series),
+            ("features", NDArray[np.double]),
+            ("algorithms", NDArray[np.double]),
+            ("perf", PerformanceOptions),
+            ("auto", AutoOptions),
+            ("bound", BoundOptions),
+            ("norm", NormOptions),
+            ("selvars", SelvarsOptions),
+            ("sifted", SiftedOptions),
+            ("pilot", PilotOptions),
+            ("cloister", CloisterOptions),
+            ("pythia", PythiaOptions),
+            ("trace", TraceOptions),
+            ("outputs", OutputOptions),
         ]
 
     @staticmethod
     def _outputs() -> list[tuple[str, type]]:
         """See file docstring."""
         return [
-            ["inst_labels", pd.Series],  # type: ignore[type-arg]
-            ["feat_labels", list[str]],
-            ["algo_labels", list[str]],
-            ["x", NDArray[np.double]],
-            ["y", NDArray[np.double]],
-            ["s", pd.Series | None],
+            ("inst_labels", pd.Series),
+            ("feat_labels", list[str]),
+            ("algo_labels", list[str]),
+            ("x", NDArray[np.double]),
+            ("y", NDArray[np.double]),
+            ("s", pd.Series),
         ]
 
     def _run(
@@ -111,12 +111,12 @@ class PreprocessingStage(Stage):
         trace: TraceOptions,
         outputs: OutputOptions,
     ) -> tuple[
-        pd.Series,
+        pd.Series[float],
         list[str],
         list[str],
         NDArray[np.double],
         NDArray[np.double],
-        pd.Series | None,
+        pd.Series[str] | None,
     ]:
         """See file docstring."""
         # All the code including the code in the buildIS should be here
@@ -126,8 +126,8 @@ class PreprocessingStage(Stage):
     def preprocessing(
         feature_names: list[str],
         algorithm_names: list[str],
-        instance_labels: pd.Series,
-        instance_sources: pd.Series | None,
+        instance_labels: pd.Series[str],
+        instance_sources: pd.Series[float] | None,
         features: NDArray[np.double],
         algorithms: NDArray[np.double],
         perf: PerformanceOptions,
@@ -142,12 +142,12 @@ class PreprocessingStage(Stage):
         trace: TraceOptions,
         outputs: OutputOptions,
     ) -> tuple[
-        pd.Series,
+        pd.Series[str],
         list[str],
         list[str],
         NDArray[np.double],
         NDArray[np.double],
-        pd.Series | None,
+        pd.Series[float] | None,
     ]:
         """See file docstring."""
         # This has code specific to preprocessing.m

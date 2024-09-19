@@ -12,7 +12,8 @@ guided by the options specified in the `InstanceSpaceOptions` object.
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from stages.stage import Stage
+
+from matilda.stages.stage import Stage
 
 
 class PrelimStage(Stage):
@@ -62,23 +63,23 @@ class PrelimStage(Stage):
     def _inputs() -> list[tuple[str, type]]:
         """See file docstring."""
         return [
-            ["x", NDArray[np.double]],
-            ["y", NDArray[np.double]],
-            ["max_perf", bool],
-            ["abs_perf", bool],
-            ["epsilon", float],
-            ["beta_threshold", float],
-            ["bound", bool],
-            ["norm", bool],
-            ["small_scale_flag", bool],
-            ["small_scale", float],
-            ["file_idx_flag", bool],
-            ["file_idx", str],
-            ["feats", pd.DataFrame | None],
-            ["algos", pd.DataFrame | None],
-            ["selvars_type", str],
-            ["min_distance", float],
-            ["density_flag", bool],
+            ("x", NDArray[np.double]),
+            ("y", NDArray[np.double]),
+            ("max_perf", bool),
+            ("abs_perf", bool),
+            ("epsilon", float),
+            ("beta_threshold", float),
+            ("bound", bool),
+            ("norm", bool),
+            ("small_scale_flag", bool),
+            ("small_scale", float),
+            ("file_idx_flag", bool),
+            ("file_idx", str),
+            ("feats", pd.DataFrame),
+            ("algos", pd.DataFrame),
+            ("selvars_type", str),
+            ("min_distance", float),
+            ("density_flag", bool),
         ]
 
     @staticmethod

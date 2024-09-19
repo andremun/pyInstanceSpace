@@ -7,6 +7,10 @@ from typing import Any
 class Stage(ABC):
     """Generic stage."""
 
+    def __init__(self) -> None:
+        """Initialize the stage."""
+        return
+
     @staticmethod
     @abstractmethod
     def _inputs() -> list[tuple[str, type]]:
@@ -19,8 +23,7 @@ class Stage(ABC):
         """Return outputs of the STAGE (run method)."""
         pass
 
-   
     @abstractmethod
-    def _run(*args: Any) -> tuple[Any]:
+    def _run(self, *args: Any) -> tuple[Any]:
         """Run the stage."""
         pass

@@ -8,10 +8,13 @@ from one edge of the space to the opposite.
 
 """
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from stages.stage import Stage
+
+from matilda.stages.stage import Stage
 
 
 class PilotStage(Stage):
@@ -56,9 +59,9 @@ class PilotStage(Stage):
                 List of inputs for the stage
         """
         return [
-            ["x", NDArray[np.double]],
-            ["y", NDArray[np.double]],
-            ["feat_labels", list[str]],
+            ("x", NDArray[np.double]),
+            ("y", NDArray[np.double]),
+            ("feat_labels", list[str]),
         ]
 
     @staticmethod
@@ -75,25 +78,20 @@ class PilotStage(Stage):
                 List of outputs for the stage
         """
         return [
-            ["X0", NDArray[np.double] | None],  # not sure about the dimensions
-            ["alpha", NDArray[np.double] | None],
-            ["eoptim", NDArray[np.double] | None],
-            ["perf", NDArray[np.double] | None],
-            ["a", NDArray[np.double]],
-            ["z", NDArray[np.double]],
-            ["c", NDArray[np.double]],
-            ["b", NDArray[np.double]],
-            ["error", NDArray[np.double]],  # or just the double
-            ["r2", NDArray[np.double]],
-            ["summary", pd.DataFrame],
+            ("X0", NDArray[np.double]),  # not sure about the dimensions
+            ("alpha", NDArray[np.double]),
+            ("eoptim", NDArray[np.double]),
+            ("perf", NDArray[np.double]),
+            ("a", NDArray[np.double]),
+            ("z", NDArray[np.double]),
+            ("c", NDArray[np.double]),
+            ("b", NDArray[np.double]),
+            ("error", NDArray[np.double]),  # or just the double
+            ("r2", NDArray[np.double]),
+            ("summary", pd.DataFrame),
         ]
 
-    def _run(
-        self,
-        x: NDArray[np.double],
-        y: NDArray[np.double],
-        feat_labels: list[str],
-    ) -> tuple[
+    def _run(self, *args: Any) -> tuple[
         NDArray[np.double] | None,
         NDArray[np.double] | None,
         NDArray[np.double] | None,
@@ -106,7 +104,6 @@ class PilotStage(Stage):
         NDArray[np.double],
         pd.DataFrame,
     ]:
-
         # Implement all the code in and around this class in buildIS
         raise NotImplementedError
 
