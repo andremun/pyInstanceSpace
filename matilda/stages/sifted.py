@@ -17,8 +17,8 @@ from sklearn.metrics import silhouette_score
 from sklearn.model_selection import KFold, cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
 
-from matilda.data.model import SiftedDataChanged, SiftedOut
-from matilda.data.options import PilotOptions, SiftedOptions
+from matilda.data.model import SiftedDataChanged, SiftedOut, Data
+from matilda.data.options import PilotOptions, SiftedOptions, SelvarsOptions
 from matilda.stages.pilot import Pilot
 
 
@@ -49,6 +49,7 @@ class Sifted:
     y_bin: NDArray[np.bool_]
     feat_labels: NDArray[np.str_]
     opts: SiftedOptions
+    opts_selvars: SelvarsOptions
 
     def __init__(
         self,
@@ -57,6 +58,7 @@ class Sifted:
         y_bin: NDArray[np.bool_],
         feat_labels: list[str],
         opts: SiftedOptions,
+        opts_selvars: SelvarsOptions
     ) -> None:
         """Initialize the Sifted stage.
 
@@ -86,6 +88,7 @@ class Sifted:
         y_bin: NDArray[np.bool_],
         feat_labels: list[str],
         opts: SiftedOptions,
+        opts_selvars: SelvarsOptions
     ) -> tuple[SiftedDataChanged, SiftedOut]:
         """Process data matrices and options to produce a sifted dataset.
 
@@ -109,12 +112,24 @@ class Sifted:
         output : SiftedOut
             Output data from the Sifted stage including selected features and
             performance metrics.
-        """
-        sifted = Sifted(x=x, y=y, y_bin=y_bin, feat_labels=feat_labels, opts=opts)
+        """        
+        sifted = Sifted(x=x, y=y, y_bin=y_bin, feat_labels=feat_labels, opts=opts, opts_selvars=opts_selvars)
 
         nfeats = x.shape[1]
         idx = np.arange(nfeats)
         rng = np.random.default_rng(seed=0)
+        
+        # This bit is from BuildIs.m
+        featsel_idx = np.arange(1, nfeats + 1)
+        bydensity = (
+            opts_selvars != None and
+            'density_flag' in opts_selvars.__dict__.keys() and
+            # opts_selvars.density_flag and
+            'min_distance' in opts_selvars.__dict__.keys() and
+            isinstance(opts_selvars.min_distance , float) and
+            'selvars_type' in opts_selvars.__dict__.keys() and
+            isinstance(opts_selvars.selvars_type , str) 
+        )
 
         if nfeats <= 1:
             raise NotEnoughFeatureError(
@@ -174,7 +189,7 @@ class Sifted:
 
         x_aux, selvars = sifted.find_best_combination(x_aux, clust, selvars, rng)
 
-        return sifted.generate_output(
+        sifted_output = sifted.generate_output(
             x=x_aux,
             selvars=selvars,
             idx=idx,
@@ -183,6 +198,19 @@ class Sifted:
             silhouette_scores=silhouette_scores,
             clust=clust,
         )
+        
+        # This is the bit of code moved from BuildIs.m
+        # select feature labels based on sifted selected values
+        feat_labels = [feat_labels[i] for i in sifted_output[1].selvars]
+        featsel_idx = sifted_output[1].selvars
+        
+        # run filter for small experiment (bysenstiy, and model.data is required)
+        # manually create now, wait for kian to get its output
+        model_data = Data(
+            
+        )
+        
+        return sifted_output
 
     def select_features_by_performance(
         self,
