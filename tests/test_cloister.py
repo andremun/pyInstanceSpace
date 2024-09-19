@@ -219,7 +219,9 @@ class TestCloister:
         options = CloisterOptions.default()
 
         _, remove = CloisterStage._generate_boundaries(
-            input_x, rho_boundary, options,
+            input_x,
+            rho_boundary,
+            options,
         )
         remove_matlab = output_data.remove
 
