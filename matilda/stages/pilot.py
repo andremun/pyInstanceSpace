@@ -21,8 +21,13 @@ from matilda.stages.stage import Stage
 
 
 class Pilot(Stage):
+    """Class for PILOT stage."""
+
     def __init__(
-        self, x: NDArray[np.double], y: NDArray[np.double], feat_labels: list[str],
+        self,
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+        feat_labels: list[str],
     ) -> None:
         """Initialize the Pilot stage.
 
@@ -102,7 +107,7 @@ class Pilot(Stage):
         NDArray[np.double],
         pd.DataFrame,
     ]:
-        """Implement all the code in and around this class in buildIS
+        """Implement all the code in and around this class in buildIS.
 
         Args
         -------
@@ -135,7 +140,7 @@ class Pilot(Stage):
             pd.DataFrame
 
         """
-        return pilotStage.pilot(self.x, self.y, self.feat_labels)
+        return Pilot.pilot(self.x, self.y, self.feat_labels, options)
 
     @staticmethod
     def pilot(
@@ -209,8 +214,11 @@ class Pilot(Stage):
 
         # Analytical solution
         if options.analytic:
-            out_a, out_z, out_c, out_b, error, r2 = pilotStage.analytic_solve(
-                x, x_bar, n, m,
+            out_a, out_z, out_c, out_b, error, r2 = Pilot.analytic_solve(
+                x,
+                x_bar,
+                n,
+                m,
             )
 
         # Numerical solution
@@ -231,14 +239,14 @@ class Pilot(Stage):
                     x0 = options.x0
                 else:
                     print("  -> PILOT is using random starting points for BFGS.")
-                    rng = np.random.default_rng()
+                    rng = np.random.default_rng(seed=0)
                     x0 = 2 * rng.random((2 * m + 2 * n, options.n_tries)) - 1
 
                 alpha = np.zeros((2 * m + 2 * n, options.n_tries))
                 eoptim = np.zeros(options.n_tries)
                 perf = np.zeros(options.n_tries)
 
-                idx, alpha, eoptim, perf = pilotStage.numerical_solve(
+                idx, alpha, eoptim, perf = Pilot.numerical_solve(
                     x,
                     hd,
                     x0,
@@ -474,7 +482,7 @@ class Pilot(Stage):
         for i in range(opts.n_tries):
             initial_guess = x0[:, i]
             result = optim.fmin_bfgs(
-                pilotStage.error_function,
+                Pilot.error_function,
                 initial_guess,
                 args=(x_bar, n, m),
                 full_output=True,

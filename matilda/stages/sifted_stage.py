@@ -2,6 +2,7 @@
 
 import numpy as np
 from numpy.typing import NDArray
+from matilda.stages.stage import Stage
 
 from matilda.data.options import SiftedOptions
 from matilda.stages.stage import Stage

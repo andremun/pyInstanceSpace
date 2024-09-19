@@ -12,17 +12,24 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import scipy.linalg as la
+import scipy.optimize as optim
 from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
 from scipy.stats import pearsonr
-from matilda.data.options import PilotOptions
 
+from matilda.data.options import PilotOptions
 from matilda.stages.stage import Stage
 
 
 class PilotStage(Stage):
+    """Class for PILOT stage."""
+
     def __init__(
-        self, x: NDArray[np.double], y: NDArray[np.double], feat_labels: list[str],
+        self,
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+        feat_labels: list[str],
     ) -> None:
         """Initialize the Pilot stage.
 
@@ -135,7 +142,7 @@ class PilotStage(Stage):
             pd.DataFrame
 
         """
-        return pilotStage.pilot(self.x, self.y, self.feat_labels)
+        return PilotStage.pilot(self.x, self.y, self.feat_labels, options)
 
     @staticmethod
     def pilot(
@@ -209,8 +216,11 @@ class PilotStage(Stage):
 
         # Analytical solution
         if options.analytic:
-            out_a, out_z, out_c, out_b, error, r2 = pilotStage.analytic_solve(
-                x, x_bar, n, m,
+            out_a, out_z, out_c, out_b, error, r2 = PilotStage.analytic_solve(
+                x,
+                x_bar,
+                n,
+                m,
             )
 
         # Numerical solution
@@ -231,14 +241,14 @@ class PilotStage(Stage):
                     x0 = options.x0
                 else:
                     print("  -> PILOT is using random starting points for BFGS.")
-                    rng = np.random.default_rng()
+                    rng = np.random.default_rng(seed=0)
                     x0 = 2 * rng.random((2 * m + 2 * n, options.n_tries)) - 1
 
                 alpha = np.zeros((2 * m + 2 * n, options.n_tries))
                 eoptim = np.zeros(options.n_tries)
                 perf = np.zeros(options.n_tries)
 
-                idx, alpha, eoptim, perf = pilotStage.numerical_solve(
+                idx, alpha, eoptim, perf = PilotStage.numerical_solve(
                     x,
                     hd,
                     x0,

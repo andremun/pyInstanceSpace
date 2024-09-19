@@ -86,7 +86,8 @@ class TestCloister:
         options = CloisterOptions.default()
 
         rho_python = CloisterStage._compute_correlation(
-            input_x, options,
+            input_x,
+            options,
         )
         rho_matlab = output_data.rho
 
