@@ -49,6 +49,8 @@ class _NormaliseOut:
 
 @dataclass(frozen=True)
 class DataDense:
+    """dataclass for data_sense data."""
+
     x_data_dense: NDArray[np.double]
     y_data_dense: NDArray[np.double]
     x_raw_data_dense: NDArray[np.double]
@@ -82,6 +84,10 @@ class PrelimStage(Stage):
         self.y = y
         self.prelim_opts = prelim_opts
         self.selvars_opts = selvars_opts
+        self.x_raw = x_raw
+        self.y_raw = y_raw
+        self.s = s
+        self.inst_labels = inst_labels
 
     @staticmethod
     def _inputs() -> list[tuple[str, type | UnionType]]:

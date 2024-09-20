@@ -1,3 +1,10 @@
+"""Test module for filter functionality post Prelim class to verify its functionality.
+
+The file contains multiple unit tests to ensure that the `filter` function correctly
+performs its tasks. The basic mechanism of the test is to compare its output against
+output from MATLAB and check if the outputs are the same or reasonable similar.
+"""
+
 from pathlib import Path
 
 import numpy as np

@@ -1,3 +1,17 @@
+"""Test module for Prelim class to verify its functionality.
+
+The file contains multiple unit tests to ensure that the `Prelim` class corretly
+performs its tasks. The basic mechanism of the test is to compare its output against
+output from MATLAB and check if the outputs are the same or reasonable similar.
+
+Tests include:
+- Value of feature matrix after removing extreme outliers.
+-- Verifying the values for IQR, median, upper and lower bounds.
+- Normalisation of the feature matrix and performance matrix.
+-- Verifying the values for lambda, min, mu, and sigma.
+- Verifying the values of the data.model after running the Prelim class.
+"""
+
 from pathlib import Path
 
 import numpy as np
