@@ -78,7 +78,7 @@ x_input = pd.read_csv(csv_path_x_input, header=None).to_numpy()
 y_input = pd.read_csv(csv_path_y_input, header=None).to_numpy()
 x_raw = np.genfromtxt(csv_path_prelim_input_x_raw, delimiter=",")
 y_raw = np.genfromtxt(csv_path_prelim_input_y_raw, delimiter=",")
-s = None
+s: pd.Series | None = None
 inst_labels = np.genfromtxt(csv_path_prelim_inst_labels, delimiter=",")
 
 prelim_opts = PrelimOptions(
@@ -107,7 +107,7 @@ def test_bound() -> None:
         x_raw,
         y_raw,
         s,
-        inst_labels,
+        pd.Series(inst_labels),
         prelim_opts,
         selvars_opts,
     )
@@ -162,7 +162,7 @@ def test_normalise() -> None:
         x_raw,
         y_raw,
         s,
-        inst_labels,
+        pd.Series(inst_labels),
         prelim_opts,
         selvars_opts,
     )
@@ -213,7 +213,7 @@ def test_prelim() -> None:
         x_raw,
         y_raw,
         s,
-        inst_labels,
+        pd.Series(inst_labels),
         prelim_opts,
         selvars_opts,
     )

@@ -358,8 +358,8 @@ def test_split_fileindexed() -> None:
         small_scale=0.50,
         file_idx_flag=True,
         file_idx="./tests/test_data/prelim/fileidx/fileidx.csv",
-        feats=[],
-        algos=[],
+        feats=None,
+        algos=None,
         selvars_type="Ftr&Good",
         min_distance=0.1,
         density_flag=False,
@@ -407,7 +407,6 @@ def test_split_fileindexed() -> None:
     ).loc[:, 0]
 
     s_before = None
-    data_dense_before = None
 
     prelim = PrelimStage(
         x_before,

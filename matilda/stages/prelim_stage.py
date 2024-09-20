@@ -11,6 +11,7 @@ guided by the options specified in the `InstanceSpaceOptions` object.
 
 from dataclasses import dataclass
 from pathlib import Path
+from types import UnionType
 
 import numpy as np
 import pandas as pd
@@ -83,22 +84,22 @@ class PrelimStage(Stage):
         self.selvars_opts = selvars_opts
 
     @staticmethod
-    def _inputs() -> list[tuple[str, type]]:
+    def _inputs() -> list[tuple[str, type | UnionType]]:
         """See file docstring."""
         return [
-            ["x", NDArray[np.double]],
-            ["y", NDArray[np.double]],
-            ["x_raw", NDArray[np.double]],
-            ["y_raw", NDArray[np.double]],
-            ["s", pd.Series | None],
-            ["inst_labels", pd.Series | None],
-            ["prelim_opts", PrelimOptions],
-            ["selvars_opts", SelvarsOptions],
+            ("x", NDArray[np.double]),
+            ("y", NDArray[np.double]),
+            ("x_raw", NDArray[np.double]),
+            ("y_raw", NDArray[np.double]),
+            ("s", pd.Series | None),
+            ("inst_labels", pd.Series | None),
+            ("prelim_opts", PrelimOptions),
+            ("selvars_opts", SelvarsOptions),
         ]
 
     # needs to be changes to output including prelim output, and data changed by stage
     @staticmethod
-    def _outputs() -> list[tuple[str, type]]:
+    def _outputs() -> list[tuple[str, type | UnionType]]:
         """See file docstring."""
         return [
             ("med_val", NDArray[np.double]),
@@ -127,7 +128,8 @@ class PrelimStage(Stage):
             ("s", pd.Series | None),
         ]
 
-    # will run prelim, filter_post_prelim, return prelim output and data changed by stage
+    # will run prelim, filter_post_prelim, return prelim output and data changed by
+    # stage
     def _run(
         self,
         x: NDArray[np.double],
@@ -160,7 +162,7 @@ class PrelimStage(Stage):
         NDArray[np.double],  # p
         NDArray[np.double],  # num_good_algos
         NDArray[np.bool_],  # beta
-        pd.Series | None,  # instlabels
+        pd.Series | None,  # inst_labels
         DataDense | None,  # data_dense
         pd.Series | None,  # s
     ]:
@@ -205,7 +207,7 @@ class PrelimStage(Stage):
             inst_labels,
             s,
             data_dense,
-        ) = self.filter(
+        ) = self._filter(
             inst_labels,
             x,
             y,
@@ -221,17 +223,6 @@ class PrelimStage(Stage):
         )
 
         return (
-            x,
-            y,
-            x_raw,
-            y_raw,
-            y_bin,
-            y_best,
-            p,
-            num_good_algos,
-            beta,
-            s,
-            data_dense,
             med_val,
             iq_range,
             hi_bound,
@@ -244,6 +235,18 @@ class PrelimStage(Stage):
             lambda_y,
             sigma_y,
             mu_y,
+            x,
+            y,
+            x_raw,
+            y_raw,
+            y_bin,
+            y_best,
+            p,
+            num_good_algos,
+            beta,
+            inst_labels,
+            data_dense,
+            s,
         )
 
     def _select_best_algorithms(
@@ -454,8 +457,8 @@ class PrelimStage(Stage):
         y: NDArray[np.double],
         x_raw: NDArray[np.double],
         y_raw: NDArray[np.double],
-        s: pd.Series | None,
-        inst_labels: pd.Series,
+        s: pd.Series | None,  # type: ignore[type-arg]
+        inst_labels: pd.Series,  # type: ignore[type-arg]
         prelim_opts: PrelimOptions,
         selvars_opts: SelvarsOptions,
     ) -> tuple[
@@ -650,7 +653,7 @@ class PrelimStage(Stage):
 
     def _filter(
         self,
-        inst_labels: pd.Series,
+        inst_labels: pd.Series,  # type: ignore[type-arg]
         x: NDArray[np.double],
         y: NDArray[np.double],
         y_bin: NDArray[np.bool_],

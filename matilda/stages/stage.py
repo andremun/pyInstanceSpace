@@ -1,7 +1,7 @@
 """Generic stage."""
 
 from abc import ABC, abstractmethod
-from typing import Any
+from types import UnionType
 
 
 class Stage(ABC):
@@ -9,17 +9,12 @@ class Stage(ABC):
 
     @staticmethod
     @abstractmethod
-    def _inputs() -> list[tuple[str, type]]:
+    def _inputs() -> list[tuple[str, type | UnionType]]:
         """Return inputs of the STAGE (run method)."""
         pass
 
     @staticmethod
     @abstractmethod
-    def _outputs() -> list[tuple[str, type]]:
+    def _outputs() -> list[tuple[str, type | UnionType]]:
         """Return outputs of the STAGE (run method)."""
-        pass
-
-    @abstractmethod
-    def _run(*args: Any) -> tuple[Any]:
-        """Run the stage."""
         pass
