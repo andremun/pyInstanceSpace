@@ -179,7 +179,7 @@ class Pilot(Stage):
         X0
             NDArray[np.double] | None  # not sure about the dimensions
         alpha
-            NDArray[np.double] | None
+            NDArray[np.float16] | None
         eoptim
             NDArray[np.double] | None
         perf
@@ -281,11 +281,11 @@ class Pilot(Stage):
         summary = rldf.join(summary)
 
         if alpha is not None and x0 is not None:
-            proj: NDArray[np.float16] = alpha.astype(np.float16)
+            alpha = alpha.astype(np.float16)
             x_init: NDArray[np.double] = x0
             pout = [
                 x_init,
-                proj,
+                alpha,
                 eoptim,
                 perf,
                 out_a,
