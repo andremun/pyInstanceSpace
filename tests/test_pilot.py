@@ -19,7 +19,7 @@ import numpy as np
 from scipy.io import loadmat
 
 from matilda.data.options import PilotOptions
-from matilda.stages.pilot_stage import PilotStage
+from matilda.stages.pilot import Pilot
 
 script_dir = Path(__file__).parent
 
@@ -57,7 +57,7 @@ class SampleDataNum:
         self.feat_labels_sample = [str(label[0]) for label in feat_labels]
         analytic = data["optsPilot"][0, 0]["analytic"][0, 0]
         n_tries = int(data["optsPilot"][0, 0]["ntries"][0, 0])
-        self.opts_sample = PilotOptions(analytic, n_tries)
+        self.opts_sample = PilotOptions(None, None, analytic, n_tries)
 
 
 class MatlabResults:
@@ -94,8 +94,8 @@ def test_run_analytic() -> None:
     x_sample = sd.x_sample
     y_sample = sd.y_sample
     feat_labels_sample = sd.feat_labels_sample
-    opts = PilotOptions(True, 5)
-    pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
+    opts = PilotOptions(None, None, True, 5)
+    pilot = Pilot(x_sample, y_sample, feat_labels_sample)
     result = pilot.pilot(x_sample, y_sample, feat_labels_sample, opts)
 
     a = result[4]
@@ -120,8 +120,8 @@ def test_run_numerical() -> None:
     y_sample = sd.y_sample
     feat_labels_sample = sd.feat_labels_sample
     opts_sample = sd.opts_sample
-    opts = PilotOptions(opts_sample.analytic, opts_sample.n_tries)
-    pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
+    opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
+    pilot = Pilot(x_sample, y_sample, feat_labels_sample)
     result = pilot.pilot(x_sample, y_sample, feat_labels_sample, opts)
     eoptim = result[2]
     perf = result[3]
