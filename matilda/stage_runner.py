@@ -1,7 +1,8 @@
 """A runner to run a list of stages."""
 
+from collections import defaultdict
 from collections.abc import Generator
-from typing import Any, NamedTuple
+from typing import Any, DefaultDict, NamedTuple
 
 from matilda.stages.stage import OUT, Stage, StageClass
 
@@ -42,7 +43,7 @@ class StageRunner:
     _stage_order: list[StageScheduleElement]
 
     _current_schedule_item: int
-    _stages_ran: dict[StageClass, bool]
+    _stages_ran: defaultdict[StageClass, bool]
 
     def __init__(
         self,
@@ -57,12 +58,13 @@ class StageRunner:
         """
         self._stage_order = stages
 
-        self._schedule_output_data = []
+        self._schedule_output_data = [{}]
         self._current_schedule_item = 0
 
         self._available_arguments = {}
         self._stage_to_schedule_index = {}
         self._stage_order_ran = {}
+        self._stages_ran = defaultdict(lambda: False)
 
         for i, schedule in enumerate(self._stage_order):
             for stage in schedule:
@@ -88,7 +90,7 @@ class StageRunner:
         """
         self._rollback_to_schedule_index(0)
 
-        self._available_arguments = additional_arguments.__dict__
+        self._available_arguments = additional_arguments
 
         for schedule in self._stage_order:
             for stage in schedule:
@@ -133,7 +135,7 @@ class StageRunner:
 
         raw_inputs = {}
 
-        for input_name, _input_type in input_arguments.__dict__.items():
+        for input_name in input_arguments._fields:
             # TODO: Some sort of type check on the inputs
             raw_inputs[input_name] = available_arguments[input_name]
 
@@ -142,8 +144,14 @@ class StageRunner:
 
         outputs = stage._run(inputs)  # noqa: SLF001
 
-        for output_name, output_value in outputs.__dict__.items():
-            available_arguments[output_name] = output_value
+        for output_name, output_value in outputs._asdict().items():
+            self._available_arguments[output_name] = output_value
+
+        self._schedule_output_data[self._current_schedule_item] = (
+            self._available_arguments
+        )
+
+        self._stages_ran[stage] = True
 
         self._progress_schedule()
 
@@ -180,7 +188,7 @@ class StageRunner:
         """
         self._rollback_to_schedule_index(0)
 
-        self._available_arguments = additional_arguments.__dict__
+        self._available_arguments = additional_arguments._asdict()
 
         for schedule in self._stage_order:
             for stage in schedule:
@@ -203,7 +211,7 @@ class StageRunner:
         """
         self._rollback_to_schedule_index(0)
 
-        self._available_arguments = additional_arguments.__dict__
+        self._available_arguments = additional_arguments._asdict()
 
         for schedule in self._stage_order:
             if stop_at_stage in schedule:
@@ -244,6 +252,10 @@ class StageRunner:
         self._available_arguments = self._schedule_output_data[index]
 
         self._schedule_output_data = self._schedule_output_data[: index + 1]
+
+        for schedule_element in self._stage_order[index + 1 :]:
+            for stage in schedule_element:
+                self._stages_ran[stage] = False
 
     def _progress_schedule(self) -> None:
         current_schedule_finished = True
