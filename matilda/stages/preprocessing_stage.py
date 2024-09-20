@@ -27,8 +27,8 @@ class PreprocessingStage(Stage):
         self,
         feature_names: list[str],
         algorithm_names: list[str],
-        instance_labels: pd.Series[str],
-        instance_sources: pd.Series[float] | None,
+        instance_labels: pd.Series,
+        instance_sources: pd.Series | None,
         features: NDArray[np.double],
         algorithms: NDArray[np.double],
         perf: PerformanceOptions,
@@ -111,12 +111,12 @@ class PreprocessingStage(Stage):
         trace: TraceOptions,
         outputs: OutputOptions,
     ) -> tuple[
-        pd.Series[float],
+        pd.Series,
         list[str],
         list[str],
         NDArray[np.double],
         NDArray[np.double],
-        pd.Series[str] | None,
+        pd.Series | None,
     ]:
         """See file docstring."""
         # All the code including the code in the buildIS should be here
@@ -126,8 +126,8 @@ class PreprocessingStage(Stage):
     def preprocessing(
         feature_names: list[str],
         algorithm_names: list[str],
-        instance_labels: pd.Series[str],
-        instance_sources: pd.Series[float] | None,
+        instance_labels: pd.Series,
+        instance_sources: pd.Series | None,
         features: NDArray[np.double],
         algorithms: NDArray[np.double],
         perf: PerformanceOptions,
@@ -142,12 +142,12 @@ class PreprocessingStage(Stage):
         trace: TraceOptions,
         outputs: OutputOptions,
     ) -> tuple[
-        pd.Series[str],
+        pd.Series,
         list[str],
         list[str],
         NDArray[np.double],
         NDArray[np.double],
-        pd.Series[float] | None,
+        pd.Series | None,
     ]:
         """See file docstring."""
         # This has code specific to preprocessing.m

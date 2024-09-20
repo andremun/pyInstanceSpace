@@ -2,7 +2,7 @@
 
 from collections import defaultdict
 from collections.abc import Generator
-from typing import Any, DefaultDict, NamedTuple
+from typing import Any, NamedTuple
 
 from matilda.stages.stage import OUT, Stage, StageClass
 
@@ -63,13 +63,11 @@ class StageRunner:
 
         self._available_arguments = {}
         self._stage_to_schedule_index = {}
-        self._stage_order_ran = {}
         self._stages_ran = defaultdict(lambda: False)
 
         for i, schedule in enumerate(self._stage_order):
             for stage in schedule:
                 self._stage_to_schedule_index[stage] = i
-                self._stage_order_ran[stage] = False
 
         self._check_stage_order_is_runnable(
             stages,
@@ -196,7 +194,21 @@ class StageRunner:
 
         return self._available_arguments
 
-        # TODO: Work out what this should return. Maybe just the dict of outputs?
+    def run_remaining(self, additional_arguments: NamedTuple) -> dict[str, Any]:
+        """Run stages that haven't been ran to finish.
+
+        Return the entire outputs data object when finished.
+
+        Returns
+        -------
+            tuple[Any]: _description_
+        """
+        for schedule in self._stage_order:
+            for stage in schedule:
+                if not self._stages_ran[stage]:
+                    self.run_stage(stage, additional_arguments)
+
+        return self._available_arguments
 
     def run_until_stage(
         self,
@@ -260,15 +272,16 @@ class StageRunner:
     def _progress_schedule(self) -> None:
         current_schedule_finished = True
         for stage in self._stage_order[self._current_schedule_item]:
-            if not self._stage_order_ran[stage]:
+            if not self._stages_ran[stage]:
                 current_schedule_finished = False
                 break
 
         if current_schedule_finished:
-            if len(self._schedule_output_data) <= self._current_schedule_item:
-                self._schedule_output_data.append({})
-
             self._schedule_output_data[self._current_schedule_item] = (
                 self._available_arguments
             )
+
             self._current_schedule_item += 1
+
+            if len(self._schedule_output_data) <= self._current_schedule_item:
+                self._schedule_output_data.append({})

@@ -17,8 +17,6 @@ from numpy.typing import NDArray
 
 from matilda.stages.stage import Stage
 
-from matilda.stages.stage import Stage
-
 
 class _PrelimStageInputs(NamedTuple):
     x: NDArray[np.double]

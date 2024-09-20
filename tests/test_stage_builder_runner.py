@@ -83,4 +83,37 @@ def test_running_basic_example() -> None:
 
     initial_arguments = InitialArguments(1)
 
-    stage_runner.run_all(initial_arguments)
+    output = stage_runner.run_all(initial_arguments)
+
+    assert output == {
+        "a": 1,
+        "b": "1",
+        "c": "1 2",
+    }
+
+
+def test_rerunning_earlier_stage() -> None:
+    """Make sure running a very simple example works."""
+    stage_builder = StageBuilder()
+    stage_builder.add_stage(StageB)
+    stage_builder.add_stage(StageA)
+
+    stage_runner = stage_builder.build(InitialArguments)
+
+    initial_arguments = InitialArguments(1)
+    output = stage_runner.run_all(initial_arguments)
+
+    assert output == {
+        "a": 1,
+        "b": "1",
+        "c": "1 2",
+    }
+
+    stage_runner.run_stage(StageA, a=2)
+    output = stage_runner.run_all(initial_arguments)
+
+    assert output == {
+        "a": 2,
+        "b": "2",
+        "c": "2 2",
+    }
