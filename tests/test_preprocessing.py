@@ -22,8 +22,8 @@ def test_run_method() -> None:
     the expected results stored in the X.csv and Y.csv files.
     """
     script_dir = Path(__file__).resolve().parent
-    metadata_path = script_dir / "test_integration/metadata.csv"
-    option_path = script_dir / "test_integration/options.json"
+    metadata_path = script_dir / "test_data/preprocessing/metadata.csv"
+    option_path = script_dir / "test_data/preprocessing/options.json"
     instance_space = instance_space_from_files(metadata_path, option_path)
     assert instance_space is not None
 
@@ -37,30 +37,32 @@ def test_run_method() -> None:
         instance_space.options.selvars,
     )
 
+    (updated_inst_labels,
+    updated_feat_labels,
+    new_algo_labels,
+    updated_x,
+    updated_y,
+     updated_s) = preprocessing_stage._run(instance_space.options.selvars)
 
-    pre_data_changed, preprocess_out = preprocessing_stage.run(
-        instance_space.options.selvars
-    )
-
-    df_x = pd.read_csv(script_dir / "test_integration/X.csv", header=None)
-    df_y = pd.read_csv(script_dir / "test_integration/Y.csv", header=None)
+    df_x = pd.read_csv(script_dir / "test_data/preprocessing/X.csv", header=None)
+    df_y = pd.read_csv(script_dir / "test_data/preprocessing/Y.csv", header=None)
 
     assert np.array_equal(
-        pre_data_changed.x,
+        updated_x,
         df_x,
     ), "The data arrays X and Y are not equal."
 
     assert np.allclose(
-        pre_data_changed.x,
+        updated_x,
         df_x,
     ), "The data arrays X and Y are not approximately equal."
 
     assert np.array_equal(
-        pre_data_changed.y,
+        updated_y,
         df_y,
     ), "The data arrays X and Y are not equal."
 
     assert np.allclose(
-        pre_data_changed.y,
+        updated_y,
         df_y,
     ), "The data arrays X and Y are not approximately equal."
