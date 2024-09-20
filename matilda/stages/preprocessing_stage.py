@@ -17,8 +17,8 @@ class PreprocessingStage(Stage):
         self,
         feature_names: list[str],
         algorithm_names: list[str],
-        instance_labels: pd.Series[str],
-        instance_sources: pd.Series[float] | None,
+        instance_labels: pd.Series,
+        instance_sources: pd.Series | None,
         features: NDArray[np.double],
         algorithms: NDArray[np.double],
         selvars: SelvarsOptions,
@@ -59,14 +59,14 @@ class PreprocessingStage(Stage):
 
     def _run(
         self,
-        selvars: SelvarsOptions,
+        selvars: SelvarsOptions
     ) -> tuple[
-        pd.Series[float],
+        pd.Series,
         list[str],
         list[str],
         NDArray[np.double],
         NDArray[np.double],
-        pd.Series[str] | None,
+        pd.Series | None,
     ]:
         """Perform preliminary processing on the input data 'x' and 'y'.
 
