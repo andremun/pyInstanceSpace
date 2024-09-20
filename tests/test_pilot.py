@@ -60,7 +60,7 @@ class SampleDataNum:
         self.feat_labels_sample = [str(label[0]) for label in feat_labels]
         analytic = data["optsPilot"][0, 0]["analytic"][0, 0]
         n_tries = int(data["optsPilot"][0, 0]["ntries"][0, 0])
-        self.opts_sample = PilotOptions(analytic, n_tries)
+        self.opts_sample = PilotOptions(None, None, analytic, n_tries)
 
 
 class MatlabResults:
@@ -99,15 +99,15 @@ def test_run_analytic() -> None:
     x_sample = sd.x_sample
     y_sample = sd.y_sample
     feat_labels_sample = sd.feat_labels_sample
-    opts = PilotOptions(True, 5)
-    pilot = Pilot()
-    result = pilot.run(x_sample, y_sample, feat_labels_sample, opts)[1]
+    opts = PilotOptions(None, None, True, 5)
+    pilot = Pilot(x_sample, y_sample, feat_labels_sample)
+    result = pilot.pilot(x_sample, y_sample, feat_labels_sample, opts)
 
-    a = result.a
-    b = result.b
-    c = result.c
-    z = result.z
-    error = result.error
+    a = result[4]
+    b = result[7]
+    c = result[6]
+    z = result[5]
+    error = result[8]
 
     np.testing.assert_almost_equal(abs(a), abs(mtr.data["A"]), decimal=6)
     np.testing.assert_almost_equal(abs(b), abs(mtr.data["B"]), decimal=6)
@@ -125,11 +125,11 @@ def test_run_numerical() -> None:
     y_sample = sd.y_sample
     feat_labels_sample = sd.feat_labels_sample
     opts_sample = sd.opts_sample
-    opts = PilotOptions(opts_sample.analytic, opts_sample.n_tries)
-    pilot = Pilot()
-    result = pilot.run(x_sample, y_sample, feat_labels_sample, opts)[1]
-    eoptim = result.eoptim
-    perf = result.perf
+    opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
+    pilot = Pilot(x_sample, y_sample, feat_labels_sample)
+    result = pilot.pilot(x_sample, y_sample, feat_labels_sample, opts)
+    eoptim = result[2]
+    perf = result[3]
 
     if eoptim is not None and perf is not None:
         np.testing.assert_almost_equal(eoptim, mtr.data["eoptim"][0], decimal=6)

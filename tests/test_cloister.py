@@ -74,10 +74,10 @@ class TestCloister:
         return CloisterMatlabOutput()
 
     def test_correlation_calculation(
-            self,
-            input_data: CloisterMatlabInputs,
-            output_data: CloisterMatlabOutput,
-        ) -> None:
+        self,
+        input_data: CloisterMatlabInputs,
+        output_data: CloisterMatlabOutput,
+    ) -> None:
         """Test correlation calculation against MATLAB's correlation output.
 
         Compare the calculated rho value between MATLAB's and Python's computation
@@ -86,16 +86,19 @@ class TestCloister:
         input_x = input_data.input_x
         options = CloisterOptions.default()
 
-        rho_python = CloisterStage._compute_correlation(input_x, options)  # noqa: SLF001
+        rho_python = CloisterStage._compute_correlation(
+            input_x,
+            options,
+        )
         rho_matlab = output_data.rho
 
         assert np.allclose(rho_matlab, rho_python)
 
     def test_correlation_calculation_boundary(
-            self,
-            input_data: CloisterMatlabInputs,
-            output_data: CloisterMatlabOutput,
-        ) -> None:
+        self,
+        input_data: CloisterMatlabInputs,
+        output_data: CloisterMatlabOutput,
+    ) -> None:
         """Test with pval value being zero.
 
         This will test both on point and off point boundary.
@@ -109,10 +112,10 @@ class TestCloister:
         assert np.allclose(rho_matlab, rho_python)
 
     def test_decimal_to_binary(
-            self,
-            input_data: CloisterMatlabInputs,
-            output_data: CloisterMatlabOutput,
-        ) -> None:
+        self,
+        input_data: CloisterMatlabInputs,
+        output_data: CloisterMatlabOutput,
+    ) -> None:
         """Test generating binary matrix from decimal against MATLAB's de2bi ouput.
 
         Compare the generated binary matrix between MATLAB's de2bi function and custom
@@ -138,10 +141,10 @@ class TestCloister:
         assert index[0, 0] == 0
 
     def test_run(
-            self,
-            input_data: CloisterMatlabInputs,
-            output_data: CloisterMatlabOutput,
-        ) -> None:
+        self,
+        input_data: CloisterMatlabInputs,
+        output_data: CloisterMatlabOutput,
+    ) -> None:
         """Test run methods correctly run analysis from start to end.
 
         The test also test for convex hull calculation with valid input. The z_edge and
@@ -172,14 +175,16 @@ class TestCloister:
     def test_convex_hull_value_error(self) -> None:
         """Test convex hull function properly handles value error."""
         points_one_dimension = np.array([[1], [2], [3]])
-        output = CloisterStage._compute_convex_hull(points_one_dimension)  # noqa: SLF001
+        output = CloisterStage._compute_convex_hull(
+            points_one_dimension,
+        )
         assert output.size == 0
 
     def test_boundary_generation(
-            self,
-            input_data: CloisterMatlabInputs,
-            output_data: CloisterMatlabOutput,
-        ) -> None:
+        self,
+        input_data: CloisterMatlabInputs,
+        output_data: CloisterMatlabOutput,
+    ) -> None:
         """Test boundary generation against MATLAB's output.
 
         Compare the z_edge and z_ecorr vaules obtained from the function with MATLAB's.
@@ -190,10 +195,12 @@ class TestCloister:
 
         rho = CloisterStage._compute_correlation(input_x, options)  # noqa: SLF001
 
-        x_edge_python, remove_python = CloisterStage._generate_boundaries(  # noqa: SLF001
-            input_x,
-            rho,
-            options,
+        x_edge_python, remove_python = (
+            CloisterStage._generate_boundaries(  # noqa: SLF001
+                input_x,
+                rho,
+                options,
+            )
         )
         x_edge_matlab = output_data.x_edge
         remove_matlab = output_data.remove
@@ -201,12 +208,11 @@ class TestCloister:
         assert np.allclose(x_edge_matlab, x_edge_python)
         assert np.all(remove_matlab == remove_python)
 
-
     def test_boundary_generation_cthres_boundary(
-            self,
-            input_data: CloisterMatlabInputs,
-            output_data: CloisterMatlabOutput,
-        ) -> None:
+        self,
+        input_data: CloisterMatlabInputs,
+        output_data: CloisterMatlabOutput,
+    ) -> None:
         """Test cthres boundary."""
         csv_path_rho = script_dir / "test_data/cloister/input/rho_boundary.csv"
         rho_boundary = np.genfromtxt(csv_path_rho, delimiter=",")
@@ -214,7 +220,11 @@ class TestCloister:
         input_x = input_data.input_x
         options = CloisterOptions.default()
 
-        _, remove = CloisterStage._generate_boundaries(input_x, rho_boundary, options)  # noqa: SLF001
+        _, remove = CloisterStage._generate_boundaries(
+            input_x,
+            rho_boundary,
+            options,
+        )
         remove_matlab = output_data.remove
 
         assert np.all(remove_matlab == remove)

@@ -125,10 +125,7 @@ class CloisterStage(Stage):
         list[tuple[str, type]]
             A list of tuples representing the names and types of input parameters.
         """
-        return [
-            ("x", NDArray[np.double]),
-            ("a", NDArray[np.double]),
-        ]
+        return [("x", NDArray[np.double]), ("a", NDArray[np.double])]
 
     @staticmethod
     def _outputs() -> list[tuple[str, type]]:
@@ -139,10 +136,7 @@ class CloisterStage(Stage):
         list[tuple[str, type]]
             A list of tuples representing the names and types of output parameters.
         """
-        return [
-            ("z_edge", NDArray[np.double]),
-            ("z_ecorr", NDArray[np.double]),
-        ]
+        return [("z_edge", NDArray[np.double]), ("z_ecorr", NDArray[np.double])]
 
     def _run(
         self,
@@ -205,7 +199,6 @@ class CloisterStage(Stage):
         logger.info("  -> CLOISTER has completed.")
 
         return (z_edge, z_ecorr)
-
 
     @staticmethod
     def _compute_correlation(

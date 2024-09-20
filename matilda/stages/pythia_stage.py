@@ -54,6 +54,7 @@ class PythiaStage(Stage):
         algo_labels: list[str],
     ) -> None:
         """See file docstring."""
+        super().__init__()
         self.z = z
         self.y = y
         self.y_bin = y_bin
@@ -64,6 +65,11 @@ class PythiaStage(Stage):
     def _inputs() -> list[tuple[str, type]]:
         """See file docstring."""
         return [
+            ("z", NDArray[np.double]),
+            ("y", NDArray[np.double]),
+            ("y_bin", NDArray[np.bool_]),
+            ("y_best", NDArray[np.double]),
+            ("algo_labels", list[str]),
             ("z", NDArray[np.double]),
             ("y", NDArray[np.double]),
             ("y_bin", NDArray[np.bool_]),
