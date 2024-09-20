@@ -5,6 +5,7 @@ import pandas as pd
 
 from matilda.data.options import SelvarsOptions
 from matilda.stages.prelim_stage import PrelimStage
+from matilda.data.options import PrelimOptions, SelvarsOptions
 
 script_dir = Path(__file__).parent
 
@@ -64,19 +65,20 @@ csv_path_prelim_input_filter = (
     script_dir / "test_data/prelim/input/filter/model_data_input.mat"
 )
 
-
 # input data
 x_input = pd.read_csv(csv_path_x_input, header=None).to_numpy()
 y_input = pd.read_csv(csv_path_y_input, header=None).to_numpy()
 
-abs_perf = True
-beta_threshold = 0.5500
-epsilon = 0.2000
-max_perf = False
-bound = True
-norm = True
+prelim_opts = PrelimOptions(
+    abs_perf=True,
+    beta_threshold=0.5500,
+    epsilon=0.2000,
+    max_perf=False,
+    bound=True,
+    norm=True
+)
 
-selvars = SelvarsOptions.default()
+selvars_opts = SelvarsOptions.default()
 
 
 def test_bound() -> None:
@@ -90,21 +92,8 @@ def test_bound() -> None:
     prelim = PrelimStage(
         x_input,
         y_input,
-        max_perf,
-        abs_perf,
-        epsilon,
-        beta_threshold,
-        bound,
-        norm,
-        selvars.small_scale_flag,
-        selvars.small_scale,
-        selvars.file_idx_flag,
-        selvars.file_idx,
-        selvars.feats,
-        selvars.algos,
-        selvars.selvars_type,
-        selvars.density_flag,
-        selvars.min_distance,
+        prelim_opts,
+        selvars_opts,
     )
     prelim_bound = prelim._bound()  # noqa: SLF001
     x = prelim_bound.x
@@ -154,21 +143,8 @@ def test_normalise() -> None:
     ) = PrelimStage.prelim(
         x_input,
         y_input,
-        max_perf,
-        abs_perf,
-        epsilon,
-        beta_threshold,
-        bound,
-        norm,
-        selvars.small_scale_flag,
-        selvars.small_scale,
-        selvars.file_idx_flag,
-        selvars.file_idx,
-        selvars.feats,
-        selvars.algos,
-        selvars.selvars_type,
-        selvars.min_distance,
-        selvars.density_flag,
+        prelim_opts,
+        selvars_opts,
     )
 
     assert np.allclose(lambda_x, prelim_lambda_x)
@@ -214,21 +190,8 @@ def test_prelim() -> None:
     ) = PrelimStage.prelim(
         x_input,
         y_input,
-        max_perf,
-        abs_perf,
-        epsilon,
-        beta_threshold,
-        bound,
-        norm,
-        selvars.small_scale_flag,
-        selvars.small_scale,
-        selvars.file_idx_flag,
-        selvars.file_idx,
-        selvars.feats,
-        selvars.algos,
-        selvars.selvars_type,
-        selvars.min_distance,
-        selvars.density_flag,
+        prelim_opts,
+        selvars_opts,
     )
 
 

@@ -18,6 +18,7 @@ from numpy.typing import NDArray
 from scipy import optimize, stats
 from sklearn.model_selection import train_test_split
 
+from matilda.data.options import PrelimOptions, SelvarsOptions
 from matilda.stages.stage import Stage
 from matilda.utils.filter import filter
 
@@ -53,41 +54,14 @@ class PrelimStage(Stage):
         self,
         x: NDArray[np.double],
         y: NDArray[np.double],
-        max_perf: bool,
-        abs_perf: bool,
-        epsilon: float,
-        beta_threshold: float,
-        bound: bool,
-        norm: bool,
-        small_scale_flag: bool,
-        small_scale: float,
-        file_idx_flag: bool,
-        file_idx: str,
-        feats: pd.DataFrame | None,
-        algos: pd.DataFrame | None,
-        selvars_type: str,
-        min_distance: float,
-        density_flag: bool,
+        prelim_opts: PrelimOptions,
+        selvars_opts: SelvarsOptions,
     ) -> None:
         """See file docstring."""
         self.x = x
         self.y = y
-        self.max_perf = max_perf
-        self.abs_perf = abs_perf
-        self.epsilon = epsilon
-        self.beta_threshold = beta_threshold
-        self.bound = bound
-        self.norm = norm
-
-        self.small_scale_flag = small_scale_flag
-        self.small_scale = small_scale
-        self.file_idx_flag = file_idx_flag
-        self.file_idx = file_idx
-        self.feats = feats
-        self.algos = algos
-        self.selvars_type = selvars_type
-        self.min_distance = min_distance
-        self.density_flag = density_flag
+        self.prelim_opts = prelim_opts
+        self.selvars_opts = selvars_opts
 
     @staticmethod
     def _inputs() -> list[tuple[str, type]]:
@@ -95,23 +69,8 @@ class PrelimStage(Stage):
         return [
             ["x", NDArray[np.double]],
             ["y", NDArray[np.double]],
-            # PrelimOptions
-            ["max_perf", bool],
-            ["abs_perf", bool],
-            ["epsilon", float],
-            ["beta_threshold", float],
-            ["bound", bool],
-            ["norm", bool],
-            # SelvarsOptions
-            ["small_scale_flag", bool],
-            ["small_scale", float],
-            ["file_idx_flag", bool],
-            ["file_idx", str],
-            ["feats", pd.DataFrame | None],
-            ["algos", pd.DataFrame | None],
-            ["selvars_type", str],
-            ["min_distance", float],
-            ["density_flag", bool],
+            ["prelim_opts", PrelimOptions],
+            ["selvars_opts", SelvarsOptions],
         ]
 
     # needs to be changes to output including prelim output, and data changed by stage
@@ -146,21 +105,8 @@ class PrelimStage(Stage):
         self,
         x: NDArray[np.double],
         y: NDArray[np.double],
-        max_perf: bool,
-        abs_perf: bool,
-        epsilon: float,
-        beta_threshold: float,
-        bound: bool,
-        norm: bool,
-        small_scale_flag: bool,
-        small_scale: float,
-        file_idx_flag: bool,
-        file_idx: str,
-        feats: pd.DataFrame | None,
-        algos: pd.DataFrame | None,
-        selvars_type: str,
-        min_distance: float,
-        density_flag: bool,
+        prelim_opts: PrelimOptions,
+        selvars_opts: SelvarsOptions,
     ) -> tuple[
         NDArray[np.double],  # med_val
         NDArray[np.double],  # iq_range
@@ -207,12 +153,7 @@ class PrelimStage(Stage):
         ) = self.prelim(
             x,
             y,
-            max_perf,
-            abs_perf,
-            epsilon,
-            beta_threshold,
-            bound,
-            norm,
+            prelim_opts,
         )
         # (
         #     subset_index,
@@ -475,21 +416,8 @@ class PrelimStage(Stage):
     def prelim(
         x: NDArray[np.double],
         y: NDArray[np.double],
-        max_perf: bool,
-        abs_perf: bool,
-        epsilon: float,
-        beta_threshold: float,
-        bound: bool,
-        norm: bool,
-        small_scale_flag: bool,
-        small_scale: float,
-        file_idx_flag: bool,
-        file_idx: str,
-        feats: pd.DataFrame | None,
-        algos: pd.DataFrame | None,
-        selvars_type: str,
-        min_distance: float,
-        density_flag: bool,
+        prelim_opts: PrelimOptions,
+        selvars_opts: SelvarsOptions,
     ) -> tuple[
         NDArray[np.double],  # PrelimDataChanged.x
         NDArray[np.double],  # PrelimDataChanged.y
@@ -528,32 +456,14 @@ class PrelimStage(Stage):
         prelim_stage = PrelimStage(
             x,
             y,
-            max_perf,
-            abs_perf,
-            epsilon,
-            beta_threshold,
-            bound,
-            norm,
-            small_scale_flag,
-            small_scale,
-            file_idx_flag,
-            file_idx,
-            feats,
-            algos,
-            selvars_type,
-            min_distance,
-            density_flag,
+            prelim_opts,
+            selvars_opts,
         )
 
         return prelim_stage._prelim(  # noqa: SLF001
             x,
             y,
-            max_perf,
-            abs_perf,
-            epsilon,
-            beta_threshold,
-            bound,
-            norm,
+            prelim_opts,
         )
 
     # prelim matlab file implementation, will return only prelim output
@@ -561,12 +471,7 @@ class PrelimStage(Stage):
         self,
         x: NDArray[np.double],
         y: NDArray[np.double],
-        max_perf: bool,
-        abs_perf: bool,
-        epsilon: float,
-        beta_threshold: float,
-        bound: bool,
-        norm: bool,
+        prelim_opts: PrelimOptions,
     ) -> tuple[
         NDArray[np.double],  # PrelimDataChanged.x
         NDArray[np.double],  # PrelimDataChanged.y
@@ -597,7 +502,7 @@ class PrelimStage(Stage):
         print("-> Calculating the binary measure of performance")
 
         msg = "An algorithm is good if its performance is "
-        if max_perf:
+        if prelim_opts.max_perf:
             print("-> Maximizing performance.")
             y_aux = y.copy()
             y_aux[np.isnan(y_aux)] = -np.inf
@@ -606,15 +511,15 @@ class PrelimStage(Stage):
             # add 1 to the index to match the MATLAB code
             p = np.argmax(y_aux, axis=1) + 1
 
-            if abs_perf:
-                y_bin = y_aux >= epsilon
-                msg = msg + "higher than " + str(epsilon)
+            if prelim_opts.abs_perf:
+                y_bin = y_aux >= prelim_opts.epsilon
+                msg = msg + "higher than " + str(prelim_opts.epsilon)
             else:
                 y_best[y_best == 0] = np.finfo(float).eps
                 y[y == 0] = np.finfo(float).eps
                 y = 1 - y / y_best[:, np.newaxis]
-                y_bin = (1 - y_aux / y_best[:, np.newaxis]) <= epsilon
-                msg = msg + "within " + str(round(100 * epsilon)) + "% of the best."
+                y_bin = (1 - y_aux / y_best[:, np.newaxis]) <= prelim_opts.epsilon
+                msg = msg + "within " + str(round(100 * prelim_opts.epsilon)) + "% of the best."
 
         else:
             print("-> Minimizing performance.")
@@ -625,15 +530,15 @@ class PrelimStage(Stage):
             # add 1 to the index to match the MATLAB code
             p = np.argmin(y_aux, axis=1) + 1
 
-            if abs_perf:
-                y_bin = y_aux <= epsilon
-                msg = msg + "less than " + str(epsilon)
+            if prelim_opts.abs_perf:
+                y_bin = y_aux <= prelim_opts.epsilon
+                msg = msg + "less than " + str(prelim_opts.epsilon)
             else:
                 y_best[y_best == 0] = np.finfo(float).eps
                 y[y == 0] = np.finfo(float).eps
                 y = 1 - y_best[:, np.newaxis] / y
-                y_bin = (1 - y_best[:, np.newaxis] / y_aux) <= epsilon
-                msg = msg + "within " + str(round(100 * epsilon)) + "% of the worst."
+                y_bin = (1 - y_best[:, np.newaxis] / y_aux) <= prelim_opts.epsilon
+                msg = msg + "within " + str(round(100 * prelim_opts.epsilon)) + "% of the worst."
 
         print(msg)
 
@@ -642,11 +547,11 @@ class PrelimStage(Stage):
             y_best,
             y_bin,
             nalgos,
-            beta_threshold,
+            prelim_opts.beta_threshold,
             p,
         )
 
-        if bound:
+        if prelim_opts.bound:
             bound_out = self._bound()
             x = bound_out.x
             med_val = bound_out.med_val
@@ -654,7 +559,7 @@ class PrelimStage(Stage):
             hi_bound = bound_out.hi_bound
             lo_bound = bound_out.lo_bound
 
-        if norm:
+        if prelim_opts.norm:
             normalise_out = self._normalise()
             x = normalise_out.x
             min_x = normalise_out.min_x
@@ -703,13 +608,7 @@ class PrelimStage(Stage):
         beta: NDArray[np.double],
         s: pd.Series | None,
         data_dense: any,
-        small_scale_flag: bool,
-        small_scale: float,
-        file_idx_flag: bool,
-        file_idx: str,
-        selvars_type: str,
-        min_distance: float,
-        density_flag: bool,
+        selvars_opts: SelvarsOptions,
     ) -> tuple[
         NDArray[np.bool_],  # subset_index
         NDArray[np.double],  # x
@@ -729,28 +628,28 @@ class PrelimStage(Stage):
         # If we are only meant to take some observations
         print("-------------------------------------------------------------------")
         ninst = x.shape[0]
-        fractional = small_scale_flag and isinstance(small_scale, float)
+        fractional = selvars_opts.small_scale_flag and isinstance(selvars_opts.small_scale, float)
 
-        path = Path(file_idx)
+        path = Path(selvars_opts.file_idx)
         print("path:", path)
         print("path.is_file(file_idx):", path.is_file())
-        fileindexed = file_idx_flag and Path(file_idx).is_file()
+        fileindexed = selvars_opts.file_idx_flag and Path(selvars_opts.file_idx).is_file()
 
         bydensity = (
-            density_flag
-            and isinstance(min_distance, float)
-            and isinstance(selvars_type, str)
+            selvars_opts.density_flag
+            and isinstance(selvars_opts.min_distance, float)
+            and isinstance(selvars_opts.selvars_type, str)
         )
 
         if fractional:
             print(
                 f"-> Creating a small scale experiment for validation. \
                 Percentage of subset: \
-                {round(100 * small_scale, 2)}%",
+                {round(100 * selvars_opts.small_scale, 2)}%",
             )
             _, subset_idx = train_test_split(
                 np.arange(ninst),
-                test_size=small_scale,
+                test_size=selvars_opts.small_scale,
                 random_state=0,
             )
             subset_index = np.zeros(ninst, dtype=bool)
@@ -759,7 +658,7 @@ class PrelimStage(Stage):
         elif fileindexed:
             print("-> Using a subset of instances.")
             subset_index = np.zeros(ninst, dtype=bool)
-            aux = np.genfromtxt(file_idx, delimiter=",", dtype=int)
+            aux = np.genfromtxt(selvars_opts.file_idx, delimiter=",", dtype=int)
             print("aux:", aux)
             aux = aux[aux < ninst]
             # for some reason, this makes the indices perform correctly.
@@ -775,8 +674,8 @@ class PrelimStage(Stage):
                 x,
                 y,
                 y_bin,
-                selvars_type,
-                min_distance,
+                selvars_opts.selvars_type,
+                selvars_opts.min_distance,
             )
             subset_index = ~subset_index
             print(
