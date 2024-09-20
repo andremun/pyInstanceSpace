@@ -17,8 +17,8 @@ class PreprocessingStage(Stage):
         self,
         feature_names: list[str],
         algorithm_names: list[str],
-        instance_labels: pd.Series,
-        instance_sources: pd.Series | None,
+        instance_labels: pd.Series,  # type: ignore[type-arg]
+        instance_sources: pd.Series | None,  # type: ignore[type-arg]
         features: NDArray[np.double],
         algorithms: NDArray[np.double],
         selvars: SelvarsOptions,
@@ -57,10 +57,7 @@ class PreprocessingStage(Stage):
             ("s", pd.Series),
         ]
 
-    def _run(
-        self,
-        selvars: SelvarsOptions
-    ) -> tuple[
+    def _run(self, selvars: SelvarsOptions) -> tuple[  # type: ignore[type-arg]
         pd.Series,
         list[str],
         list[str],

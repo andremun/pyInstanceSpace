@@ -37,12 +37,15 @@ def test_run_method() -> None:
         instance_space.options.selvars,
     )
 
-    (updated_inst_labels,
-    updated_feat_labels,
-    new_algo_labels,
-    updated_x,
-    updated_y,
-     updated_s) = preprocessing_stage._run(instance_space.options.selvars)
+    run_method = getattr(preprocessing_stage, "_run")
+    (
+        updated_inst_labels,
+        updated_feat_labels,
+        new_algo_labels,
+        updated_x,
+        updated_y,
+        updated_s,
+    ) = run_method(instance_space.options.selvars)
 
     df_x = pd.read_csv(script_dir / "test_data/preprocessing/X.csv", header=None)
     df_y = pd.read_csv(script_dir / "test_data/preprocessing/Y.csv", header=None)

@@ -19,6 +19,8 @@ from matilda.stages.preprocessing_stage import PreprocessingStage
 
 path_root = Path(__file__).parent
 sys.path.append(str(path_root))
+
+
 def test_manual_selection() -> None:
     """
     The test case for select_features_and_algorithms.
@@ -36,7 +38,6 @@ def test_manual_selection() -> None:
 
     feat_labels = [f"feature{i}" for i in range(10)]
     algo_labels = [f"algo{i}" for i in range(5)]
-
 
     new_x, new_y, new_feat_labels, new_algo_labels = (
         PreprocessingStage.select_features_and_algorithms(
@@ -89,7 +90,6 @@ def test_manual_wrong_names() -> None:
 
     feat_labels = [f"feature{i}" for i in range(10)]
     algo_labels = [f"algo{i}" for i in range(5)]
-
 
     new_x, new_y, new_feat_labels, new_algo_labels = (
         PreprocessingStage.select_features_and_algorithms(
