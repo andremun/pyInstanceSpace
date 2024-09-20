@@ -223,15 +223,11 @@ class Pilot(Stage):
 
         # Numerical solution
         else:
-            if (
-                hasattr(options, "alpha")
-                and options.alpha is not None
-                and options.alpha.shape == (2 * m + 2 * n, 1)
-            ):
+            if options.alpha is not None and options.alpha.shape == (2 * m + 2 * n, 1):
                 print(" -> PILOT is using a pre-calculated solution.")
                 alpha = options.alpha
             else:
-                if hasattr(options, "x0") and options.x0 is not None:
+                if options.x0 is not None:
                     print(
                         "  -> PILOT is using a user defined starting points"
                         " for BFGS.",
@@ -285,11 +281,11 @@ class Pilot(Stage):
         summary = rldf.join(summary)
 
         if alpha is not None and x0 is not None:
-            alph: NDArray[np.float16] = alpha.astype(np.float16)
+            proj: NDArray[np.float16] = alpha.astype(np.float16)
             x_init: NDArray[np.double] = x0
             pout = [
                 x_init,
-                alph,
+                proj,
                 eoptim,
                 perf,
                 out_a,

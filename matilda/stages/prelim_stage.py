@@ -12,6 +12,7 @@ guided by the options specified in the `InstanceSpaceOptions` object.
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+
 from matilda.stages.stage import Stage
 
 

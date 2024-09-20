@@ -8,7 +8,6 @@ from one edge of the space to the opposite.
 
 """
 
-from typing import Any
 
 import numpy as np
 import pandas as pd
