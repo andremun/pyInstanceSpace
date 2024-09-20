@@ -659,7 +659,7 @@ class PrelimStage(Stage):
         y_raw: NDArray[np.double],
         p: NDArray[np.double],
         num_good_algos: NDArray[np.double],
-        beta: NDArray[np.double],
+        beta: NDArray[np.bool_],
         s: pd.Series | None,
         selvars_opts: SelvarsOptions,
     ) -> tuple[
@@ -669,7 +669,7 @@ class PrelimStage(Stage):
         NDArray[np.double],  # x_raw
         NDArray[np.double],  # y_raw
         NDArray[np.bool_],  # y_bin
-        NDArray[np.double],  # beta
+        NDArray[np.bool_],  # beta
         NDArray[np.double],  # num_good_algos
         NDArray[np.double],  # y_best
         NDArray[np.double],  # p
