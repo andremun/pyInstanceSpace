@@ -110,10 +110,8 @@ def test_rerunning_earlier_stage() -> None:
     }
 
     stage_runner.run_stage(StageA, a=2)
-    output = stage_runner.run_all(initial_arguments)
+    stage_b_output = stage_runner.run_stage(StageB)
 
-    assert output == {
-        "a": 2,
-        "b": "2",
+    assert stage_b_output._asdict() == {
         "c": "2 2",
     }

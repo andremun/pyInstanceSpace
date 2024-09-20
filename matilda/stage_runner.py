@@ -194,22 +194,6 @@ class StageRunner:
 
         return self._available_arguments
 
-    def run_remaining(self, additional_arguments: NamedTuple) -> dict[str, Any]:
-        """Run stages that haven't been ran to finish.
-
-        Return the entire outputs data object when finished.
-
-        Returns
-        -------
-            tuple[Any]: _description_
-        """
-        for schedule in self._stage_order:
-            for stage in schedule:
-                if not self._stages_ran[stage]:
-                    self.run_stage(stage, additional_arguments)
-
-        return self._available_arguments
-
     def run_until_stage(
         self,
         stop_at_stage: StageClass,
