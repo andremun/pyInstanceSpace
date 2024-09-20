@@ -12,6 +12,10 @@ OUT = TypeVar("OUT", bound=NamedTuple)
 class Stage(ABC, Generic[IN, OUT]):
     """Generic stage."""
 
+    def __init__(self) -> None:
+        """Initialize the stage."""
+        return
+
     @staticmethod
     @abstractmethod
     def _inputs() -> type[NamedTuple]:
