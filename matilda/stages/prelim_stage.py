@@ -9,13 +9,15 @@ outlier detection and removal, and binary performance classification. These task
 guided by the options specified in the `InstanceSpaceOptions` object.
 """
 
+from dataclasses import dataclass
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from dataclasses import dataclass
+from numpy.typing import NDArray
 from scipy import optimize, stats
 from sklearn.model_selection import train_test_split
 
-from numpy.typing import NDArray
 from matilda.stages.stage import Stage
 from matilda.utils.filter import filter
 
@@ -27,7 +29,7 @@ class _BoundOut:
     iq_range: NDArray[np.double]
     hi_bound: NDArray[np.double]
     lo_bound: NDArray[np.double]
-    
+
 @dataclass(frozen=True)
 class _NormaliseOut:
     x: NDArray[np.double]
@@ -137,7 +139,7 @@ class PrelimStage(Stage):
             ("beta", NDArray[np.bool_]),
             ("instlabels", pd.Series | None),
         ]
-    
+
     # will run prelim, filter_post_prelim, return prelim output and data changed by stage
     def _run(
         self,
@@ -300,7 +302,7 @@ class PrelimStage(Stage):
             hi_bound=hi_bound,
             lo_bound=lo_bound,
         )
-        
+
     def _normalise(self) -> _NormaliseOut:
         """Normalize the data using Box-Cox and Z transformations.
 
@@ -430,7 +432,7 @@ class PrelimStage(Stage):
         NDArray[np.double], #PrelimDataChanged.p
         NDArray[np.double], #PrelimDataChanged.num_good_algos
         NDArray[np.bool_],  #PrelimDataChanged.beta
-        
+
         NDArray[np.double], #PrelimOut.med_val
         NDArray[np.double], #PrelimOut.iq_range
         NDArray[np.double], #PrelimOut.hi_bound
@@ -570,92 +572,132 @@ class PrelimStage(Stage):
             mu_y,
         )
 
-    def _filter_post_prelim(self,
-                            x: NDArray[np.double],
-                            y: NDArray[np.double],
-                            y_bin: NDArray[np.bool_],
-                            y_best: NDArray[np.double],
-                            x_raw: NDArray[np.double],
-                            y_raw: NDArray[np.double],
-                            p: NDArray[np.double],
-                            num_good_algos: NDArray[np.double],
-                            beta: NDArray[np.double],
-                            small_scale_flag: bool,
-                            small_scale: float,
-                            file_idx_flag: bool,
-                            file_idx: str,
-                            feats: pd.DataFrame | None,
-                            algos: pd.DataFrame | None,
-                            selvars_type: str,
-                            min_distance: float,
-                            density_flag: bool
-                            ) -> tuple[
-        NDArray[np.any],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.bool_],
-        NDArray[np.bool_],
-        NDArray[np.double],
-        NDArray[np.double],
-        float,
-    ]:
+    def filter(self,
+                inst_labels: pd.Series,
 
-        # Filter out algorithms with no "good" instances
-        idx = np.all(y_bin, axis=0)
-        if np.any(idx):
-            print("Warning: There are algorithms with no 'good' instances. They are being removed to increase speed.")
-            y = y[:, ~idx]
-            x = x[:, ~idx]
-            if feats is not None:
-                feats = feats.loc[:, ~idx]
-            if algos is not None:
-                algos = algos.loc[~idx]
-            
-            nalgos = y.shape[1]
-            if nalgos == 0:
-                raise ValueError("There are no 'good' algorithms. Please verify the binary performance measure. STOPPING!")
-        
-        ######################################################################################
-        # I have optimised the code below in comparision to MATLAB implementation
+                x: NDArray[np.double],
+                y: NDArray[np.double],
+                y_bin: NDArray[np.bool_],
+                y_best: NDArray[np.double],
+                x_raw: NDArray[np.double],
+                y_raw: NDArray[np.double],
+                p: NDArray[np.double],
+                num_good_algos: NDArray[np.double],
+                beta: NDArray[np.double],
+                s: pd.Series | None,
+                data_dense: any,
 
-        # Determine the subset of instances to use
+                small_scale_flag: bool,
+                small_scale: float,
+                file_idx_flag: bool,
+                file_idx: str,
+                selvars_type: str,
+                min_distance: float,
+                density_flag: bool,
+            ) -> tuple[
+                NDArray[np.bool_], #subset_index
+                NDArray[np.double], #x
+                NDArray[np.double], #y
+                NDArray[np.double], #x_raw
+                NDArray[np.double], #y_raw
+                NDArray[np.bool_],  #y_bin
+                NDArray[np.double], #beta
+                NDArray[np.double], #num_good_algos
+                NDArray[np.double], #y_best
+                NDArray[np.double], #p
+                pd.Series,          #inst_labels
+                pd.Series | None,   #s
+                any,                #data_dense
+            ]:
+
+
+        # If we are only meant to take some observations
+        print("-------------------------------------------------------------------")
         ninst = x.shape[0]
-        if small_scale_flag and small_scale:
-            print(f"Creating a small scale experiment for validation. Percentage of subset: {round(100. * small_scale, 2)}%")
-            _, subset_index = train_test_split(np.arange(ninst), test_size=small_scale, random_state=np.random.default_rng(seed=0).integers(1000))
-            subset_index_boolean = np.zeros(ninst, dtype=bool)
-            subset_index_boolean[subset_index] = True
-            subset_index = subset_index_boolean
-        elif file_idx_flag and file_idx:
-            print("Using a subset of the instances.")
+        fractional = (
+            small_scale_flag
+            and isinstance(small_scale, float)
+        )
+
+        path = Path(file_idx)
+        print('path:', path)
+        print('path.is_file(file_idx):', path.is_file())
+        fileindexed = (
+            file_idx_flag
+            and Path(file_idx).is_file()
+        )
+
+        bydensity = (
+            density_flag
+            and isinstance(min_distance, float)
+            and isinstance(selvars_type, str)
+        )
+
+        if fractional:
+            print(
+                f"-> Creating a small scale experiment for validation. \
+                Percentage of subset: \
+                {round(100 * small_scale, 2)}%",
+            )
+            _, subset_idx = train_test_split(
+                np.arange(ninst),
+                test_size=small_scale,
+                random_state=0,
+            )
             subset_index = np.zeros(ninst, dtype=bool)
-            aux = pd.read_csv(file_idx, header=None).values.flatten()
+            subset_index[subset_idx] = True
+
+        elif fileindexed:
+            print("-> Using a subset of instances.")
+            subset_index = np.zeros(ninst, dtype=bool)
+            aux = np.genfromtxt(file_idx, delimiter=",", dtype=int)
+            print('aux:', aux)
             aux = aux[aux < ninst]
+            # for some reason, this makes the indices perform correctly.
+            for i in range(len(aux)):
+                aux[i] = aux[i] - 1
             subset_index[aux] = True
-        elif density_flag and density_flag:
-            print("Creating a small scale experiment for validation based on density.")
-            subset_index = filter(x, y, y_bin, selvars_type, min_distance)
-            print(f"Percentage of instances retained: {round(100. * np.mean(subset_index), 2)}%")
+
+        elif bydensity:
+            print(
+                "-> Creating a small scale experiment for validation based on density.",
+            )
+            subset_index, _, _, _ = filter(
+                x,
+                y,
+                y_bin,
+                selvars_type,
+                min_distance,
+            )
+            subset_index = ~subset_index
+            print(
+                f"-> Percentage of instances retained: \
+                {round(100 * np.mean(subset_index), 2)}%",
+            )
         else:
-            print("Using the complete set of the instances.")
+            print("-> Using the complete set of the instances.")
             subset_index = np.ones(ninst, dtype=bool)
 
-        # Apply the subset index
-        x = x[subset_index, :]
-        y = y[subset_index, :]
-        x_raw = x_raw[subset_index, :]
-        y_raw = y_raw[subset_index, :]
-        y_bin = y_bin[subset_index, :]
-        beta = beta[subset_index]
-        num_good_algos = num_good_algos[subset_index]
-        y_best = y_best[subset_index]
-        p = p[subset_index]
-            
-        ######################################################################################
-        
-        print('subset index', subset_index)
 
-        return (subset_index, x, y, x_raw, y_raw, y_bin, beta, num_good_algos, y_best, p)
+        if fileindexed or fractional or bydensity:
+            if not bydensity:
+                data_dense = None
+
+            x = x[subset_index, :]
+            y = y[subset_index, :]
+            x_raw = x_raw[subset_index, :]
+            y_raw = y_raw[subset_index, :]
+            y_bin = y_bin[subset_index, :]
+            beta = beta[subset_index]
+            num_good_algos = num_good_algos[subset_index]
+            y_best = y_best[subset_index]
+            p = p[subset_index]
+            inst_labels = inst_labels[subset_index]
+
+            if s is not None:
+                s = s[subset_index]
+
+        return (subset_index, x, y, x_raw, y_raw, y_bin, beta, num_good_algos, y_best,
+                p, inst_labels, s, data_dense)
+
 
