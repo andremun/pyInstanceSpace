@@ -1,8 +1,8 @@
 from enum import Enum
+
 import numpy as np
 from numpy._typing import NDArray
 from scipy.spatial.distance import cdist, pdist, squareform
-from matilda.data.options import SelvarsOptions
 
 
 class _FilterType(Enum):
@@ -51,9 +51,7 @@ def filter_instance(
                         (True, False) if dy <= gamma else (False, True)
                     )
                 elif filter_type == _FilterType.FTR_GOOD:
-                    subset_index[j], is_visa[j] = (
-                        (True, False) if db else (False, True)
-                    )
+                    subset_index[j], is_visa[j] = (True, False) if db else (False, True)
                 elif filter_type == _FilterType.FTR_AP_GOOD:
                     if db:
                         subset_index[j], is_visa[j] = (
@@ -83,7 +81,13 @@ def filter(
     min_distance: float,
 ) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_], float]:
     """Filter instances based on distances and binary relations."""
-    subset_index, is_dissimilar, is_visa = filter_instance(x, y, y_bin, selvars_type, min_distance)
+    subset_index, is_dissimilar, is_visa = filter_instance(
+        x,
+        y,
+        y_bin,
+        selvars_type,
+        min_distance,
+    )
     uniformity = compute_uniformity(x, subset_index)
 
     print(f"Uniformity of the instance subset: {uniformity:.4f}")

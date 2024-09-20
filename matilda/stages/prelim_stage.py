@@ -30,6 +30,7 @@ class _BoundOut:
     hi_bound: NDArray[np.double]
     lo_bound: NDArray[np.double]
 
+
 @dataclass(frozen=True)
 class _NormaliseOut:
     x: NDArray[np.double]
@@ -161,29 +162,49 @@ class PrelimStage(Stage):
         min_distance: float,
         density_flag: bool,
     ) -> tuple[
-        NDArray[np.double], # med_val
-        NDArray[np.double], # iq_range
-        NDArray[np.double], # hi_bound
-        NDArray[np.double], # lo_bound
-        NDArray[np.double], # min_x
-        NDArray[np.double], # lambda_x
-        NDArray[np.double], # mu_x
-        NDArray[np.double], # sigma_x
-        float,              # min_y
-        NDArray[np.double], # lambda_y
-        NDArray[np.double], # sigma_y
-        NDArray[np.double], # mu_y
-        NDArray[np.double], # x
-        NDArray[np.double], # y
+        NDArray[np.double],  # med_val
+        NDArray[np.double],  # iq_range
+        NDArray[np.double],  # hi_bound
+        NDArray[np.double],  # lo_bound
+        NDArray[np.double],  # min_x
+        NDArray[np.double],  # lambda_x
+        NDArray[np.double],  # mu_x
+        NDArray[np.double],  # sigma_x
+        float,  # min_y
+        NDArray[np.double],  # lambda_y
+        NDArray[np.double],  # sigma_y
+        NDArray[np.double],  # mu_y
+        NDArray[np.double],  # x
+        NDArray[np.double],  # y
         NDArray[np.bool_],  # y_bin
-        NDArray[np.double], # y_best
-        NDArray[np.double], # p
-        NDArray[np.double], # num_good_algos
+        NDArray[np.double],  # y_best
+        NDArray[np.double],  # p
+        NDArray[np.double],  # num_good_algos
         NDArray[np.bool_],  # beta
-        pd.Series | None,   # instlabels
+        pd.Series | None,  # instlabels
     ]:
         """See file docstring."""
-        x, y, y_bin, y_best, p, num_good_algos, beta, med_val, iq_range, hi_bound, lo_bound, min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y = self.prelim(
+        (
+            x,
+            y,
+            y_bin,
+            y_best,
+            p,
+            num_good_algos,
+            beta,
+            med_val,
+            iq_range,
+            hi_bound,
+            lo_bound,
+            min_x,
+            lambda_x,
+            mu_x,
+            sigma_x,
+            min_y,
+            lambda_y,
+            sigma_y,
+            mu_y,
+        ) = self.prelim(
             x,
             y,
             max_perf,
@@ -193,28 +214,60 @@ class PrelimStage(Stage):
             bound,
             norm,
         )
-        subset_index, x, y, x_raw, y_raw, y_bin, beta, num_good_algos, y_best, p, instlabels = PrelimStage._filter_post_prelim(
+        # (
+        #     subset_index,
+        #     x,
+        #     y,
+        #     x_raw,
+        #     y_raw,
+        #     y_bin,
+        #     beta,
+        #     num_good_algos,
+        #     y_best,
+        #     p,
+        #     instlabels,
+        # ) = self.filter(
+        #     x,
+        #     y,
+        #     y_bin,
+        #     y_best,
+        #     x_raw,
+        #     y_raw,
+        #     p,
+        #     num_good_algos,
+        #     beta,
+        #     small_scale_flag,
+        #     small_scale,
+        #     file_idx_flag,
+        #     file_idx,
+        #     feats,
+        #     algos,
+        #     selvars_type,
+        #     min_distance,
+        #     density_flag,
+        # )
+
+        return (
             x,
             y,
             y_bin,
             y_best,
-            x_raw,
-            y_raw,
             p,
             num_good_algos,
             beta,
-            small_scale_flag,
-            small_scale,
-            file_idx_flag,
-            file_idx,
-            feats,
-            algos,
-            selvars_type,
-            min_distance,
-            density_flag,
+            med_val,
+            iq_range,
+            hi_bound,
+            lo_bound,
+            min_x,
+            lambda_x,
+            mu_x,
+            sigma_x,
+            min_y,
+            lambda_y,
+            sigma_y,
+            mu_y,
         )
-        
-        return (x, y, y_bin, y_best, p, num_good_algos, beta, med_val, iq_range, hi_bound, lo_bound, min_x, lambda_x, mu_x, sigma_x, min_y, lambda_y, sigma_y, mu_y)
 
     def _select_best_algorithms(
         self,
@@ -265,6 +318,10 @@ class PrelimStage(Stage):
         print("Random selection is used to break ties.")
 
         num_good_algos = np.sum(y_bin, axis=1)
+        print("beta_threshold:", beta_threshold)
+        print("nalgos:", nalgos)
+        print("num_good_algos:", num_good_algos)
+
         beta = num_good_algos > (beta_threshold * nalgos)
 
         return num_good_algos, p, beta
@@ -414,8 +471,8 @@ class PrelimStage(Stage):
         )
 
     # prelim matlab file implementation, will return only prelim output
+    @staticmethod
     def prelim(
-        self,
         x: NDArray[np.double],
         y: NDArray[np.double],
         max_perf: bool,
@@ -424,27 +481,35 @@ class PrelimStage(Stage):
         beta_threshold: float,
         bound: bool,
         norm: bool,
+        small_scale_flag: bool,
+        small_scale: float,
+        file_idx_flag: bool,
+        file_idx: str,
+        feats: pd.DataFrame | None,
+        algos: pd.DataFrame | None,
+        selvars_type: str,
+        min_distance: float,
+        density_flag: bool,
     ) -> tuple[
-        NDArray[np.double], #PrelimDataChanged.x
-        NDArray[np.double], #PrelimDataChanged.y
-        NDArray[np.bool_],  #PrelimDataChanged.y_bin
-        NDArray[np.double], #PrelimDataChanged.y_best
-        NDArray[np.double], #PrelimDataChanged.p
-        NDArray[np.double], #PrelimDataChanged.num_good_algos
-        NDArray[np.bool_],  #PrelimDataChanged.beta
-
-        NDArray[np.double], #PrelimOut.med_val
-        NDArray[np.double], #PrelimOut.iq_range
-        NDArray[np.double], #PrelimOut.hi_bound
-        NDArray[np.double], #PrelimOut.lo_bound
-        NDArray[np.double], #PrelimOut.min_x
-        NDArray[np.double], #PrelimOut.lambda_x
-        NDArray[np.double], #PrelimOut.mu_x
-        NDArray[np.double], #PrelimOut.sigma_x
-        float,              #PrelimOut.min_y
-        NDArray[np.double], #PrelimOut.lambda_y
-        NDArray[np.double], #PrelimOut.sigma_y
-        NDArray[np.double], #PrelimOut.mu_y
+        NDArray[np.double],  # PrelimDataChanged.x
+        NDArray[np.double],  # PrelimDataChanged.y
+        NDArray[np.bool_],  # PrelimDataChanged.y_bin
+        NDArray[np.double],  # PrelimDataChanged.y_best
+        NDArray[np.double],  # PrelimDataChanged.p
+        NDArray[np.double],  # PrelimDataChanged.num_good_algos
+        NDArray[np.bool_],  # PrelimDataChanged.beta
+        NDArray[np.double],  # PrelimOut.med_val
+        NDArray[np.double],  # PrelimOut.iq_range
+        NDArray[np.double],  # PrelimOut.hi_bound
+        NDArray[np.double],  # PrelimOut.lo_bound
+        NDArray[np.double],  # PrelimOut.min_x
+        NDArray[np.double],  # PrelimOut.lambda_x
+        NDArray[np.double],  # PrelimOut.mu_x
+        NDArray[np.double],  # PrelimOut.sigma_x
+        float,  # PrelimOut.min_y
+        NDArray[np.double],  # PrelimOut.lambda_y
+        NDArray[np.double],  # PrelimOut.sigma_y
+        NDArray[np.double],  # PrelimOut.mu_y
     ]:
         """Perform preliminary processing on the input data 'x' and 'y'.
 
@@ -460,6 +525,69 @@ class PrelimStage(Stage):
             A tuple containing the processed data (as 'Data' object) and
             preliminary output information (as 'PrelimOut' object).
         """
+        prelim_stage = PrelimStage(
+            x,
+            y,
+            max_perf,
+            abs_perf,
+            epsilon,
+            beta_threshold,
+            bound,
+            norm,
+            small_scale_flag,
+            small_scale,
+            file_idx_flag,
+            file_idx,
+            feats,
+            algos,
+            selvars_type,
+            min_distance,
+            density_flag,
+        )
+
+        return prelim_stage._prelim(  # noqa: SLF001
+            x,
+            y,
+            max_perf,
+            abs_perf,
+            epsilon,
+            beta_threshold,
+            bound,
+            norm,
+        )
+
+    # prelim matlab file implementation, will return only prelim output
+    def _prelim(
+        self,
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+        max_perf: bool,
+        abs_perf: bool,
+        epsilon: float,
+        beta_threshold: float,
+        bound: bool,
+        norm: bool,
+    ) -> tuple[
+        NDArray[np.double],  # PrelimDataChanged.x
+        NDArray[np.double],  # PrelimDataChanged.y
+        NDArray[np.bool_],  # PrelimDataChanged.y_bin
+        NDArray[np.double],  # PrelimDataChanged.y_best
+        NDArray[np.double],  # PrelimDataChanged.p
+        NDArray[np.double],  # PrelimDataChanged.num_good_algos
+        NDArray[np.bool_],  # PrelimDataChanged.beta
+        NDArray[np.double],  # PrelimOut.med_val
+        NDArray[np.double],  # PrelimOut.iq_range
+        NDArray[np.double],  # PrelimOut.hi_bound
+        NDArray[np.double],  # PrelimOut.lo_bound
+        NDArray[np.double],  # PrelimOut.min_x
+        NDArray[np.double],  # PrelimOut.lambda_x
+        NDArray[np.double],  # PrelimOut.mu_x
+        NDArray[np.double],  # PrelimOut.sigma_x
+        float,  # PrelimOut.min_y
+        NDArray[np.double],  # PrelimOut.lambda_y
+        NDArray[np.double],  # PrelimOut.sigma_y
+        NDArray[np.double],  # PrelimOut.mu_y
+    ]:
         y_raw = y.copy()
         nalgos = y.shape[1]
 
@@ -486,12 +614,7 @@ class PrelimStage(Stage):
                 y[y == 0] = np.finfo(float).eps
                 y = 1 - y / y_best[:, np.newaxis]
                 y_bin = (1 - y_aux / y_best[:, np.newaxis]) <= epsilon
-                msg = (
-                    msg
-                    + "within "
-                    + str(round(100 * epsilon))
-                    + "% of the best."
-                )
+                msg = msg + "within " + str(round(100 * epsilon)) + "% of the best."
 
         else:
             print("-> Minimizing performance.")
@@ -510,16 +633,11 @@ class PrelimStage(Stage):
                 y[y == 0] = np.finfo(float).eps
                 y = 1 - y_best[:, np.newaxis] / y
                 y_bin = (1 - y_best[:, np.newaxis] / y_aux) <= epsilon
-                msg = (
-                    msg
-                    + "within "
-                    + str(round(100 * epsilon))
-                    + "% of the worst."
-                )
+                msg = msg + "within " + str(round(100 * epsilon)) + "% of the worst."
 
         print(msg)
 
-        num_good_algos, p, beta = PrelimStage._select_best_algorithms(
+        num_good_algos, p, beta = self._select_best_algorithms(
             y_raw,
             y_best,
             y_bin,
@@ -528,9 +646,8 @@ class PrelimStage(Stage):
             p,
         )
 
-        # Auto-Pre-Processing
         if bound:
-            bound_out = PrelimStage._bound() 
+            bound_out = self._bound()
             x = bound_out.x
             med_val = bound_out.med_val
             iq_range = bound_out.iq_range
@@ -538,7 +655,7 @@ class PrelimStage(Stage):
             lo_bound = bound_out.lo_bound
 
         if norm:
-            normalise_out = PrelimStage._normalise()
+            normalise_out = self._normalise()
             x = normalise_out.x
             min_x = normalise_out.min_x
             lambda_x = normalise_out.lambda_x
@@ -549,7 +666,7 @@ class PrelimStage(Stage):
             lambda_y = normalise_out.lambda_y
             sigma_y = normalise_out.sigma_y
             mu_y = normalise_out.mu_y
-            
+
         return (
             x,
             y,
@@ -572,60 +689,52 @@ class PrelimStage(Stage):
             mu_y,
         )
 
-    def filter(self,
-                inst_labels: pd.Series,
-
-                x: NDArray[np.double],
-                y: NDArray[np.double],
-                y_bin: NDArray[np.bool_],
-                y_best: NDArray[np.double],
-                x_raw: NDArray[np.double],
-                y_raw: NDArray[np.double],
-                p: NDArray[np.double],
-                num_good_algos: NDArray[np.double],
-                beta: NDArray[np.double],
-                s: pd.Series | None,
-                data_dense: any,
-
-                small_scale_flag: bool,
-                small_scale: float,
-                file_idx_flag: bool,
-                file_idx: str,
-                selvars_type: str,
-                min_distance: float,
-                density_flag: bool,
-            ) -> tuple[
-                NDArray[np.bool_], #subset_index
-                NDArray[np.double], #x
-                NDArray[np.double], #y
-                NDArray[np.double], #x_raw
-                NDArray[np.double], #y_raw
-                NDArray[np.bool_],  #y_bin
-                NDArray[np.double], #beta
-                NDArray[np.double], #num_good_algos
-                NDArray[np.double], #y_best
-                NDArray[np.double], #p
-                pd.Series,          #inst_labels
-                pd.Series | None,   #s
-                any,                #data_dense
-            ]:
-
+    def filter(
+        self,
+        inst_labels: pd.Series,
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        y_best: NDArray[np.double],
+        x_raw: NDArray[np.double],
+        y_raw: NDArray[np.double],
+        p: NDArray[np.double],
+        num_good_algos: NDArray[np.double],
+        beta: NDArray[np.double],
+        s: pd.Series | None,
+        data_dense: any,
+        small_scale_flag: bool,
+        small_scale: float,
+        file_idx_flag: bool,
+        file_idx: str,
+        selvars_type: str,
+        min_distance: float,
+        density_flag: bool,
+    ) -> tuple[
+        NDArray[np.bool_],  # subset_index
+        NDArray[np.double],  # x
+        NDArray[np.double],  # y
+        NDArray[np.double],  # x_raw
+        NDArray[np.double],  # y_raw
+        NDArray[np.bool_],  # y_bin
+        NDArray[np.double],  # beta
+        NDArray[np.double],  # num_good_algos
+        NDArray[np.double],  # y_best
+        NDArray[np.double],  # p
+        pd.Series,  # inst_labels
+        pd.Series | None,  # s
+        any,  # data_dense
+    ]:
 
         # If we are only meant to take some observations
         print("-------------------------------------------------------------------")
         ninst = x.shape[0]
-        fractional = (
-            small_scale_flag
-            and isinstance(small_scale, float)
-        )
+        fractional = small_scale_flag and isinstance(small_scale, float)
 
         path = Path(file_idx)
-        print('path:', path)
-        print('path.is_file(file_idx):', path.is_file())
-        fileindexed = (
-            file_idx_flag
-            and Path(file_idx).is_file()
-        )
+        print("path:", path)
+        print("path.is_file(file_idx):", path.is_file())
+        fileindexed = file_idx_flag and Path(file_idx).is_file()
 
         bydensity = (
             density_flag
@@ -651,7 +760,7 @@ class PrelimStage(Stage):
             print("-> Using a subset of instances.")
             subset_index = np.zeros(ninst, dtype=bool)
             aux = np.genfromtxt(file_idx, delimiter=",", dtype=int)
-            print('aux:', aux)
+            print("aux:", aux)
             aux = aux[aux < ninst]
             # for some reason, this makes the indices perform correctly.
             for i in range(len(aux)):
@@ -678,7 +787,6 @@ class PrelimStage(Stage):
             print("-> Using the complete set of the instances.")
             subset_index = np.ones(ninst, dtype=bool)
 
-
         if fileindexed or fractional or bydensity:
             if not bydensity:
                 data_dense = None
@@ -697,7 +805,18 @@ class PrelimStage(Stage):
             if s is not None:
                 s = s[subset_index]
 
-        return (subset_index, x, y, x_raw, y_raw, y_bin, beta, num_good_algos, y_best,
-                p, inst_labels, s, data_dense)
-
-
+        return (
+            subset_index,
+            x,
+            y,
+            x_raw,
+            y_raw,
+            y_bin,
+            beta,
+            num_good_algos,
+            y_best,
+            p,
+            inst_labels,
+            s,
+            data_dense,
+        )
