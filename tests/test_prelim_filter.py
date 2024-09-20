@@ -3,10 +3,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from matilda.stages.prelim_stage import PrelimStage
 from matilda.data.options import PrelimOptions, SelvarsOptions
+from matilda.stages.prelim_stage import PrelimStage
 
 script_dir = Path(__file__).parent
+
 
 def test_split_data() -> None:
     """
@@ -59,8 +60,6 @@ def test_split_data() -> None:
 
     inst_labels = inst_labels_before
     s_before = None
-    uniformity_before = None
-    data_dense_before = None
 
     prelim_opts = PrelimOptions(
         max_perf=True,
@@ -72,7 +71,7 @@ def test_split_data() -> None:
     )
 
     selvars_opts = SelvarsOptions(
-      small_scale_flag=False,
+        small_scale_flag=False,
         small_scale=0.50,
         file_idx_flag=False,
         file_idx="",
@@ -86,6 +85,10 @@ def test_split_data() -> None:
     prelim = PrelimStage(
         x_before,
         y_before,
+        x_raw_before,
+        y_raw_before,
+        s_before,
+        inst_labels_before,
         prelim_opts,
         selvars_opts,
     )
@@ -104,7 +107,7 @@ def test_split_data() -> None:
         inst_labels,
         s,
         data_dense,
-    ) = prelim.filter(
+    ) = prelim._filter(  # noqa: SLF001
         inst_labels,
         x_before,
         y_before,
@@ -116,7 +119,6 @@ def test_split_data() -> None:
         num_good_algos_before,
         beta_before,
         s_before,
-        data_dense_before,
         selvars_opts,
     )
 
@@ -188,15 +190,15 @@ def test_split_fractional() -> None:
     )
 
     selvars_opts = SelvarsOptions(
-            small_scale_flag = True,
-            small_scale = 0.50,
-            file_idx_flag = False,
-            file_idx = "",
-            feats = None,
-            algos = None,
-            selvars_type = "Ftr&Good",
-            min_distance = 0.1,
-            density_flag = False,
+        small_scale_flag=True,
+        small_scale=0.50,
+        file_idx_flag=False,
+        file_idx="",
+        feats=None,
+        algos=None,
+        selvars_type="Ftr&Good",
+        min_distance=0.1,
+        density_flag=False,
     )
 
     data_dense = None
@@ -243,11 +245,14 @@ def test_split_fractional() -> None:
     ).loc[:, 0]
 
     s_before = None
-    data_dense_before = None
 
     prelim = PrelimStage(
         x_before,
         y_before,
+        x_raw_before,
+        y_raw_before,
+        s_before,
+        inst_labels_before,
         prelim_opts,
         selvars_opts,
     )
@@ -266,7 +271,7 @@ def test_split_fractional() -> None:
         inst_labels,
         s,
         data_dense,
-    ) = prelim.filter(
+    ) = prelim._filter(  # noqa: SLF001
         inst_labels_before,
         x_before,
         y_before,
@@ -278,7 +283,6 @@ def test_split_fractional() -> None:
         num_good_algos_before,
         beta_before,
         s_before,
-        data_dense_before,
         selvars_opts,
     )
 
@@ -361,8 +365,6 @@ def test_split_fileindexed() -> None:
         density_flag=False,
     )
 
-    data_dense = None
-
     x_before = np.genfromtxt(
         script_dir / "test_data/prelim/fileidx/before/x_split.txt",
         delimiter=",",
@@ -410,6 +412,10 @@ def test_split_fileindexed() -> None:
     prelim = PrelimStage(
         x_before,
         y_before,
+        x_raw_before,
+        y_raw_before,
+        s_before,
+        inst_labels_before,
         prelim_opts,
         selvars_opts,
     )
@@ -428,7 +434,7 @@ def test_split_fileindexed() -> None:
         inst_labels,
         s,
         data_dense,
-    ) = prelim.filter(
+    ) = prelim._filter(  # noqa: SLF001
         inst_labels_before,
         x_before,
         y_before,
@@ -440,7 +446,6 @@ def test_split_fileindexed() -> None:
         num_good_algos_before,
         beta_before,
         s_before,
-        data_dense_before,
         selvars_opts,
     )
 

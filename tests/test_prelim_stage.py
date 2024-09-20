@@ -3,9 +3,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from matilda.data.options import SelvarsOptions
-from matilda.stages.prelim_stage import PrelimStage
 from matilda.data.options import PrelimOptions, SelvarsOptions
+from matilda.stages.prelim_stage import PrelimStage
 
 script_dir = Path(__file__).parent
 
@@ -61,13 +60,26 @@ csv_path_prelim_output_sigma_y = (
     script_dir / "test_data/prelim/output/model-prelim-sigmaY.csv"
 )
 
-csv_path_prelim_input_filter = (
-    script_dir / "test_data/prelim/input/filter/model_data_input.mat"
+csv_path_prelim_input_x_raw = (
+    script_dir / "test_data/prelim/fractional/before/Xraw_split.txt"
 )
 
+csv_path_prelim_input_y_raw = (
+    script_dir / "test_data/prelim/fractional/before/Yraw_split.txt"
+)
+
+csv_path_prelim_input_p = script_dir / "test_data/prelim/fractional/before/P_split.txt"
+
+csv_path_prelim_inst_labels = (
+    script_dir / "test_data/prelim/fractional/before/instlabels_split.txt"
+)
 # input data
 x_input = pd.read_csv(csv_path_x_input, header=None).to_numpy()
 y_input = pd.read_csv(csv_path_y_input, header=None).to_numpy()
+x_raw = np.genfromtxt(csv_path_prelim_input_x_raw, delimiter=",")
+y_raw = np.genfromtxt(csv_path_prelim_input_y_raw, delimiter=",")
+s = None
+inst_labels = np.genfromtxt(csv_path_prelim_inst_labels, delimiter=",")
 
 prelim_opts = PrelimOptions(
     abs_perf=True,
@@ -75,7 +87,7 @@ prelim_opts = PrelimOptions(
     epsilon=0.2000,
     max_perf=False,
     bound=True,
-    norm=True
+    norm=True,
 )
 
 selvars_opts = SelvarsOptions.default()
@@ -92,6 +104,10 @@ def test_bound() -> None:
     prelim = PrelimStage(
         x_input,
         y_input,
+        x_raw,
+        y_raw,
+        s,
+        inst_labels,
         prelim_opts,
         selvars_opts,
     )
@@ -143,6 +159,10 @@ def test_normalise() -> None:
     ) = PrelimStage.prelim(
         x_input,
         y_input,
+        x_raw,
+        y_raw,
+        s,
+        inst_labels,
         prelim_opts,
         selvars_opts,
     )
@@ -190,10 +210,13 @@ def test_prelim() -> None:
     ) = PrelimStage.prelim(
         x_input,
         y_input,
+        x_raw,
+        y_raw,
+        s,
+        inst_labels,
         prelim_opts,
         selvars_opts,
     )
-
 
     assert np.allclose(x, x_output)
     assert np.allclose(y, y_output)
@@ -205,5 +228,3 @@ def test_prelim() -> None:
     assert np.allclose(p, np.array(p_output, dtype=np.float64))
     assert np.allclose(num_good_algos, num_good_algos_output.values.flatten())
     assert np.allclose(beta, np.array(beta_output, dtype=bool))
-
-

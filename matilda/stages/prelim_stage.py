@@ -46,6 +46,21 @@ class _NormaliseOut:
     mu_y: NDArray[np.double]
 
 
+@dataclass(frozen=True)
+class DataDense:
+    x_data_dense: NDArray[np.double]
+    y_data_dense: NDArray[np.double]
+    x_raw_data_dense: NDArray[np.double]
+    y_raw_data_dense: NDArray[np.double]
+    y_bin_data_dense: NDArray[np.bool_]
+    y_best_data_dense: NDArray[np.double]
+    p_data_dense: NDArray[np.double]
+    num_good_algos_data_dense: NDArray[np.double]
+    beta_data_dense: NDArray[np.bool_]
+    inst_labels_data_dense: pd.Series
+    s_data_dense: pd.Series | None
+
+
 class PrelimStage(Stage):
     """See file docstring."""
 
@@ -54,6 +69,10 @@ class PrelimStage(Stage):
         self,
         x: NDArray[np.double],
         y: NDArray[np.double],
+        x_raw: NDArray[np.double],
+        y_raw: NDArray[np.double],
+        s: pd.Series | None,
+        inst_labels: pd.Series,
         prelim_opts: PrelimOptions,
         selvars_opts: SelvarsOptions,
     ) -> None:
@@ -69,6 +88,10 @@ class PrelimStage(Stage):
         return [
             ["x", NDArray[np.double]],
             ["y", NDArray[np.double]],
+            ["x_raw", NDArray[np.double]],
+            ["y_raw", NDArray[np.double]],
+            ["s", pd.Series | None],
+            ["inst_labels", pd.Series | None],
             ["prelim_opts", PrelimOptions],
             ["selvars_opts", SelvarsOptions],
         ]
@@ -92,12 +115,16 @@ class PrelimStage(Stage):
             ("mu_y", NDArray[np.double]),
             ("x", NDArray[np.double]),
             ("y", NDArray[np.double]),
+            ("x_raw", NDArray[np.double]),
+            ("y_raw", NDArray[np.double]),
             ("y_bin", NDArray[np.bool_]),
             ("y_best", NDArray[np.double]),
             ("p", NDArray[np.double]),
             ("num_good_algos", NDArray[np.double]),
             ("beta", NDArray[np.bool_]),
             ("instlabels", pd.Series | None),
+            ("data_dense", DataDense | None),
+            ("s", pd.Series | None),
         ]
 
     # will run prelim, filter_post_prelim, return prelim output and data changed by stage
@@ -105,6 +132,10 @@ class PrelimStage(Stage):
         self,
         x: NDArray[np.double],
         y: NDArray[np.double],
+        x_raw: NDArray[np.double],
+        y_raw: NDArray[np.double],
+        s: pd.Series | None,
+        inst_labels: pd.Series,
         prelim_opts: PrelimOptions,
         selvars_opts: SelvarsOptions,
     ) -> tuple[
@@ -122,12 +153,16 @@ class PrelimStage(Stage):
         NDArray[np.double],  # mu_y
         NDArray[np.double],  # x
         NDArray[np.double],  # y
+        NDArray[np.double],  # x_raw
+        NDArray[np.double],  # y_raw
         NDArray[np.bool_],  # y_bin
         NDArray[np.double],  # y_best
         NDArray[np.double],  # p
         NDArray[np.double],  # num_good_algos
         NDArray[np.bool_],  # beta
         pd.Series | None,  # instlabels
+        DataDense | None,  # data_dense
+        pd.Series | None,  # s
     ]:
         """See file docstring."""
         (
@@ -150,52 +185,53 @@ class PrelimStage(Stage):
             lambda_y,
             sigma_y,
             mu_y,
-        ) = self.prelim(
+        ) = self._prelim(
             x,
             y,
             prelim_opts,
         )
-        # (
-        #     subset_index,
-        #     x,
-        #     y,
-        #     x_raw,
-        #     y_raw,
-        #     y_bin,
-        #     beta,
-        #     num_good_algos,
-        #     y_best,
-        #     p,
-        #     instlabels,
-        # ) = self.filter(
-        #     x,
-        #     y,
-        #     y_bin,
-        #     y_best,
-        #     x_raw,
-        #     y_raw,
-        #     p,
-        #     num_good_algos,
-        #     beta,
-        #     small_scale_flag,
-        #     small_scale,
-        #     file_idx_flag,
-        #     file_idx,
-        #     feats,
-        #     algos,
-        #     selvars_type,
-        #     min_distance,
-        #     density_flag,
-        # )
+
+        (
+            subset_index,
+            x,
+            y,
+            x_raw,
+            y_raw,
+            y_bin,
+            beta,
+            num_good_algos,
+            y_best,
+            p,
+            inst_labels,
+            s,
+            data_dense,
+        ) = self.filter(
+            inst_labels,
+            x,
+            y,
+            y_bin,
+            y_best,
+            x_raw,
+            y_raw,
+            p,
+            num_good_algos,
+            beta,
+            s,
+            selvars_opts,
+        )
 
         return (
             x,
             y,
+            x_raw,
+            y_raw,
             y_bin,
             y_best,
             p,
             num_good_algos,
             beta,
+            s,
+            data_dense,
             med_val,
             iq_range,
             hi_bound,
@@ -416,6 +452,10 @@ class PrelimStage(Stage):
     def prelim(
         x: NDArray[np.double],
         y: NDArray[np.double],
+        x_raw: NDArray[np.double],
+        y_raw: NDArray[np.double],
+        s: pd.Series | None,
+        inst_labels: pd.Series,
         prelim_opts: PrelimOptions,
         selvars_opts: SelvarsOptions,
     ) -> tuple[
@@ -456,6 +496,10 @@ class PrelimStage(Stage):
         prelim_stage = PrelimStage(
             x,
             y,
+            x_raw,
+            y_raw,
+            s,
+            inst_labels,
             prelim_opts,
             selvars_opts,
         )
@@ -519,7 +563,12 @@ class PrelimStage(Stage):
                 y[y == 0] = np.finfo(float).eps
                 y = 1 - y / y_best[:, np.newaxis]
                 y_bin = (1 - y_aux / y_best[:, np.newaxis]) <= prelim_opts.epsilon
-                msg = msg + "within " + str(round(100 * prelim_opts.epsilon)) + "% of the best."
+                msg = (
+                    msg
+                    + "within "
+                    + str(round(100 * prelim_opts.epsilon))
+                    + "% of the best."
+                )
 
         else:
             print("-> Minimizing performance.")
@@ -538,7 +587,12 @@ class PrelimStage(Stage):
                 y[y == 0] = np.finfo(float).eps
                 y = 1 - y_best[:, np.newaxis] / y
                 y_bin = (1 - y_best[:, np.newaxis] / y_aux) <= prelim_opts.epsilon
-                msg = msg + "within " + str(round(100 * prelim_opts.epsilon)) + "% of the worst."
+                msg = (
+                    msg
+                    + "within "
+                    + str(round(100 * prelim_opts.epsilon))
+                    + "% of the worst."
+                )
 
         print(msg)
 
@@ -594,7 +648,7 @@ class PrelimStage(Stage):
             mu_y,
         )
 
-    def filter(
+    def _filter(
         self,
         inst_labels: pd.Series,
         x: NDArray[np.double],
@@ -607,7 +661,6 @@ class PrelimStage(Stage):
         num_good_algos: NDArray[np.double],
         beta: NDArray[np.double],
         s: pd.Series | None,
-        data_dense: any,
         selvars_opts: SelvarsOptions,
     ) -> tuple[
         NDArray[np.bool_],  # subset_index
@@ -622,18 +675,23 @@ class PrelimStage(Stage):
         NDArray[np.double],  # p
         pd.Series,  # inst_labels
         pd.Series | None,  # s
-        any,  # data_dense
+        DataDense | None,  # data_dense
     ]:
-
+        data_dense = None
         # If we are only meant to take some observations
         print("-------------------------------------------------------------------")
         ninst = x.shape[0]
-        fractional = selvars_opts.small_scale_flag and isinstance(selvars_opts.small_scale, float)
+        fractional = selvars_opts.small_scale_flag and isinstance(
+            selvars_opts.small_scale,
+            float,
+        )
 
         path = Path(selvars_opts.file_idx)
         print("path:", path)
         print("path.is_file(file_idx):", path.is_file())
-        fileindexed = selvars_opts.file_idx_flag and Path(selvars_opts.file_idx).is_file()
+        fileindexed = (
+            selvars_opts.file_idx_flag and Path(selvars_opts.file_idx).is_file()
+        )
 
         bydensity = (
             selvars_opts.density_flag
@@ -687,8 +745,20 @@ class PrelimStage(Stage):
             subset_index = np.ones(ninst, dtype=bool)
 
         if fileindexed or fractional or bydensity:
-            if not bydensity:
-                data_dense = None
+            if bydensity:
+                data_dense = DataDense(
+                    x_data_dense=x,
+                    y_data_dense=y,
+                    x_raw_data_dense=x_raw,
+                    y_raw_data_dense=y_raw,
+                    y_bin_data_dense=y_bin,
+                    y_best_data_dense=y_best,
+                    p_data_dense=p,
+                    num_good_algos_data_dense=num_good_algos,
+                    beta_data_dense=beta,
+                    inst_labels_data_dense=inst_labels,
+                    s_data_dense=s,
+                )
 
             x = x[subset_index, :]
             y = y[subset_index, :]
