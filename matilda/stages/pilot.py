@@ -62,9 +62,9 @@ class Pilot(Stage):
                 List of inputs for the stage
         """
         return [
-            ["x", NDArray[np.double]],
-            ["y", NDArray[np.double]],
-            ["feat_labels", list[str]],
+            ("x", NDArray[np.double]),
+            ("y", NDArray[np.double]),
+            ("feat_labels", list[str]),
         ]
 
     @staticmethod
@@ -81,17 +81,17 @@ class Pilot(Stage):
                 List of outputs for the stage
         """
         return [
-            ["X0", NDArray[np.double] | None],  # not sure about the dimensions
-            ["alpha", NDArray[np.double] | None],
-            ["eoptim", NDArray[np.double] | None],
-            ["perf", NDArray[np.double] | None],
-            ["a", NDArray[np.double]],
-            ["z", NDArray[np.double]],
-            ["c", NDArray[np.double]],
-            ["b", NDArray[np.double]],
-            ["error", NDArray[np.double]],  # or just the double
-            ["r2", NDArray[np.double]],
-            ["summary", pd.DataFrame],
+            ("X0", NDArray[np.double]),  # not sure about the dimensions
+            ("alpha", NDArray[np.double]),
+            ("eoptim", NDArray[np.double]),
+            ("perf", NDArray[np.double]),
+            ("a", NDArray[np.double]),
+            ("z", NDArray[np.double]),
+            ("c", NDArray[np.double]),
+            ("b", NDArray[np.double]),
+            ("error", NDArray[np.double]),  # or just the double
+            ("r2", NDArray[np.double]),
+            ("summary", pd.DataFrame),
         ]
 
     def _run(self, options: PilotOptions) -> tuple[
