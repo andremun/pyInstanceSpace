@@ -248,18 +248,21 @@ csv_input_prelim_x_run = script_dir / "test_data/prelim/run/input/input_X.csv"
 csv_input_prelim_y_run = script_dir / "test_data/prelim/run/input/input_Y.csv"
 csv_input_prelim_x_raw_run = script_dir / "test_data/prelim/run/input/input_Xraw.csv"
 csv_input_prelim_y_raw_run = script_dir / "test_data/prelim/run/input/input_Yraw.csv"
-csv_input_inst_labels_run = script_dir / "test_data/prelim/run/input/input_instlabels.csv"
+csv_input_inst_labels_run = (
+    script_dir / "test_data/prelim/run/input/input_instlabels.csv"
+)
 
 csv_output_prelim_beta_run = script_dir / "test_data/prelim/run/output/output_beta.csv"
 csv_output_prelim_num_good_algos_run = (
     script_dir / "test_data/prelim/run/output/output_numGoodAlgos.csv"
 )
 csv_output_prelim_p_run = script_dir / "test_data/prelim/run/output/output_P.csv"
-csv_output_prelim_ybest_run = script_dir / "test_data/prelim/run/output/output_Ybest.csv"
+csv_output_prelim_ybest_run = (
+    script_dir / "test_data/prelim/run/output/output_Ybest.csv"
+)
 csv_output_prelim_ybin_run = script_dir / "test_data/prelim/run/output/output_Ybin.csv"
 csv_output_prelim_x_run = script_dir / "test_data/prelim/run/output/output_X.csv"
 csv_output_prelim_y_run = script_dir / "test_data/prelim/run/output/output_Y.csv"
-
 
 
 def test_prelim_run() -> None:
@@ -270,18 +273,19 @@ def test_prelim_run() -> None:
     y_raw_run = np.genfromtxt(csv_input_prelim_y_raw_run, delimiter=",")
     inst_labels_input_run = np.genfromtxt(csv_input_inst_labels_run, delimiter=",")
 
-
-    p_output_run = pd.read_csv(csv_output_prelim_p_run, sep=",", header=None).iloc[:, 0].values
-    ybest_output_run = pd.read_csv(csv_output_prelim_ybest_run, sep=",", header=None).iloc[
-        :, 0
-    ].values
+    p_output_run = (
+        pd.read_csv(csv_output_prelim_p_run, sep=",", header=None).iloc[:, 0].values
+    )
+    ybest_output_run = (
+        pd.read_csv(csv_output_prelim_ybest_run, sep=",", header=None).iloc[:, 0].values
+    )
     ybin_output_run = pd.read_csv(csv_output_prelim_ybin_run, sep=",", header=None)
 
     x_output_run = pd.read_csv(csv_output_prelim_x_run, header=None).to_numpy()
     y_output_run = pd.read_csv(csv_output_prelim_y_run, header=None).to_numpy()
 
     s: pd.Series | None = None
-    
+
     prelim_opts = PrelimOptions(
         abs_perf=True,
         beta_threshold=0.5500,
@@ -290,7 +294,7 @@ def test_prelim_run() -> None:
         bound=True,
         norm=True,
     )
-    
+
     selvars_opts = SelvarsOptions(
         small_scale_flag=False,
         small_scale=0.50,
@@ -313,7 +317,7 @@ def test_prelim_run() -> None:
         prelim_opts,
         selvars_opts,
     )
-    
+
     (
         med_val,
         iq_range,
@@ -339,7 +343,7 @@ def test_prelim_run() -> None:
         inst_labels,
         data_dense,
         s,
-    ) = prelim._run(
+    ) = prelim._run( # noqa: SLF001
         x_input_run,
         y_input_run,
         x_raw_run,
@@ -358,4 +362,3 @@ def test_prelim_run() -> None:
         np.array(ybest_output_run, dtype=np.float64),
     )
     assert np.allclose(p, np.array(p_output_run, dtype=np.float64))
-    assert np.allclose
