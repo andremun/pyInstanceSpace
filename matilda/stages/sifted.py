@@ -10,6 +10,7 @@ The SIFTED function performs the following steps:
 
 import numpy as np
 import pygad
+import pandas as pd
 from numpy.typing import NDArray
 from scipy.stats import pearsonr
 from sklearn.cluster import KMeans
@@ -20,6 +21,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from matilda.data.model import SiftedDataChanged, SiftedOut, Data
 from matilda.data.options import PilotOptions, SiftedOptions, SelvarsOptions
 from matilda.stages.pilot import Pilot
+from matilda.stages.filter import Filter
 
 
 class NotEnoughFeatureError(Exception):
@@ -56,9 +58,18 @@ class Sifted:
         x: NDArray[np.double],
         y: NDArray[np.double],
         y_bin: NDArray[np.bool_],
+        x_raw: NDArray[np.double],
+        y_raw: NDArray[np.double],
+        beta: NDArray[np.bool_],
+        num_good_algos: NDArray[np.double],
+        y_best: NDArray[np.double],
+        p: NDArray[np.double],
+        inst_labels: pd.Series,
+        s: set[str] | None,
         feat_labels: list[str],
         opts: SiftedOptions,
-        opts_selvars: SelvarsOptions
+        opts_selvars: SelvarsOptions,
+        data_dense: Data
     ) -> None:
         """Initialize the Sifted stage.
 
@@ -75,20 +86,41 @@ class Sifted:
         opts : SiftedOptions
             Sifted options used for processing.
         """
-        self.x = x
+        self.x = x,
         self.y = y
         self.y_bin = y_bin
         self.feat_labels = np.array(feat_labels)
         self.opts = opts
+        self.opts_selvars = opts_selvars
+        self.data_dense: data_dense
+        self.x_raw = x_raw,
+        self.y_raw = y_raw,
+        self.beta = beta,
+        self.num_good_algos = num_good_algos,
+        self.y_best = y_best,
+        self.p = p,
+        self.inst_labels = inst_labels,
+        self.s = np.array(s)
 
+    # s = s,
     @staticmethod
     def run(
         x: NDArray[np.double],
         y: NDArray[np.double],
         y_bin: NDArray[np.bool_],
+        x_raw: NDArray[np.double],
+        y_raw: NDArray[np.double],
+        beta: NDArray[np.bool_],
+        num_good_algos: NDArray[np.double],
+        y_best: NDArray[np.double],
+        p: NDArray[np.double],
+        inst_labels: pd.Series,
+        s: set[str] | None,
         feat_labels: list[str],
         opts: SiftedOptions,
-        opts_selvars: SelvarsOptions
+        opts_selvars: SelvarsOptions,
+        data_dense: Data
+        
     ) -> tuple[SiftedDataChanged, SiftedOut]:
         """Process data matrices and options to produce a sifted dataset.
 
@@ -113,8 +145,22 @@ class Sifted:
             Output data from the Sifted stage including selected features and
             performance metrics.
         """        
-        sifted = Sifted(x=x, y=y, y_bin=y_bin, feat_labels=feat_labels, opts=opts, opts_selvars=opts_selvars)
-
+        sifted = Sifted(
+            x = x,
+            y = y,
+            x_raw = x_raw,
+            y_raw = y_raw,
+            y_bin = y_bin,
+            beta = beta,
+            num_good_algos = num_good_algos,
+            y_best = y_best,
+            p = p,
+            inst_labels = inst_labels,
+            s = s,
+            opts=opts, 
+            opts_selvars=opts_selvars, 
+            data_dense=data_dense
+        )
         nfeats = x.shape[1]
         idx = np.arange(nfeats)
         rng = np.random.default_rng(seed=0)
@@ -175,6 +221,17 @@ class Sifted:
             )
             return sifted.generate_output(
                 x=x_aux,
+                y=y,
+                y_bin=y_bin,
+                feat_labels=feat_labels,
+                x_raw = x_raw,
+                y_raw = y_raw,
+                beta = beta,
+                num_good_algos = num_good_algos,
+                y_best = y_best,
+                p = p,
+                inst_labels=inst_labels,
+                s = s,
                 selvars=selvars,
                 idx=idx,
                 rho=rho,
@@ -188,29 +245,57 @@ class Sifted:
         clust, _ = sifted.select_features_by_clustering(x_aux, rng)
 
         x_aux, selvars = sifted.find_best_combination(x_aux, clust, selvars, rng)
-
-        sifted_output = sifted.generate_output(
-            x=x_aux,
-            selvars=selvars,
-            idx=idx,
-            rho=rho,
-            pval=pval,
-            silhouette_scores=silhouette_scores,
-            clust=clust,
-        )
         
-        # This is the bit of code moved from BuildIs.m
-        # select feature labels based on sifted selected values
-        feat_labels = [feat_labels[i] for i in sifted_output[1].selvars]
-        featsel_idx = sifted_output[1].selvars
-        
-        # run filter for small experiment (bysenstiy, and model.data is required)
-        # manually create now, wait for kian to get its output
-        model_data = Data(
-            
-        )
-        
-        return sifted_output
+        feat_labels = [feat_labels[i] for i in selvars]
+        # run filter for small experiment 
+        if bydensity:
+            # run filter for small experiment 
+            subset_index, is_dissimilar, is_visa, uniformity = Filter(
+                data_dense.x[:, selvars],
+                data_dense.y,
+                data_dense.y_bin,
+                opts_selvars
+            )
+            subset_index = ~subset_index
+            if data_dense.s != None:
+                s = data_dense.s[subset_index]
+            return sifted.generate_output(
+                x=data_dense.x[subset_index][:selvars],
+                y=data_dense.y[subset_index][:],
+                y_bin=data_dense.y_bin[subset_index][:],
+                feat_labels=feat_labels,
+                x_raw=data_dense.x_raw[subset_index][:],
+                y_raw=data_dense.y_raw[subset_index][:],
+                beta = data_dense.beta[subset_index],
+                num_good_algos = data_dense.num_good_algos[subset_index],
+                y_best = data_dense.y_best[subset_index][:],
+                p = data_dense.p[subset_index],
+                inst_labels=data_dense.inst_labels[subset_index],
+                s = s,
+                selvars=selvars,
+                idx=idx,
+                rho=rho,
+                pval=pval,
+            )
+        else:
+            return sifted.generate_output(
+                x=x_aux,
+                y=y,
+                y_bin=y_bin,
+                feat_labels=feat_labels,
+                x_raw = x_raw,
+                y_raw = y_raw,
+                beta = beta,
+                num_good_algos = num_good_algos,
+                y_best = y_best,
+                p = p,
+                inst_labels=inst_labels,
+                s = s,
+                selvars=selvars,
+                idx=idx,
+                rho=rho,
+                pval=pval,
+            )
 
     def select_features_by_performance(
         self,
@@ -541,6 +626,17 @@ class Sifted:
     def generate_output(
         self,
         x: NDArray[np.double],
+        y: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        x_raw: NDArray[np.double],
+        y_raw: NDArray[np.double],
+        beta: NDArray[np.bool_],
+        num_good_algos: NDArray[np.double],
+        y_best: NDArray[np.double],
+        p: NDArray[np.double],
+        inst_labels: pd.Series,
+        s: set[str] | None,
+        feat_labels: list[str],
         selvars: NDArray[np.intc],
         idx: NDArray[np.intc],
         rho: NDArray[np.double] | None = None,
@@ -575,7 +671,20 @@ class Sifted:
             Output data generated from the Sifted stage, including selected features
             and performance metrics.
         """
-        data_changed = SiftedDataChanged(x=x)
+        data_changed = SiftedDataChanged(
+            x=x,
+            y=y,
+            y_bin=y_bin,
+            feat_labels=feat_labels,
+            x_raw = x_raw,
+            y_raw = y_raw,
+            beta = beta,
+            num_good_algos = num_good_algos,
+            y_best = y_best,
+            p = p,
+            inst_labels=inst_labels,
+            s = s
+        )
         output = SiftedOut(
             selvars=selvars,
             idx=idx[selvars],

@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from matilda.data.options import SiftedOptions
+from matilda.data.options import SiftedOptions, SelvarsOptions
 from matilda.stages.sifted import Sifted
 
 # prepare input required for testing
@@ -37,6 +37,7 @@ input_y = np.genfromtxt(csv_path_y, delimiter=",")
 input_ybin = np.genfromtxt(csv_path_ybin, delimiter=",")
 feat_labels = np.genfromtxt(csv_path_feat_labels, delimiter=",", dtype=str).tolist()
 opts = SiftedOptions.default()
+opts_selvar = SelvarsOptions.default()
 
 
 def test_select_features_by_performance() -> None:
@@ -126,7 +127,7 @@ def test_run() -> None:
     csv_path_x = script_dir / "test_data/sifted/output/x_matlab.csv"
     x_matlab = pd.read_csv(csv_path_x, header=None)
 
-    data_change, _ = Sifted.run(input_x, input_y, input_ybin, feat_labels, opts)
+    data_change, _ = Sifted.run(input_x, input_y, input_ybin, feat_labels, opts, opts_selvar)
     x_python = pd.DataFrame(data_change.x)
 
     # compute correlation matrix that has been categorised into high, normal and low
@@ -135,7 +136,7 @@ def test_run() -> None:
     # test case pass if 70%
     assert correlation_matrix_check(correlation_matrix, threshold=0.7)
 
-
+test_run()
 def compute_correlation(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     """Compute correlation matrix and categorise them into high, normal and low.
 

@@ -130,24 +130,35 @@ class SiftedDataChanged:
     """The fields of Data that the Sifted stage changes."""
 
     x: NDArray[np.double]
+    y: NDArray[np.double]
+    y_bin: NDArray[np.bool_]
+    x_raw: NDArray[np.double]
+    y_raw: NDArray[np.double]
+    beta: NDArray[np.bool_]
+    num_good_algos: NDArray[np.double]
+    y_best: NDArray[np.double]
+    p: NDArray[np.double]
+    inst_labels: pd.Series
+    s: set[str] | None
+    feat_labels: list[str]
 
     def merge_with(self, data: Data) -> Data:
         """Merge changed fields of data with a Data object."""
         return Data(
-            inst_labels=data.inst_labels,
-            feat_labels=data.feat_labels,
+            inst_labels=self.inst_labels,
+            feat_labels=self.feat_labels,
             algo_labels=data.algo_labels,
             uniformity=data.uniformity,
             x=self.x,
-            x_raw=data.x_raw,
-            y=data.y,
-            y_raw=data.y_raw,
-            y_bin=data.y_bin,
-            y_best=data.y_best,
-            p=data.p,
-            num_good_algos=data.num_good_algos,
-            beta=data.beta,
-            s=data.s,
+            x_raw=self.x_raw,
+            y=self.y,
+            y_raw=self.y_raw,
+            y_bin=self.y_bin,
+            y_best=self.y_best,
+            p=self.p,
+            num_good_algos=self.num_good_algos,
+            beta=self.beta,
+            s=self.s,
         )
 
 
