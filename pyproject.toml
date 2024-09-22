@@ -6,6 +6,7 @@ authors = [
     "Your Name <you@example.com>",
     "Kushagra Khare <kharek@student.unimelb.edu.au>",
     "Nathan Harvey <nhharvey@student.unimelb.edu.au>",
+    "Kian Dsouza < kiandsouza01@gmail.com>",
 ]
 readme = "README.md"
 
@@ -170,5 +171,6 @@ module = [
     'sklearn.svm',
     'skopt',
     'skopt.space',
+    'sklearn.model_selection',
 ]
 ignore_missing_imports = 'True'
