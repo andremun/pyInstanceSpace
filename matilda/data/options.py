@@ -11,7 +11,9 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Self, TypeVar
 
+import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 from matilda.data.default_options import (
     DEFAULT_AUTO_PREPROC,
@@ -229,6 +231,8 @@ class SiftedOptions:
 class PilotOptions:
     """Options for pilot studies or preliminary analysis phases."""
 
+    x0: NDArray[np.double] | None
+    alpha: NDArray[np.double] | None
     analytic: bool
     n_tries: int
 
@@ -236,12 +240,11 @@ class PilotOptions:
     def default(
         analytic: bool = DEFAULT_PILOT_ANALYTICS,
         n_tries: int = DEFAULT_PILOT_N_TRIES,
+        x0: NDArray[np.double] | None = None,
+        alpha: NDArray[np.double] | None = None,
     ) -> PilotOptions:
         """Instantiate with default values."""
-        return PilotOptions(
-            analytic=analytic,
-            n_tries=n_tries,
-        )
+        return PilotOptions(analytic=analytic, n_tries=n_tries, x0=x0, alpha=alpha)
 
 
 @dataclass(frozen=True)

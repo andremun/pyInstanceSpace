@@ -64,11 +64,11 @@ class TraceStage(Stage):
                 List of inputs for the stage
         """
         return [
-            ["z", NDArray[np.double]],
-            ["y_bin", NDArray[np.bool_]],
-            ["p", NDArray[np.double]],
-            ["beta", NDArray[np.bool_]],
-            ["algo_labels", list[str]],
+            ("z", NDArray[np.double]),
+            ("y_bin", NDArray[np.bool_]),
+            ("p", NDArray[np.double]),
+            ("beta", NDArray[np.bool_]),
+            ("algo_labels", list[str]),
         ]
 
     @staticmethod
@@ -85,11 +85,11 @@ class TraceStage(Stage):
                 List of outputs for the stage
         """
         return [
-            ["space", Footprint],
-            ["good", list[Footprint]],
-            ["best", list[Footprint]],
-            ["hard", Footprint],
-            ["summary", pd.Dataframe],
+            ("space", Footprint),
+            ("good", list[Footprint]),
+            ("best", list[Footprint]),
+            ("hard", Footprint),
+            ("summary", pd.DataFrame),
         ]
 
     def _run(

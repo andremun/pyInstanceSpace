@@ -16,27 +16,151 @@ from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
 from scipy.stats import pearsonr
 
-from matilda.data.model import PilotDataChanged, PilotOut
 from matilda.data.options import PilotOptions
+from matilda.stages.stage import Stage
 
 
-class Pilot:
-    """Class for projection of instances into a low-dimensional space."""
+class Pilot(Stage):
+    """Class for PILOT stage."""
 
-    def __init__(self) -> None:
-        """Initialize the Pilot stage.
-
-        The Initialize functon is used to create a Pilot class.
-        """
-        pass
-
-    @staticmethod
-    def run(
+    def __init__(
+        self,
         x: NDArray[np.double],
         y: NDArray[np.double],
         feat_labels: list[str],
-        opts: PilotOptions,
-    ) -> tuple[PilotDataChanged, PilotOut]:
+    ) -> None:
+        """Initialize the Pilot stage.
+
+        The Initialize functon is used to create a Pilot class.
+
+        Args
+        ----
+            x (NDArray[np.double]): The feature matrix (instances x features) to
+                process.
+            y (NDArray[np.double]): The data points for the selected feature
+            feat_labels (list[str]): List feature names
+
+        Returns
+        -------
+            None
+        """
+        self.x = x
+        self.y = y
+        self.feat_labels = feat_labels
+
+    @staticmethod
+    def _inputs() -> list[tuple[str, type]]:
+        """Use the method for determining the inputs for pilot.
+
+        Args
+        ----
+            None
+
+        Returns
+        -------
+            list[tuple[str, type]]
+                List of inputs for the stage
+        """
+        return [
+            ("x", NDArray[np.double]),
+            ("y", NDArray[np.double]),
+            ("feat_labels", list[str]),
+        ]
+
+    @staticmethod
+    def _outputs() -> list[tuple[str, type]]:
+        """Use the method for determining the outputs for pilot.
+
+        Args
+        ----
+            None
+
+        Returns
+        -------
+            list[tuple[str, type]]
+                List of outputs for the stage
+        """
+        return [
+            ("X0", NDArray[np.double]),  # not sure about the dimensions
+            ("alpha", NDArray[np.double]),
+            ("eoptim", NDArray[np.double]),
+            ("perf", NDArray[np.double]),
+            ("a", NDArray[np.double]),
+            ("z", NDArray[np.double]),
+            ("c", NDArray[np.double]),
+            ("b", NDArray[np.double]),
+            ("error", NDArray[np.double]),  # or just the double
+            ("r2", NDArray[np.double]),
+            ("summary", pd.DataFrame),
+        ]
+
+    def _run(self, options: PilotOptions) -> tuple[
+        NDArray[np.double] | None,
+        NDArray[np.double] | None,
+        NDArray[np.double] | None,
+        NDArray[np.double] | None,
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        pd.DataFrame,
+    ]:
+        """Implement all the code in and around this class in buildIS.
+
+        Args
+        -------
+        options : PilotOptions
+            The options enabled for the Pilot Class
+
+        Return
+        -------
+        X0
+            NDArray[np.double] | None  # not sure about the dimensions
+        alpha
+            NDArray[np.double] | None
+        eoptim
+            NDArray[np.double] | None
+        perf
+            NDArray[np.double] | None
+        a
+            NDArray[np.double]
+        z
+            NDArray[np.double]
+        c
+            NDArray[np.double]
+        b
+            NDArray[np.double]
+        error
+            NDArray[np.double]  # or just the double
+        r2
+            NDArray[np.double]
+        summary
+            pd.DataFrame
+
+        """
+        return Pilot.pilot(self.x, self.y, self.feat_labels, options)
+
+    @staticmethod
+    def pilot(
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+        feat_labels: list[str],
+        options: PilotOptions,
+    ) -> tuple[
+        NDArray[np.double] | None,
+        NDArray[np.double] | None,
+        NDArray[np.double] | None,
+        NDArray[np.double] | None,
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        pd.DataFrame,
+    ]:
         """Run the PILOT dimensionality reduction algorithm.
 
         Args
@@ -47,16 +171,33 @@ class Pilot:
             The data points for the selected feature
         feat_labels :  list[str]
             List feature names
-        opts : PilotOptions
+        options : PilotOptions
             The options enabled for the Pilot Class
 
         Return
         -------
-        PilotDataChanged
-            The data that has been changed in-place
-
-        PilotOut
-            The output class that contains all the outputs for Pilot
+        X0
+            NDArray[np.double] | None  # not sure about the dimensions
+        alpha
+            NDArray[np.float16] | None
+        eoptim
+            NDArray[np.double] | None
+        perf
+            NDArray[np.double] | None
+        a
+            NDArray[np.double]
+        z
+            NDArray[np.double]
+        c
+            NDArray[np.double]
+        b
+            NDArray[np.double]
+        error
+            NDArray[np.double]  # or just the double
+        r2
+            NDArray[np.double]
+        summary
+            pd.DataFrame
 
         """
         n = x.shape[1]
@@ -72,33 +213,34 @@ class Pilot:
         perf = None
 
         # Analytical solution
-        if opts.analytic:
-            out_a, out_z, out_c, out_b, error, r2 = Pilot.analytic_solve(x, x_bar, n, m)
+        if options.analytic:
+            out_a, out_z, out_c, out_b, error, r2 = Pilot.analytic_solve(
+                x,
+                x_bar,
+                n,
+                m,
+            )
 
         # Numerical solution
         else:
-            if (
-                hasattr(opts, "alpha")
-                and opts.alpha is not None
-                and opts.alpha.shape == (2 * m + 2 * n, 1)
-            ):
+            if options.alpha is not None and options.alpha.shape == (2 * m + 2 * n, 1):
                 print(" -> PILOT is using a pre-calculated solution.")
-                alpha = opts.alpha
+                alpha = options.alpha
             else:
-                if hasattr(opts, "x0") and opts.x0 is not None:
+                if options.x0 is not None:
                     print(
                         "  -> PILOT is using a user defined starting points"
                         " for BFGS.",
                     )
-                    x0 = opts.x0
+                    x0 = options.x0
                 else:
                     print("  -> PILOT is using random starting points for BFGS.")
-                    rng = np.random.default_rng()
-                    x0 = 2 * rng.random((2 * m + 2 * n, opts.n_tries)) - 1
+                    rng = np.random.default_rng(seed=0)
+                    x0 = 2 * rng.random((2 * m + 2 * n, options.n_tries)) - 1
 
-                alpha = np.zeros((2 * m + 2 * n, opts.n_tries))
-                eoptim = np.zeros(opts.n_tries)
-                perf = np.zeros(opts.n_tries)
+                alpha = np.zeros((2 * m + 2 * n, options.n_tries))
+                eoptim = np.zeros(options.n_tries)
+                perf = np.zeros(options.n_tries)
 
                 idx, alpha, eoptim, perf = Pilot.numerical_solve(
                     x,
@@ -110,7 +252,7 @@ class Pilot:
                     alpha,
                     eoptim,
                     perf,
-                    opts,
+                    options,
                 )
 
             out_a = alpha[: 2 * n, idx].reshape(2, n)
@@ -122,7 +264,7 @@ class Pilot:
             error = np.sum((x_bar - x_hat) ** 2)
             r2 = np.diag(np.corrcoef(x_bar, x_hat) ** 2).astype(np.double)
 
-        if opts.analytic:
+        if options.analytic:
             summary = pd.DataFrame(out_a)
             summary.rename(
                 columns={
@@ -139,36 +281,35 @@ class Pilot:
         summary = rldf.join(summary)
 
         if alpha is not None and x0 is not None:
-            alph: NDArray[np.float16] = alpha.astype(np.float16)
+            alpha = alpha.astype(np.float16)
             x_init: NDArray[np.double] = x0
-            pout = PilotOut(
-                X0=x_init,
-                alpha=alph,
-                eoptim=eoptim,
-                perf=perf,
-                a=out_a,
-                z=out_z,
-                c=out_c,
-                b=out_b,
-                error=error,
-                r2=r2,
-                summary=summary,
-            )
+            pout = [
+                x_init,
+                alpha,
+                eoptim,
+                perf,
+                out_a,
+                out_z,
+                out_c,
+                out_b,
+                error,
+                r2,
+                summary,
+            ]
         else:
-            pout = PilotOut(
-                X0=x0,
-                alpha=alpha,
-                eoptim=eoptim,
-                perf=perf,
-                a=out_a,
-                z=out_z,
-                c=out_c,
-                b=out_b,
-                error=error,
-                r2=r2,
-                summary=summary,
-            )
-        pda = PilotDataChanged()
+            pout = [
+                x0,
+                alpha,
+                eoptim,
+                perf,
+                out_a,
+                out_z,
+                out_c,
+                out_b,
+                error,
+                r2,
+                summary,
+            ]
 
         print(
             "-------------------------------------------------------------------------",
@@ -176,7 +317,7 @@ class Pilot:
         print("  -> PILOT has completed. The projection matrix A is:")
         print(out_a)
 
-        return (pda, pout)
+        return pout
 
     @staticmethod
     def analytic_solve(

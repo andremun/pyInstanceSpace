@@ -2,9 +2,9 @@
 
 import numpy as np
 from numpy.typing import NDArray
-from stages.stage import Stage
 
 from matilda.data.options import SiftedOptions
+from matilda.stages.stage import Stage
 
 
 class SiftedStage(Stage):
@@ -27,23 +27,23 @@ class SiftedStage(Stage):
     def _inputs() -> list[tuple[str, type]]:
         """See file docstring."""
         return [
-            ["x", NDArray[np.double]],
-            ["y", NDArray[np.double]],
-            ["y_bin", NDArray[np.bool_]],
-            ["opts", SiftedOptions],
+            ("x", NDArray[np.double]),
+            ("y", NDArray[np.double]),
+            ("y_bin", NDArray[np.bool_]),
+            ("opts", SiftedOptions),
         ]
 
     @staticmethod
     def _outputs() -> list[tuple[str, type]]:
         """See file docstring."""
         return [
-            ["flag", int],
-            ["rho", np.double],
-            ["k", int],
-            ["n_trees", int],
-            ["max_lter", int],
-            ["replicates", int],
-            ["idx", NDArray[np.int_]],
+            ("flag", int),
+            ("rho", np.double),
+            ("k", int),
+            ("n_trees", int),
+            ("max_lter", int),
+            ("replicates", int),
+            ("idx", NDArray[np.int_]),
         ]
 
     def _run(
