@@ -4,9 +4,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 from matilda.data.options import PythiaOptions
-from matilda.stages.pythia import Pythia
+from matilda.stages.pythia import Pythia, PythiaOut
 
 script_dir = Path(__file__).parent
 output_dir = script_dir / "test_data/pythia/output"
@@ -98,42 +99,18 @@ def test_bayes_opt() -> None:
     matlab_output = pd.read_csv(output_dir / "BO_gaussian/gaussian.csv")
 
     # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values
-    matlab_precision = matlab_output["CV_model_precision"].values
-    matlab_recall = matlab_output["CV_model_recall"].values
+    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
+    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
+    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
 
-    tol = 2.5
-
-    # compare the output and check the tolerance, the tolerance should within 2.5%
-    # if 90% passed, the test is considered passed
-    total = 0
-    correct = 0
-    threshold = 0.9
-
-    for i in range(len(algo)):
-        total += 3
-        # check if the accuracy is higher than the matlab output
-        if (
-            pythia_output.accuracy[i] * 100 >= matlab_accuracy[i]
-            or abs(pythia_output.accuracy[i] * 100 - matlab_accuracy[i]) <= tol
-        ):
-            correct += 1
-
-        # check precision
-        if (
-            pythia_output.precision[i] * 100 >= matlab_precision[i]
-            or abs(pythia_output.precision[i] * 100 - matlab_precision[i]) <= tol
-        ):
-            correct += 1
-
-        # check recall
-        if (
-            pythia_output.recall[i] * 100 >= matlab_recall[i]
-            or abs(pythia_output.recall[i] * 100 - matlab_recall[i]) <= tol
-        ):
-            correct += 1
-
-    assert correct / total >= threshold
+    compare_performance(
+        pythia_output,
+        matlab_accuracy,
+        matlab_precision,
+        matlab_recall,
+        len(algo),
+        2.5,
+    )
 
 
 def test_bayes_opt_poly() -> None:
@@ -158,42 +135,18 @@ def test_bayes_opt_poly() -> None:
     matlab_output = pd.read_csv(output_dir / "BO_poly/poly.csv")
 
     # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values
-    matlab_precision = matlab_output["CV_model_precision"].values
-    matlab_recall = matlab_output["CV_model_recall"].values
+    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
+    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
+    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
 
-    tol = 2.5
-
-    # compare the output and check the tolerance, the tolerance should within 2.5%
-    # if 90% passed, the test is considered passed
-    total = 0
-    correct = 0
-    threshold = 0.9
-
-    for i in range(len(algo)):
-        total += 3
-        # check if the accuracy is higher than the matlab output
-        if (
-            pythia_output.accuracy[i] * 100 >= matlab_accuracy[i]
-            or abs(pythia_output.accuracy[i] * 100 - matlab_accuracy[i]) <= tol
-        ):
-            correct += 1
-
-        # check precision
-        if (
-            pythia_output.precision[i] * 100 >= matlab_precision[i]
-            or abs(pythia_output.precision[i] * 100 - matlab_precision[i]) <= tol
-        ):
-            correct += 1
-
-        # check recall
-        if (
-            pythia_output.recall[i] * 100 >= matlab_recall[i]
-            or abs(pythia_output.recall[i] * 100 - matlab_recall[i]) <= tol
-        ):
-            correct += 1
-
-    assert correct / total >= threshold
+    compare_performance(
+        pythia_output,
+        matlab_accuracy,
+        matlab_precision,
+        matlab_recall,
+        len(algo),
+        2.5,
+    )
 
 
 def test_grid_gaussian() -> None:
@@ -228,38 +181,14 @@ def test_grid_gaussian() -> None:
         header=None,
     ).values
 
-    tol = 2.5
-
-    # compare the output and check the tolerance, the tolerance should within 2.5%
-    # if 90% passed, the test is considered passed
-    total = 0
-    correct = 0
-    threshold = 0.9
-
-    for i in range(len(algo)):
-        total += 3
-        # check if the accuracy is higher than the matlab output
-        if (
-            pythia_output.accuracy[i] * 100 >= matlab_accuracy[i]
-            or abs(pythia_output.accuracy[i] * 100 - matlab_accuracy[i]) <= tol
-        ):
-            correct += 1
-
-        # check precision
-        if (
-            pythia_output.precision[i] * 100 >= matlab_precision[i]
-            or abs(pythia_output.precision[i] * 100 - matlab_precision[i]) <= tol
-        ):
-            correct += 1
-
-        # check recall
-        if (
-            pythia_output.recall[i] * 100 >= matlab_recall[i]
-            or abs(pythia_output.recall[i] * 100 - matlab_recall[i]) <= tol
-        ):
-            correct += 1
-
-    assert correct / total >= threshold
+    compare_performance(
+        pythia_output,
+        matlab_accuracy,
+        matlab_precision,
+        matlab_recall,
+        len(algo),
+        2.5,
+    )
 
 
 def test_grid_poly() -> None:
@@ -294,34 +223,53 @@ def test_grid_poly() -> None:
         header=None,
     ).values
 
-    tol = 2.5
+    compare_performance(
+        pythia_output,
+        matlab_accuracy,
+        matlab_precision,
+        matlab_recall,
+        len(algo),
+        2.5,
+    )
 
-    # compare the output and check the tolerance, the tolerance should within 2.5%
-    # if 90% passed, the test is considered passed
+
+def compare_performance(
+    python_output: PythiaOut,
+    matlab_accuracy: NDArray[np.double],
+    matlab_precision: NDArray[np.double],
+    matlab_recall: NDArray[np.double],
+    algo_num: int,
+    tol: float,
+) -> None:
+    """Test that whether the performance of model is as expected."""
     total = 0
     correct = 0
     threshold = 0.9
 
-    for i in range(len(algo)):
+    # tolerance
+    tol = 2.5
+
+    # compare the performance of the model with the expected values
+    # if the performance is greater than the expected value, it is considered correct
+    # if the performance is within the tolerance, it is considered correct
+    for i in range(algo_num):
         total += 3
-        # check if the accuracy is higher than the matlab output
+
         if (
-            pythia_output.accuracy[i] * 100 >= matlab_accuracy[i]
-            or abs(pythia_output.accuracy[i] * 100 - matlab_accuracy[i]) <= tol
+            python_output.accuracy[i] * 100 >= matlab_accuracy[i]
+            or abs(python_output.accuracy[i] * 100 - matlab_accuracy[i]) <= tol
         ):
             correct += 1
 
-        # check precision
         if (
-            pythia_output.precision[i] * 100 >= matlab_precision[i]
-            or abs(pythia_output.precision[i] * 100 - matlab_precision[i]) <= tol
+            python_output.precision[i] * 100 >= matlab_precision[i]
+            or abs(python_output.precision[i] * 100 - matlab_precision[i]) <= tol
         ):
             correct += 1
 
-        # check recall
         if (
-            pythia_output.recall[i] * 100 >= matlab_recall[i]
-            or abs(pythia_output.recall[i] * 100 - matlab_recall[i]) <= tol
+            python_output.recall[i] * 100 >= matlab_recall[i]
+            or abs(python_output.recall[i] * 100 - matlab_recall[i]) <= tol
         ):
             correct += 1
 
