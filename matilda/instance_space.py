@@ -175,6 +175,7 @@ class InstanceSpace:
             self._prelim_state.data.x,
             self._prelim_state.data.y,
             self._prelim_state.data.y_bin,
+            self._prelim_state.data.feat_labels,
             self._options.sifted,
         )
 

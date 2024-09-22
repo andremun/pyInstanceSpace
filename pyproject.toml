@@ -18,6 +18,7 @@ scikit-learn = "^1.4.2"
 click = "^8.1.7"
 black = "^24.4.2"
 scipy = "^1.13.0"
+pygad = "^3.3.1"
 shapely = "^2.0.5"
 matplotlib = "^3.9.2"
 
@@ -159,13 +160,18 @@ disallow_untyped_defs = 'True'
 [[tool.mypy.overrides]]
 module = [
     'sklearn',
-    'scipy.stats',
+    'sklearn.cluster',
+    'sklearn.metrics',
+    'sklearn.neighbors',
+    'sklearn.model_selection',
     'scipy',
+    'scipy.stats',
     'scipy.spatial',
     'scipy.spatial.distance',
     'shapely.geometry',
     'scipy.linalg',
     'scipy.optimize',
     'scipy.io',
+    'pygad',
 ]
 ignore_missing_imports = 'True'
