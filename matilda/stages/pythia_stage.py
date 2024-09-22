@@ -143,9 +143,9 @@ class PythiaStage(Stage):
             ("pr0_hat", NDArray[np.double]),
             ("box_consnt", list[float]),
             ("k_scale", list[float]),
+            ("accuracy", list[float]),
             ("precision", list[float]),
             ("recall", list[float]),
-            ("accuracy", list[float]),
             ("selection0", NDArray[np.integer]),
             ("selection1", NDArray[np.integer]),
             ("summary", pd.DataFrame),
@@ -388,7 +388,7 @@ class PythiaStage(Stage):
                 opts.use_grid_search,
             )
 
-            #Record performance metrics
+            # Record performance metrics
             y_sub[:, [i]] = res.Ysub.reshape(-1, 1)
             pr0sub[:, [i]] = res.Psub.reshape(-1, 1)
             y_hat[:, [i]] = res.Yhat.reshape(-1, 1)
