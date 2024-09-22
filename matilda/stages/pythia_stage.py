@@ -1,9 +1,9 @@
 """PYTHIA: Automated Algorithm Selection.
 
-By training Support Vector Machines (SVMs) to predict the best-performing 
-algorithm for a given problem instance, using the coordinates of that 
+By training Support Vector Machines (SVMs) to predict the best-performing
+algorithm for a given problem instance, using the coordinates of that
 instance in a two-dimensional instance space. PYTHIA uses the trained models
-generate overall summary of each algorithm performance and 
+generate overall summary of each algorithm performance and
 recommend the best algorithm for a new problem instance.
 
 Key steps for PYTHIA:
@@ -547,7 +547,7 @@ class PythiaStage(Stage):
             :,
             1,
         ]
-
+        # Predict the labels and probabilities for the entire dataset
         y_hat = best_svm.predict(z)
         p_hat = best_svm.predict_proba(z)[:, 1]
 
@@ -598,14 +598,13 @@ class PythiaStage(Stage):
         ----------
         z : NDArray[np.double]
             The feature coordinates.
-        
+
         Returns
         -------
         tuple[list[float], list[float], NDArray[np.double]]
         The mean, standard deviation and normalized feature coordinates.
         """
         z = stats.zscore(z, ddof=1)
-        # Getting mean (mu) and standard deviation (sigma)
         mu = np.mean(z, axis=0)
         sigma = np.std(z, ddof=1, axis=0)
         return (mu, sigma, z)
@@ -613,14 +612,16 @@ class PythiaStage(Stage):
     @staticmethod
     def check_precalcparams(params: NDArray | None, nalgos: int) -> list | None:
         """Check pre-calculated hyper-parameters.
-        
+
         Parameters
         ----------
         params : NDArray | None
             The pre-calculated hyper-parameters.
             nalgos : int
             The number of algorithms.
-        
+        nalgos : int
+            The number of algorithms.
+
         Returns
         -------
         list | None
@@ -660,8 +661,12 @@ class PythiaStage(Stage):
             The binary labels.
         """
         default = 0
+        """Selects the best-performing algorithm for each instance using
+        precision-weighted predictions. If no algorithm is selected (i.e., all
+        scores are non-positive), it defaults to the algorithm with the best
+        average performance
+        """
         if nalgos > 1:
-            # Apply precision-weighted selection
             precision_array = np.array(precision)
             weighted_yhat = y_hat.T * precision_array[:, np.newaxis]
             best = np.max(weighted_yhat, axis=0)
@@ -755,32 +760,38 @@ class PythiaStage(Stage):
         """
         print("  -> PYTHIA is preparing the summary table.")
 
-        # Obtain the corresponding selection matrix for the two algorithms.
+        # Obtain the corresponding selection matrix for the two selections.
         sel0 = selection0[:, np.newaxis] == np.arange(1, nalgos + 1)
         sel1 = selection1[:, np.newaxis] == np.arange(1, nalgos + 1)
 
+        # Compute the average performance of the selected algorithms
         avgperf = np.round(np.nanmean(y, axis=0), 3)
         stdperf = np.round(np.nanstd(y, axis=0), 3)
 
+        """This variable stores the full performance of the algorithms,
+        but filtered based on selection1"""
         y_full = y.copy()
+
+        # This variable stores the performance of the selected algorithms
         y_svms = y.copy()
 
         y[~sel0] = np.nan
         y_full[~sel1] = np.nan
         y_svms[~y_hat] = np.nan
 
-        # Compute the probability of good
+        # Compute the probability of "good"
         pgood = np.mean(np.any(np.logical_and(y_bin, sel1), axis=1))
 
         ybin_flat = y_bin.flatten()
         sel0_flat = sel0.flatten()
 
-        # Compute precision
+        # Compute the precision of selected algorithms
         precisionsel = precision_score(ybin_flat, sel0_flat)
 
-        # Compute recall
+        # Compute the recall of selected algorithms
         recallsel = recall_score(ybin_flat, sel0_flat)
 
+        # Prepare the data for the summary table
         data = {
             "Algorithms": [*algo_labels, "Oracle", "Selector"],
             "Avg_Perf_all_instances": np.round(
