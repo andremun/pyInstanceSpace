@@ -14,7 +14,7 @@ import pandas as pd
 from pandas.testing import assert_frame_equal
 
 from matilda.data.options import TraceOptions
-from matilda.stages.trace_stage import TraceStage, TraceInputs, TraceOutputs
+from matilda.stages.trace_stage import TraceInputs, TraceOutputs, TraceStage
 
 
 def test_trace_pythia() -> None:
@@ -90,14 +90,16 @@ def test_trace_pythia() -> None:
 
     # Initialising and running the TRACE analysis
     trace = TraceStage()
-    trace_inputs: TraceInputs = TraceInputs(z,
+    trace_inputs: TraceInputs = TraceInputs(
+        z,
         p1.astype(np.double),
         p2.astype(np.double),
         beta,
         algo_labels,
         y_bin,
         y_bin2,
-        trace_options,)
+        trace_options,
+    )
 
     trace_output: TraceOutputs = trace._run(trace_inputs)
 
@@ -183,14 +185,16 @@ def test_trace_simulation() -> None:
 
     # Initialising and running the TRACE analysis
     trace = TraceStage()
-    trace_inputs: TraceInputs = TraceInputs(z,
-                                            p1.astype(np.double),
-                                            p2.astype(np.double),
-                                            beta,
-                                            algo_labels,
-                                            y_bin,
-                                            y_bin2,
-                                            trace_options)
+    trace_inputs: TraceInputs = TraceInputs(
+        z,
+        p1.astype(np.double),
+        p2.astype(np.double),
+        beta,
+        algo_labels,
+        y_bin,
+        y_bin2,
+        trace_options,
+    )
 
     trace_output: TraceOutputs = trace._run(trace_inputs)
     correct_result_path = (
