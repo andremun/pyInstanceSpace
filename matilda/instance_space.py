@@ -25,7 +25,6 @@ from matilda.data.options import (
     PrelimOptions,
     from_json_file,
 )
-from matilda.stages.pilot import Pilot
 from matilda.stages.prelim import Prelim
 from matilda.stages.pythia import Pythia
 from matilda.stages.sifted import Sifted
