@@ -1,7 +1,45 @@
-"""PYTHIA function for algorithm selection and performance evaluation using SVM."""
+"""PYTHIA: Automated Algorithm Selection.
 
-import time
+By training Support Vector Machines (SVMs) to predict the best-performing 
+algorithm for a given problem instance, using the coordinates of that 
+instance in a two-dimensional instance space. PYTHIA uses the trained models
+generate overall summary of each algorithm performance and 
+recommend the best algorithm for a new problem instance.
+
+Key steps for PYTHIA:
+1. Normalize the instance space.
+2. Train SVM models for each algorithm.
+3. Evaluate the performance of the SVM models.
+4. Generate a summary of the results.
+
+This module is structured around the `PythiaStage` class
+
+Dependencies:
+- numpy
+- pandas
+- scipy
+- sklearn
+- skopt
+
+Classes:
+--------
+- PythiaStage: The main class for the Pythia stage.
+
+Functions:
+----------
+- pythia: The main function for the Pythia stage.
+- fitmatsvm: Train a SVM model using MATLAB's 'fitcsvm' function.
+- display_overall_perf: Output overall performance metrics.
+- compute_znorm: Compute normalized instance space.
+- check_precalcparams: Check pre-calculated hyper-parameters.
+- determine_selections: Determine the selections based on the precision metrics.
+- generate_params: Generate hyperparameters for the SVM models.
+- generate_summary: Generate a summary of the results.
+
+"""
+
 from dataclasses import dataclass
+from time import perf_counter
 
 import numpy as np
 import pandas as pd
@@ -54,6 +92,7 @@ class PythiaStage(Stage):
         algo_labels: list[str],
     ) -> None:
         """See file docstring."""
+        super().__init__()
         self.z = z
         self.y = y
         self.y_bin = y_bin
@@ -62,7 +101,19 @@ class PythiaStage(Stage):
 
     @staticmethod
     def _inputs() -> list[tuple[str, type]]:
+        """Define the inputs for the PythiaStage.
+
+        Returns
+        -------
+        list[tuple[str, type]]
+            A list of tuples containing the name of the input and its type.
+        """
         return [
+            ("z", NDArray[np.double]),
+            ("y", NDArray[np.double]),
+            ("y_bin", NDArray[np.bool_]),
+            ("y_best", NDArray[np.double]),
+            ("algo_labels", list[str]),
             ("z", NDArray[np.double]),
             ("y", NDArray[np.double]),
             ("y_bin", NDArray[np.bool_]),
@@ -72,6 +123,13 @@ class PythiaStage(Stage):
 
     @staticmethod
     def _outputs() -> list[tuple[str, type]]:
+        """Define the outputs for the PythiaStage.
+
+        Returns
+        -------
+        list[tuple[str, type]]
+            A list of tuples containing the name of the output and its type.
+        """
         return [
             ("mu", list[float]),
             ("sigma", list[float]),
@@ -116,8 +174,45 @@ class PythiaStage(Stage):
         NDArray[np.integer],
         pd.DataFrame,
     ]:
+        """Run the Pythia stage.
+
+        Parameters
+        ----------
+        options : PythiaOptions
+            The options for the Pythia stage.
+
+        Returns
+        -------
+        tuple[
+            list[float],
+            list[float],
+            NDArray[np.double],
+            StratifiedKFold,
+            list[SVC],
+            NDArray[np.double],
+            NDArray[np.bool_],
+            NDArray[np.bool_],
+            NDArray[np.double],
+            NDArray[np.double],
+            list[float],
+            list[float],
+            list[float],
+            list[float],
+            list[float],
+            NDArray[np.integer],
+            NDArray[np.integer],
+            pd.DataFrame,
+            The overall performance metrics and the dataframe for
+            summary of the results.
+        ]
+        """
         return PythiaStage.pythia(
-            self.z, self.y, self.y_bin, self.y_best, self.algo_labels, options,
+            self.z,
+            self.y,
+            self.y_bin,
+            self.y_best,
+            self.algo_labels,
+            options,
         )
 
     @staticmethod
@@ -148,9 +243,54 @@ class PythiaStage(Stage):
         NDArray[np.integer],
         pd.DataFrame,
     ]:
-        print("=========================================================================")
+        """Run the Pythia stage.
+
+        Parameters
+        ----------
+        z : NDArray[np.double]
+            The feature matrix.
+        y : NDArray[np.double]
+            The performance metrics.
+        y_bin : NDArray[np.bool_]
+            The binary labels.
+        y_best : NDArray[np.double]
+            The best performance metrics.
+        algo_labels : list[str]
+            The algorithm labels.
+        opts : PythiaOptions
+            The options for the Pythia stage.
+
+        Returns
+        -------
+        tuple[
+            list[float],
+            list[float],
+            NDArray[np.double],
+            StratifiedKFold,
+            list[SVC],
+            NDArray[np.double],
+            NDArray[np.bool_],
+            NDArray[np.bool_],
+            NDArray[np.double],
+            NDArray[np.double],
+            list[float],
+            list[float],
+            list[float],
+            list[float],
+            list[float],
+            NDArray[np.integer],
+            NDArray[np.integer],
+            pd.DataFrame,
+        The overall performance metrics and the dataframe for
+        summary of the results.
+        """
+        print(
+            "=========================================================================",
+        )
         print("-> Summoning PYTHIA to train the prediction models.")
-        print("=========================================================================")
+        print(
+            "=========================================================================",
+        )
         print("  -> Initializing PYTHIA.")
         ninst, nalgos = y_bin.shape
 
@@ -194,6 +334,7 @@ class PythiaStage(Stage):
             "-------------------------------------------------------------------------",
         )
 
+        # Section 2: Configure hyperparameter optimization
         if opts.use_grid_search:
             print(" -> PYTHIA is using grid search for hyper-parameter optimization.")
         else:
@@ -202,7 +343,10 @@ class PythiaStage(Stage):
                 + " for hyper-parameter optimization.",
             )
 
+        # Cost-sensitive classification
         if opts.use_weights:
+            """Cost-sensitive classification
+            """
             print(" -> PYTHIA is using cost-sensitive classification.")
             w = np.abs(y - np.nanmean(y))
             w[w == 0] = np.min(w[w != 0])
@@ -225,9 +369,9 @@ class PythiaStage(Stage):
         print("  -> Training has started. PYTHIA may take a while to complete...")
 
         # Section 3: Train SVM model for each algorithm & Evaluate performance.
-        overall_start_time = time.time()
+        overall_start_time = perf_counter()
         for i in range(nalgos):
-            algo_start_time = time.time()
+            algo_start_time = perf_counter()
             param_space = (
                 PythiaStage.generate_params(opts.use_grid_search, rng)
                 if precalcparams is None
@@ -244,7 +388,7 @@ class PythiaStage(Stage):
                 opts.use_grid_search,
             )
 
-            """Record performance."""
+            #Record performance metrics
             y_sub[:, [i]] = res.Ysub.reshape(-1, 1)
             pr0sub[:, [i]] = res.Psub.reshape(-1, 1)
             y_hat[:, [i]] = res.Yhat.reshape(-1, 1)
@@ -265,7 +409,6 @@ class PythiaStage(Stage):
             precision_record.append(precision)
             recall_record.append(recall)
 
-            # Generate output
             if i == nalgos - 1:
                 print(
                     f"    -> PYTHIA has trained a model for '{algo_labels[i]}',"
@@ -276,24 +419,28 @@ class PythiaStage(Stage):
                     f"    -> PYTHIA has trained a model for '{algo_labels[i]}'"
                     + f",there are {nalgos - i - 1} models left to train.",
                 )
-            print(f"      -> Elapsed time: {time.time() - algo_start_time:.2f}s")
+            print(f"      -> Elapsed time: {perf_counter() - algo_start_time:.2f}s")
 
-        print(f"Total elapsed time:  {time.time() - overall_start_time:.2f}s")
+        print(f"Total elapsed time:  {perf_counter() - overall_start_time:.2f}s")
         print(
             "-------------------------------------------------------------------------",
         )
         print(" -> PYTHIA has completed training the models.")
         PythiaStage.display_overall_perf(precision_record, accuracy_record)
 
+        # Select the algorithm with the highest precision
         (selection0, selection1) = PythiaStage.determine_selections(
-            nalgos, precision_record, y_hat, y_bin,
+            nalgos,
+            precision_record,
+            y_hat,
+            y_bin,
         )
 
         print(
             "-------------------------------------------------------------------------",
         )
 
-        """Generate a summary of the results."""
+        # Section4: Generate summary of the results
         summary = PythiaStage.generate_summary(
             nalgos,
             algo_labels,
@@ -341,7 +488,30 @@ class PythiaStage(Stage):
         param_space: dict | None,
         use_grid_search: bool,
     ) -> _SvmRes:
-        """Train a SVM model using MATLAB's 'fitcsvm' function."""
+        """Train a SVM model based on configuration.
+
+        Parameters
+        ----------
+        z : NDArray[np.double]
+            The instance space.
+        y_bin : NDArray[np.bool_]
+            The binary labels.
+        w : NDArray[np.double]
+            The sample weights.
+        skf : StratifiedKFold
+            The stratified k-fold cross-validation object.
+        is_poly_kernel : bool
+            Whether to use a polynomial kernel.
+        param_space : dict | None
+            The hyperparameters for the SVM model.
+        use_grid_search : bool
+            Whether to use grid search for hyperparameter optimization.
+
+        Returns
+        -------
+        _SvmRes
+        The SVM result object.
+        """
         kernel = "poly" if is_poly_kernel else "rbf"
         svm_model = SVC(
             kernel=kernel,
@@ -370,6 +540,7 @@ class PythiaStage(Stage):
         best_svm = optimization.best_estimator_
         c = optimization.best_params_["C"]
         g = optimization.best_params_["gamma"]
+
         # Perform cross-validated predictions using the best SVM model
         y_sub = cross_val_predict(best_svm, z, y_bin, cv=skf, method="predict")
         p_sub = cross_val_predict(best_svm, z, y_bin, cv=skf, method="predict_proba")[
@@ -392,7 +563,19 @@ class PythiaStage(Stage):
 
     @staticmethod
     def display_overall_perf(precision: list[float], accuracy: list[float]) -> None:
-        """Calculate overall performance."""
+        """Calculate overall performance.
+
+        Parameters
+        ----------
+        precision : list[float]
+            The precision metrics.
+        accuracy : list[float]
+            The accuracy metrics.
+
+        Returns
+        -------
+        None
+        """
         print(
             " -> The average cross validated precision is: "
             + str(np.round(100 * np.mean(precision), 1))
@@ -409,7 +592,18 @@ class PythiaStage(Stage):
     def compute_znorm(
         z: NDArray[np.double],
     ) -> tuple[list[float], list[float], NDArray[np.double]]:
-        """Compute mormalized z, standard deviations and mean."""
+        """Compute mormalized z, standard deviations and mean.
+
+        Parameters
+        ----------
+        z : NDArray[np.double]
+            The feature coordinates.
+        
+        Returns
+        -------
+        tuple[list[float], list[float], NDArray[np.double]]
+        The mean, standard deviation and normalized feature coordinates.
+        """
         z = stats.zscore(z, ddof=1)
         # Getting mean (mu) and standard deviation (sigma)
         mu = np.mean(z, axis=0)
@@ -418,9 +612,23 @@ class PythiaStage(Stage):
 
     @staticmethod
     def check_precalcparams(params: NDArray | None, nalgos: int) -> list | None:
-        """Check pre-calculated hyper-parameters."""
+        """Check pre-calculated hyper-parameters.
+        
+        Parameters
+        ----------
+        params : NDArray | None
+            The pre-calculated hyper-parameters.
+            nalgos : int
+            The number of algorithms.
+        
+        Returns
+        -------
+        list | None
+        The pre-calculated hyper-parameters or None.
+        """
         if params is None:
             return None
+        # Check if the shape of hyper-parameters is correct
         if params.shape != (nalgos, 2):
             print("-> Error: Incorrect number of hyper-parameters.")
             print("Hyper-parameters will be auto-generated.")
@@ -440,14 +648,20 @@ class PythiaStage(Stage):
         """
         Determine the selections based on the predicted labels and precision.
 
-        Returns
-        -------
-        None
-
+        Parameters
+        ----------
+        nalgos : int
+            The number of algorithms.
+        precision : list[float]
+            The precision metrics.
+        y_hat : NDArray[np.bool_]
+            The predicted labels.
+        y_bin : NDArray[np.bool_]
+            The binary labels.
         """
         default = 0
         if nalgos > 1:
-            # Precision-weighted selection
+            # Apply precision-weighted selection
             precision_array = np.array(precision)
             weighted_yhat = y_hat.T * precision_array[:, np.newaxis]
             best = np.max(weighted_yhat, axis=0)
@@ -464,7 +678,15 @@ class PythiaStage(Stage):
 
     @staticmethod
     def generate_params(use_grid_search: bool, rng: np.random.Generator) -> dict:
-        """Generate parameters."""
+        """Generate hyperparameters for the SVM models.
+
+        Parameters
+        ----------
+        use_grid_search : bool
+            Whether to use grid search for hyperparameter optimization.
+        rng : np.random.Generator
+            The random number generator.
+        """
         if use_grid_search:
             maxgrid = 4
             mingrid = -10
@@ -484,7 +706,6 @@ class PythiaStage(Stage):
             "gamma": Real(2**-10, 2**4, prior="log-uniform"),
         }
 
-
     @staticmethod
     def generate_summary(
         nalgos: int,
@@ -501,9 +722,40 @@ class PythiaStage(Stage):
         box_consnt: list[float],
         k_scale: list[float],
     ) -> pd.DataFrame:
-        """Generate a summary of the results."""
+        """Generate a summary of the results.
+
+        Parameters
+        ----------
+        nalgos : int
+            The number of algorithms.
+        algo_labels : list[str]
+            The algorithm labels.
+        y : NDArray[np.double]
+            The performance metrics.
+        y_hat : NDArray[np.bool_]
+            The predicted labels.
+        y_bin : NDArray[np.bool_]
+            The binary labels.
+        y_best : NDArray[np.double]
+            The best performance metrics.
+        selection0 : NDArray[np.integer]
+            The selected algorithms.
+        selection1 : NDArray[np.integer]
+            Backup selected algorithm.
+        precision : list[float]
+            The precision metrics.
+        accuracy : list[float]
+            The accuracy metrics.
+        recall : list[float]
+            The recall metrics.
+        box_consnt : list[float]
+            The box constraints.
+        k_scale : list[float]
+            The kernel scales.
+        """
         print("  -> PYTHIA is preparing the summary table.")
 
+        # Obtain the corresponding selection matrix for the two algorithms.
         sel0 = selection0[:, np.newaxis] == np.arange(1, nalgos + 1)
         sel1 = selection1[:, np.newaxis] == np.arange(1, nalgos + 1)
 
@@ -517,6 +769,7 @@ class PythiaStage(Stage):
         y_full[~sel1] = np.nan
         y_svms[~y_hat] = np.nan
 
+        # Compute the probability of good
         pgood = np.mean(np.any(np.logical_and(y_bin, sel1), axis=1))
 
         ybin_flat = y_bin.flatten()
