@@ -54,7 +54,6 @@ class PythiaStage(Stage):
         algo_labels: list[str],
     ) -> None:
         """See file docstring."""
-        super().__init__()
         self.z = z
         self.y = y
         self.y_bin = y_bin
@@ -63,13 +62,7 @@ class PythiaStage(Stage):
 
     @staticmethod
     def _inputs() -> list[tuple[str, type]]:
-        """See file docstring."""
         return [
-            ("z", NDArray[np.double]),
-            ("y", NDArray[np.double]),
-            ("y_bin", NDArray[np.bool_]),
-            ("y_best", NDArray[np.double]),
-            ("algo_labels", list[str]),
             ("z", NDArray[np.double]),
             ("y", NDArray[np.double]),
             ("y_bin", NDArray[np.bool_]),
@@ -79,7 +72,6 @@ class PythiaStage(Stage):
 
     @staticmethod
     def _outputs() -> list[tuple[str, type]]:
-        """See file docstring."""
         return [
             ("mu", list[float]),
             ("sigma", list[float]),
@@ -173,9 +165,9 @@ class PythiaStage(Stage):
         cvcmat = np.zeros((nalgos, 4), dtype=int)
         box_consnt = []
         k_scale = []
-        accuracy = []
-        precision = []
-        recall = []
+        accuracy_record = []
+        precision_record = []
+        recall_record = []
 
         w = np.ones((z.shape[0], nalgos), dtype=np.double)
         rng = np.random.default_rng(seed=0)
@@ -269,9 +261,9 @@ class PythiaStage(Stage):
             recall = recall_score(y_bin[:, i], res.Yhat)
 
             cvcmat[i, :] = [tn, fp, fn, tp]
-            accuracy.append(accuracy)
-            precision.append(precision)
-            recall.append(recall)
+            accuracy_record.append(accuracy)
+            precision_record.append(precision)
+            recall_record.append(recall)
 
             # Generate output
             if i == nalgos - 1:
@@ -291,10 +283,10 @@ class PythiaStage(Stage):
             "-------------------------------------------------------------------------",
         )
         print(" -> PYTHIA has completed training the models.")
-        PythiaStage.display_overall_perf(precision, accuracy)
+        PythiaStage.display_overall_perf(precision_record, accuracy_record)
 
         (selection0, selection1) = PythiaStage.determine_selections(
-            nalgos, precision, y_hat, y_bin,
+            nalgos, precision_record, y_hat, y_bin,
         )
 
         print(
@@ -311,9 +303,9 @@ class PythiaStage(Stage):
             y_best,
             selection0,
             selection1,
-            precision,
-            accuracy,
-            recall,
+            accuracy_record,
+            precision_record,
+            recall_record,
             box_consnt,
             k_scale,
         )
@@ -331,9 +323,9 @@ class PythiaStage(Stage):
             pr0hat,
             box_consnt,
             k_scale,
-            precision,
-            recall,
-            accuracy,
+            accuracy_record,
+            precision_record,
+            recall_record,
             selection0,
             selection1,
             summary,
@@ -471,7 +463,7 @@ class PythiaStage(Stage):
         return (selection0, selection1)
 
     @staticmethod
-    def generate_params(use_grid_search: bool, rng: np.random.default_rng) -> dict:
+    def generate_params(use_grid_search: bool, rng: np.random.Generator) -> dict:
         """Generate parameters."""
         if use_grid_search:
             maxgrid = 4
