@@ -7,7 +7,7 @@ to data analysis and model building.
 
 from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -34,33 +34,41 @@ class Data:
     s: set[str] | None
     uniformity: float | None
 
+    T = TypeVar("T", bound="Data")
 
-T = TypeVar("T")
+    @classmethod
+    def from_stage_runner_output(
+        cls: type[T],
+        stage_runner_output: dict[str, Any],
+    ) -> T:
+        """Initialise a Data object from the output of an InstanceSpace StageRunner.
 
+        Args
+        ----
+            cls (type[T]): the class
+            stage_runner_output (dict[str, Any]): output of StageRunner for an
+                InstanceSpace
 
-@dataclass(frozen=True)
-class StageState(Generic[T]):
-    """The state of the data at the end of a Stage."""
-
-    data: Data
-    out: T
-
-
-@dataclass(frozen=True)
-class AlgorithmSummary:
-    """Provides a summary of an algorithm's performance across different metrics."""
-
-    name: str
-    avg_perf_all_instances: float | None
-    std_perf_all_instances: float | None
-    probability_of_good: float | None
-    avg_perf_selected_instances: float | None
-    std_perf_selected_instances: float | None
-    cv_model_accuracy: float | None
-    cv_model_precision: float | None
-    cv_model_recall: float | None
-    box_constraint: float | None
-    kernel_scale: float | None
+        Returns
+        -------
+            Data: a Data object
+        """
+        return cls(
+            inst_labels=stage_runner_output["inst_labels"],
+            feat_labels=stage_runner_output["feat_labels"],
+            algo_labels=stage_runner_output["algo_labels"],
+            x=stage_runner_output["x"],
+            y=stage_runner_output["y"],
+            x_raw=stage_runner_output["x_raw"],
+            y_raw=stage_runner_output["y_raw"],
+            y_bin=stage_runner_output["y_bin"],
+            y_best=stage_runner_output["y_best"],
+            p=stage_runner_output["p"],
+            num_good_algos=stage_runner_output["num_good_algos"],
+            beta=stage_runner_output["beta"],
+            s=stage_runner_output["s"],
+            uniformity=stage_runner_output["uniformity"],
+        )
 
 
 @dataclass(frozen=True)
@@ -80,36 +88,39 @@ class PrelimOut:
     sigma_y: NDArray[np.double]
     mu_y: NDArray[np.double]
 
+    T = TypeVar("T", bound="PrelimOut")
 
-@dataclass(frozen=True)
-class PrelimDataChanged:
-    """The fields of Data that the Prelim stage changes."""
+    @classmethod
+    def from_stage_runner_output(
+        cls: type[T],
+        stage_runner_output: dict[str, Any],
+    ) -> T:
+        """
+        Initialise a PrelimOut object from the output of an InstanceSpace StageRunner.
 
-    x: NDArray[np.double]
-    y: NDArray[np.double]
-    y_bin: NDArray[np.bool_]
-    y_best: NDArray[np.double]
-    p: NDArray[np.double]
-    num_good_algos: NDArray[np.double]
-    beta: NDArray[np.bool_]
+        Args
+        ----
+            cls (type[T]): the class
+            stage_runner_output (dict[str, Any]): output of StageRunner for an
+                InstanceSpace
 
-    def merge_with(self, data: Data) -> Data:
-        """Merge changed fields of data with a Data object."""
-        return Data(
-            inst_labels=data.inst_labels,
-            feat_labels=data.feat_labels,
-            algo_labels=data.algo_labels,
-            uniformity=data.uniformity,
-            x=self.x,
-            x_raw=data.x_raw,
-            y=self.y,
-            y_raw=data.y_raw,
-            y_bin=self.y_bin,
-            y_best=self.y_best,
-            p=self.p,
-            num_good_algos=self.num_good_algos,
-            beta=self.beta,
-            s=data.s,
+        Returns
+        -------
+            PrelimOut: a PrelimOut object
+        """
+        return cls(
+            med_val=stage_runner_output["med_val"],
+            iq_range=stage_runner_output["iq_range"],
+            hi_bound=stage_runner_output["hi_bound"],
+            lo_bound=stage_runner_output["lo_bound"],
+            min_x=stage_runner_output["min_x"],
+            lambda_x=stage_runner_output["lambda_x"],
+            mu_x=stage_runner_output["mu_x"],
+            sigma_x=stage_runner_output["sigma_x"],
+            min_y=stage_runner_output["min_y"],
+            lambda_y=stage_runner_output["lambda_y"],
+            sigma_y=stage_runner_output["sigma_y"],
+            mu_y=stage_runner_output["mu_y"],
         )
 
 
@@ -125,14 +136,35 @@ class SiftedOut:
     replicates: int
     idx: NDArray[np.int_]
 
+    T = TypeVar("T", bound="SiftedOut")
 
-@dataclass(frozen=True)
-class SiftedDataChanged:
-    """The fields of Data that the Sifted stage changes."""
+    @classmethod
+    def from_stage_runner_output(
+        cls: type[T],
+        stage_runner_output: dict[str, Any],
+    ) -> T:
+        """
+        Initialise a SiftedOut object from the output of an InstanceSpace StageRunner.
 
-    def merge_with(self, data: Data) -> Data:
-        """Merge changed fields of data with a Data object."""
-        raise NotImplementedError
+        Args
+        ----
+            cls (type[T]): the class
+            stage_runner_output (dict[str, Any]): output of StageRunner for an
+                InstanceSpace
+
+        Returns
+        -------
+            SiftedOut: a SiftedOut object
+        """
+        return cls(
+            flag=stage_runner_output["flag"],
+            rho=stage_runner_output["rho"],
+            k=stage_runner_output["k"],
+            n_trees=stage_runner_output["n_trees"],
+            max_lter=stage_runner_output["max_lter"],
+            replicates=stage_runner_output["replicates"],
+            idx=stage_runner_output["idx"],
+        )
 
 
 @dataclass(frozen=True)
@@ -151,26 +183,38 @@ class PilotOut:
     r2: NDArray[np.double]
     summary: pd.DataFrame
 
+    T = TypeVar("T", bound="PilotOut")
 
-@dataclass(frozen=True)
-class PilotDataChanged:
-    """The fields of Data that the Pilot stage changes."""
+    @classmethod
+    def from_stage_runner_output(
+        cls: type[T],
+        stage_runner_output: dict[str, Any],
+    ) -> T:
+        """Initialise a PilotOut object from the output of an InstanceSpace StageRunner.
 
-    def merge_with(self, data: Data) -> Data:
-        """Merge changed fields of data with a Data object."""
-        raise NotImplementedError
+        Args
+        ----
+            cls (type[T]): the class
+            stage_runner_output (dict[str, Any]): output of StageRunner for an
+                InstanceSpace
 
-
-@dataclass(frozen=True)
-class BoundaryResult:
-    """Results of generating boundaries from Cloister process."""
-
-    x_edge: NDArray[np.double]
-    remove: NDArray[np.double]
-
-    def __iter__(self) -> Iterator[NDArray[np.double]]:
-        """Allow unpacking directly."""
-        return iter((self.x_edge, self.remove))
+        Returns
+        -------
+            PilotOut: a PilotOut object
+        """
+        return cls(
+            X0=stage_runner_output["X0"],
+            alpha=stage_runner_output["alpha"],
+            eoptim=stage_runner_output["eoptim"],
+            perf=stage_runner_output["perf"],
+            a=stage_runner_output["a"],
+            z=stage_runner_output["z"],
+            c=stage_runner_output["c"],
+            b=stage_runner_output["b"],
+            error=stage_runner_output["error"],
+            r2=stage_runner_output["r2"],
+            summary=stage_runner_output["summary"],
+        )
 
 
 @dataclass(frozen=True)
@@ -184,14 +228,30 @@ class CloisterOut:
         """Allow unpacking directly."""
         return iter((self.z_edge, self.z_ecorr))
 
+    T = TypeVar("T", bound="CloisterOut")
 
-@dataclass(frozen=True)
-class CloisterDataChanged:
-    """The fields of Data that the Cloister stage changes."""
+    @classmethod
+    def from_stage_runner_output(
+        cls: type[T],
+        stage_runner_output: dict[str, Any],
+    ) -> T:
+        """
+        Initialise a CloisterOut object from the output of an InstanceSpace StageRunner.
 
-    def merge_with(self, data: Data) -> Data:
-        """Merge changed fields of data with a Data object."""
-        raise NotImplementedError
+        Args
+        ----
+            cls (type[T]): the class
+            stage_runner_output (dict[str, Any]): output of StageRunner for an
+                InstanceSpace
+
+        Returns
+        -------
+            CloisterOut: a CloisterOut object
+        """
+        return cls(
+            z_edge=stage_runner_output["z_edge"],
+            z_ecorr=stage_runner_output["z_ecorr"],
+        )
 
 
 @dataclass(frozen=True)
@@ -216,14 +276,45 @@ class PythiaOut:
     selection1: Any  # Change it to proper type
     summary: pd.DataFrame
 
+    T = TypeVar("T", bound="PythiaOut")
 
-@dataclass(frozen=True)
-class PythiaDataChanged:
-    """The fields of Data that the Pythia stage changes."""
+    @classmethod
+    def from_stage_runner_output(
+        cls: type[T],
+        stage_runner_output: dict[str, Any],
+    ) -> T:
+        """
+        Initialise a PythiaOut object from the output of an InstanceSpace StageRunner.
 
-    def merge_with(self, data: Data) -> Data:
-        """Merge changed fields of data with a Data object."""
-        raise NotImplementedError
+        Args
+        ----
+            cls (type[T]): the class
+            stage_runner_output (dict[str, Any]): output of StageRunner for an
+                InstanceSpace
+
+        Returns
+        -------
+            PythiaOut: a PythiaOut object
+        """
+        return cls(
+            mu=stage_runner_output["mu"],
+            sigma=stage_runner_output["sigma"],
+            cp=stage_runner_output["cp"],
+            svm=stage_runner_output["svm"],
+            cvcmat=stage_runner_output["cvcmat"],
+            y_sub=stage_runner_output["y_sub"],
+            y_hat=stage_runner_output["y_hat"],
+            pr0_sub=stage_runner_output["pr0_sub"],
+            pr0_hat=stage_runner_output["pr0_hat"],
+            box_consnt=stage_runner_output["box_consnt"],
+            k_scale=stage_runner_output["k_scale"],
+            precision=stage_runner_output["precision"],
+            recall=stage_runner_output["recall"],
+            accuracy=stage_runner_output["accuracy"],
+            selection0=stage_runner_output["selection0"],
+            selection1=stage_runner_output["selection1"],
+            summary=stage_runner_output["summary"],
+        )
 
 
 @dataclass(frozen=True)
@@ -314,11 +405,59 @@ class TraceOut:
     hard: Footprint
     summary: pd.DataFrame
 
+    T = TypeVar("T", bound="TraceOut")
+
+    @classmethod
+    def from_stage_runner_output(
+        cls: type[T],
+        stage_runner_output: dict[str, Any],
+    ) -> T:
+        """Initialise a TraceOut object from the output of an InstanceSpace StageRunner.
+
+        Args
+        ----
+            cls (type[T]): the class
+            stage_runner_output (dict[str, Any]): output of StageRunner for an
+                InstanceSpace
+
+        Returns
+        -------
+            TraceOut: a TraceOut object
+        """
+        return cls(
+            space=stage_runner_output["space"],
+            good=stage_runner_output["good"],
+            best=stage_runner_output["best"],
+            hard=stage_runner_output["hard"],
+            summary=stage_runner_output["summary"],
+        )
+
 
 @dataclass(frozen=True)
-class TraceDataChanged:
-    """The fields of Data that the Trace stage changes."""
+class FeatSel:
+    """Holds indices for feature selection."""
 
-    def merge_with(self, data: Data) -> Data:
-        """Merge changed fields of data with a Data object."""
-        raise NotImplementedError
+    idx: NDArray[np.intc]
+
+    T = TypeVar("T", bound="FeatSel")
+
+    @classmethod
+    def from_stage_runner_output(
+        cls: type[T],
+        stage_runner_output: dict[str, Any],
+    ) -> T:
+        """Initialise a FeatSel object from the output of an InstanceSpace StageRunner.
+
+        Args
+        ----
+            cls (type[T]): the class
+            stage_runner_output (dict[str, Any]): output of StageRunner for an
+                InstanceSpace
+
+        Returns
+        -------
+            FeatSel: a FeatSel object
+        """
+        return cls(
+            idx=stage_runner_output["idx"],
+        )

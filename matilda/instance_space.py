@@ -1,91 +1,85 @@
 """TODO: document instance space module."""
 
-from collections import defaultdict
+from collections.abc import Generator
 from dataclasses import fields
-from enum import Enum
 from pathlib import Path
+from typing import Any, NamedTuple
 
-from matilda._serialisers import save_instance_space_for_web, save_instance_space_to_csv
 from matilda.data.metadata import Metadata, from_csv_file
-from matilda.data.model import (
-    CloisterOut,
-    Data,
-    PilotOut,
-    PrelimOut,
-    PythiaOut,
-    SiftedOut,
-    StageState,
-    TraceOut,
+from matilda.data.options import InstanceSpaceOptions, from_json_file
+from matilda.model import Model
+from matilda.stage_builder import StageBuilder
+from matilda.stage_runner import (
+    AnnotatedStageOutput,
+    StageArgument,
+    StageRunner,
+    StageRunningError,
 )
-from matilda.data.options import InstanceSpaceOptions, PrelimOptions, from_json_file
-from matilda.stages.cloister import Cloister
-from matilda.stages.pilot import Pilot
-from matilda.stages.prelim import Prelim
-from matilda.stages.pythia import Pythia
-from matilda.stages.sifted import Sifted
-from matilda.stages.trace import Trace
-
-
-class _Stage(Enum):
-    PRELIM = "prelim"
-    SIFTED = "sifted"
-    PILOT = "pilot"
-    CLOISTER = "cloister"
-    TRACE = "trace"
-    PYTHIA = "pythia"
-
-
-class StageError(Exception):
-    """Prerequisite stages haven't been ran.
-
-    An error raised when a user attempts to run a stage without first running any
-    prerequisite stages.
-    """
-
-    pass
+from matilda.stages.cloister import CloisterStage
+from matilda.stages.pilot_stage import PilotStage
+from matilda.stages.prelim_stage import PrelimStage
+from matilda.stages.preprocessing_stage import PreprocessingStage
+from matilda.stages.pythia_stage import PythiaStage
+from matilda.stages.sifted_stage import SiftedStage
+from matilda.stages.stage import IN, OUT, Stage, StageClass
+from matilda.stages.trace_stage import TraceStage
 
 
 class InstanceSpace:
     """TODO: Describe what an instance space IS."""
 
-    _stages: dict[_Stage, bool]
+    _runner: StageRunner
+    _stages: list[StageClass]
+
     _metadata: Metadata
     _options: InstanceSpaceOptions
 
-    _data: Data | None
+    _model: Model | None
+    _final_output: dict[str, Any] | None
 
-    _prelim_state: StageState[PrelimOut] | None
-    _sifted_state: StageState[SiftedOut] | None
-    _pilot_state: StageState[PilotOut] | None
-    _cloister_state: StageState[CloisterOut] | None
-    _trace_state: StageState[TraceOut] | None
-    _pythia_state: StageState[PythiaOut] | None
+    def __init__(
+        self,
+        metadata: Metadata,
+        options: InstanceSpaceOptions,
+        stages: list[StageClass] = [
+            PreprocessingStage,
+            PrelimStage,
+            SiftedStage,
+            PilotStage,
+            PythiaStage,
+            CloisterStage,
+            TraceStage,
+        ],
+        additional_initial_inputs: type[NamedTuple] | None = None,
+    ) -> None:
+        """Initialise the InstanceSpace.
 
-    def __init__(self, metadata: Metadata, options: InstanceSpaceOptions) -> None:
-        """Create a new InstanceSpace object.
-
-        TODO: Fill in the docstring here. This will be the most enduser visible version
-        of this so it needs to be informative.
-
-        Args
-        ----
-            metadata (Metadata): _description_
-            options (InstanceSpaceOptions): _description_
+        Args:
+            stages list[StageClass], optional: A list of stages to be ran.
         """
-        self._stages = defaultdict(lambda: False)
         self._metadata = metadata
         self._options = options
-
-        self._data = None
-
-        self._prelim_state = None
-        self._sifted_state = None
-        self._pilot_state = None
-        self._cloister_state = None
-        self._trace_state = None
-        self._pythia_state = None
+        self._stages = stages
 
         self._model = None
+
+        stage_builder = StageBuilder()
+
+        for stage in stages:
+            stage_builder.add_stage(stage)
+
+        annotations = {StageArgument(k, v) for k, v in Metadata.__annotations__.items()}
+        annotations |= {
+            StageArgument(k, v) for k, v in InstanceSpaceOptions.__annotations__.items()
+        }
+        if additional_initial_inputs is not None:
+            annotations |= (
+                stage_builder._named_tuple_to_stage_arguments(  # noqa: SLF001
+                    additional_initial_inputs,
+                )
+            )
+
+        self._runner = stage_builder.build(annotations)
 
     @property
     def metadata(self) -> Metadata:
@@ -97,312 +91,129 @@ class InstanceSpace:
         """Get options."""
         return self._options
 
-    def build(self) -> None:
-        """Construct and return a Model object after instance space analysis.
+    @property
+    def model(self) -> Model:
+        """Get model.
 
-        This runs all stages.
-
-        TODO: Fill in the docstring here. This will be the most enduser visible version
-        of this so it needs to be informative.
+        Raises
+        ------
+            StageRunningError: If the InstanceSpace hasn't been built, will raise a
+                StageRunningError.
 
         Returns
         -------
-            model: A Model object representing the built instance space.
+            Model: _description_
         """
+        if not self._model:
+            if not self._final_output:
+                raise StageRunningError("InstanceSpace has not been completely ran.")
+
+            self._model = Model.from_stage_runner_output(
+                self._final_output,
+                self._options,
+            )
+
+        return self._model
+
+    def build(
+        self,
+        metadata: Metadata,
+        options: InstanceSpaceOptions,
+        **arguments: Any,  # noqa: ANN401
+    ) -> Model:  # TODO: Replace this with model / get_model
+        """Build the instance space.
+
+        Options will be broken down to sub fields to be passed to stages. You can
+        override inputs to stages.
+
+        Args
+        ----
+            metadata Metadata: _description_
+            options InstanceSpaceOptions: _description_
+
+        Returns
+        -------
+            tuple[Any]: The output of all stages
+
+        """
+        self._runner.run_all(**metadata.__dict__, **options.__dict__, **arguments)
+
         raise NotImplementedError
 
-    def prelim(self) -> PrelimOut:
-        """Run the prelim stage.
+    def run_iter(
+        self,
+        metadata: Metadata,
+        options: InstanceSpaceOptions,
+        **arguments: Any,  # noqa: ANN401
+    ) -> Generator[AnnotatedStageOutput, None, None]:
+        """Run all stages, yielding between so the data can be examined.
 
-        TODO: Fill in the docstring here. This will be the most enduser visible version
-        of this so it needs to be informative.
+        Args
+        ----
+            metadata Metadata: _description_
+            options InstanceSpaceOptions: _description_
+
+        Yields
+        ------
+            Generator[None, tuple[Any], None]: _description_
+        """
+        # TODO: split out metadata and options into component fields
+        yield from self._runner.run_iter(
+            **metadata.__dict__,
+            **options.__dict__,
+            **arguments,
+        )
+
+    def run_stage(
+        self,
+        stage: type[Stage[IN, OUT]],
+        **arguments: Any,  # noqa: ANN401
+    ) -> OUT:
+        """Run a single stage.
+
+        All inputs to the stage must either be present from previously ran stages, or
+        be given as arguments to this function. Arguments to this function have
+        priority over outputs from previous stages.
+
+        Args
+        ----
+            stage StageClass: Any inputs to the stage.
 
         Returns
         -------
-            prelim_out: The return of the prelim stage.
+            list[Any]: The output of the stage
         """
-        self._stages[_Stage.PRELIM] = True
+        # Need to type coerce the output of the stage because generics
+        return self._runner.run_stage(stage, **arguments)
 
-        self._clear_stages_after_prelim()
+    def run_until_stage(
+        self,
+        stage: StageClass,
+        metadata: Metadata,
+        options: InstanceSpaceOptions,
+        **arguments: Any,  # noqa: ANN401
+    ) -> None:
+        """Run all stages until the specified stage, as well as the specified stage.
 
-        data_changed, prelim_out = Prelim.run(
-            self._metadata.features,
-            self._metadata.algorithms,
-            PrelimOptions.from_options(self._options),
-            self._options.selvars,
-        )
-
-        if self._data is None:
-            raise NotImplementedError
-
-        self._prelim_state = StageState[PrelimOut](
-            data_changed.merge_with(self._data),
-            prelim_out,
-        )
-
-        return prelim_out
-
-    def _clear_stages_after_prelim(self) -> None:
-        self._sifted_state = None
-        self._stages[_Stage.SIFTED] = False
-        self._clear_stages_after_sifted()
-
-    def sifted(self) -> SiftedOut:
-        """Run the sifted stage.
-
-        TODO: Fill in the docstring here. This will be the most enduser visible version
-        of this so it needs to be informative.
+        Args
+        ----
+            stage StageClass: The stage to stop running stages after.
+            metadata Metadata: _description_
+            options InstanceSpaceOptions: _description_
+            **arguments dict[str, Any]: if this is the first time stages are ran,
+                initial inputs, and overriding inputs for other stages. TODO: rewrite
+                this
 
         Returns
         -------
-            sifted_out: The return of the sifted stage.
+            list[Any]: _description_
         """
-        if not self._stages[_Stage.PRELIM] or self._prelim_state is None:
-            raise StageError
-
-        self._stages[_Stage.SIFTED] = True
-
-        self._clear_stages_after_sifted()
-
-        data_changed, sifted_out = Sifted.run(
-            self._prelim_state.data.x,
-            self._prelim_state.data.y,
-            self._prelim_state.data.y_bin,
-            self._options.sifted,
-        )
-
-        self._sifted_state = StageState[SiftedOut](
-            data_changed.merge_with(self._prelim_state.data),
-            sifted_out,
-        )
-
-        return sifted_out
-
-    def _clear_stages_after_sifted(self) -> None:
-        self._pilot_state = None
-        self._stages[_Stage.PILOT] = False
-        self._clear_stages_after_pilot()
-
-    def pilot(self) -> PilotOut:
-        """Run the pilot stage.
-
-        TODO: Fill in the docstring here. This will be the most enduser visible version
-        of this so it needs to be informative.
-
-        Returns
-        -------
-            pilot_out: The return of the pilot stage.
-        """
-        if not self._stages[_Stage.SIFTED] or self._sifted_state is None:
-            raise StageError
-
-        self._stages[_Stage.PILOT] = True
-
-        self._clear_stages_after_pilot()
-
-        data_changed, pilot_out = Pilot.run(
-            self._sifted_state.data.x,
-            self._sifted_state.data.y,
-            self._sifted_state.data.feat_labels,
-            self._options.pilot,
-        )
-
-        self._pilot_state = StageState[PilotOut](
-            data_changed.merge_with(self._sifted_state.data),
-            pilot_out,
-        )
-
-        return pilot_out
-
-    def _clear_stages_after_pilot(self) -> None:
-        self._cloister_state = None
-        self._trace_state = None
-        self._pythia_state = None
-        self._stages[_Stage.CLOISTER] = False
-        self._stages[_Stage.TRACE] = False
-        self._stages[_Stage.PYTHIA] = False
-        self._clear_stages_after_cloister()
-        self._clear_stages_after_trace()
-        self._clear_stages_after_pythia()
-
-    def cloister(self) -> CloisterOut:
-        """Run the cloister stage.
-
-        TODO: Fill in the docstring here. This will be the most enduser visible version
-        of this so it needs to be informative.
-
-        Returns
-        -------
-            cloister_out: The return of the cloister stage.
-        """
-        if not self._stages[_Stage.PILOT] or self._pilot_state is None:
-            raise StageError
-
-        self._stages[_Stage.CLOISTER] = True
-
-        self._clear_stages_after_cloister()
-
-        data_changed, cloister_out = Cloister.run(
-            self._pilot_state.data.x,
-            self._pilot_state.out.a,
-            self._options.cloister,
-        )
-
-        self._cloister_state = StageState[CloisterOut](
-            data_changed.merge_with(self._pilot_state.data),
-            cloister_out,
-        )
-
-        return cloister_out
-
-    def _clear_stages_after_cloister(self) -> None:
-        pass
-
-    def trace(self) -> TraceOut:
-        """Run the trace stage.
-
-        TODO: Fill in the docstring here. This will be the most enduser visible version
-        of this so it needs to be informative.
-
-        Returns
-        -------
-            trace_out: The return of the trace stage.
-        """
-        if not self._stages[_Stage.PILOT] or self._pilot_state is None:
-            raise StageError
-
-        self._stages[_Stage.TRACE] = True
-
-        self._clear_stages_after_trace()
-
-        data_changed, trace_out = Trace().run(
-            self._pilot_state.out.z,
-            self._pilot_state.data.y_bin,
-            self._pilot_state.data.p,
-            self._pilot_state.data.beta,
-            self._pilot_state.data.algo_labels,
-            self._options.trace,
-        )
-
-        self._trace_state = StageState[TraceOut](
-            data_changed.merge_with(self._pilot_state.data),
-            trace_out,
-        )
-
-        return trace_out
-
-    def _clear_stages_after_trace(self) -> None:
-        pass
-
-    def pythia(self) -> PythiaOut:
-        """Run the pythia stage.
-
-        TODO: Fill in the docstring here. This will be the most enduser visible version
-        of this so it needs to be informative.
-
-        Returns
-        -------
-            pythia_out: The return of the pythia stage.
-        """
-        if not self._stages[_Stage.PILOT] or self._pilot_state is None:
-            raise StageError
-
-        self._stages[_Stage.PYTHIA] = True
-
-        self._clear_stages_after_pythia()
-
-        data_changed, pythia_out = Pythia.run(
-            self._pilot_state.out.z,
-            self._pilot_state.data.y_raw,
-            self._pilot_state.data.y_bin,
-            self._pilot_state.data.y_best,
-            self._pilot_state.data.algo_labels,
-            self._options.pythia,
-        )
-
-        self._pythia_state = StageState[PythiaOut](
-            data_changed.merge_with(self._pilot_state.data),
-            pythia_out,
-        )
-
-        return pythia_out
-
-    def _clear_stages_after_pythia(self) -> None:
-        pass
-
-    def save_to_csv(self, output_directory: Path) -> None:
-        """Save csv outputs to a directory."""
-        print(
-            "=========================================================================",
-        )
-        print("-> Writing the data on CSV files for posterior analysis.")
-
-        if (
-            not self._stages[_Stage.CLOISTER]
-            or not self._stages[_Stage.TRACE]
-            or not self._stages[_Stage.PYTHIA]
-        ):
-            raise StageError
-
-        if (
-            self._trace_state is None
-            or self._pilot_state is None
-            or self._prelim_state is None
-            or self._pythia_state is None
-        ):
-            raise StageError
-
-        # TODO: Placeholder, need to work out how to get the most relevant data
-        # Conductor branch would solve this, needs more thought
-        if self._data is None:
-            raise StageError
-
-        if (
-            self._trace_state is None
-            or self._pilot_state is None
-            or self._sifted_state is None
-            or self._pythia_state is None
-            or self._cloister_state is None
-        ):
-            raise StageError
-
-        save_instance_space_to_csv(
-            output_directory,
-            self._data,
-            self._sifted_state,
-            self._trace_state,
-            self._pilot_state,
-            self._cloister_state,
-            self._pythia_state,
-        )
-
-    def save_for_web(self, output_directory: Path) -> None:
-        """Save csv outputs used for the web frontend to a directory."""
-        print(
-            "=========================================================================",
-        )
-        print("-> Writing the data for the web interface.")
-
-        if (
-            not self._stages[_Stage.CLOISTER]
-            or not self._stages[_Stage.TRACE]
-            or not self._stages[_Stage.PYTHIA]
-            or not self._stages[_Stage.SIFTED]
-        ):
-            raise StageError
-
-        if self._prelim_state is None or self._sifted_state is None:
-            raise StageError
-
-        # TODO: Placeholder, need to work out how to get the most relevant data
-        # Conductor branch would solve this, needs more thought
-        if self._data is None:
-            raise StageError
-
-        save_instance_space_for_web(
-            output_directory,
-            self._prelim_state,
-            self._sifted_state,
+        # TODO: split out metadata and options into component fields
+        self._runner.run_until_stage(
+            stage,
+            **metadata.__dict__,
+            **options.__dict__,
+            **arguments,
         )
 
 
