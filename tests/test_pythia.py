@@ -57,7 +57,7 @@ def test_compare_output() -> None:
     assert pythia_out.cp.get_n_splits() == opt.cv_folds
 
 
-def test_generate_params() -> None:
+def test_generate_params_true() -> None:
     """Test that the output of the generate_params function is as expected."""
     min_value = 2**-10
     max_value = 2**4
@@ -66,6 +66,10 @@ def test_generate_params() -> None:
     assert all(min_value <= param <= max_value for param in params["C"])
     assert all(min_value <= param <= max_value for param in params["gamma"])
 
+def test_generate_params_false() -> None:
+    """Test that the output of the generate_params function is as expected."""
+    min_value = 2**-10
+    max_value = 2**4
     params = pythia.generate_params(False)
     # Check the bounds of the 'gamma' parameter
     assert params["C"].low == min_value
