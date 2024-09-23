@@ -1,13 +1,30 @@
-"""Test input parameters, particularly metrics, are accurately parsed and stored."""
+"""Test module for Pythia class to verify its functionality.
 
+The file contains the tests for the Pythia class to verify its functionality.
+The tests are compare the performance matrics including accurancy, precision and
+recall of the Pythia class with the expected output
+from the MATLAB implementation with diffcult kernel and optimisation.
+
+Tests includes:
+    - test_compute_znorm: Test that the output of the compute_znorm.
+    - test_compare_output: Test that the output of the compute_znorm is as expected.
+    - test_generate_params_true: Test that the output of the compute_znorm is as expected.
+    - test_generate_params_false: Test that the output of the generate_params function is as expected.
+    - test_bayes_opt: Test that the output of the function is as expected when BO is required.
+    - test_bayes_opt_poly: Test that the output of the function is as expected when BO and polykernal is required.
+    - test_grid_gaussian: Test that the performance of model is asexpected when grid search & gaussian.
+    - test_grid_poly: Test that the performance of model is asexpected when grid search & poly .
+"""
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from sklearn.model_selection import StratifiedKFold
+from sklearn.svm import SVC
 
 from matilda.data.options import PythiaOptions
-from matilda.stages.pythia import Pythia, PythiaOut
+from matilda.stages.pythia import PythiaStage
 
 script_dir = Path(__file__).parent
 output_dir = script_dir / "test_data/pythia/output"
@@ -35,43 +52,45 @@ opt = PythiaOptions(
     use_grid_search=True,
     params=None,
 )
-pythia = Pythia(z, y, y_bin, y_best, algo, default_opts)
 
 
 def test_compute_znorm() -> None:
     """Test that the output of the compute_znorm."""
     znorm = np.genfromtxt(csv_path_znorm_input, delimiter=",")
-    # Test the compute_znorm function from the Pythia class
-    znorm_test = pythia.compute_znorm(z)
-    # Check if the results from compute_znorm match the expected values in znorm
+
+    pythia = PythiaStage(z, y, y_bin, y_best, algo)
+    _, _, znorm_test = pythia._compute_znorm(z)  # noqa: SLF001
     assert np.allclose(znorm, znorm_test)
 
 
 def test_compare_output() -> None:
     """Test that the output of the compute_znorm is as expected."""
-    pythia_out = Pythia.run(z, y, y_bin, y_best, algo, opt)[1]
-    print(pythia_out.sigma)
+    pythia = PythiaStage(z, y, y_bin, y_best, algo)
+    pythia_out = pythia.pythia(z, y, y_bin, y_best, algo, opt)
     mu = np.genfromtxt(csv_path_mu_input, delimiter=",")
-    assert np.allclose(mu, pythia_out.mu)
 
-    assert pythia_out.cp.get_n_splits() == opt.cv_folds
+    assert np.allclose(mu, pythia_out[0])
+    assert pythia_out[3].get_n_splits() == opt.cv_folds
 
 
 def test_generate_params_true() -> None:
-    """Test that the output of the generate_params function is as expected."""
+    """Test that the output of the compute_znorm is as expected."""
     min_value = 2**-10
     max_value = 2**4
+    rng = np.random.default_rng(seed=0)
 
-    params = pythia.generate_params(True)
+    params = PythiaStage._generate_params(opt.use_grid_search, rng) # noqa: SLF001
     assert all(min_value <= param <= max_value for param in params["C"])
     assert all(min_value <= param <= max_value for param in params["gamma"])
+
 
 def test_generate_params_false() -> None:
     """Test that the output of the generate_params function is as expected."""
     min_value = 2**-10
     max_value = 2**4
-    params = pythia.generate_params(False)
-    # Check the bounds of the 'gamma' parameter
+    rng = np.random.default_rng(seed=0)
+
+    params = PythiaStage._generate_params(False, rng) # noqa: SLF001
     assert params["C"].low == min_value
     assert params["C"].high == max_value
     assert params["C"].prior == "log-uniform"
@@ -90,14 +109,8 @@ def test_bayes_opt() -> None:
         use_grid_search=False,
         params=None,
     )
-    pythia_output = Pythia.run(
-        z,
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-    )[1]
+    pythia = PythiaStage(z, y, y_bin, y_best, algo)
+    pythia_out = pythia.pythia(z, y, y_bin, y_best, algo, opts)
 
     # read the actual output
     matlab_output = pd.read_csv(output_dir / "BO_gaussian/gaussian.csv")
@@ -107,8 +120,20 @@ def test_bayes_opt() -> None:
     matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
     matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
 
+    print(pythia_out[12])
+    print("====================================")
+    print(matlab_accuracy)
+    print("====================================")
+    print(pythia_out[13])
+    print("====================================")
+    print(matlab_precision)
+    print("====================================")
+    print(pythia_out[14])
+    print("====================================")
+    print(matlab_recall)
+
     compare_performance(
-        pythia_output,
+        pythia_out,
         matlab_accuracy,
         matlab_precision,
         matlab_recall,
@@ -118,7 +143,7 @@ def test_bayes_opt() -> None:
 
 
 def test_bayes_opt_poly() -> None:
-    """Test that the output of the function is as expected when BO is required."""
+    """Test that the output of the function is as expected when BO and polykernal is required."""  # noqa: E501
     opts = PythiaOptions(
         cv_folds=5,
         is_poly_krnl=True,
@@ -126,14 +151,8 @@ def test_bayes_opt_poly() -> None:
         use_grid_search=False,
         params=None,
     )
-    pythia_output = Pythia.run(
-        z,
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-    )[1]
+    pythia = PythiaStage(z, y, y_bin, y_best, algo)
+    pythia_out = pythia.pythia(z, y, y_bin, y_best, algo, opts)
 
     # read the actual output
     matlab_output = pd.read_csv(output_dir / "BO_poly/poly.csv")
@@ -144,7 +163,7 @@ def test_bayes_opt_poly() -> None:
     matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
 
     compare_performance(
-        pythia_output,
+        pythia_out,
         matlab_accuracy,
         matlab_precision,
         matlab_recall,
@@ -154,7 +173,7 @@ def test_bayes_opt_poly() -> None:
 
 
 def test_grid_gaussian() -> None:
-    """Test that the performance of model is asexpected when grid search & gaussian ."""
+    """Test that the performance of model is asexpected when grid search & gaussian."""
     opts = PythiaOptions(
         cv_folds=5,
         is_poly_krnl=False,
@@ -162,15 +181,8 @@ def test_grid_gaussian() -> None:
         use_grid_search=True,
         params=None,
     )
-    pythia_output = Pythia.run(
-        z,
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-    )[1]
-
+    pythia = PythiaStage(z, y, y_bin, y_best, algo)
+    pythia_out = pythia.pythia(z, y, y_bin, y_best, algo, opts)
     # read the actual output
     matlab_accuracy = pd.read_csv(
         output_dir / "gridsearch_gaussian/accuracy.csv",
@@ -184,9 +196,8 @@ def test_grid_gaussian() -> None:
         output_dir / "gridsearch_gaussian/recall.csv",
         header=None,
     ).values
-
     compare_performance(
-        pythia_output,
+        pythia_out,
         matlab_accuracy,
         matlab_precision,
         matlab_recall,
@@ -204,14 +215,8 @@ def test_grid_poly() -> None:
         use_grid_search=True,
         params=None,
     )
-    pythia_output = Pythia.run(
-        z,
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-    )[1]
+    pythia = PythiaStage(z, y, y_bin, y_best, algo)
+    pythia_out = pythia.pythia(z, y, y_bin, y_best, algo, opts)
 
     # read the actual output
     matlab_accuracy = pd.read_csv(
@@ -228,7 +233,7 @@ def test_grid_poly() -> None:
     ).values
 
     compare_performance(
-        pythia_output,
+        pythia_out,
         matlab_accuracy,
         matlab_precision,
         matlab_recall,
@@ -238,7 +243,26 @@ def test_grid_poly() -> None:
 
 
 def compare_performance(
-    python_output: PythiaOut,
+    python_output: tuple[
+        list[float],
+        list[float],
+        NDArray[np.double],
+        StratifiedKFold,
+        list[SVC],
+        NDArray[np.double],
+        NDArray[np.bool_],
+        NDArray[np.bool_],
+        NDArray[np.double],
+        NDArray[np.double],
+        list[float],
+        list[float],
+        list[float],
+        list[float],
+        list[float],
+        NDArray[np.integer],
+        NDArray[np.integer],
+        pd.DataFrame,
+    ],
     matlab_accuracy: NDArray[np.double],
     matlab_precision: NDArray[np.double],
     matlab_recall: NDArray[np.double],
@@ -260,20 +284,20 @@ def compare_performance(
         total += 3
 
         if (
-            python_output.accuracy[i] * 100 >= matlab_accuracy[i]
-            or abs(python_output.accuracy[i] * 100 - matlab_accuracy[i]) <= tol
+            python_output[12][i] * 100 >= matlab_accuracy[i]
+            or abs(python_output[12][i] * 100 - matlab_accuracy[i]) <= tol
         ):
             correct += 1
 
         if (
-            python_output.precision[i] * 100 >= matlab_precision[i]
-            or abs(python_output.precision[i] * 100 - matlab_precision[i]) <= tol
+            python_output[13][i] * 100 >= matlab_precision[i]
+            or abs(python_output[13][i] * 100 - matlab_precision[i]) <= tol
         ):
             correct += 1
 
         if (
-            python_output.recall[i] * 100 >= matlab_recall[i]
-            or abs(python_output.recall[i] * 100 - matlab_recall[i]) <= tol
+            python_output[14][i] * 100 >= matlab_recall[i]
+            or abs(python_output[14][i] * 100 - matlab_recall[i]) <= tol
         ):
             correct += 1
 
