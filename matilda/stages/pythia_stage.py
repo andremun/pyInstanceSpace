@@ -28,13 +28,13 @@ Classes:
 Functions:
 ----------
 - pythia: The main function for the Pythia stage.
-- fitmatsvm: Train a SVM model using MATLAB's 'fitcsvm' function.
-- display_overall_perf: Output overall performance metrics.
-- compute_znorm: Compute normalized instance space.
-- check_precalcparams: Check pre-calculated hyper-parameters.
-- determine_selections: Determine the selections based on the precision metrics.
-- generate_params: Generate hyperparameters for the SVM models.
-- generate_summary: Generate a summary of the results.
+- _fitmatsvm: Train a SVM model using MATLAB's 'fitcsvm' function.
+- _display_overall_perf: Output overall performance metrics.
+- _compute_znorm: Compute normalized instance space.
+- _check_precalcparams: Check pre-calculated hyper-parameters.
+- _determine_selections: Determine the selections based on the precision metrics.
+- _generate_params: Generate hyperparameters for the SVM models.
+- _generate_summary: Generate a summary of the results.
 
 """
 
