@@ -345,8 +345,6 @@ class PythiaStage(Stage):
 
         # Cost-sensitive classification
         if opts.use_weights:
-            """Cost-sensitive classification
-            """
             print(" -> PYTHIA is using cost-sensitive classification.")
             w = np.abs(y - np.nanmean(y))
             w[w == 0] = np.min(w[w != 0])
