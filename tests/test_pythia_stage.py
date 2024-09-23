@@ -44,7 +44,7 @@ def test_compute_znorm() -> None:
     znorm = np.genfromtxt(csv_path_znorm_input, delimiter=",")
 
     pythia = PythiaStage(z, y, y_bin, y_best, algo)
-    _, _, znorm_test = pythia._compute_znorm(z)
+    _, _, znorm_test = pythia._compute_znorm(z)  # noqa: SLF001
     assert np.allclose(znorm, znorm_test)
 
 
@@ -64,7 +64,7 @@ def test_generate_params_true() -> None:
     max_value = 2**4
     rng = np.random.default_rng(seed=0)
 
-    params = PythiaStage._generate_params(opt.use_grid_search, rng)
+    params = PythiaStage._generate_params(opt.use_grid_search, rng) # noqa: SLF001
     assert all(min_value <= param <= max_value for param in params["C"])
     assert all(min_value <= param <= max_value for param in params["gamma"])
 
@@ -75,7 +75,7 @@ def test_generate_params_false() -> None:
     max_value = 2**4
     rng = np.random.default_rng(seed=0)
 
-    params = PythiaStage._generate_params(False, rng)
+    params = PythiaStage._generate_params(False, rng) # noqa: SLF001
     assert params["C"].low == min_value
     assert params["C"].high == max_value
     assert params["C"].prior == "log-uniform"
