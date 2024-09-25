@@ -123,14 +123,21 @@ def test_run() -> None:
     between them. Check for each column and row, there's only one value that has high
     correlation (>0.9) and other correlation values are low (<0.9)
     """
+    import time
+
+    start = time.time()
     csv_path_x = script_dir / "test_data/sifted/output/x_matlab.csv"
     x_matlab = pd.read_csv(csv_path_x, header=None)
 
     data_change, _ = Sifted.run(input_x, input_y, input_ybin, feat_labels, opts)
     x_python = pd.DataFrame(data_change.x)
 
+    print(f"runtime {time.time() - start}")
+
     # compute correlation matrix that has been categorised into high, normal and low
     correlation_matrix = compute_correlation(x_python, x_matlab)
+
+    print(f"correlation {time.time() - start}")
 
     # test case pass if 70%
     assert correlation_matrix_check(correlation_matrix, threshold=0.7)
