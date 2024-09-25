@@ -17,6 +17,7 @@ pandas = "^2.2.1"
 pandas-stubs = "^2.2.1.240316"
 click = "^8.1.7"
 scipy = "^1.13.0"
+pygad = "^3.3.1"
 shapely = "^2.0.5"
 matplotlib = "^3.9.2"
 loguru = "^0.7.2"
@@ -159,8 +160,12 @@ disallow_untyped_defs = 'True'
 [[tool.mypy.overrides]]
 module = [
     'sklearn',
-    'scipy.stats',
+    'sklearn.cluster',
+    'sklearn.metrics',
+    'sklearn.neighbors',
+    'sklearn.model_selection',
     'scipy',
+    'scipy.stats',
     'scipy.spatial',
     'scipy.spatial.distance',
     'shapely.geometry',
@@ -173,5 +178,6 @@ module = [
     'skopt',
     'skopt.space',
     'sklearn.model_selection',
+    'pygad',
 ]
 ignore_missing_imports = 'True'
