@@ -41,12 +41,23 @@ from matilda.data.default_options import (
     DEFAULT_SELVARS_SMALL_SCALE,
     DEFAULT_SELVARS_SMALL_SCALE_FLAG,
     DEFAULT_SELVARS_TYPE,
+    DEFAULT_SIFTED_CROSSOVER_PROBABILITY,
+    DEFAULT_SIFTED_CROSSOVER_TYPE,
     DEFAULT_SIFTED_FLAG,
     DEFAULT_SIFTED_K,
+    DEFAULT_SIFTED_K_TOURNAMENT,
+    DEFAULT_SIFTED_KEEP_ELITISM,
     DEFAULT_SIFTED_MAX_ITER,
+    DEFAULT_SIFTED_MUTATION_PROBABILITY,
+    DEFAULT_SIFTED_MUTATION_TYPE,
     DEFAULT_SIFTED_NTREES,
+    DEFAULT_SIFTED_NUM_GENERATION,
+    DEFAULT_SIFTED_NUM_PARENTS_MATING,
+    DEFAULT_SIFTED_PARENT_SELECTION_TYPE,
     DEFAULT_SIFTED_REPLICATES,
     DEFAULT_SIFTED_RHO,
+    DEFAULT_SIFTED_SOL_PER_POP,
+    DEFAULT_SIFTED_STOP_CRITERIA,
     DEFAULT_TRACE_PURITY,
     DEFAULT_TRACE_USE_SIM,
 )
@@ -204,6 +215,17 @@ class SiftedOptions:
     n_trees: int
     max_iter: int
     replicates: int
+    num_generations: int
+    num_parents_mating: int
+    sol_per_pop: int
+    parent_selection_type: str
+    k_tournament: int
+    keep_elitism: int
+    crossover_type: str
+    cross_over_probability: float
+    mutation_type: str
+    mutation_probability: float
+    stop_criteria: str
 
     @staticmethod
     def default(
@@ -213,6 +235,17 @@ class SiftedOptions:
         n_trees: int = DEFAULT_SIFTED_NTREES,
         max_iter: int = DEFAULT_SIFTED_MAX_ITER,
         replicates: int = DEFAULT_SIFTED_REPLICATES,
+        num_generations: int = DEFAULT_SIFTED_NUM_GENERATION,
+        num_parents_mating: int = DEFAULT_SIFTED_NUM_PARENTS_MATING,
+        sol_per_pop: int = DEFAULT_SIFTED_SOL_PER_POP,
+        parent_selection_type: str = DEFAULT_SIFTED_PARENT_SELECTION_TYPE,
+        k_tournament: int = DEFAULT_SIFTED_K_TOURNAMENT,
+        keep_elitism: int = DEFAULT_SIFTED_KEEP_ELITISM,
+        crossover_type: str = DEFAULT_SIFTED_CROSSOVER_TYPE,
+        cross_over_probability: float = DEFAULT_SIFTED_CROSSOVER_PROBABILITY,
+        mutation_type: str = DEFAULT_SIFTED_MUTATION_TYPE,
+        mutation_probability: float = DEFAULT_SIFTED_MUTATION_PROBABILITY,
+        stop_criteria: str = DEFAULT_SIFTED_STOP_CRITERIA,
     ) -> SiftedOptions:
         """Instantiate with default values."""
         return SiftedOptions(
@@ -222,6 +255,17 @@ class SiftedOptions:
             n_trees=n_trees,
             max_iter=max_iter,
             replicates=replicates,
+            num_generations=num_generations,
+            num_parents_mating=num_parents_mating,
+            sol_per_pop=sol_per_pop,
+            parent_selection_type=parent_selection_type,
+            k_tournament=k_tournament,
+            keep_elitism=keep_elitism,
+            crossover_type=crossover_type,
+            cross_over_probability=cross_over_probability,
+            mutation_type=mutation_type,
+            mutation_probability=mutation_probability,
+            stop_criteria=stop_criteria,
         )
 
 
