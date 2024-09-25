@@ -1,4 +1,5 @@
-"""Defines a collection of data classes that represent configuration options.
+"""
+Defines a collection of data classes that represent configuration options.
 
 These classes provide a structured way to specify and manage settings for different
 aspects of the model's execution and behaviour.
@@ -34,7 +35,7 @@ from matilda.data.default_options import (
     DEFAULT_PILOT_N_TRIES,
     DEFAULT_PYTHIA_CV_FOLDS,
     DEFAULT_PYTHIA_IS_POLY_KRNL,
-    DEFAULT_PYTHIA_USE_LIB_SVM,
+    DEFAULT_PYTHIA_USE_GRID_SEARCH,
     DEFAULT_PYTHIA_USE_WEIGHTS,
     DEFAULT_SELVARS_DENSITY_FLAG,
     DEFAULT_SELVARS_FILE_IDX,
@@ -66,7 +67,8 @@ from matilda.data.default_options import (
 
 
 class MissingOptionsError(Exception):
-    """A required option wasn't set.
+    """
+    A required option wasn't set.
 
     An error raised when a stage is ran that requires an option to be set, and the
     option isn't present.
@@ -317,21 +319,23 @@ class PythiaOptions:
     cv_folds: int
     is_poly_krnl: bool
     use_weights: bool
-    use_lib_svm: bool
+    use_grid_search: bool
+    params: NDArray[np.double] | None
 
     @staticmethod
     def default(
         cv_folds: int = DEFAULT_PYTHIA_CV_FOLDS,
         is_poly_krnl: bool = DEFAULT_PYTHIA_IS_POLY_KRNL,
         use_weights: bool = DEFAULT_PYTHIA_USE_WEIGHTS,
-        use_lib_svm: bool = DEFAULT_PYTHIA_USE_LIB_SVM,
+        use_grid_search: bool = DEFAULT_PYTHIA_USE_GRID_SEARCH,
     ) -> PythiaOptions:
         """Instantiate with default values."""
         return PythiaOptions(
             cv_folds=cv_folds,
             is_poly_krnl=is_poly_krnl,
             use_weights=use_weights,
-            use_lib_svm=use_lib_svm,
+            use_grid_search=use_grid_search,
+            params=None,
         )
 
 
@@ -395,27 +399,29 @@ class InstanceSpaceOptions:
 
     @staticmethod
     def from_dict(file_contents: dict[str, Any]) -> InstanceSpaceOptions:
-        """Load configuration options from a JSON file into an object.
+        """
+        Load configuration options from a JSON file into an object.
 
         This function reads a JSON file from `filepath`, checks for expected
         top-level fields as defined in InstanceSpaceOptions, initializes each part of
         the InstanceSpaceOptions with data from the file, and sets missing optional
         fields using their default values.
 
-        Args
-        ----------
+        Args:
+        ----
         file_contents
             Content of the dict with configuration options.
 
-        Returns
+        Returns:
         -------
         InstanceSpaceOptions
             InstanceSpaceOptions object populated with data from the file.
 
-        Raises
+        Raises:
         ------
         ValueError
             If the JSON file contains undefined sub options.
+
         """
         # Validate if the top-level fields match those in the InstanceSpaceOptions class
         options_fields = {f.name for f in fields(InstanceSpaceOptions)}
@@ -481,11 +487,13 @@ class InstanceSpaceOptions:
         )
 
     def to_file(self: Self, filepath: Path) -> None:
-        """Store options in a file from an InstanceSpaceOptions object.
+        """
+        Store options in a file from an InstanceSpaceOptions object.
 
         Returns
         -------
         The options object serialised into a string.
+
         """
         raise NotImplementedError
 
@@ -538,16 +546,17 @@ class InstanceSpaceOptions:
 
     @staticmethod
     def _validate_fields(data_class: type[T], data: dict[str, Any]) -> None:
-        """Validate all keys in the provided dictionary are valid fields in dataclass.
+        """
+        Validate all keys in the provided dictionary are valid fields in dataclass.
 
-        Args
-        ----------
+        Args:
+        ----
         data_class : type[T]
             The dataclass type to validate against.
         data : dict
             The dictionary whose keys are to be validated.
 
-        Raises
+        Raises:
         ------
         ValueError
             If an undefined field is found in the dictionary or
@@ -566,28 +575,30 @@ class InstanceSpaceOptions:
 
     @staticmethod
     def _load_dataclass(data_class: type[T], data: dict[str, Any]) -> T:
-        """Load data into a dataclass from a dictionary.
+        """
+        Load data into a dataclass from a dictionary.
 
         Ensures all dictionary keys match dataclass fields and fills in fields
         with available data. If a field is missing in the dictionary, the default
         value from the dataclass is used.
 
-        Args
-        ----------
+        Args:
+        ----
         data_class : type[T]
             The dataclass type to populate.
         data : dict
             Dictionary containing data to load into the dataclass.
 
-        Returns
+        Returns:
         -------
         T
             An instance of the dataclass populated with data.
 
-        Raises
+        Raises:
         ------
         ValueError
             If the dictionary contains keys that are not valid fields in the dataclass.
+
         """
         # Get the default values for the dataclass fields
         default_values = {
@@ -630,20 +641,21 @@ class PrelimOptions:
 
 
 def from_json_file(file_path: Path) -> InstanceSpaceOptions | None:
-    """Parse options from a JSON file and construct an InstanceSpaceOptions object.
+    """
+    Parse options from a JSON file and construct an InstanceSpaceOptions object.
 
-    Args
+    Args:
     ----
     file_path : Path
         The path to the JSON file containing the options.
 
-    Returns
+    Returns:
     -------
     InstanceSpaceOptions or None
         An InstanceSpaceOptions object constructed from the parsed JSON data, or None
         if an error occurred during file reading or parsing.
 
-    Raises
+    Raises:
     ------
     FileNotFoundError
         If the specified file does not exist.
@@ -653,6 +665,7 @@ def from_json_file(file_path: Path) -> InstanceSpaceOptions | None:
         If an I/O error occurred while reading the file.
     ValueError
         If the parsed JSON data contains invalid options.
+
     """
     try:
         with file_path.open() as o:
