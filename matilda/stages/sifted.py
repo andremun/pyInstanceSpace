@@ -276,7 +276,7 @@ class Sifted:
     def cost_fcn(
         instance: pygad.GA,
         solutions: NDArray[np.intc],
-        solution_idx: int,
+        _solution_idx: int,
     ) -> float:
         """Fitness function to evaluate the quality of solution in GA.
 
