@@ -80,7 +80,7 @@ default_pythia = PythiaOptions(
 )
 default_trace = TraceOptions(
     use_sim=True,
-    pi=0.55,
+    purity=0.55,
 )
 default_outputs = OutputOptions(
     csv=True,

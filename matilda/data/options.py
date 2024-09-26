@@ -58,7 +58,7 @@ from matilda.data.default_options import (
     DEFAULT_SIFTED_RHO,
     DEFAULT_SIFTED_SOL_PER_POP,
     DEFAULT_SIFTED_STOP_CRITERIA,
-    DEFAULT_TRACE_PI,
+    DEFAULT_TRACE_PURITY,
     DEFAULT_TRACE_USE_SIM,
 )
 
@@ -337,17 +337,17 @@ class TraceOptions:
     """Options for trace analysis in the model."""
 
     use_sim: bool
-    pi: float
+    purity: float
 
     @staticmethod
     def default(
         use_sim: bool = DEFAULT_TRACE_USE_SIM,
-        pi: float = DEFAULT_TRACE_PI,
+        purity: float = DEFAULT_TRACE_PURITY,
     ) -> TraceOptions:
         """Instantiate with default values."""
         return TraceOptions(
             use_sim=use_sim,
-            pi=pi,
+            purity=purity,
         )
 
 

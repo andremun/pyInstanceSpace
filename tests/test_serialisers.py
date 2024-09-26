@@ -57,7 +57,7 @@ script_dir = Path(__file__).parent
 
 # Clear the output before running the test
 for directory in ["csv", "web", "png"]:
-    output_directory = script_dir / "test_data/serializers/actual_output" / directory
+    output_directory = script_dir / "test_data/serialisers/actual_output" / directory
     for file in os.listdir(output_directory):
         if ".gitignore" not in file:
             Path(output_directory / file).unlink()
@@ -71,19 +71,19 @@ class _MatlabResults:
 
     def __init__(self) -> None:
         self.workspace_data = loadmat(
-            script_dir / "test_data/serializers/input/workspace.mat",
+            script_dir / "test_data/serialisers/input/workspace.mat",
             simplify_cells=True,
             chars_as_strings=True,
         )
 
         self.s_data = loadmat(
-            script_dir / "test_data/serializers/input/S.mat",
+            script_dir / "test_data/serialisers/input/S.mat",
             chars_as_strings=True,
             simplify_cells=True,
         )
 
         self.clean_trace = loadmat(
-            script_dir / "test_data/serializers/input/clean_trace.mat",
+            script_dir / "test_data/serialisers/input/clean_trace.mat",
             chars_as_strings=True,
             simplify_cells=True,
         )["clean_trace"]
@@ -168,7 +168,7 @@ class _MatlabResults:
         )
         trace_options = TraceOptions(
             use_sim=opts["trace"]["usesim"],
-            pi=opts["trace"]["PI"],
+            purity=opts["trace"]["PI"],
         )
         output_options = OutputOptions(
             csv=opts["outputs"]["csv"],
@@ -278,8 +278,11 @@ class _MatlabResults:
 
             polygon_ndarray: NDArray[np.double] = vertices
             polygon = Polygon(polygon_ndarray)
-            footprint = Footprint(polygon)
+            y_bin: NDArray[np.bool_] = np.array([True for _ in polygon_ndarray])
 
+            footprint = Footprint.__new__(Footprint)
+            object.__setattr__(footprint, "polygon", polygon)
+            object.__setattr__(footprint, "y_bin", y_bin)
             object.__setattr__(footprint, "area", in_from_matlab["area"])
             object.__setattr__(footprint, "elements", in_from_matlab["elements"])
             object.__setattr__(
@@ -343,15 +346,17 @@ def test_save_to_csv() -> None:
     """Test saving information from a completed instance space to CSVs."""
     instance_space = _MatlabResults().get_instance_space()
 
-    instance_space.save_to_csv(script_dir / "test_data/serializers/actual_output/csv")
+    instance_space.save_to_csv(script_dir / "test_data/serialisers/actual_output/csv")
 
-    test_data_dir = script_dir / "test_data/serializers"
+    test_data_dir = script_dir / "test_data/serialisers"
 
     for csv_file in os.listdir(
         test_data_dir / "expected_output/csv",
     ):
         expected_file_path = test_data_dir / "expected_output/csv" / csv_file
         actual_file_path = test_data_dir / "actual_output/csv" / csv_file
+
+        print(actual_file_path)
 
         # Expected file isn't a directory, and actual file exists
         assert Path.is_file(expected_file_path)
@@ -367,9 +372,9 @@ def test_save_for_web() -> None:
     """Test saving information for export to the web frontend."""
     instance_space = _MatlabResults().get_instance_space()
 
-    instance_space.save_for_web(script_dir / "test_data/serializers/actual_output/web")
+    instance_space.save_for_web(script_dir / "test_data/serialisers/actual_output/web")
 
-    test_data_dir = script_dir / "test_data/serializers"
+    test_data_dir = script_dir / "test_data/serialisers"
 
     for csv_file in os.listdir(
         test_data_dir / "expected_output/web",
