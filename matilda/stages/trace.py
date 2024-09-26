@@ -203,13 +203,15 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
     Performs parallel processing to calculate footprints for multiple algorithms.
     """
 
-    def __init__(self,
-                 z: NDArray[np.double],
-                 y_bin: NDArray[np.bool_],
-                 p: NDArray[np.double],
-                 beta: NDArray[np.bool_],
-                 algo_labels: list[str],
-                 opts: TraceOptions) -> None:
+    def __init__(
+        self,
+        z: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        p: NDArray[np.double],
+        beta: NDArray[np.bool_],
+        algo_labels: list[str],
+        opts: TraceOptions,
+    ) -> None:
         """Initialise the Trace analysis with provided data and options.
 
         Parameters:
@@ -278,7 +280,16 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             tuple[Footprint, list[Footprint], list[Footprint], Footprint, pd.DataFrame]
                 The results of the trace stage
         """
+        print(
+            "=========================================================================",
+        )
+        print("-> Calling TRACE to perform the footprint analysis.")
+        print(
+            "=========================================================================",
+        )
+
         if inputs.trace_options.use_sim:
+            print("  -> TRACE will use PYTHIA" "s results to calculate the footprints.")
             return TraceStage.trace(
                 inputs.z,
                 inputs.y_bin_pythia,
@@ -287,6 +298,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 inputs.algo_labels,
                 inputs.trace_options,
             )
+        print("  -> TRACE will use experimental data to calculate the footprints.")
         return TraceStage.trace(
             inputs.z,
             inputs.y_bin_data,
@@ -297,7 +309,39 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         )
 
     @staticmethod
-    def trace(z, y_bin, p, beta, algo_labels, opts) -> TraceOutputs:
+    def trace(
+        z: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        p: NDArray[np.double],
+        beta: NDArray[np.bool_],
+        algo_labels: list[str],
+        opts: TraceOptions,
+    ) -> TraceOutputs:
+        """Perform the TRACE footprint analysis.
+
+        Parameters:
+        ----------
+        z : NDArray[np.double]
+            The space of instances.
+        y_bin : NDArray[np.bool_]
+            Binary indicators of performance.
+        p : NDArray[np.double]
+            Performance metrics for algorithms.
+        beta : NDArray[np.bool_]
+            Specific beta threshold for footprint calculation.
+        algo_labels : list[str]
+            Labels for each algorithm.
+        opts : TraceOptions
+            Configuration options for TRACE and its subroutines.
+
+        Returns:
+        -------
+        TraceDataChanged:
+            Should be Empty
+        TraceOut:
+            An instance of TraceOut containing the analysis results, including
+            the calculated footprints and summary statistics.
+        """
         trace = TraceStage(z, y_bin, p, beta, algo_labels, opts)
         return trace._trace()
 

@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
-
 from matilda._serialisers import save_instance_space_for_web, save_instance_space_to_csv
 from matilda.data.model import (
     CloisterOut,
