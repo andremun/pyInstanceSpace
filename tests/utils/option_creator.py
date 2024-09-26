@@ -52,6 +52,17 @@ default_sifted = SiftedOptions(
     n_trees=50,
     max_iter=1000,
     replicates=100,
+    num_generations=10,
+    num_parents_mating=5,
+    sol_per_pop=50,
+    parent_selection_type="tournament",
+    k_tournament=3,
+    keep_elitism=True,
+    crossover_type="single_point",
+    cross_over_probability=0.8,
+    mutation_type="random",
+    mutation_probability=0.2,
+    stop_criteria="max_generations",
 )
 default_pilot = PilotOptions(
     analytic=False,
@@ -69,7 +80,7 @@ default_pythia = PythiaOptions(
 )
 default_trace = TraceOptions(
     use_sim=True,
-    pi=0.55,
+    purity=0.55,
 )
 default_outputs = OutputOptions(
     csv=True,

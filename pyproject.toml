@@ -6,6 +6,9 @@ authors = [
     "Your Name <you@example.com>",
     "Kushagra Khare <kharek@student.unimelb.edu.au>",
     "Nathan Harvey <nhharvey@student.unimelb.edu.au>",
+    "Kian Dsouza < kiandsouza01@gmail.com>",
+    "Yusuf Berdan Güzel <yguzel@student.unimelb.edu.au>",
+
 ]
 readme = "README.md"
 
@@ -14,13 +17,15 @@ python = "^3.12"
 numpy = "^1.26.4"
 pandas = "^2.2.1"
 pandas-stubs = "^2.2.1.240316"
-scikit-learn = "^1.4.2"
 click = "^8.1.7"
-black = "^24.4.2"
 scipy = "^1.13.0"
+pygad = "^3.3.1"
 shapely = "^2.0.5"
 matplotlib = "^3.9.2"
 loguru = "^0.7.2"
+scikit-optimize = "^0.10.2"
+scikit-learn = "^1.5.2"
+alphashape = "^1.3.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.1"
@@ -36,17 +41,15 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poe.tasks]
 format_docstrings = "docconvert -o numpy matilda/ --in-place"
-check_black = "black --preview ."
 check_ruff = "ruff check --fix"
 check_mypy = "mypy --strict ."
 
-test_black = "black --preview --check ."
 test_ruff = "ruff check --no-fix"
 
-check.sequence = ["format_docstrings", "check_black", "check_ruff", "check_mypy"]
+check.sequence = ["format_docstrings", "check_ruff", "check_mypy"]
 check.ignore_fail = "return_non_zero"
 
-test.sequence = ["test_black", "test_ruff", "check_mypy"]
+test.sequence = ["test_ruff", "check_mypy"]
 test.ignore_fail = "return_non_zero"
 
 [tool.ruff]
@@ -160,13 +163,28 @@ disallow_untyped_defs = 'True'
 [[tool.mypy.overrides]]
 module = [
     'sklearn',
-    'scipy.stats',
+    'sklearn.cluster',
+    'sklearn.metrics',
+    'sklearn.neighbors',
+    'sklearn.model_selection',
     'scipy',
+    'scipy.stats',
     'scipy.spatial',
     'scipy.spatial.distance',
     'shapely.geometry',
     'scipy.linalg',
     'scipy.optimize',
     'scipy.io',
+    'sklearn.metrics',
+    'sklearn.model_selection',
+    'sklearn.svm',
+    'skopt',
+    'skopt.space',
+    'sklearn.model_selection',
+    'pygad',
+    'shapely.ops' ,
+    'scipy.special' ,
+    'sklearn.cluster',
+    'alphashape'
 ]
 ignore_missing_imports = 'True'

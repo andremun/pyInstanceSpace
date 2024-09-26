@@ -4,7 +4,7 @@ on:
   push:
     branches: [development, main, "*-candidate"]
   pull_request:
-    branches: [development, main, "*-candidate", "130-scaffold-all-stages-for-stage-overhaul"]
+    branches: [development, main, "*-candidate"]
 
 permissions:
   contents: read

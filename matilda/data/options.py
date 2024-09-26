@@ -1,4 +1,5 @@
-"""Defines a collection of data classes that represent configuration options.
+"""
+Defines a collection of data classes that represent configuration options.
 
 These classes provide a structured way to specify and manage settings for different
 aspects of the model's execution and behaviour.
@@ -11,7 +12,9 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Self, TypeVar
 
+import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 from matilda.data.default_options import (
     DEFAULT_AUTO_PREPROC,
@@ -32,7 +35,7 @@ from matilda.data.default_options import (
     DEFAULT_PILOT_N_TRIES,
     DEFAULT_PYTHIA_CV_FOLDS,
     DEFAULT_PYTHIA_IS_POLY_KRNL,
-    DEFAULT_PYTHIA_USE_LIB_SVM,
+    DEFAULT_PYTHIA_USE_GRID_SEARCH,
     DEFAULT_PYTHIA_USE_WEIGHTS,
     DEFAULT_SELVARS_DENSITY_FLAG,
     DEFAULT_SELVARS_FILE_IDX,
@@ -41,19 +44,31 @@ from matilda.data.default_options import (
     DEFAULT_SELVARS_SMALL_SCALE,
     DEFAULT_SELVARS_SMALL_SCALE_FLAG,
     DEFAULT_SELVARS_TYPE,
+    DEFAULT_SIFTED_CROSSOVER_PROBABILITY,
+    DEFAULT_SIFTED_CROSSOVER_TYPE,
     DEFAULT_SIFTED_FLAG,
     DEFAULT_SIFTED_K,
+    DEFAULT_SIFTED_K_TOURNAMENT,
+    DEFAULT_SIFTED_KEEP_ELITISM,
     DEFAULT_SIFTED_MAX_ITER,
+    DEFAULT_SIFTED_MUTATION_PROBABILITY,
+    DEFAULT_SIFTED_MUTATION_TYPE,
     DEFAULT_SIFTED_NTREES,
+    DEFAULT_SIFTED_NUM_GENERATION,
+    DEFAULT_SIFTED_NUM_PARENTS_MATING,
+    DEFAULT_SIFTED_PARENT_SELECTION_TYPE,
     DEFAULT_SIFTED_REPLICATES,
     DEFAULT_SIFTED_RHO,
-    DEFAULT_TRACE_PI,
+    DEFAULT_SIFTED_SOL_PER_POP,
+    DEFAULT_SIFTED_STOP_CRITERIA,
+    DEFAULT_TRACE_PURITY,
     DEFAULT_TRACE_USE_SIM,
 )
 
 
 class MissingOptionsError(Exception):
-    """A required option wasn't set.
+    """
+    A required option wasn't set.
 
     An error raised when a stage is ran that requires an option to be set, and the
     option isn't present.
@@ -204,6 +219,17 @@ class SiftedOptions:
     n_trees: int
     max_iter: int
     replicates: int
+    num_generations: int
+    num_parents_mating: int
+    sol_per_pop: int
+    parent_selection_type: str
+    k_tournament: int
+    keep_elitism: int
+    crossover_type: str
+    cross_over_probability: float
+    mutation_type: str
+    mutation_probability: float
+    stop_criteria: str
 
     @staticmethod
     def default(
@@ -213,6 +239,17 @@ class SiftedOptions:
         n_trees: int = DEFAULT_SIFTED_NTREES,
         max_iter: int = DEFAULT_SIFTED_MAX_ITER,
         replicates: int = DEFAULT_SIFTED_REPLICATES,
+        num_generations: int = DEFAULT_SIFTED_NUM_GENERATION,
+        num_parents_mating: int = DEFAULT_SIFTED_NUM_PARENTS_MATING,
+        sol_per_pop: int = DEFAULT_SIFTED_SOL_PER_POP,
+        parent_selection_type: str = DEFAULT_SIFTED_PARENT_SELECTION_TYPE,
+        k_tournament: int = DEFAULT_SIFTED_K_TOURNAMENT,
+        keep_elitism: int = DEFAULT_SIFTED_KEEP_ELITISM,
+        crossover_type: str = DEFAULT_SIFTED_CROSSOVER_TYPE,
+        cross_over_probability: float = DEFAULT_SIFTED_CROSSOVER_PROBABILITY,
+        mutation_type: str = DEFAULT_SIFTED_MUTATION_TYPE,
+        mutation_probability: float = DEFAULT_SIFTED_MUTATION_PROBABILITY,
+        stop_criteria: str = DEFAULT_SIFTED_STOP_CRITERIA,
     ) -> SiftedOptions:
         """Instantiate with default values."""
         return SiftedOptions(
@@ -222,6 +259,17 @@ class SiftedOptions:
             n_trees=n_trees,
             max_iter=max_iter,
             replicates=replicates,
+            num_generations=num_generations,
+            num_parents_mating=num_parents_mating,
+            sol_per_pop=sol_per_pop,
+            parent_selection_type=parent_selection_type,
+            k_tournament=k_tournament,
+            keep_elitism=keep_elitism,
+            crossover_type=crossover_type,
+            cross_over_probability=cross_over_probability,
+            mutation_type=mutation_type,
+            mutation_probability=mutation_probability,
+            stop_criteria=stop_criteria,
         )
 
 
@@ -229,6 +277,8 @@ class SiftedOptions:
 class PilotOptions:
     """Options for pilot studies or preliminary analysis phases."""
 
+    x0: NDArray[np.double] | None
+    alpha: NDArray[np.double] | None
     analytic: bool
     n_tries: int
 
@@ -236,12 +286,11 @@ class PilotOptions:
     def default(
         analytic: bool = DEFAULT_PILOT_ANALYTICS,
         n_tries: int = DEFAULT_PILOT_N_TRIES,
+        x0: NDArray[np.double] | None = None,
+        alpha: NDArray[np.double] | None = None,
     ) -> PilotOptions:
         """Instantiate with default values."""
-        return PilotOptions(
-            analytic=analytic,
-            n_tries=n_tries,
-        )
+        return PilotOptions(analytic=analytic, n_tries=n_tries, x0=x0, alpha=alpha)
 
 
 @dataclass(frozen=True)
@@ -270,21 +319,23 @@ class PythiaOptions:
     cv_folds: int
     is_poly_krnl: bool
     use_weights: bool
-    use_lib_svm: bool
+    use_grid_search: bool
+    params: NDArray[np.double] | None
 
     @staticmethod
     def default(
         cv_folds: int = DEFAULT_PYTHIA_CV_FOLDS,
         is_poly_krnl: bool = DEFAULT_PYTHIA_IS_POLY_KRNL,
         use_weights: bool = DEFAULT_PYTHIA_USE_WEIGHTS,
-        use_lib_svm: bool = DEFAULT_PYTHIA_USE_LIB_SVM,
+        use_grid_search: bool = DEFAULT_PYTHIA_USE_GRID_SEARCH,
     ) -> PythiaOptions:
         """Instantiate with default values."""
         return PythiaOptions(
             cv_folds=cv_folds,
             is_poly_krnl=is_poly_krnl,
             use_weights=use_weights,
-            use_lib_svm=use_lib_svm,
+            use_grid_search=use_grid_search,
+            params=None,
         )
 
 
@@ -293,17 +344,17 @@ class TraceOptions:
     """Options for trace analysis in the model."""
 
     use_sim: bool
-    pi: float
+    purity: float
 
     @staticmethod
     def default(
         use_sim: bool = DEFAULT_TRACE_USE_SIM,
-        pi: float = DEFAULT_TRACE_PI,
+        purity: float = DEFAULT_TRACE_PURITY,
     ) -> TraceOptions:
         """Instantiate with default values."""
         return TraceOptions(
             use_sim=use_sim,
-            pi=pi,
+            purity=purity,
         )
 
 
@@ -348,27 +399,29 @@ class InstanceSpaceOptions:
 
     @staticmethod
     def from_dict(file_contents: dict[str, Any]) -> InstanceSpaceOptions:
-        """Load configuration options from a JSON file into an object.
+        """
+        Load configuration options from a JSON file into an object.
 
         This function reads a JSON file from `filepath`, checks for expected
         top-level fields as defined in InstanceSpaceOptions, initializes each part of
         the InstanceSpaceOptions with data from the file, and sets missing optional
         fields using their default values.
 
-        Args
-        ----------
+        Args:
+        ----
         file_contents
             Content of the dict with configuration options.
 
-        Returns
+        Returns:
         -------
         InstanceSpaceOptions
             InstanceSpaceOptions object populated with data from the file.
 
-        Raises
+        Raises:
         ------
         ValueError
             If the JSON file contains undefined sub options.
+
         """
         # Validate if the top-level fields match those in the InstanceSpaceOptions class
         options_fields = {f.name for f in fields(InstanceSpaceOptions)}
@@ -434,11 +487,13 @@ class InstanceSpaceOptions:
         )
 
     def to_file(self: Self, filepath: Path) -> None:
-        """Store options in a file from an InstanceSpaceOptions object.
+        """
+        Store options in a file from an InstanceSpaceOptions object.
 
         Returns
         -------
         The options object serialised into a string.
+
         """
         raise NotImplementedError
 
@@ -491,16 +546,17 @@ class InstanceSpaceOptions:
 
     @staticmethod
     def _validate_fields(data_class: type[T], data: dict[str, Any]) -> None:
-        """Validate all keys in the provided dictionary are valid fields in dataclass.
+        """
+        Validate all keys in the provided dictionary are valid fields in dataclass.
 
-        Args
-        ----------
+        Args:
+        ----
         data_class : type[T]
             The dataclass type to validate against.
         data : dict
             The dictionary whose keys are to be validated.
 
-        Raises
+        Raises:
         ------
         ValueError
             If an undefined field is found in the dictionary or
@@ -519,28 +575,30 @@ class InstanceSpaceOptions:
 
     @staticmethod
     def _load_dataclass(data_class: type[T], data: dict[str, Any]) -> T:
-        """Load data into a dataclass from a dictionary.
+        """
+        Load data into a dataclass from a dictionary.
 
         Ensures all dictionary keys match dataclass fields and fills in fields
         with available data. If a field is missing in the dictionary, the default
         value from the dataclass is used.
 
-        Args
-        ----------
+        Args:
+        ----
         data_class : type[T]
             The dataclass type to populate.
         data : dict
             Dictionary containing data to load into the dataclass.
 
-        Returns
+        Returns:
         -------
         T
             An instance of the dataclass populated with data.
 
-        Raises
+        Raises:
         ------
         ValueError
             If the dictionary contains keys that are not valid fields in the dataclass.
+
         """
         # Get the default values for the dataclass fields
         default_values = {
@@ -583,20 +641,21 @@ class PrelimOptions:
 
 
 def from_json_file(file_path: Path) -> InstanceSpaceOptions | None:
-    """Parse options from a JSON file and construct an InstanceSpaceOptions object.
+    """
+    Parse options from a JSON file and construct an InstanceSpaceOptions object.
 
-    Args
+    Args:
     ----
     file_path : Path
         The path to the JSON file containing the options.
 
-    Returns
+    Returns:
     -------
     InstanceSpaceOptions or None
         An InstanceSpaceOptions object constructed from the parsed JSON data, or None
         if an error occurred during file reading or parsing.
 
-    Raises
+    Raises:
     ------
     FileNotFoundError
         If the specified file does not exist.
@@ -606,6 +665,7 @@ def from_json_file(file_path: Path) -> InstanceSpaceOptions | None:
         If an I/O error occurred while reading the file.
     ValueError
         If the parsed JSON data contains invalid options.
+
     """
     try:
         with file_path.open() as o:
