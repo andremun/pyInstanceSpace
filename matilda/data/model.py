@@ -128,13 +128,12 @@ class PrelimOut:
 class SiftedOut:
     """Results of the sifting process in the data analysis pipeline."""
 
-    flag: int  # not sure datatype, confirm it later
-    rho: np.double
-    k: int
-    n_trees: int
-    max_lter: int
-    replicates: int
-    idx: NDArray[np.int_]
+    selvars: NDArray[np.intc]
+    idx: NDArray[np.intc]
+    rho: NDArray[np.double] | None
+    pval: NDArray[np.double] | None
+    silhouette_scores: list[float] | None
+    clust: NDArray[np.bool_] | None
 
     T = TypeVar("T", bound="SiftedOut")
 
