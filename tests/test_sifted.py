@@ -25,17 +25,75 @@ from numpy.typing import NDArray
 
 from matilda.data.options import SiftedOptions, SelvarsOptions
 from matilda.stages.sifted import Sifted
+from matilda.stages.prelim_stage import DataDense
 
-# prepare input required for testing
+
 script_dir = Path(__file__).parent
-csv_path_x = script_dir / "test_data/sifted/input/0-input_X.csv"
-csv_path_y = script_dir / "test_data/sifted/input/0-input_Y.csv"
-csv_path_ybin = script_dir / "test_data/sifted/input/0-input_Ybin.csv"
-csv_path_feat_labels = script_dir / "test_data/sifted/input/0-input_featlabels.csv"
+
+# Define the paths to the standard data CSV files
+csv_path_x = script_dir / "test_data/sifted/input/input_X.csv"
+csv_path_y = script_dir / "test_data/sifted/input/input_Y.csv"
+csv_path_ybin = script_dir / "test_data/sifted/input/input_Ybin.csv"
+csv_path_xraw = script_dir / "test_data/sifted/input/input_Xraw.csv"
+csv_path_yraw = script_dir / "test_data/sifted/input/input_Yraw.csv"
+csv_path_beta = script_dir / "test_data/sifted/input/input_beta.csv"
+csv_path_num_good_algos = script_dir / "test_data/sifted/input/input_numGoodAlgos.csv"
+csv_path_y_best = script_dir / "test_data/sifted/input/input_Ybest.csv"
+csv_path_p = script_dir / "test_data/sifted/input/input_P.csv"
+csv_path_inst_labels = script_dir / "test_data/sifted/input/input_instlabels.csv"
+csv_path_feat_labels = script_dir / "test_data/sifted/input/input_featlabels.csv"
+
+# Define the paths to the data dense CSV files
+csv_path_dense_x = script_dir / "test_data/sifted/input/input_dense_X.csv"
+csv_path_dense_y = script_dir / "test_data/sifted/input/input_dense_Y.csv"
+csv_path_dense_ybin = script_dir / "test_data/sifted/input/input_dense_Ybin.csv"
+csv_path_dense_xraw = script_dir / "test_data/sifted/input/input_dense_Xraw.csv"
+csv_path_dense_yraw = script_dir / "test_data/sifted/input/input_dense_Yraw.csv"
+csv_path_dense_beta = script_dir / "test_data/sifted/input/input_dense_beta.csv"
+csv_path_dense_num_good_algos = script_dir / "test_data/sifted/input/input_dense_numGoodAlgos.csv"
+csv_path_dense_y_best = script_dir / "test_data/sifted/input/input_dense_Ybest.csv"
+csv_path_dense_p = script_dir / "test_data/sifted/input/input_dense_P.csv"
+csv_path_dense_inst_labels = script_dir / "test_data/sifted/input/input_dense_instlabels.csv"
+
+# Load the data from the standard data CSV files
 input_x = np.genfromtxt(csv_path_x, delimiter=",")
 input_y = np.genfromtxt(csv_path_y, delimiter=",")
 input_ybin = np.genfromtxt(csv_path_ybin, delimiter=",")
+input_xraw = np.genfromtxt(csv_path_xraw, delimiter=",")
+input_yraw = np.genfromtxt(csv_path_yraw, delimiter=",")
+input_beta = np.genfromtxt(csv_path_beta, delimiter=",")
+input_num_good_algos = np.genfromtxt(csv_path_num_good_algos, delimiter=",")
+input_y_best = np.genfromtxt(csv_path_y_best, delimiter=",")
+input_p = np.genfromtxt(csv_path_p, delimiter=",")
+input_inst_labels = np.genfromtxt(csv_path_inst_labels, delimiter=",", dtype=str).tolist()
 feat_labels = np.genfromtxt(csv_path_feat_labels, delimiter=",", dtype=str).tolist()
+
+# Load the data from the dense CSV files
+input_dense_x = np.genfromtxt(csv_path_dense_x, delimiter=",")
+input_dense_y = np.genfromtxt(csv_path_dense_y, delimiter=",")
+input_dense_ybin = np.genfromtxt(csv_path_dense_ybin, delimiter=",")
+input_dense_xraw = np.genfromtxt(csv_path_dense_xraw, delimiter=",")
+input_dense_yraw = np.genfromtxt(csv_path_dense_yraw, delimiter=",")
+input_dense_beta = np.genfromtxt(csv_path_dense_beta, delimiter=",")
+input_dense_num_good_algos = np.genfromtxt(csv_path_dense_num_good_algos, delimiter=",")
+input_dense_y_best = np.genfromtxt(csv_path_dense_y_best, delimiter=",")
+input_dense_p = np.genfromtxt(csv_path_dense_p, delimiter=",")
+input_dense_inst_labels = np.genfromtxt(csv_path_dense_inst_labels, delimiter=",", dtype=str).tolist()
+
+data_dense = DataDense(
+    x_data_dense=input_dense_x,
+    y_data_dense=input_dense_y,
+    x_raw_data_dense=input_dense_xraw,
+    y_raw_data_dense=input_dense_yraw,
+    y_bin_data_dense=input_dense_ybin,
+    y_best_data_dense=input_dense_y_best,
+    p_data_dense=input_dense_p,
+    num_good_algos_data_dense=input_dense_num_good_algos,
+    beta_data_dense=input_dense_beta,
+    inst_labels_data_dense=input_dense_inst_labels,
+    s_data_dense=None  
+)
+
 opts = SiftedOptions.default()
 opts_selvar = SelvarsOptions.default()
 
