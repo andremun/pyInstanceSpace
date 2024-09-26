@@ -22,7 +22,7 @@ from matilda.stages.preprocessing_stage import PreprocessingStage
 from matilda.stages.pythia_stage import PythiaStage
 from matilda.stages.sifted_stage import SiftedStage
 from matilda.stages.stage import IN, OUT, Stage, StageClass
-from matilda.stages.trace_stage import TraceStage
+from matilda.stages.trace import TraceStage
 
 
 class InstanceSpace:

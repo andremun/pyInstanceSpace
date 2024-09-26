@@ -14,7 +14,7 @@ import pandas as pd
 from pandas.testing import assert_frame_equal
 
 from matilda.data.options import TraceOptions
-from matilda.stages.trace_stage import TraceInputs, TraceOutputs, TraceStage
+from matilda.stages.trace import TraceInputs, TraceOutputs, TraceStage
 
 
 def test_trace_pythia() -> None:
@@ -89,7 +89,6 @@ def test_trace_pythia() -> None:
     trace_options = TraceOptions(True, 0.55)
 
     # Initialising and running the TRACE analysis
-    trace = TraceStage()
     trace_inputs: TraceInputs = TraceInputs(
         z,
         p1.astype(np.double),
@@ -101,7 +100,7 @@ def test_trace_pythia() -> None:
         trace_options,
     )
 
-    trace_output: TraceOutputs = trace._run(trace_inputs)
+    trace_output: TraceOutputs = TraceStage._run(trace_inputs)
 
     correct_result_path = main_dir / "test_data/trace_csvs/correct_results_pythia.csv"
     expected_output = pd.read_csv(correct_result_path)
@@ -184,7 +183,6 @@ def test_trace_simulation() -> None:
     trace_options = TraceOptions(False, 0.55)
 
     # Initialising and running the TRACE analysis
-    trace = TraceStage()
     trace_inputs: TraceInputs = TraceInputs(
         z,
         p1.astype(np.double),
@@ -196,7 +194,7 @@ def test_trace_simulation() -> None:
         trace_options,
     )
 
-    trace_output: TraceOutputs = trace._run(trace_inputs)
+    trace_output: TraceOutputs = TraceStage._run(trace_inputs)
     correct_result_path = (
         script_dir / "test_data/trace_csvs/correct_results_simulation.csv"
     )
