@@ -156,13 +156,12 @@ class SiftedOut:
             SiftedOut: a SiftedOut object
         """
         return cls(
-            flag=stage_runner_output["flag"],
-            rho=stage_runner_output["rho"],
-            k=stage_runner_output["k"],
-            n_trees=stage_runner_output["n_trees"],
-            max_lter=stage_runner_output["max_lter"],
-            replicates=stage_runner_output["replicates"],
+            selvars=stage_runner_output["selvars"],
             idx=stage_runner_output["idx"],
+            rho=stage_runner_output["rho"],
+            pval=stage_runner_output["pval"],
+            silhouette_scores=stage_runner_output["silhouette_scores"],
+            clust=stage_runner_output["clust"],
         )
 
 

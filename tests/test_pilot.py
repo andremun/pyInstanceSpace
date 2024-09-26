@@ -19,7 +19,7 @@ import numpy as np
 from scipy.io import loadmat
 
 from matilda.data.options import PilotOptions
-from matilda.stages.pilot import Pilot
+from matilda.stages.pilot import PilotStage
 
 script_dir = Path(__file__).parent
 
@@ -95,7 +95,7 @@ def test_run_analytic() -> None:
     y_sample = sd.y_sample
     feat_labels_sample = sd.feat_labels_sample
     opts = PilotOptions(None, None, True, 5)
-    pilot = Pilot(x_sample, y_sample, feat_labels_sample)
+    pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
     result = pilot.pilot(x_sample, y_sample, feat_labels_sample, opts)
 
     a = result[4]
@@ -121,7 +121,7 @@ def test_run_numerical() -> None:
     feat_labels_sample = sd.feat_labels_sample
     opts_sample = sd.opts_sample
     opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
-    pilot = Pilot(x_sample, y_sample, feat_labels_sample)
+    pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
     result = pilot.pilot(x_sample, y_sample, feat_labels_sample, opts)
     eoptim = result[2]
     perf = result[3]

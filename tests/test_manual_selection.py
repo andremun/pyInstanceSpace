@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 from matilda.data.options import (
     SelvarsOptions,
@@ -32,8 +33,10 @@ def test_manual_selection() -> None:
     large_y = rng.random((100, 5))  # 100 rows, 5 features (columns)
 
     selvars = SelvarsOptions.default(
-        feats=["feature1", "feature3", "feature5", "feature7", "feature9"],
-        algos=["algo1", "algo3"],
+        feats=pd.DataFrame(
+            ["feature1", "feature3", "feature5", "feature7", "feature9"],
+        ),
+        algos=pd.DataFrame(["algo1", "algo3"]),
     )
 
     feat_labels = [f"feature{i}" for i in range(10)]
@@ -84,8 +87,8 @@ def test_manual_wrong_names() -> None:
     large_y = rng.random((100, 5))  # 100 rows, 5 features (columns)
 
     selvars = SelvarsOptions.default(
-        feats=["feature1", "feature3", "feature5", "featu", "feature9"],
-        algos=["al", "algo3"],
+        feats=pd.DataFrame(["feature1", "feature3", "feature5", "featu", "feature9"]),
+        algos=pd.DataFrame(["al", "algo3"]),
     )
 
     feat_labels = [f"feature{i}" for i in range(10)]
@@ -134,7 +137,7 @@ def test_manual_none_feats_empty_algo() -> None:
     large_y = rng.random((100, 5))  # 100 rows, 5 features (columns)
 
     selvars = SelvarsOptions.default(
-        algos=[],
+        algos=pd.DataFrame([]),
     )
 
     feat_labels = [f"feature{i}" for i in range(10)]
@@ -178,7 +181,7 @@ def test_manual_empty_feats_none_algo() -> None:
     large_y = rng.random((100, 5))  # 100 rows, 5 features (columns)
 
     selvars = SelvarsOptions.default(
-        feats=[],
+        feats=pd.DataFrame([]),
     )
     feat_labels = [f"feature{i}" for i in range(10)]
     algo_labels = [f"algo{i}" for i in range(5)]

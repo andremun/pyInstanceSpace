@@ -20,7 +20,7 @@ from matilda.data.options import PilotOptions
 from matilda.stages.stage import Stage
 
 
-class Pilot(Stage):
+class PilotStage(Stage):
     """Class for PILOT stage."""
 
     def __init__(

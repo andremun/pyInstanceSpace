@@ -5,7 +5,6 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Any, NamedTuple
 
-from matilda._serialisers import save_instance_space_for_web, save_instance_space_to_csv
 from matilda.data.metadata import Metadata, from_csv_file
 from matilda.data.options import InstanceSpaceOptions, from_json_file
 from matilda.model import Model

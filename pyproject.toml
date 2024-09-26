@@ -182,6 +182,7 @@ module = [
     'skopt.space',
     'sklearn.model_selection',
     'pygad',
+    'shapely',
     'shapely.ops' ,
     'scipy.special' ,
     'sklearn.cluster',

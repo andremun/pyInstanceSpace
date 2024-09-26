@@ -9,7 +9,6 @@ outlier detection and removal, and binary performance classification. These task
 guided by the options specified in the `InstanceSpaceOptions` object.
 """
 
-from dataclasses import dataclass
 from pathlib import Path
 from types import UnionType
 
