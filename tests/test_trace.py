@@ -99,8 +99,7 @@ def test_trace_pythia() -> None:
         y_bin2,
         trace_options,
     )
-
-    trace_output: TraceOutputs = TraceStage._run(trace_inputs)
+    trace_output: TraceOutputs = TraceStage._run(trace_inputs)  # noqa: SLF001
 
     correct_result_path = main_dir / "test_data/trace_csvs/correct_results_pythia.csv"
     expected_output = pd.read_csv(correct_result_path)
@@ -193,8 +192,7 @@ def test_trace_simulation() -> None:
         y_bin2,
         trace_options,
     )
-
-    trace_output: TraceOutputs = TraceStage._run(trace_inputs)
+    trace_output: TraceOutputs = TraceStage._run(trace_inputs)  # noqa: SLF001
     correct_result_path = (
         script_dir / "test_data/trace_csvs/correct_results_simulation.csv"
     )

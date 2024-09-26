@@ -281,15 +281,15 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 The results of the trace stage
         """
         print(
-            "=========================================================================",
+            "========================================================================",
         )
         print("-> Calling TRACE to perform the footprint analysis.")
         print(
-            "=========================================================================",
+            "========================================================================",
         )
 
         if inputs.trace_options.use_sim:
-            print("  -> TRACE will use PYTHIA" "s results to calculate the footprints.")
+            print("  -> TRACE will use PYTHIA's results to calculate the footprints.")
             return TraceStage.trace(
                 inputs.z,
                 inputs.y_bin_pythia,
@@ -343,7 +343,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             the calculated footprints and summary statistics.
         """
         trace = TraceStage(z, y_bin, p, beta, algo_labels, opts)
-        return trace._trace()
+        return trace._trace()  # noqa: SLF001
 
     def _trace(self) -> TraceOutputs:
         """Perform the TRACE footprint analysis.
