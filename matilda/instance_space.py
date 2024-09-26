@@ -5,7 +5,6 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Any, NamedTuple
 
-from matilda._serialisers import save_instance_space_for_web, save_instance_space_to_csv
 from matilda.data.metadata import Metadata, from_csv_file
 from matilda.data.options import InstanceSpaceOptions, from_json_file
 from matilda.model import Model
@@ -17,7 +16,7 @@ from matilda.stage_runner import (
     StageRunningError,
 )
 from matilda.stages.cloister import CloisterStage
-from matilda.stages.pilot import PilotStage
+from matilda.stages.pilot import Pilot
 from matilda.stages.prelim_stage import PrelimStage
 from matilda.stages.preprocessing_stage import PreprocessingStage
 from matilda.stages.pythia import PythiaStage

@@ -644,8 +644,7 @@ class PythiaStage(Stage):
         y_hat: NDArray[np.bool_],
         y_bin: NDArray[np.bool_],
     ) -> tuple[NDArray[np.integer], NDArray[np.integer]]:
-        """
-        Determine the selections based on the predicted labels and precision.
+        """Determine the selections based on the predicted labels and precision.
 
         Parameters
         ----------
