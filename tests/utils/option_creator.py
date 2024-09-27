@@ -6,8 +6,6 @@ Examples
 >>> options = create_option(cloister=cloister_opt)
 """
 
-import pandas as pd
-
 from matilda.data.options import (
     AutoOptions,
     BoundOptions,
@@ -39,8 +37,8 @@ default_selvars = SelvarsOptions(
     small_scale=0.5,
     file_idx_flag=False,
     file_idx="",
-    feats=pd.get_dummies(pd.Series(list("abc")), dtype=float),
-    algos=pd.get_dummies(pd.Series(list("abc")), dtype=float),
+    feats=list("abc"),
+    algos=list("abc"),
     selvars_type="Ftr&Good",
     density_flag=False,
     min_distance=0.1,

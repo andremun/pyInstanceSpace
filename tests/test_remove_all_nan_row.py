@@ -370,3 +370,11 @@ def test_duplicated_data() -> None:
     assert new_s.tolist() == [
         "string" + str(i) for i in range(10)
     ], "s content not right"
+"""
+Contains test cases for the remove_instances_with_many_missing_values function.
+
+These testing codes are tested by artificial data
+(the data that I generated, rather than read from CSV)
+and check against with the logic of original codes of BuildIS
+
+"""
