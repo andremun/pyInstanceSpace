@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from matilda.stages.preprocessing_stage import PreprocessingStage
+from matilda.stages.preprocessing import Preprocessing
 
 path_root = Path(__file__).parents[1]
 sys.path.append(str(path_root))
@@ -43,7 +43,7 @@ def test_remove_instances_with_two_row_missing() -> None:
     feat_labels = [f"feature{i}" for i in range(10)]
 
     new_x, new_y, new_inst_labels, new_feat_labels, _ = (
-        PreprocessingStage.remove_instances_with_many_missing_values(
+        Preprocessing.remove_instances_with_many_missing_values(
             x=large_x,
             y=large_y,
             inst_labels=inst_labels,
@@ -106,7 +106,7 @@ def test_remove_instances_with_3_row_missing() -> None:
     s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
 
     new_x, new_y, new_inst_labels, new_feat_labels, new_s = (
-        PreprocessingStage.remove_instances_with_many_missing_values(
+        Preprocessing.remove_instances_with_many_missing_values(
             x=large_x,
             y=large_y,
             inst_labels=inst_labels,
@@ -171,7 +171,7 @@ def test_remove_instances_keep_same() -> None:
     s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
 
     new_x, new_y, new_inst_labels, new_feat_labels, new_s = (
-        PreprocessingStage.remove_instances_with_many_missing_values(
+        Preprocessing.remove_instances_with_many_missing_values(
             x=large_x,
             y=large_y,
             inst_labels=inst_labels,
@@ -251,7 +251,7 @@ def test_duplicated_data_edge() -> None:
     s = pd.Series(["source" + str(i) for i in range(10)])  # Generate content for s
 
     new_x, new_y, new_inst_labels, new_feat_labels, new_s = (
-        PreprocessingStage.remove_instances_with_many_missing_values(
+        Preprocessing.remove_instances_with_many_missing_values(
             x=large_x,
             y=large_y,
             inst_labels=inst_labels,
@@ -326,7 +326,7 @@ def test_duplicated_data() -> None:
     feat_labels = [f"feature{i}" for i in range(10)]
 
     new_x, new_y, new_inst_labels, new_feat_labels, new_s = (
-        PreprocessingStage.remove_instances_with_many_missing_values(
+        Preprocessing.remove_instances_with_many_missing_values(
             x=large_x,
             y=large_y,
             inst_labels=inst_labels,
