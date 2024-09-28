@@ -140,7 +140,7 @@ class PilotStage(Stage):
             pd.DataFrame
 
         """
-        return Pilot.pilot(self.x, self.y, self.feat_labels, options)
+        return PilotStage.pilot(self.x, self.y, self.feat_labels, options)
 
     @staticmethod
     def pilot(
@@ -214,7 +214,7 @@ class PilotStage(Stage):
 
         # Analytical solution
         if options.analytic:
-            out_a, out_z, out_c, out_b, error, r2 = Pilot.analytic_solve(
+            out_a, out_z, out_c, out_b, error, r2 = PilotStage.analytic_solve(
                 x,
                 x_bar,
                 n,
@@ -242,7 +242,7 @@ class PilotStage(Stage):
                 eoptim = np.zeros(options.n_tries)
                 perf = np.zeros(options.n_tries)
 
-                idx, alpha, eoptim, perf = Pilot.numerical_solve(
+                idx, alpha, eoptim, perf = PilotStage.numerical_solve(
                     x,
                     hd,
                     x0,
@@ -478,7 +478,7 @@ class PilotStage(Stage):
         for i in range(opts.n_tries):
             initial_guess = x0[:, i]
             result = optim.fmin_bfgs(
-                Pilot.error_function,
+                PilotStage.error_function,
                 initial_guess,
                 args=(x_bar, n, m),
                 full_output=True,
