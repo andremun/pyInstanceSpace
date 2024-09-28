@@ -18,7 +18,7 @@ from sklearn.model_selection import KFold, cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
 
 from matilda.data.model import SiftedDataChanged, SiftedOut
-from matilda.data.options import PilotOptions, SiftedOptions
+from matilda.data.options import ParallelOptions, PilotOptions, SiftedOptions
 from matilda.stages.pilot import Pilot
 
 
@@ -49,6 +49,7 @@ class Sifted:
     y_bin: NDArray[np.bool_]
     feat_labels: NDArray[np.str_]
     opts: SiftedOptions
+    par_opts: ParallelOptions
 
     def __init__(
         self,
@@ -57,6 +58,7 @@ class Sifted:
         y_bin: NDArray[np.bool_],
         feat_labels: list[str],
         opts: SiftedOptions,
+        par_opts: ParallelOptions,
     ) -> None:
         """Initialize the Sifted stage.
 
@@ -72,12 +74,15 @@ class Sifted:
             List of feature labels.
         opts : SiftedOptions
             Sifted options used for processing.
+        par_opts : ParallelOptions
+            An instance of ParallelOptions containing parallel processing parameters.
         """
         self.x = x
         self.y = y
         self.y_bin = y_bin
         self.feat_labels = np.array(feat_labels)
         self.opts = opts
+        self.par_opts = par_opts
 
     @staticmethod
     def run(
@@ -86,6 +91,7 @@ class Sifted:
         y_bin: NDArray[np.bool_],
         feat_labels: list[str],
         opts: SiftedOptions,
+        par_opts: ParallelOptions,
     ) -> tuple[SiftedDataChanged, SiftedOut]:
         """Process data matrices and options to produce a sifted dataset.
 
@@ -101,6 +107,8 @@ class Sifted:
             List of feature labels.
         opts : SiftedOptions
             An instance of SiftedOptions containing processing parameters.
+        par_opts : ParallelOptions
+            An instance of ParallelOptions containing parallel processing parameters.
 
         Returns
         -------
@@ -110,7 +118,14 @@ class Sifted:
             Output data from the Sifted stage including selected features and
             performance metrics.
         """
-        sifted = Sifted(x=x, y=y, y_bin=y_bin, feat_labels=feat_labels, opts=opts)
+        sifted = Sifted(
+            x=x,
+            y=y,
+            y_bin=y_bin,
+            feat_labels=feat_labels,
+            opts=opts,
+            par_opts=par_opts,
+        )
 
         nfeats = x.shape[1]
         idx = np.arange(nfeats)
@@ -378,7 +393,7 @@ class Sifted:
             init_range_low=1,
             init_range_high=x_aux.shape[1],
             save_solutions=True,
-            parallel_processing=["process", 20],
+            parallel_processing=["process", self.par_opts.n_cores],
         )
 
         ga_instance.selfx = self.x

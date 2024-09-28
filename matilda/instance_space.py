@@ -170,6 +170,7 @@ class InstanceSpace:
             self._prelim_state.data.y_bin,
             self._prelim_state.data.feat_labels,
             self._options.sifted,
+            self._options.parallel,
         )
 
         self._sifted_state = StageState[SiftedOut](
