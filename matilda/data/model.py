@@ -12,7 +12,7 @@ from typing import Any, Generic, TypeVar
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from shapely.geometry import Polygon
+from shapely.geometry import MultiPoint, Polygon
 
 
 @dataclass(frozen=True)
@@ -31,7 +31,7 @@ class Data:
     p: NDArray[np.double]
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
-    s: set[str] | None
+    s: pd.Series | None  # type: ignore[type-arg]
     uniformity: float | None
 
 
@@ -61,6 +61,25 @@ class AlgorithmSummary:
     cv_model_recall: float | None
     box_constraint: float | None
     kernel_scale: float | None
+
+
+@dataclass(frozen=True)
+class PreprocessingOut:
+    """Holds preprocessed data."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class PreprocessingDataChanged:
+    """The fields of Data that the preprocessing stage changes."""
+
+    inst_labels: pd.Series  # type: ignore[type-arg]
+    feat_labels: list[str]
+    algo_labels: list[str]
+    x: NDArray[np.double]
+    y: NDArray[np.double]
+    s: pd.Series | None  # type: ignore[type-arg]
 
 
 @dataclass(frozen=True)
@@ -248,40 +267,76 @@ class Footprint:
 
     Attributes:
     ----------
-    polygon : Polygon
+    polygon : Polygon | None
         The geometric shape of the footprint.
     area : float
         The area of the footprint.
     elements : int
         The number of data points within the footprint.
     good_elements : int
-        The number of "good" data points within the footprint (as defined by specific
-        criteria).
+        The number of "good" data points within the footprint.
     density : float
         The density of points within the footprint.
     purity : float
         The purity of "good" elements in relation to all elements in the footprint.
     """
 
-    polygon: Polygon
+    polygon: Polygon | None
     area: float
     elements: int
     good_elements: int
     density: float
     purity: float
 
-    def __init__(self, polygon: Polygon) -> None:
-        """Initialise a Footprint."""
-        # This is a kinda hacky way to get around the frozen problem.
-        # A nicer way would be a static method to construct it from a polygon rust style
-        # from_polygon().
+    @classmethod
+    def from_polygon(
+        cls: type["Footprint"],
+        polygon: Polygon | None,
+        z: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        smoothen: bool = False,
+    ) -> "Footprint":
+        """Create a Footprint object based on the given polygon.
 
-        object.__setattr__(self, "polygon", polygon if polygon else None)
-        object.__setattr__(self, "area", self.polygon.area if polygon else None)
-        object.__setattr__(self, "elements", 0)
-        object.__setattr__(self, "good_elements", 0)
-        object.__setattr__(self, "density", 0)
-        object.__setattr__(self, "purity", 0)
+        Parameters:
+        ----------
+        polygon : Polygon
+            The polygon to create the footprint from.
+        z : NDArray[np.double]
+            The space of instances, represented as an array of data points (features).
+        y_bin : NDArray[np.bool_]
+            Binary array indicating the points corresponding to the footprint.
+        smoothen : bool, optional
+            Indicates if the polygon borders need to be smoothened, by default False.
+
+        Returns:
+        -------
+        Footprint:
+            The created footprint, or an empty one if the polygon is empty.
+        """
+        if polygon is None:
+            return cls(None, 0, 0, 0, 0, 0)
+
+        if smoothen:
+            polygon = polygon.buffer(0.01).buffer(-0.01)
+
+        elements = np.sum(
+            [polygon.contains(point) for point in MultiPoint(z).geoms],
+        )
+        good_elements = np.sum(
+            [polygon.contains(point) for point in MultiPoint(z[y_bin]).geoms],
+        )
+        density = elements / polygon.area if polygon.area != 0 else 0
+        purity = good_elements / elements if elements != 0 else 0
+
+        return cls(
+            polygon=polygon,
+            area=polygon.area,
+            elements=elements,
+            good_elements=good_elements,
+            density=density,
+            purity=purity,
+        )
 
 
 @dataclass(frozen=True)

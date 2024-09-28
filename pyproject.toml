@@ -6,6 +6,8 @@ authors = [
     "Your Name <you@example.com>",
     "Kushagra Khare <kharek@student.unimelb.edu.au>",
     "Nathan Harvey <nhharvey@student.unimelb.edu.au>",
+    "Yusuf Berdan Güzel <yguzel@student.unimelb.edu.au>",
+
 ]
 readme = "README.md"
 
@@ -21,6 +23,7 @@ scipy = "^1.13.0"
 pygad = "^3.3.1"
 shapely = "^2.0.5"
 matplotlib = "^3.9.2"
+alphashape = "^1.3.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1.1"
@@ -173,5 +176,9 @@ module = [
     'scipy.optimize',
     'scipy.io',
     'pygad',
+    'shapely.ops' ,
+    'scipy.special' ,
+    'sklearn.cluster',
+    'alphashape'
 ]
 ignore_missing_imports = 'True'

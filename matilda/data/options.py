@@ -11,8 +11,6 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Self, TypeVar
 
-import pandas as pd
-
 from matilda.data.default_options import (
     DEFAULT_AUTO_PREPROC,
     DEFAULT_BOUND_FLAG,
@@ -58,7 +56,7 @@ from matilda.data.default_options import (
     DEFAULT_SIFTED_RHO,
     DEFAULT_SIFTED_SOL_PER_POP,
     DEFAULT_SIFTED_STOP_CRITERIA,
-    DEFAULT_TRACE_PI,
+    DEFAULT_TRACE_PURITY,
     DEFAULT_TRACE_USE_SIM,
 )
 
@@ -173,8 +171,8 @@ class SelvarsOptions:
     small_scale: float
     file_idx_flag: bool
     file_idx: str
-    feats: pd.DataFrame | None
-    algos: pd.DataFrame | None
+    feats: list[str] | None
+    algos: list[str] | None
     selvars_type: str
     min_distance: float
     density_flag: bool
@@ -185,8 +183,8 @@ class SelvarsOptions:
         small_scale: float = DEFAULT_SELVARS_SMALL_SCALE,
         file_idx_flag: bool = DEFAULT_SELVARS_FILE_IDX_FLAG,
         file_idx: str = DEFAULT_SELVARS_FILE_IDX,
-        feats: pd.DataFrame | None = None,
-        algos: pd.DataFrame | None = None,
+        feats: list[str] | None = None,
+        algos: list[str] | None = None,
         selvars_type: str = DEFAULT_SELVARS_TYPE,
         min_distance: float = DEFAULT_SELVARS_MIN_DISTANCE,
         density_flag: bool = DEFAULT_SELVARS_DENSITY_FLAG,
@@ -337,17 +335,17 @@ class TraceOptions:
     """Options for trace analysis in the model."""
 
     use_sim: bool
-    pi: float
+    purity: float
 
     @staticmethod
     def default(
         use_sim: bool = DEFAULT_TRACE_USE_SIM,
-        pi: float = DEFAULT_TRACE_PI,
+        purity: float = DEFAULT_TRACE_PURITY,
     ) -> TraceOptions:
         """Instantiate with default values."""
         return TraceOptions(
             use_sim=use_sim,
-            pi=pi,
+            purity=purity,
         )
 
 
