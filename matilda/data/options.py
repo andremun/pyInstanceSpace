@@ -1,5 +1,4 @@
-"""
-Defines a collection of data classes that represent configuration options.
+"""Defines a collection of data classes that represent configuration options.
 
 These classes provide a structured way to specify and manage settings for different
 aspects of the model's execution and behaviour.
@@ -11,6 +10,9 @@ import json
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Self, TypeVar
+
+import numpy as np
+from numpy.typing import NDArray
 
 from matilda.data.default_options import (
     DEFAULT_AUTO_PREPROC,
@@ -63,8 +65,7 @@ from matilda.data.default_options import (
 
 
 class MissingOptionsError(Exception):
-    """
-    A required option wasn't set.
+    """A required option wasn't set.
 
     An error raised when a stage is ran that requires an option to be set, and the
     option isn't present.
@@ -395,8 +396,7 @@ class InstanceSpaceOptions:
 
     @staticmethod
     def from_dict(file_contents: dict[str, Any]) -> InstanceSpaceOptions:
-        """
-        Load configuration options from a JSON file into an object.
+        """Load configuration options from a JSON file into an object.
 
         This function reads a JSON file from `filepath`, checks for expected
         top-level fields as defined in InstanceSpaceOptions, initializes each part of
@@ -483,8 +483,7 @@ class InstanceSpaceOptions:
         )
 
     def to_file(self: Self, filepath: Path) -> None:
-        """
-        Store options in a file from an InstanceSpaceOptions object.
+        """Store options in a file from an InstanceSpaceOptions object.
 
         Returns
         -------
@@ -571,8 +570,7 @@ class InstanceSpaceOptions:
 
     @staticmethod
     def _load_dataclass(data_class: type[T], data: dict[str, Any]) -> T:
-        """
-        Load data into a dataclass from a dictionary.
+        """Load data into a dataclass from a dictionary.
 
         Ensures all dictionary keys match dataclass fields and fills in fields
         with available data. If a field is missing in the dictionary, the default
@@ -637,8 +635,7 @@ class PrelimOptions:
 
 
 def from_json_file(file_path: Path) -> InstanceSpaceOptions | None:
-    """
-    Parse options from a JSON file and construct an InstanceSpaceOptions object.
+    """Parse options from a JSON file and construct an InstanceSpaceOptions object.
 
     Args:
     ----
