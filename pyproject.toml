@@ -175,26 +175,16 @@ module = [
     'scipy.linalg',
     'scipy.optimize',
     'scipy.io',
-<<<<<<< HEAD
-<<<<<<< HEAD
     'pygad',
-=======
-=======
->>>>>>> 130-scaffold-all-stages-for-stage-overhaul
     'sklearn.metrics',
     'sklearn.model_selection',
     'sklearn.svm',
     'skopt',
     'skopt.space',
     'sklearn.model_selection',
-<<<<<<< HEAD
->>>>>>> 130-scaffold-all-stages-for-stage-overhaul
-=======
-    'pygad',
     'shapely.ops' ,
     'scipy.special' ,
     'sklearn.cluster',
     'alphashape'
->>>>>>> 130-scaffold-all-stages-for-stage-overhaul
 ]
 ignore_missing_imports = 'True'
