@@ -262,6 +262,7 @@ class Sifted(Stage):
             Boolean array indicating whether features were selected or not.
         """
         return self.sifted(
+            self,
             x = self.x,
             y = self.y,
             y_bin = self.y_bin,
@@ -418,6 +419,7 @@ class Sifted(Stage):
 
         x_aux, selvars = self._find_best_combination(x_aux, clust, selvars, rng)
         
+        print(f"Bydensity value is : {bydensity}")
         # Run filter for small experiment 
         if bydensity:
             subset_index, _, _, _ = Filter(
@@ -626,14 +628,12 @@ class Sifted(Stage):
                 selected = aux[value % aux.size]
                 idx[selected] = True
 
-            _, out = Pilot.run(
+            _, _, _, _, _, z, _, _, _, _, _ = Pilot.pilot(
                 self.x[:, idx],
                 self.y,
                 self.feat_labels[idx].tolist(),
                 PilotOptions.default(),
             )
-
-            z = out.z
 
             y = -np.inf
             for i in range(self.y.shape[1]):

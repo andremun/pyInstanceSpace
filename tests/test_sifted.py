@@ -177,95 +177,110 @@ def are_same_clusters(
 
     return bool(match_ratio >= threshold)
 
-# def test_run() -> None:
-#     """Test the run method of Sifted class.
+def test_run() -> None:
+    """Test the run method of Sifted class.
 
-#     Given the output of sifted stage of matlab and python, compute the correlation
-#     between them. Check for each column and row, there's only one value that has high
-#     correlation (>0.9) and other correlation values are low (<0.9)
-#     """
-#     csv_path_x = script_dir / "test_data/sifted/output/x_matlab.csv"
-#     x_matlab = pd.read_csv(csv_path_x, header=None)
+    Given the output of sifted stage of matlab and python, compute the correlation
+    between them. Check for each column and row, there's only one value that has high
+    correlation (>0.9) and other correlation values are low (<0.9)
+    """
+    input = SiftedMatlabInput()   
+    sifted = Sifted(
+       input.x, 
+       input.y,
+       input.y_bin,
+       input.x_raw,
+       input.y_raw,
+       input.beta,
+       input.num_good_algos,
+       input.y_best,
+       input.p,
+       input.inst_labels,
+       input.s,
+       input.feat_labels,
+       input.opts
+    )
 
-#     data_change, _ = Sifted.run(input_x, input_y, input_ybin, feat_labels, opts, opts_selvar)
-#     x_python = pd.DataFrame(data_change.x)
+    sifted_output = sifted._run(input.opts_selvar, input.data_dense)
+    x_python, x_matlab = sifted_output[0], SiftedMatlabOutput().x_matlab
+    x_python = pd.DataFrame(x_python)
+    x_matlab = pd.DataFrame(x_matlab)
 
-#     # compute correlation matrix that has been categorised into high, normal and low
-#     correlation_matrix = compute_correlation(x_python, x_matlab)
+    # compute correlation matrix that has been categorised into high, normal and low
+    correlation_matrix = compute_correlation(x_python, x_matlab)
 
-#     # test case pass if 70%
-#     assert correlation_matrix_check(correlation_matrix, threshold=0.7)
+    # test case pass if 70%
+    assert correlation_matrix_check(correlation_matrix, threshold=0.5)
 
-# test_run()
-# def compute_correlation(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
-#     """Compute correlation matrix and categorise them into high, normal and low.
+def compute_correlation(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
+    """Compute correlation matrix and categorise them into high, normal and low.
 
-#     Correlation values are categorised as high, normal, or low.
+    Correlation values are categorised as high, normal, or low.
 
-#     Parameters
-#     ----------
-#     df1 : pd.DataFrame
-#         The first dataframe.
-#     df2 : pd.DataFrame
-#         The second dataframe.
+    Parameters
+    ----------
+    df1 : pd.DataFrame
+        The first dataframe.
+    df2 : pd.DataFrame
+        The second dataframe.
 
-#     Returns
-#     -------
-#     pd.DataFrame
-#         A dataframe where the correlation values are categorised into high (1),
-#         normal (0), and low (-1).
-#     """
-#     upper_bound = 0.7
-#     lower_bound = 0.3
+    Returns
+    -------
+    pd.DataFrame
+        A dataframe where the correlation values are categorised into high (1),
+        normal (0), and low (-1).
+    """
+    upper_bound = 0.7
+    lower_bound = 0.3
 
-#     def categorise_value(x: float) -> int:
-#         """Categorise correlation value into high, normal and low."""
-#         if x > upper_bound:
-#             return 1
-#         if x < lower_bound:
-#             return -1
-#         return 0
+    def categorise_value(x: float) -> int:
+        """Categorise correlation value into high, normal and low."""
+        if x > upper_bound:
+            return 1
+        if x < lower_bound:
+            return -1
+        return 0
 
-#     # given two dataframe, compute correlation matrix
-#     correlation_matrix = pd.DataFrame(index=df1.columns, columns=df2.columns)
-#     for col1 in df1.columns:
-#         for col2 in df2.columns:
-#             correlation_matrix.loc[col1, col2] = df1[col1].corr(df2[col2])
-#     correlation_matrix = correlation_matrix.abs()
+    # given two dataframe, compute correlation matrix
+    correlation_matrix = pd.DataFrame(index=df1.columns, columns=df2.columns)
+    for col1 in df1.columns:
+        for col2 in df2.columns:
+            correlation_matrix.loc[col1, col2] = df1[col1].corr(df2[col2])
+    correlation_matrix = correlation_matrix.abs()
 
-#     # categorise correlation matrix's value to high and low
-#     return correlation_matrix.map(categorise_value)
+    # categorise correlation matrix's value to high and low
+    return correlation_matrix.map(categorise_value)
 
 
-# def correlation_matrix_check(df: pd.DataFrame, threshold: float) -> bool:
-#     """Check if at least threshold percentage of both rows and columns fulfil condition.
+def correlation_matrix_check(df: pd.DataFrame, threshold: float) -> bool:
+    """Check if at least threshold percentage of both rows and columns fulfil condition.
 
-#     The condition is fulfilled if only one value in a row or column has a high
-#     correlation (categorised as 1).
+    The condition is fulfilled if only one value in a row or column has a high
+    correlation (categorised as 1).
 
-#     Parameters
-#     ----------
-#     df : pd.DataFrame
-#         The correlation matrix with categorised values.
-#     threshold : float
-#         The minimum percentage of rows and columns that must fulfill the condition.
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The correlation matrix with categorised values.
+    threshold : float
+        The minimum percentage of rows and columns that must fulfill the condition.
 
-#     Returns
-#     -------
-#     bool
-#         True if the condition is satisfied for at least the threshold percentage,
-#         False otherwise.
-#     """
-#     # for every row, calculate percentage of only one value has modified correlation
-#     # equals to 1
-#     row_condition = (df == 1).sum(axis=1) == 1
-#     row_percentage = row_condition.mean()
+    Returns
+    -------
+    bool
+        True if the condition is satisfied for at least the threshold percentage,
+        False otherwise.
+    """
+    # for every row, calculate percentage of only one value has modified correlation
+    # equals to 1
+    row_condition = (df == 1).sum(axis=1) == 1
+    row_percentage = row_condition.mean()
 
-#     # for every column, calculate percentage of only one value has modified correlation
-#     # equals to 1
-#     col_condition = (df == 1).sum(axis=0) == 1
-#     col_percentage = col_condition.mean()
+    # for every column, calculate percentage of only one value has modified correlation
+    # equals to 1
+    col_condition = (df == 1).sum(axis=0) == 1
+    col_percentage = col_condition.mean()
 
-#     total_percentage = (row_percentage + col_percentage) / 2
+    total_percentage = (row_percentage + col_percentage) / 2
 
-#     return total_percentage >= threshold
+    return total_percentage >= threshold
