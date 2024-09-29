@@ -324,7 +324,6 @@ class Sifted(Stage):
         rng = np.random.default_rng(seed=0)
         
         # Prepare for Filter
-        featsel_idx = np.arange(1, nfeats + 1)
         bydensity = (
             opts_selvars != None and
             'density_flag' in opts_selvars.__dict__.keys() and
