@@ -27,92 +27,84 @@ from matilda.data.options import SiftedOptions, SelvarsOptions
 from matilda.stages.sifted import Sifted
 from matilda.stages.prelim_stage import DataDense
 
+class SiftedMatlabInput:
+    """Class to store MATLAB input data for sifted tests."""
 
-script_dir = Path(__file__).parent
+    def __init__(self) -> None:
+        """Initialize the input data for the sifted tests."""
+        script_dir = Path(__file__).parent
 
-# Define the paths to the standard data CSV files
-csv_path_x = script_dir / "test_data/sifted/input/input_X.csv"
-csv_path_y = script_dir / "test_data/sifted/input/input_Y.csv"
-csv_path_ybin = script_dir / "test_data/sifted/input/input_Ybin.csv"
-csv_path_xraw = script_dir / "test_data/sifted/input/input_Xraw.csv"
-csv_path_yraw = script_dir / "test_data/sifted/input/input_Yraw.csv"
-csv_path_beta = script_dir / "test_data/sifted/input/input_beta.csv"
-csv_path_num_good_algos = script_dir / "test_data/sifted/input/input_numGoodAlgos.csv"
-csv_path_y_best = script_dir / "test_data/sifted/input/input_Ybest.csv"
-csv_path_p = script_dir / "test_data/sifted/input/input_P.csv"
-csv_path_inst_labels = script_dir / "test_data/sifted/input/input_instlabels.csv"
-csv_path_feat_labels = script_dir / "test_data/sifted/input/input_featlabels.csv"
+        # Standard data CSV files
+        self.x = np.genfromtxt(script_dir / "test_data/sifted/input/input_X.csv", delimiter=",")
+        self.y = np.genfromtxt(script_dir / "test_data/sifted/input/input_Y.csv", delimiter=",")
+        self.y_bin = np.genfromtxt(script_dir / "test_data/sifted/input/input_Ybin.csv", delimiter=",")
+        self.x_raw = np.genfromtxt(script_dir / "test_data/sifted/input/input_Xraw.csv", delimiter=",")
+        self.y_raw = np.genfromtxt(script_dir / "test_data/sifted/input/input_Yraw.csv", delimiter=",")
+        self.beta = np.genfromtxt(script_dir / "test_data/sifted/input/input_beta.csv", delimiter=",")
+        self.num_good_algos = np.genfromtxt(script_dir / "test_data/sifted/input/input_numGoodAlgos.csv", delimiter=",")
+        self.y_best = np.genfromtxt(script_dir / "test_data/sifted/input/input_Ybest.csv", delimiter=",")
+        self.p = np.genfromtxt(script_dir / "test_data/sifted/input/input_P.csv", delimiter=",")
+        self.inst_labels = np.genfromtxt(script_dir / "test_data/sifted/input/input_instlabels.csv", delimiter=",", dtype=str).tolist()
+        self.feat_labels = np.genfromtxt(script_dir / "test_data/sifted/input/input_featlabels.csv", delimiter=",", dtype=str).tolist()
+        self.s = None
 
-# Define the paths to the data dense CSV files
-csv_path_dense_x = script_dir / "test_data/sifted/input/input_dense_X.csv"
-csv_path_dense_y = script_dir / "test_data/sifted/input/input_dense_Y.csv"
-csv_path_dense_ybin = script_dir / "test_data/sifted/input/input_dense_Ybin.csv"
-csv_path_dense_xraw = script_dir / "test_data/sifted/input/input_dense_Xraw.csv"
-csv_path_dense_yraw = script_dir / "test_data/sifted/input/input_dense_Yraw.csv"
-csv_path_dense_beta = script_dir / "test_data/sifted/input/input_dense_beta.csv"
-csv_path_dense_num_good_algos = script_dir / "test_data/sifted/input/input_dense_numGoodAlgos.csv"
-csv_path_dense_y_best = script_dir / "test_data/sifted/input/input_dense_Ybest.csv"
-csv_path_dense_p = script_dir / "test_data/sifted/input/input_dense_P.csv"
-csv_path_dense_inst_labels = script_dir / "test_data/sifted/input/input_dense_instlabels.csv"
+        # Create DataDense instance
+        self.data_dense = DataDense(
+            x_data_dense=np.genfromtxt(script_dir / "test_data/sifted/input/input_dense_X.csv", delimiter=","),
+            y_data_dense=np.genfromtxt(script_dir / "test_data/sifted/input/input_dense_Y.csv", delimiter=","),
+            x_raw_data_dense=np.genfromtxt(script_dir / "test_data/sifted/input/input_dense_Xraw.csv", delimiter=","),
+            y_raw_data_dense=np.genfromtxt(script_dir / "test_data/sifted/input/input_dense_Yraw.csv", delimiter=","),
+            y_bin_data_dense=np.genfromtxt(script_dir / "test_data/sifted/input/input_dense_Ybin.csv", delimiter=","),
+            y_best_data_dense=np.genfromtxt(script_dir / "test_data/sifted/input/input_dense_Ybest.csv", delimiter=","),
+            p_data_dense=np.genfromtxt(script_dir / "test_data/sifted/input/input_dense_P.csv", delimiter=","),
+            num_good_algos_data_dense=np.genfromtxt(script_dir / "test_data/sifted/input/input_dense_numGoodAlgos.csv", delimiter=","),
+            beta_data_dense=np.genfromtxt(script_dir / "test_data/sifted/input/input_dense_beta.csv", delimiter=","),
+            inst_labels_data_dense=np.genfromtxt(script_dir / "test_data/sifted/input/input_dense_instlabels.csv", delimiter=",", dtype=str).tolist(),
+            s_data_dense=None  
+        )
 
-# Load the data from the standard data CSV files
-input_x = np.genfromtxt(csv_path_x, delimiter=",")
-input_y = np.genfromtxt(csv_path_y, delimiter=",")
-input_ybin = np.genfromtxt(csv_path_ybin, delimiter=",")
-input_xraw = np.genfromtxt(csv_path_xraw, delimiter=",")
-input_yraw = np.genfromtxt(csv_path_yraw, delimiter=",")
-input_beta = np.genfromtxt(csv_path_beta, delimiter=",")
-input_num_good_algos = np.genfromtxt(csv_path_num_good_algos, delimiter=",")
-input_y_best = np.genfromtxt(csv_path_y_best, delimiter=",")
-input_p = np.genfromtxt(csv_path_p, delimiter=",")
-input_inst_labels = np.genfromtxt(csv_path_inst_labels, delimiter=",", dtype=str).tolist()
-feat_labels = np.genfromtxt(csv_path_feat_labels, delimiter=",", dtype=str).tolist()
+        # Set up options
+        self.opts = SiftedOptions.default()
+        self.opts_selvar = SelvarsOptions.default()
+        self.opts_selvar_filter = SelvarsOptions.default(density_flag=True)
 
-# Load the data from the dense CSV files
-input_dense_x = np.genfromtxt(csv_path_dense_x, delimiter=",")
-input_dense_y = np.genfromtxt(csv_path_dense_y, delimiter=",")
-input_dense_ybin = np.genfromtxt(csv_path_dense_ybin, delimiter=",")
-input_dense_xraw = np.genfromtxt(csv_path_dense_xraw, delimiter=",")
-input_dense_yraw = np.genfromtxt(csv_path_dense_yraw, delimiter=",")
-input_dense_beta = np.genfromtxt(csv_path_dense_beta, delimiter=",")
-input_dense_num_good_algos = np.genfromtxt(csv_path_dense_num_good_algos, delimiter=",")
-input_dense_y_best = np.genfromtxt(csv_path_dense_y_best, delimiter=",")
-input_dense_p = np.genfromtxt(csv_path_dense_p, delimiter=",")
-input_dense_inst_labels = np.genfromtxt(csv_path_dense_inst_labels, delimiter=",", dtype=str).tolist()
+class SiftedMatlabOutput:
+    """Class to store MATLAB output data for sifted tests."""
 
-data_dense = DataDense(
-    x_data_dense=input_dense_x,
-    y_data_dense=input_dense_y,
-    x_raw_data_dense=input_dense_xraw,
-    y_raw_data_dense=input_dense_yraw,
-    y_bin_data_dense=input_dense_ybin,
-    y_best_data_dense=input_dense_y_best,
-    p_data_dense=input_dense_p,
-    num_good_algos_data_dense=input_dense_num_good_algos,
-    beta_data_dense=input_dense_beta,
-    inst_labels_data_dense=input_dense_inst_labels,
-    s_data_dense=None  
-)
+    def __init__(self) -> None:
+        """Initialize the output data for the sifted tests."""
+        script_dir = Path(__file__).parent
 
-opts = SiftedOptions.default()
-opts_selvar = SelvarsOptions.default()
-opts_selvar_filter=SelvarsOptions.default()
-print(opts_selvar)
+        # Output CSV files
+        self.cluster_matlab = np.genfromtxt(script_dir / "test_data/sifted/output/clusters_matlab.csv", delimiter=",")
+        self.correlation_matlab = np.genfromtxt(script_dir / "test_data/sifted/output/correlation_matlab.csv", delimiter=",")
+        self.x_matlab = np.genfromtxt(script_dir / "test_data/sifted/output/x_matlab.csv", delimiter=",")
 
-# def test_select_features_by_performance() -> None:
-#     """Test performance selection against MATLAB's performance selection output.
 
-#     Ensures that `xaux` after filtering by correlation performance is exactly the
-#     same as MATLAB's output.
-#     """
-#     csv_path_xaux = script_dir / "test_data/sifted/output/correlation_matlab.csv"
-#     xaux_matlab = np.genfromtxt(csv_path_xaux, delimiter=",")
+def test_select_features_by_performance() -> None:
+    """Test performance selection against MATLAB's performance selection output.
 
-#     sifted = Sifted(input_x, input_y, input_ybin, feat_labels, opts)
-#     xaux_python, _, _, _ = sifted.select_features_by_performance()
-
-#     assert np.allclose(xaux_matlab, xaux_python, atol=1e-04)
-
+    Ensures that `xaux` after filtering by correlation performance is exactly the
+    same as MATLAB's output.
+    """
+    input = SiftedMatlabInput()
+    sifted = Sifted(
+       input.x, 
+       input.y,
+       input.y_bin,
+       input.x_raw,
+       input.y_raw,
+       input.beta,
+       input.num_good_algos,
+       input.y_best,
+       input.p,
+       input.inst_labels,
+       input.s,
+       input.feat_labels,
+       input.opts
+    )
+    xaux_python, _, _, _ = sifted._select_features_by_performance()
+    assert np.allclose(SiftedMatlabOutput().correlation_matlab, xaux_python, atol=1e-04)
 
 # def test_select_features_by_clustering() -> None:
 #     """Test cluster selection against MATLAB's cluster selection output.

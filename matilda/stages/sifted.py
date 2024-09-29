@@ -95,6 +95,7 @@ class Sifted(Stage):
         inst_labels: pd.Series,
         s: set[str] | None,
         feat_labels: list[str],
+        opts: SiftedOptions
     ) -> None:
         """
         Define the input variables for the stage.
@@ -127,18 +128,20 @@ class Sifted(Stage):
         inst_labels : pd.Series
             Instance labels for the dataset.
         """
-        self.x = x,
+        self.x = x
         self.y = y
         self.y_bin = y_bin
         self.feat_labels = np.array(feat_labels)
-        self.x_raw = x_raw,
-        self.y_raw = y_raw,
-        self.beta = beta,
-        self.num_good_algos = num_good_algos,
-        self.y_best = y_best,
-        self.p = p,
-        self.inst_labels = inst_labels,
+        self.x_raw = x_raw
+        self.y_raw = y_raw
+        self.beta = beta
+        self.num_good_algos = num_good_algos
+        self.y_best = y_best
+        self.p = p
+        self.inst_labels = inst_labels
         self.s = np.array(s)
+        self.opts = opts
+
 
     @staticmethod
     def _inputs() -> list[tuple[str, type]]:
@@ -206,7 +209,7 @@ class Sifted(Stage):
         ]
 
 
-    def _run(self, opts: SiftedOptions, opts_selvars: SelvarsOptions, data_dense: DataDense) -> tuple[
+    def _run(self, opts_selvars: SelvarsOptions, data_dense: DataDense) -> tuple[
         NDArray[np.double],          # x
         NDArray[np.double],          # y
         NDArray[np.bool_],           # y_bin
@@ -263,7 +266,7 @@ class Sifted(Stage):
             y = self.y,
             y_bin = self.y_bin,
             feat_labels = self.feat_labels,
-            opts = opts,
+            opts = self.opts,
             opts_selvars = opts_selvars,
             data_dense = data_dense,
             x_raw = self.x_raw,
@@ -324,7 +327,7 @@ class Sifted(Stage):
         bydensity = (
             opts_selvars != None and
             'density_flag' in opts_selvars.__dict__.keys() and
-            # opts_selvars.density_flag and
+            opts_selvars.density_flag and
             'min_distance' in opts_selvars.__dict__.keys() and
             isinstance(opts_selvars.min_distance , float) and
             'selvars_type' in opts_selvars.__dict__.keys() and
@@ -497,7 +500,7 @@ class Sifted(Stage):
         rho, pval = self._compute_correlation(self.x, self.y)
 
         # Create a boolean mask where calculated pval exceeds threshold
-        insignificant_pval = pval > Sifted.PVAL_THRESHOLD
+        insignificant_pval = pval > self.PVAL_THRESHOLD
 
         # Filter out insignificant correlations and take absolute values of correlations
         filtered_rho = rho
