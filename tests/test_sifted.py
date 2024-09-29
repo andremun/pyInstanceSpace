@@ -106,67 +106,76 @@ def test_select_features_by_performance() -> None:
     xaux_python, _, _, _ = sifted._select_features_by_performance()
     assert np.allclose(SiftedMatlabOutput().correlation_matlab, xaux_python, atol=1e-04)
 
-# def test_select_features_by_clustering() -> None:
-#     """Test cluster selection against MATLAB's cluster selection output.
+def test_select_features_by_clustering() -> None:
+    """Test cluster selection against MATLAB's cluster selection output.
 
-#     Despite the difference in cluster labels, we ensure that the number of items in
-#     python's cluster are 80% same as items in matlab's cluster.
-#     """
-#     csv_path_cluster = script_dir / "test_data/sifted/output/clusters_matlab.csv"
-#     cluster_matlab = np.genfromtxt(csv_path_cluster, delimiter=",")
+    Despite the difference in cluster labels, we ensure that the number of items in
+    python's cluster are 80% same as items in matlab's cluster.
+    """
 
-#     rng = np.random.default_rng(seed=0)
+    rng = np.random.default_rng(seed=0)
+    input = SiftedMatlabInput()   
+    sifted = Sifted(
+       input.x, 
+       input.y,
+       input.y_bin,
+       input.x_raw,
+       input.y_raw,
+       input.beta,
+       input.num_good_algos,
+       input.y_best,
+       input.p,
+       input.inst_labels,
+       input.s,
+       input.feat_labels,
+       input.opts
+    )
+    x_aux, _, _, _ = sifted._select_features_by_performance()
+    sifted._evaluate_cluster(x_aux, rng)
+    _, cluster_python = sifted._select_features_by_clustering(x_aux, rng)
+    assert are_same_clusters(SiftedMatlabOutput().cluster_matlab, cluster_python)
 
-#     sifted = Sifted(input_x, input_y, input_ybin, feat_labels, opts)
-#     x_aux, _, _, _ = sifted.select_features_by_performance()
-#     sifted.evaluate_cluster(x_aux, rng)
-#     _, cluster_python = sifted.select_features_by_clustering(x_aux, rng)
+def are_same_clusters(
+    cluster_a: NDArray[np.intc],
+    cluster_b: NDArray[np.intc],
+    threshold: float = 0.8,
+) -> bool:
+    """Check if two clusters have same number of elements more than threshold set.
 
-#     assert are_same_clusters(cluster_matlab, cluster_python)
+    Parameters
+    ----------
+    cluster_a : NDArray[np.intc]
+        The first cluster.
+    cluster_b : NDArray[np.intc]
+        The second cluster.
+    threshold : float, optional
+        The min ratio of matching elements between the two clusters (default is 0.8).
 
+    Returns
+    -------
+    bool
+        True if the number of matching elements exceeds the threshold, False otherwise.
+    """
+    cluster_a = np.array(cluster_a)
+    cluster_b = np.array(cluster_b)
 
-# def are_same_clusters(
-#     cluster_a: NDArray[np.intc],
-#     cluster_b: NDArray[np.intc],
-#     threshold: float = 0.8,
-# ) -> bool:
-#     """Check if two clusters have same number of elements more than threshold set.
+    unique_labels_a = np.unique(cluster_a)
+    total_elements = len(cluster_a)
+    matching_elements = 0
 
-#     Parameters
-#     ----------
-#     cluster_a : NDArray[np.intc]
-#         The first cluster.
-#     cluster_b : NDArray[np.intc]
-#         The second cluster.
-#     threshold : float, optional
-#         The min ratio of matching elements between the two clusters (default is 0.8).
+    for label in unique_labels_a:
+        indices_a = np.where(cluster_a == label)[0]
 
-#     Returns
-#     -------
-#     bool
-#         True if the number of matching elements exceeds the threshold, False otherwise.
-#     """
-#     cluster_a = np.array(cluster_a)
-#     cluster_b = np.array(cluster_b)
+        # Find the corresponding label in B for the same indices
+        label_in_b = cluster_b[indices_a[0]]
 
-#     unique_labels_a = np.unique(cluster_a)
-#     total_elements = len(cluster_a)
-#     matching_elements = 0
+        # Count the number of matching labels in B for these indices
+        matches = np.sum(cluster_b[indices_a] == label_in_b)
+        matching_elements += matches
 
-#     for label in unique_labels_a:
-#         indices_a = np.where(cluster_a == label)[0]
+    match_ratio = matching_elements / total_elements
 
-#         # Find the corresponding label in B for the same indices
-#         label_in_b = cluster_b[indices_a[0]]
-
-#         # Count the number of matching labels in B for these indices
-#         matches = np.sum(cluster_b[indices_a] == label_in_b)
-#         matching_elements += matches
-
-#     match_ratio = matching_elements / total_elements
-
-#     return bool(match_ratio >= threshold)
-
+    return bool(match_ratio >= threshold)
 
 # def test_run() -> None:
 #     """Test the run method of Sifted class.
