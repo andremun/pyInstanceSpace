@@ -428,59 +428,122 @@ class InstanceSpaceOptions:
             parallel=InstanceSpaceOptions._load_dataclass(
                 ParallelOptions,
                 file_contents.get("parallel", {}),
+                field_mapping={
+                    "flag": "flag",
+                    "n_cores": "n_cores"
+                }
             ),
             perf=InstanceSpaceOptions._load_dataclass(
                 PerformanceOptions,
                 file_contents.get("perf", {}),
-                field_mapping={"max_perf": "max_perf"},
+                field_mapping={
+                    "max_perf": "max_perf",
+                    "abs_perf": "abs_perf",
+                    "epsilon": "epsilon",
+                    "beta_threshold": "beta_threshold"
+                }
             ),
             auto=InstanceSpaceOptions._load_dataclass(
                 AutoOptions,
                 file_contents.get("auto", {}),
+                field_mapping={
+                    "preproc": "preproc"
+                }
             ),
             bound=InstanceSpaceOptions._load_dataclass(
                 BoundOptions,
                 file_contents.get("bound", {}),
+                field_mapping={
+                    "flag": "flag"
+                }
             ),
             norm=InstanceSpaceOptions._load_dataclass(
                 NormOptions,
                 file_contents.get("norm", {}),
+                field_mapping={
+                    "flag": "flag"
+                }
             ),
             selvars=InstanceSpaceOptions._load_dataclass(
                 SelvarsOptions,
                 file_contents.get("selvars", {}),
                 field_mapping={
+                    "small_scale_flag": "small_scale_flag",
+                    "small_scale": "small_scale",
+                    "file_idx_flag": "file_idx_flag",
+                    "file_idx": "file_idx",
+                    "feats": "feats",
+                    "algos": "algos",
                     "selvars_type": "selvars_type",
                     "min_distance": "min_distance",
-                },
+                    "density_flag": "density_flag"
+                }
             ),
             sifted=InstanceSpaceOptions._load_dataclass(
                 SiftedOptions,
                 file_contents.get("sifted", {}),
-                field_mapping={"rho": "rho", "k": "k"},
+                field_mapping={
+                    "flag": "flag",
+                    "rho": "rho",
+                    "k": "k",
+                    "n_trees": "n_trees",
+                    "max_iter": "max_iter",
+                    "replicates": "replicates",
+                    "num_generations": "num_generations",
+                    "num_parents_mating": "num_parents_mating",
+                    "sol_per_pop": "sol_per_pop",
+                    "parent_selection_type": "parent_selection_type",
+                    "k_tournament": "k_tournament",
+                    "keep_elitism": "keep_elitism",
+                    "crossover_type": "crossover_type",
+                    "cross_over_probability": "cross_over_probability",
+                    "mutation_type": "mutation_type",
+                    "mutation_probability": "mutation_probability",
+                    "stop_criteria": "stop_criteria"
+                }
             ),
             pilot=InstanceSpaceOptions._load_dataclass(
                 PilotOptions,
                 file_contents.get("pilot", {}),
+                field_mapping={
+                    "analytic": "analytic",
+                    "n_tries": "n_tries"
+                }
             ),
             cloister=InstanceSpaceOptions._load_dataclass(
                 CloisterOptions,
                 file_contents.get("cloister", {}),
+                field_mapping={
+                    "c_thres": "c_thres",
+                    "p_val": "p_val"
+                }
             ),
             pythia=InstanceSpaceOptions._load_dataclass(
                 PythiaOptions,
                 file_contents.get("pythia", {}),
+                field_mapping={
+                    "cv_folds": "cv_folds",
+                    "is_poly_krnl": "is_poly_krnl",
+                    "use_weights": "use_weights",
+                    "use_lib_svm": "use_lib_svm"
+                }
             ),
             trace=InstanceSpaceOptions._load_dataclass(
                 TraceOptions,
                 file_contents.get("trace", {}),
                 field_mapping={
-                    "pi": "purity",
-                },  # mapping the 'pi' in JSON to the 'purity' in  TraceOptions
+                    "use_sim": "use_sim",
+                    "pi": "purity"  # mapping the 'pi' in JSON to the 'purity' in TraceOptions
+                }
             ),
             outputs=InstanceSpaceOptions._load_dataclass(
                 OutputOptions,
                 file_contents.get("outputs", {}),
+                field_mapping={
+                    "csv": "csv",
+                    "web": "web",
+                    "png": "png"
+                }
             ),
         )
 
