@@ -432,9 +432,7 @@ class InstanceSpaceOptions:
             perf=InstanceSpaceOptions._load_dataclass(
                 PerformanceOptions,
                 file_contents.get("perf", {}),
-                field_mapping={
-                    "max_perf": "max_perf"
-                }
+                field_mapping={"max_perf": "max_perf"},
             ),
             auto=InstanceSpaceOptions._load_dataclass(
                 AutoOptions,
@@ -557,9 +555,10 @@ class InstanceSpaceOptions:
         data : dict
             The dictionary whose keys are to be validated.
         field_mapping : Optional[dict[str, str]], optional
-            An optional dictionary that maps field names from the input data (i.e., JSON)
-            to the corresponding field names in the dataclass. For example, if the dataclass
-            has a field `purity`, but the input dictionary uses the key `pi`, this mapping
+            An optional dictionary that maps field names from the input JSON
+            to the corresponding field names in the dataclass.
+            For example, if the dataclass has a field `purity`, but the input
+            dictionary uses the key `pi`, this mapping
             would be `{"pi": "purity"}`.
 
         Raises
@@ -586,7 +585,7 @@ class InstanceSpaceOptions:
         if extra_fields:
             raise ValueError(
                 f"Field(s) '{extra_fields}' in JSON are not "
-                f"defined in the data class '{data_class.__name__}'."
+                f"defined in the data class '{data_class.__name__}'.",
             )
 
     @staticmethod
@@ -608,11 +607,11 @@ class InstanceSpaceOptions:
         data : dict
             Dictionary containing data to load into the dataclass.
         field_mapping : Optional[dict[str, str]], optional
-            An optional dictionary that maps field names from the input data (i.e., JSON)
-            to the corresponding field names in the dataclass. For example, if the dataclass
-            has a field `purity`, but the input dictionary uses the key `pi`, this mapping
+            An optional dictionary that maps field names from the input JSON
+            to the corresponding field names in the dataclass.
+            For example, if the dataclass has a field `purity`, but the input
+            dictionary uses the key `pi`, this mapping
             would be `{"pi": "purity"}`.
-
 
         Returns
         -------
@@ -636,10 +635,12 @@ class InstanceSpaceOptions:
         mapped_data = {}
         # Loop through each field in the dataclass, applying field mappings if needed
         for field_name, default_value in default_values.items():
-            # Get the JSON field name from the field_mapping if available, otherwise use the field name
+            # Get the JSON field name from the field_mapping if available,
+            # otherwise use the field name
             json_field_name = field_mapping.get(field_name, field_name)
 
-            # Fetch the value from the input dictionary, or fall back to the default if the key is missing
+            # Fetch the value from the input dictionary,
+            # or fall back to the default if the key is missing
             mapped_data[field_name] = data.get(json_field_name, default_value)
 
         # Validate the fields before returning the dataclass instance
