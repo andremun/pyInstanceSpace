@@ -432,6 +432,9 @@ class InstanceSpaceOptions:
             perf=InstanceSpaceOptions._load_dataclass(
                 PerformanceOptions,
                 file_contents.get("perf", {}),
+                field_mapping={
+                    "max_perf": "max_perf"
+                }
             ),
             auto=InstanceSpaceOptions._load_dataclass(
                 AutoOptions,
@@ -448,10 +451,15 @@ class InstanceSpaceOptions:
             selvars=InstanceSpaceOptions._load_dataclass(
                 SelvarsOptions,
                 file_contents.get("selvars", {}),
+                field_mapping={
+                    "selvars_type": "selvars_type",
+                    "min_distance": "min_distance",
+                },
             ),
             sifted=InstanceSpaceOptions._load_dataclass(
                 SiftedOptions,
                 file_contents.get("sifted", {}),
+                field_mapping={"rho": "rho", "k": "k"},
             ),
             pilot=InstanceSpaceOptions._load_dataclass(
                 PilotOptions,
@@ -468,6 +476,9 @@ class InstanceSpaceOptions:
             trace=InstanceSpaceOptions._load_dataclass(
                 TraceOptions,
                 file_contents.get("trace", {}),
+                field_mapping={
+                    "pi": "purity",
+                },  # mapping the 'pi' in JSON to the 'purity' in  TraceOptions
             ),
             outputs=InstanceSpaceOptions._load_dataclass(
                 OutputOptions,
@@ -532,7 +543,11 @@ class InstanceSpaceOptions:
     )
 
     @staticmethod
-    def _validate_fields(data_class: type[T], data: dict[str, Any]) -> None:
+    def _validate_fields(
+        data_class: type[T],
+        data: dict[str, Any],
+        field_mapping: dict[str, str] | None = None,
+    ) -> None:
         """Validate all keys in the provided dictionary are valid fields in dataclass.
 
         Args
@@ -541,6 +556,11 @@ class InstanceSpaceOptions:
             The dataclass type to validate against.
         data : dict
             The dictionary whose keys are to be validated.
+        field_mapping : Optional[dict[str, str]], optional
+            An optional dictionary that maps field names from the input data (i.e., JSON)
+            to the corresponding field names in the dataclass. For example, if the dataclass
+            has a field `purity`, but the input dictionary uses the key `pi`, this mapping
+            would be `{"pi": "purity"}`.
 
         Raises
         ------
@@ -548,19 +568,33 @@ class InstanceSpaceOptions:
             If an undefined field is found in the dictionary or
 
         """
-        # Get all defined fields in the data class
+        if field_mapping is None:
+            field_mapping = {}
+
+            # Get all valid field names from the dataclass
         known_fields = {f.name for f in fields(data_class)}
 
-        # Check if all fields in the JSON are defined in the data class
-        extra_fields = set(data.keys()) - known_fields
+        # Collect JSON fields after applying field mappings
+        json_fields = set(data.keys())
+
+        # Apply reverse mapping to check against the known fields in the dataclass
+        mapped_json_fields = {field_mapping.get(field, field) for field in json_fields}
+
+        # Identify extra fields that are not valid fields in the dataclass
+        extra_fields = mapped_json_fields - known_fields
+
         if extra_fields:
             raise ValueError(
                 f"Field(s) '{extra_fields}' in JSON are not "
-                f"defined in the data class '{data_class.__name__}'.",
+                f"defined in the data class '{data_class.__name__}'."
             )
 
     @staticmethod
-    def _load_dataclass(data_class: type[T], data: dict[str, Any]) -> T:
+    def _load_dataclass(
+        data_class: type[T],
+        data: dict[str, Any],
+        field_mapping: dict[str, str] | None = None,
+    ) -> T:
         """Load data into a dataclass from a dictionary.
 
         Ensures all dictionary keys match dataclass fields and fills in fields
@@ -573,6 +607,12 @@ class InstanceSpaceOptions:
             The dataclass type to populate.
         data : dict
             Dictionary containing data to load into the dataclass.
+        field_mapping : Optional[dict[str, str]], optional
+            An optional dictionary that maps field names from the input data (i.e., JSON)
+            to the corresponding field names in the dataclass. For example, if the dataclass
+            has a field `purity`, but the input dictionary uses the key `pi`, this mapping
+            would be `{"pi": "purity"}`.
+
 
         Returns
         -------
@@ -584,17 +624,28 @@ class InstanceSpaceOptions:
         ValueError
             If the dictionary contains keys that are not valid fields in the dataclass.
         """
+        # To check whether the mapping constraints are existed
+        if field_mapping is None:
+            field_mapping = {}
+
         # Get the default values for the dataclass fields
         default_values = {
             f.name: getattr(data_class.default(), f.name) for f in fields(data_class)
         }
 
-        InstanceSpaceOptions._validate_fields(data_class, data)
+        mapped_data = {}
+        # Loop through each field in the dataclass, applying field mappings if needed
+        for field_name, default_value in default_values.items():
+            # Get the JSON field name from the field_mapping if available, otherwise use the field name
+            json_field_name = field_mapping.get(field_name, field_name)
 
-        # Update the default values with the provided data
-        init_args = {**default_values, **data}
+            # Fetch the value from the input dictionary, or fall back to the default if the key is missing
+            mapped_data[field_name] = data.get(json_field_name, default_value)
 
-        return data_class(**init_args)
+        # Validate the fields before returning the dataclass instance
+        InstanceSpaceOptions._validate_fields(data_class, data, field_mapping)
+
+        return data_class(**mapped_data)
 
 
 # InstanceSpaceOptions not part of the main InstanceSpaceOptions class
