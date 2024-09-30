@@ -263,8 +263,7 @@ class Sifted(Stage):
             NDArray[np.bool_] | None
             Boolean array indicating whether features were selected or not.
         """
-        return self.sifted(
-            self,
+        return self._sifted(
             x = self.x,
             y = self.y,
             y_bin = self.y_bin,
@@ -282,8 +281,7 @@ class Sifted(Stage):
             s = self.s,
         )
 
-    @staticmethod
-    def sifted(
+    def _sifted(
         self,
         x: NDArray[np.double],
         y: NDArray[np.double],
