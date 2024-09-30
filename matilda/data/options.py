@@ -428,10 +428,7 @@ class InstanceSpaceOptions:
             parallel=InstanceSpaceOptions._load_dataclass(
                 ParallelOptions,
                 file_contents.get("parallel", {}),
-                field_mapping={
-                    "flag": "flag",
-                    "n_cores": "n_cores"
-                }
+                field_mapping={"flag": "flag", "n_cores": "n_cores"},
             ),
             perf=InstanceSpaceOptions._load_dataclass(
                 PerformanceOptions,
@@ -440,29 +437,23 @@ class InstanceSpaceOptions:
                     "max_perf": "max_perf",
                     "abs_perf": "abs_perf",
                     "epsilon": "epsilon",
-                    "beta_threshold": "beta_threshold"
-                }
+                    "beta_threshold": "beta_threshold",
+                },
             ),
             auto=InstanceSpaceOptions._load_dataclass(
                 AutoOptions,
                 file_contents.get("auto", {}),
-                field_mapping={
-                    "preproc": "preproc"
-                }
+                field_mapping={"preproc": "preproc"},
             ),
             bound=InstanceSpaceOptions._load_dataclass(
                 BoundOptions,
                 file_contents.get("bound", {}),
-                field_mapping={
-                    "flag": "flag"
-                }
+                field_mapping={"flag": "flag"},
             ),
             norm=InstanceSpaceOptions._load_dataclass(
                 NormOptions,
                 file_contents.get("norm", {}),
-                field_mapping={
-                    "flag": "flag"
-                }
+                field_mapping={"flag": "flag"},
             ),
             selvars=InstanceSpaceOptions._load_dataclass(
                 SelvarsOptions,
@@ -476,8 +467,8 @@ class InstanceSpaceOptions:
                     "algos": "algos",
                     "selvars_type": "selvars_type",
                     "min_distance": "min_distance",
-                    "density_flag": "density_flag"
-                }
+                    "density_flag": "density_flag",
+                },
             ),
             sifted=InstanceSpaceOptions._load_dataclass(
                 SiftedOptions,
@@ -499,24 +490,18 @@ class InstanceSpaceOptions:
                     "cross_over_probability": "cross_over_probability",
                     "mutation_type": "mutation_type",
                     "mutation_probability": "mutation_probability",
-                    "stop_criteria": "stop_criteria"
-                }
+                    "stop_criteria": "stop_criteria",
+                },
             ),
             pilot=InstanceSpaceOptions._load_dataclass(
                 PilotOptions,
                 file_contents.get("pilot", {}),
-                field_mapping={
-                    "analytic": "analytic",
-                    "n_tries": "n_tries"
-                }
+                field_mapping={"analytic": "analytic", "n_tries": "n_tries"},
             ),
             cloister=InstanceSpaceOptions._load_dataclass(
                 CloisterOptions,
                 file_contents.get("cloister", {}),
-                field_mapping={
-                    "c_thres": "c_thres",
-                    "p_val": "p_val"
-                }
+                field_mapping={"c_thres": "c_thres", "p_val": "p_val"},
             ),
             pythia=InstanceSpaceOptions._load_dataclass(
                 PythiaOptions,
@@ -525,25 +510,21 @@ class InstanceSpaceOptions:
                     "cv_folds": "cv_folds",
                     "is_poly_krnl": "is_poly_krnl",
                     "use_weights": "use_weights",
-                    "use_lib_svm": "use_lib_svm"
-                }
+                    "use_lib_svm": "use_lib_svm",
+                },
             ),
             trace=InstanceSpaceOptions._load_dataclass(
                 TraceOptions,
                 file_contents.get("trace", {}),
                 field_mapping={
                     "use_sim": "use_sim",
-                    "pi": "purity"  # mapping the 'pi' in JSON to the 'purity' in TraceOptions
-                }
+                    "pi": "purity",
+                },  # mapping the 'pi' in JSON to the 'purity' in TraceOptions
             ),
             outputs=InstanceSpaceOptions._load_dataclass(
                 OutputOptions,
                 file_contents.get("outputs", {}),
-                field_mapping={
-                    "csv": "csv",
-                    "web": "web",
-                    "png": "png"
-                }
+                field_mapping={"csv": "csv", "web": "web", "png": "png"},
             ),
         )
 
@@ -633,7 +614,7 @@ class InstanceSpaceOptions:
         if field_mapping is None:
             field_mapping = {}
 
-            # Get all valid field names from the dataclass
+        # Get all valid field names from the dataclass
         known_fields = {f.name for f in fields(data_class)}
 
         # Collect JSON fields after applying field mappings
@@ -642,13 +623,22 @@ class InstanceSpaceOptions:
         # Apply reverse mapping to check against the known fields in the dataclass
         mapped_json_fields = {field_mapping.get(field, field) for field in json_fields}
 
-        # Identify extra fields that are not valid fields in the dataclass
+        # Identify fields that are not valid in the dataclass or field_mapping
         extra_fields = mapped_json_fields - known_fields
 
         if extra_fields:
             raise ValueError(
                 f"Field(s) '{extra_fields}' in JSON are not "
                 f"defined in the data class '{data_class.__name__}'.",
+            )
+
+        # Ensure that the JSON only contains fields defined in the mapping
+        unmapped_fields = json_fields - set(field_mapping.keys())
+        if unmapped_fields:
+            raise ValueError(
+                f"Field(s) '{unmapped_fields}' in JSON are not "
+                f"defined in the field mapping for the data class "
+                f"'{data_class.__name__}'.",
             )
 
     @staticmethod
@@ -686,11 +676,10 @@ class InstanceSpaceOptions:
         ValueError
             If the dictionary contains keys that are not valid fields in the dataclass.
         """
-        # To check whether the mapping constraints are existed
         if field_mapping is None:
             field_mapping = {}
 
-        # Get the default values for the dataclass fields
+            # Get the default values for the dataclass fields
         default_values = {
             f.name: getattr(data_class.default(), f.name) for f in fields(data_class)
         }
@@ -700,11 +689,16 @@ class InstanceSpaceOptions:
         for field_name, default_value in default_values.items():
             # Get the JSON field name from the field_mapping if available,
             # otherwise use the field name
-            json_field_name = field_mapping.get(field_name, field_name)
+            json_field_name = field_mapping.get(field_name, None)
 
-            # Fetch the value from the input dictionary,
-            # or fall back to the default if the key is missing
-            mapped_data[field_name] = data.get(json_field_name, default_value)
+            # Only process if the field is defined in the field_mapping
+            if json_field_name and json_field_name in data:
+                # Fetch the value from the input dictionary,
+                # or fall back to the default if the key is missing
+                mapped_data[field_name] = data.get(json_field_name, default_value)
+            else:
+                # If the field is not found in the mapping, use the default value
+                mapped_data[field_name] = default_value
 
         # Validate the fields before returning the dataclass instance
         InstanceSpaceOptions._validate_fields(data_class, data, field_mapping)

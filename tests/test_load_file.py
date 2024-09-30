@@ -356,6 +356,23 @@ class TestOption:
 
         assert expected_error_msg in captured.out
 
+    def test_option_value_unexpected(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Test loading option with attribute name that is definded by us
+         but exists in the JSON, will raise value error."""
+        invalid_option_path = script_dir / "test_data/load_file/options_name_by_us.json"
+        metadata_path = script_dir / "test_data/load_file/metadata.csv"
+
+        returned = instance_space_from_files(metadata_path, invalid_option_path)
+        assert returned is None
+        captured = capsys.readouterr()
+        expected_error_msg = (
+            "Error details: Field(s) '{'purity'}' in JSON are not defined in the field "
+            "mapping for the data class 'TraceOptions'.\n"
+            'Failed to initialize options\n'
+        )
+
+        assert expected_error_msg in captured.out
+
     def test_option_invalid_path(
         self: Self,
         capsys: pytest.CaptureFixture[str],
