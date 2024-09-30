@@ -29,7 +29,6 @@ from matilda.data.default_options import (
     DEFAULT_PILOT_N_TRIES,
     DEFAULT_PYTHIA_CV_FOLDS,
     DEFAULT_PYTHIA_IS_POLY_KRNL,
-    DEFAULT_PYTHIA_USE_LIB_SVM,
     DEFAULT_PYTHIA_USE_WEIGHTS,
     DEFAULT_SELVARS_DENSITY_FLAG,
     DEFAULT_SELVARS_FILE_IDX,
@@ -384,7 +383,7 @@ class TestOption:
         assert loaded_options.pythia.cv_folds == DEFAULT_PYTHIA_CV_FOLDS
         assert loaded_options.pythia.is_poly_krnl == DEFAULT_PYTHIA_IS_POLY_KRNL
         assert loaded_options.pythia.use_weights == DEFAULT_PYTHIA_USE_WEIGHTS
-        assert loaded_options.pythia.use_lib_svm == DEFAULT_PYTHIA_USE_LIB_SVM
+        # assert loaded_options.pythia.use_lib_svm == DEFAULT_PYTHIA_USE_LIB_SVM
 
         # check the dropped selvars.feats is filled with default value
         assert loaded_options.selvars.feats is None
@@ -466,7 +465,7 @@ class TestOption:
             ("pythia", "cv_folds", DEFAULT_PYTHIA_CV_FOLDS),
             ("pythia", "is_poly_krnl", DEFAULT_PYTHIA_IS_POLY_KRNL),
             ("pythia", "use_weights", DEFAULT_PYTHIA_USE_WEIGHTS),
-            ("pythia", "use_lib_svm", DEFAULT_PYTHIA_USE_LIB_SVM),
+            # ("pythia", "use_lib_svm", DEFAULT_PYTHIA_USE_LIB_SVM),
             ("trace", "use_sim", DEFAULT_TRACE_USE_SIM),
             ("trace", "purity", DEFAULT_TRACE_PURITY),
             ("outputs", "csv", DEFAULT_OUTPUTS_CSV),

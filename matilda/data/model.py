@@ -31,7 +31,7 @@ class Data:
     p: NDArray[np.double]
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
-    s: set[str] | None
+    s: pd.Series | None  # type: ignore[type-arg]
     uniformity: float | None
 
     T = TypeVar("T", bound="Data")
@@ -69,6 +69,25 @@ class Data:
             s=stage_runner_output["s"],
             uniformity=stage_runner_output["uniformity"],
         )
+
+
+@dataclass(frozen=True)
+class PreprocessingOut:
+    """Holds preprocessed data."""
+
+    pass
+
+
+@dataclass(frozen=True)
+class PreprocessingDataChanged:
+    """The fields of Data that the preprocessing stage changes."""
+
+    inst_labels: pd.Series  # type: ignore[type-arg]
+    feat_labels: list[str]
+    algo_labels: list[str]
+    x: NDArray[np.double]
+    y: NDArray[np.double]
+    s: pd.Series | None  # type: ignore[type-arg]
 
 
 @dataclass(frozen=True)
@@ -156,13 +175,12 @@ class SiftedOut:
             SiftedOut: a SiftedOut object
         """
         return cls(
-            flag=stage_runner_output["flag"],
-            rho=stage_runner_output["rho"],
-            k=stage_runner_output["k"],
-            n_trees=stage_runner_output["n_trees"],
-            max_lter=stage_runner_output["max_lter"],
-            replicates=stage_runner_output["replicates"],
+            selvars=stage_runner_output["selvars"],
             idx=stage_runner_output["idx"],
+            rho=stage_runner_output["rho"],
+            pval=stage_runner_output["pval"],
+            silhouette_scores=stage_runner_output["silhouette_scores"],
+            clust=stage_runner_output["clust"],
         )
 
 
