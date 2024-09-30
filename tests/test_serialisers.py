@@ -286,7 +286,8 @@ def test_save_to_csv() -> None:
     """Test saving information from a completed instance space to CSVs."""
     model = _MatlabResults().get_model()
 
-    model.save_to_csv(script_dir / "test_data/serializers/actual_output/csv")
+
+    model.save_to_csv(script_dir / "test_data/serialisers/actual_output/csv")
 
     test_data_dir = script_dir / "test_data/serializers"
 
@@ -310,7 +311,9 @@ def test_save_for_web() -> None:
     """Test saving information for export to the web frontend."""
     model = _MatlabResults().get_model()
 
-    model.save_for_web(script_dir / "test_data/serializers/actual_output/web")
+
+    model.save_for_web(script_dir / "test_data/serialisers/actual_output/web")
+
 
     test_data_dir = script_dir / "test_data/serializers"
 

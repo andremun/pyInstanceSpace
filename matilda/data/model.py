@@ -420,9 +420,7 @@ class TraceOut:
     good: list[Footprint]
     best: list[Footprint]
     hard: Footprint
-    summary: pd.DataFrame  # for the dataform that looks like the
-    # Excel spreadsheet(rownames and column names are mixed with data),
-    # I decide to use DataFrame
+    summary: pd.DataFrame
 
     T = TypeVar("T", bound="TraceOut")
 
