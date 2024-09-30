@@ -428,7 +428,9 @@ class InstanceSpaceOptions:
             parallel=InstanceSpaceOptions._load_dataclass(
                 ParallelOptions,
                 file_contents.get("parallel", {}),
-                field_mapping={"flag": "flag", "n_cores": "n_cores"},
+                field_mapping={"flag": "flag",
+                               "n_cores": "n_cores",
+                               },
             ),
             perf=InstanceSpaceOptions._load_dataclass(
                 PerformanceOptions,
