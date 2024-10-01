@@ -418,7 +418,7 @@ class InstanceSpaceOptions:
 
         if extra_fields:
             raise ValueError(
-                f"Extra fields in JSON are not defined in InstanceSpaceOptions:"
+                f"Extra fields in JSON are not defined in InstanceSpaceOptions: "
                 f" {extra_fields}",
             )
 
@@ -428,106 +428,54 @@ class InstanceSpaceOptions:
             parallel=InstanceSpaceOptions._load_dataclass(
                 ParallelOptions,
                 file_contents.get("parallel", {}),
-                field_mapping={
-                    "flag": "flag",
-                    "n_cores": "n_cores",
-                },
             ),
             perf=InstanceSpaceOptions._load_dataclass(
                 PerformanceOptions,
                 file_contents.get("perf", {}),
-                field_mapping={
-                    "max_perf": "max_perf",
-                    "abs_perf": "abs_perf",
-                    "epsilon": "epsilon",
-                    "beta_threshold": "beta_threshold",
-                },
             ),
+
             auto=InstanceSpaceOptions._load_dataclass(
                 AutoOptions,
                 file_contents.get("auto", {}),
-                field_mapping={"preproc": "preproc"},
             ),
             bound=InstanceSpaceOptions._load_dataclass(
                 BoundOptions,
                 file_contents.get("bound", {}),
-                field_mapping={"flag": "flag"},
             ),
             norm=InstanceSpaceOptions._load_dataclass(
                 NormOptions,
                 file_contents.get("norm", {}),
-                field_mapping={"flag": "flag"},
             ),
             selvars=InstanceSpaceOptions._load_dataclass(
                 SelvarsOptions,
                 file_contents.get("selvars", {}),
-                field_mapping={
-                    "small_scale_flag": "small_scale_flag",
-                    "small_scale": "small_scale",
-                    "file_idx_flag": "file_idx_flag",
-                    "file_idx": "file_idx",
-                    "feats": "feats",
-                    "algos": "algos",
-                    "selvars_type": "selvars_type",
-                    "min_distance": "min_distance",
-                    "density_flag": "density_flag",
-                },
             ),
             sifted=InstanceSpaceOptions._load_dataclass(
                 SiftedOptions,
                 file_contents.get("sifted", {}),
-                field_mapping={
-                    "flag": "flag",
-                    "rho": "rho",
-                    "k": "k",
-                    "n_trees": "n_trees",
-                    "max_iter": "max_iter",
-                    "replicates": "replicates",
-                    "num_generations": "num_generations",
-                    "num_parents_mating": "num_parents_mating",
-                    "sol_per_pop": "sol_per_pop",
-                    "parent_selection_type": "parent_selection_type",
-                    "k_tournament": "k_tournament",
-                    "keep_elitism": "keep_elitism",
-                    "crossover_type": "crossover_type",
-                    "cross_over_probability": "cross_over_probability",
-                    "mutation_type": "mutation_type",
-                    "mutation_probability": "mutation_probability",
-                    "stop_criteria": "stop_criteria",
-                },
             ),
             pilot=InstanceSpaceOptions._load_dataclass(
                 PilotOptions,
                 file_contents.get("pilot", {}),
-                field_mapping={"analytic": "analytic", "n_tries": "n_tries"},
             ),
             cloister=InstanceSpaceOptions._load_dataclass(
                 CloisterOptions,
                 file_contents.get("cloister", {}),
-                field_mapping={"c_thres": "c_thres", "p_val": "p_val"},
             ),
             pythia=InstanceSpaceOptions._load_dataclass(
                 PythiaOptions,
                 file_contents.get("pythia", {}),
-                field_mapping={
-                    "cv_folds": "cv_folds",
-                    "is_poly_krnl": "is_poly_krnl",
-                    "use_weights": "use_weights",
-                    "use_lib_svm": "use_lib_svm",
-                },
             ),
             trace=InstanceSpaceOptions._load_dataclass(
                 TraceOptions,
                 file_contents.get("trace", {}),
                 field_mapping={
-                    "use_sim": "use_sim",
                     "pi": "purity",
                 },  # mapping the 'pi' in JSON to the 'purity' in TraceOptions
             ),
             outputs=InstanceSpaceOptions._load_dataclass(
                 OutputOptions,
                 file_contents.get("outputs", {}),
-                field_mapping={"csv": "csv", "web": "web", "png": "png"},
             ),
         )
 
@@ -620,29 +568,29 @@ class InstanceSpaceOptions:
         # Get all valid field names from the dataclass
         known_fields = {f.name for f in fields(data_class)}
 
-        # Collect JSON fields after applying field mappings
-        json_fields = set(data.keys())
+        # Collect JSON fields and apply mapping (map pi to purity, etc.)
+        mapped_json_fields = {}
+        reverse_mapping = {v: k for k, v in field_mapping.items()}
 
-        # Apply reverse mapping to check against the known fields in the dataclass
-        mapped_json_fields = {field_mapping.get(field, field) for field in json_fields}
+        for json_field, value in data.items():
+            # Use field mapping if available, otherwise keep the original field name
+            mapped_field = field_mapping.get(json_field, json_field)
 
-        # Identify fields that are not valid in the dataclass or field_mapping
-        extra_fields = mapped_json_fields - known_fields
+            # Check for conflicts, i.e., if the JSON contains both 'pi' and 'purity'
+            if mapped_field in mapped_json_fields:
+                original_json_field = reverse_mapping.get(mapped_field, mapped_field)
+                raise ValueError(
+                    f"Conflicting fields in JSON: '{original_json_field}' and '{json_field}' both map to "
+                    f"the field '{mapped_field}' in '{data_class.__name__}'."
+                )
 
-        if extra_fields:
-            raise ValueError(
-                f"Field(s) '{extra_fields}' in JSON are not "
-                f"defined in the data class '{data_class.__name__}'.",
-            )
+            # Check if the mapped field is valid (exists in the dataclass)
+            if mapped_field not in known_fields:
+                raise ValueError(
+                    f"Field '{mapped_field}' from JSON is not defined in the data class '{data_class.__name__}'."
+                )
 
-        # Ensure that the JSON only contains fields defined in the mapping
-        unmapped_fields = json_fields - set(field_mapping.keys())
-        if unmapped_fields:
-            raise ValueError(
-                f"Field(s) '{unmapped_fields}' in JSON are not "
-                f"defined in the field mapping for the data class "
-                f"'{data_class.__name__}'.",
-            )
+            mapped_json_fields[mapped_field] = value
 
     @staticmethod
     def _load_dataclass(
@@ -690,18 +638,11 @@ class InstanceSpaceOptions:
         mapped_data = {}
         # Loop through each field in the dataclass, applying field mappings if needed
         for field_name, default_value in default_values.items():
-            # Get the JSON field name from the field_mapping if available,
-            # otherwise use the field name
-            json_field_name = field_mapping.get(field_name, None)
+            # If the field is explicitly mapped, use the mapped field name
+            json_field_name = field_mapping.get(field_name, field_name)
 
-            # Only process if the field is defined in the field_mapping
-            if json_field_name and json_field_name in data:
-                # Fetch the value from the input dictionary,
-                # or fall back to the default if the key is missing
-                mapped_data[field_name] = data.get(json_field_name, default_value)
-            else:
-                # If the field is not found in the mapping, use the default value
-                mapped_data[field_name] = default_value
+            # Fetch the value from the input dictionary, or fall back to the default if the key is missing
+            mapped_data[field_name] = data.get(json_field_name, default_value)
 
         # Validate the fields before returning the dataclass instance
         InstanceSpaceOptions._validate_fields(data_class, data, field_mapping)

@@ -349,9 +349,8 @@ class TestOption:
         assert returned is None
         captured = capsys.readouterr()
         expected_error_msg = (
-            "Error details: Field(s) '{'MaxPerf_invalid'}' "
-            "in JSON are not defined in the data class "
-            "'PerformanceOptions'"
+            "Field 'MaxPerf_invalid' from JSON is not defined in the data "
+            "class 'PerformanceOptions'."
         )
 
         assert expected_error_msg in captured.out
@@ -373,9 +372,8 @@ class TestOption:
         assert returned is None
         captured = capsys.readouterr()
         expected_error_msg = (
-            "Error details: Field(s) '{'purity'}' in JSON are not defined in the field "
-            "mapping for the data class 'TraceOptions'.\n"
-            "Failed to initialize options\n"
+            "Error details: Conflicting fields in JSON: 'pi' and 'purity' both map to the "
+            "field 'purity' in 'TraceOptions'."
         )
 
         assert expected_error_msg in captured.out
@@ -425,8 +423,8 @@ class TestOption:
         assert returned is None
         captured = capsys.readouterr()
         expected_error_msg = (
-            "Extra fields in JSON are not defined in InstanceSpaceOptions: "
-            "{'INTENDED_EXTRA_FIELD_IN_JSON'}"
+            "Error details: Extra fields in JSON are not defined in "
+            "InstanceSpaceOptions:  {'INTENDED_EXTRA_FIELD_IN_JSON'}\n"
         )
 
         assert expected_error_msg in captured.out
