@@ -280,8 +280,8 @@ class Sifted(Stage):
             s = self.s,
         )
 
-    @staticmethod
     def _sifted(
+        self,
         x: NDArray[np.double],
         y: NDArray[np.double],
         y_bin: NDArray[np.bool_],
@@ -344,11 +344,30 @@ class Sifted(Stage):
                 "Skipping feature selection.",
             )
             selvars = np.arange(nfeats)
-            return Sifted.generate_output(x=x, selvars=selvars, idx=idx)
+            return [
+                x,
+                y,
+                y_bin,
+                x_raw,
+                y_raw,
+                beta,
+                num_good_algos,
+                y_best,
+                p,
+                inst_labels,
+                s,
+                feat_labels,
+                selvars,
+                idx,
+                None,
+                None,
+                None,
+                None,
+            ]
 
         print("-> Selecting features based on correlation with performance.")
 
-        x_aux, rho, pval, selvars = self._select_features_by_performance()
+        x_aux, rho, pval, selvars = self.select_features_by_performance()
 
         nfeats = x_aux.shape[1]
 
@@ -411,9 +430,9 @@ class Sifted(Stage):
 
         print("-> Selecting features based on correlation clustering.")
 
-        silhouette_scores, _ = self._evaluate_cluster(x_aux, rng)
+        silhouette_scores, _ = self.evaluate_cluster(x_aux, rng)
 
-        clust, _ = self._select_features_by_clustering(x_aux, rng)
+        clust, _ = self.select_features_by_clustering(x_aux, rng)
 
         x_aux, selvars = self._find_best_combination(x_aux, clust, selvars, rng)
 
@@ -470,7 +489,7 @@ class Sifted(Stage):
             clust,
         ]
 
-    def _select_features_by_performance(
+    def select_features_by_performance(
         self,
     ) -> tuple[
         NDArray[np.double],
@@ -525,7 +544,7 @@ class Sifted(Stage):
 
         return (x_aux, rho, pval, selvars)
 
-    def _select_features_by_clustering(
+    def select_features_by_clustering(
         self,
         x_aux: NDArray[np.double],
         rng: np.random.Generator,
@@ -690,7 +709,7 @@ class Sifted(Stage):
 
         return selected_x, decoded_selvars
 
-    def _evaluate_cluster(
+    def evaluate_cluster(
         self,
         x_aux: NDArray[np.double],
         rng: np.random.Generator,
