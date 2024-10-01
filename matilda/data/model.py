@@ -70,6 +70,22 @@ class Data:
             uniformity=stage_runner_output["uniformity"],
         )
 
+@dataclass(frozen=True)
+class DataDense:
+    """TODO: This."""
+
+    inst_labels: pd.Series  # type: ignore[type-arg]
+    x: NDArray[np.double]
+    y: NDArray[np.double]
+    x_raw: NDArray[np.double]
+    y_raw: NDArray[np.double]
+    y_bin: NDArray[np.bool_]
+    y_best: NDArray[np.double]
+    p: NDArray[np.double]
+    num_good_algos: NDArray[np.double]
+    beta: NDArray[np.bool_]
+    s: pd.Series | None  # type: ignore[type-arg]
+
 
 @dataclass(frozen=True)
 class PreprocessingOut:
