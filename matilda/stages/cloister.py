@@ -35,6 +35,8 @@ cloister(x, a, options):
     and projection matrix `a`.
 """
 
+from typing import NamedTuple
+
 import numpy as np
 from loguru import logger
 from numpy.typing import NDArray
@@ -45,7 +47,39 @@ from matilda.data.options import CloisterOptions
 from matilda.stages.stage import Stage
 
 
-class CloisterStage(Stage):
+class CloisterInput(NamedTuple):
+    """Inputs for the Cloister stage.
+
+    Attributes
+    ----------
+    x : NDArray[np.double]
+        The feature matrix (instances x features) provided to the CLOISTER stage.
+    a : NDArray[np.double]
+        The projection matrix provided to the CLOISTER stage.
+    cloister_options : Cloister Options
+        Options for running Cloister.
+    """
+
+    x: NDArray[np.double]
+    a: NDArray[np.double]
+    cloister_options: CloisterOptions
+
+class CloisterOutput(NamedTuple):
+    """Outputs from the Cloister stage.
+
+    Attributes
+    ----------
+    z_edge : NDArray[np.double]
+        Estimated boundary points.
+    z_ecorr : NDArray[np.double]
+        Correlated boundary points.
+    """
+
+    z_edge: NDArray[np.double]
+    z_ecorr: NDArray[np.double]
+
+
+class CloisterStage(Stage[CloisterInput, CloisterOutput]):
     """CloisterStage class for Correlation-Based Boundary Estimation.
 
     The `CloisterStage` class implements the core functionality of the CLOISTER stage,
@@ -54,13 +88,6 @@ class CloisterStage(Stage):
 
     The class provides methods to compute Pearson correlation coefficients, filter
     insignificant correlations, and generate convex hulls to create boundary estimates.
-
-    Attributes
-    ----------
-    x : NDArray[np.double]
-        The feature matrix (instances x features) provided to the CLOISTER stage.
-    a : NDArray[np.double]
-        The projection matrix provided to the CLOISTER stage.
 
     Methods
     -------
@@ -103,66 +130,38 @@ class CloisterStage(Stage):
         a given number of features.
     """
 
-    def __init__(self, x: NDArray[np.double], a: NDArray[np.double]) -> None:
-        """Initialize CloisterStage with feature matrix and projection matrix.
-
-        Parameters
-        ----------
-        x : NDArray[np.double]
-            Feature matrix (instances x features) to process.
-        a : NDArray[np.double]
-            A projection matrix computed from Pilot.
-        """
-        self.x = x
-        self.a = a
+    @staticmethod
+    def _inputs() -> type[CloisterInput]:
+        return CloisterInput
 
     @staticmethod
-    def _inputs() -> list[tuple[str, type]]:
-        """Define the inputs for the CloisterStage.
-
-        Returns
-        -------
-        list[tuple[str, type]]
-            A list of tuples representing the names and types of input parameters.
-        """
-        return [("x", NDArray[np.double]), ("a", NDArray[np.double])]
+    def _outputs() -> type[CloisterOutput]:
+        return CloisterOutput
 
     @staticmethod
-    def _outputs() -> list[tuple[str, type]]:
-        """Define the outputs for the CloisterStage.
-
-        Returns
-        -------
-        list[tuple[str, type]]
-            A list of tuples representing the names and types of output parameters.
-        """
-        return [("z_edge", NDArray[np.double]), ("z_ecorr", NDArray[np.double])]
-
     def _run(
-        self,
-        options: CloisterOptions,
-    ) -> tuple[NDArray[np.double], NDArray[np.double]]:
+        inputs: CloisterInput,
+    ) -> CloisterOutput:
         """Execute the CLOISTER stage to estimate boundaries.
 
         Parameters
         ----------
-        options : CloisterOptions
-            Configuration options for the CLOISTER stage.
+        inputs : CloisterInput
+            Inputs for the cloister stage.
 
         Returns
         -------
-        tuple[NDArray[np.double], NDArray[np.double]]
-            The estimated boundary points (z_edge) and correlated boundary points
-            (z_ecorr).
+        CloisterOutput
+            Output of the Cloister stage.
         """
-        return CloisterStage.cloister(self.x, self.a, options)
+        return CloisterStage.cloister(inputs.x, inputs.a, inputs.cloister_options)
 
     @staticmethod
     def cloister(
         x: NDArray[np.double],
         a: NDArray[np.double],
         options: CloisterOptions,
-    ) -> tuple[NDArray[np.double], NDArray[np.double]]:
+    ) -> CloisterOutput:
         """Estimate a boundary for the space using correlation.
 
         Parameters
@@ -198,7 +197,7 @@ class CloisterStage(Stage):
         logger.info("-----------------------------------------------------------------")
         logger.info("  -> CLOISTER has completed.")
 
-        return (z_edge, z_ecorr)
+        return CloisterOutput(z_edge, z_ecorr)
 
     @staticmethod
     def _compute_correlation(

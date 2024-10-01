@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from typing_extensions import TypeVar
+
 from matilda._serialisers import save_instance_space_for_web, save_instance_space_to_csv
 from matilda.data.model import (
     CloisterOut,
