@@ -32,7 +32,7 @@
       "max_iter": 1000,
       "replicates": 100
     },
-    "trace": { "use_sim": true, "purity": 0.55 },
+    "trace": { "use_sim": true, "pi": 0.55 },
     "pilot": { "analytic": false, "n_tries": 5 },
     "cloister": { "c_thres": 0.7, "p_val": 0.05 },
     "pythia": {

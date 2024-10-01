@@ -348,9 +348,32 @@ class TestOption:
         assert returned is None
         captured = capsys.readouterr()
         expected_error_msg = (
-            "Error details: Field(s) '{'MaxPerf_invalid'}' "
-            "in JSON are not defined in the data class "
-            "'PerformanceOptions'"
+            "Field 'MaxPerf_invalid' from JSON is not defined in the data "
+            "class 'PerformanceOptions'."
+        )
+
+        assert expected_error_msg in captured.out
+
+    def test_option_value_unexpected(
+        self: Self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """
+        Another invalid attribute case in the JSON file.
+
+        Test loading option with attribute name that is definded by us
+        but exists in the JSON, will raise value error.
+        """
+        invalid_option_path = script_dir / "test_data/load_file/options_name_by_us.json"
+        metadata_path = script_dir / "test_data/load_file/metadata.csv"
+
+        returned = instance_space_from_files(metadata_path, invalid_option_path)
+        assert returned is None
+        captured = capsys.readouterr()
+        expected_error_msg = (
+            "Error details: Conflicting fields in JSON: 'pi' "
+            "and 'purity' both map to the "
+            "field 'purity' in 'TraceOptions'.\n"
         )
 
         assert expected_error_msg in captured.out
@@ -400,8 +423,8 @@ class TestOption:
         assert returned is None
         captured = capsys.readouterr()
         expected_error_msg = (
-            "Extra fields in JSON are not defined in InstanceSpaceOptions: "
-            "{'INTENDED_EXTRA_FIELD_IN_JSON'}"
+            "Error details: Extra fields in JSON are not defined in "
+            "InstanceSpaceOptions:  {'INTENDED_EXTRA_FIELD_IN_JSON'}\n"
         )
 
         assert expected_error_msg in captured.out
