@@ -22,7 +22,7 @@ from sklearn.model_selection import train_test_split
 from matilda.data.model import DataDense
 from matilda.data.options import PrelimOptions, SelvarsOptions
 from matilda.stages.stage import Stage
-from matilda.utils.filter import filter_instance
+from matilda.utils.filter import do_filter
 
 
 class PrelimInput(NamedTuple):
@@ -52,8 +52,8 @@ class PrelimInput(NamedTuple):
     y: NDArray[np.double]
     x_raw: NDArray[np.double]
     y_raw: NDArray[np.double]
-    s: pd.Series | None
-    inst_labels: pd.Series
+    s: pd.Series | None  # type: ignore[type-arg]
+    inst_labels: pd.Series  # type: ignore[type-arg]
     prelim_opts: PrelimOptions
     selvars_opts: SelvarsOptions
 
@@ -135,9 +135,9 @@ class PrelimOutput(NamedTuple):
     p: NDArray[np.double]
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
-    instlabels: pd.Series | None
+    instlabels: pd.Series | None  # type: ignore[type-arg]
     data_dense: DataDense | None
-    s: pd.Series | None
+    s: pd.Series | None  # type: ignore[type-arg]
 
 @dataclass(frozen=True)
 class _BoundOut:
@@ -172,8 +172,8 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         y: NDArray[np.double],
         x_raw: NDArray[np.double],
         y_raw: NDArray[np.double],
-        s: pd.Series | None,
-        inst_labels: pd.Series,
+        s: pd.Series | None,  # type: ignore[type-arg]
+        inst_labels: pd.Series,  # type: ignore[type-arg]
         prelim_opts: PrelimOptions,
         selvars_opts: SelvarsOptions,
     ) -> None:
@@ -713,9 +713,9 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         p: NDArray[np.double],
         num_good_algos: NDArray[np.double],
         beta: NDArray[np.bool_],
-        s: pd.Series | None,
+        s: pd.Series | None,  # type: ignore[type-arg]
         selvars_opts: SelvarsOptions,
-    ) -> tuple[
+    ) -> tuple[  # type: ignore[type-arg]
         NDArray[np.bool_],  # subset_index
         NDArray[np.double],  # x
         NDArray[np.double],  # y
@@ -781,7 +781,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             print(
                 "-> Creating a small scale experiment for validation based on density.",
             )
-            subset_index, _, _ = filter_instance(
+            subset_index, _, _, _ = do_filter(
                 x,
                 y,
                 y_bin,

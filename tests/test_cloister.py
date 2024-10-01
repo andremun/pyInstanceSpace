@@ -20,7 +20,7 @@ import numpy as np
 import pytest
 
 from matilda.data.options import CloisterOptions
-from matilda.stages.cloister import CloisterStage
+from matilda.stages.cloister import CloisterInput, CloisterStage
 
 script_dir = Path(__file__).parent
 
@@ -85,7 +85,7 @@ class TestCloister:
         input_x = input_data.input_x
         options = CloisterOptions.default()
 
-        rho_python = CloisterStage._compute_correlation(
+        rho_python = CloisterStage._compute_correlation(  # noqa: SLF001
             input_x,
             options,
         )
@@ -156,9 +156,13 @@ class TestCloister:
         input_a = input_data.input_a
         options = CloisterOptions.default()
 
-        cloister = CloisterStage(input_x, input_a)
+        inputs = CloisterInput(
+            input_x,
+            input_a,
+            options,
+        )
 
-        z_edge_python, z_ecorr_python = cloister._run(options)  # noqa: SLF001
+        z_edge_python, z_ecorr_python = CloisterStage._run(inputs)  # noqa: SLF001
         z_edge_matlab = output_data.z_edge
         z_ecorr_matlab = output_data.z_ecorr
 
@@ -174,7 +178,7 @@ class TestCloister:
     def test_convex_hull_value_error(self) -> None:
         """Test convex hull function properly handles value error."""
         points_one_dimension = np.array([[1], [2], [3]])
-        output = CloisterStage._compute_convex_hull(
+        output = CloisterStage._compute_convex_hull(  # noqa: SLF001
             points_one_dimension,
         )
         assert output.size == 0
@@ -219,7 +223,7 @@ class TestCloister:
         input_x = input_data.input_x
         options = CloisterOptions.default()
 
-        _, remove = CloisterStage._generate_boundaries(
+        _, remove = CloisterStage._generate_boundaries(  # noqa: SLF001
             input_x,
             rho_boundary,
             options,

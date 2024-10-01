@@ -119,7 +119,7 @@ def compute_uniformity(x: NDArray[np.double], subset_index: NDArray[np.bool_]) -
     return float(1 - (np.std(nearest, ddof=1) / np.mean(nearest)))
 
 
-def filter(
+def do_filter(
     x: NDArray[np.double],
     y: NDArray[np.double],
     y_bin: NDArray[np.bool_],

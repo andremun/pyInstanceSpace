@@ -14,13 +14,13 @@ class Stage(ABC, Generic[IN, OUT]):
 
     @staticmethod
     @abstractmethod
-    def _inputs() -> type[IN]:
+    def _inputs() -> type[NamedTuple]:
         """Return inputs of the STAGE (run method)."""
         raise NotImplementedError
 
     @staticmethod
     @abstractmethod
-    def _outputs() -> type[OUT]:
+    def _outputs() -> type[NamedTuple]:
         """Return outputs of the STAGE (run method)."""
         raise NotImplementedError
 

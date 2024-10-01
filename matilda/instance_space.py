@@ -16,8 +16,9 @@ from matilda.stage_runner import (
     StageRunningError,
 )
 from matilda.stages.cloister import CloisterStage
-from matilda.stages.prelim_stage import PrelimStage
-from matilda.stages.preprocessing_stage import PreprocessingStage
+from matilda.stages.pilot import PilotStage
+from matilda.stages.prelim import PrelimStage
+from matilda.stages.preprocessing import PreprocessingStage
 from matilda.stages.pythia import PythiaStage
 from matilda.stages.sifted_stage import SiftedStage
 from matilda.stages.stage import IN, OUT, Stage, StageClass

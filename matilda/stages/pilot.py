@@ -83,7 +83,7 @@ class PilotOutput(NamedTuple):
     r2: NDArray[np.double]
     summary: pd.DataFrame
 
-class PilotStage(Stage):
+class PilotStage(Stage[PilotInput, PilotOutput]):
     """Class for PILOT stage."""
 
     def __init__(

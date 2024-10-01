@@ -35,8 +35,8 @@ class PreprocessingInput(NamedTuple):
 
     feature_names: list[str]
     algorithm_names: list[str]
-    instance_labels: pd.Series
-    instance_sources: pd.Series
+    instance_labels: pd.Series  # type: ignore[type-arg]
+    instance_sources: pd.Series  # type: ignore[type-arg]
     features: NDArray[np.double]
     algorithms: NDArray[np.double]
     selvars: SelvarsOptions
@@ -62,12 +62,12 @@ class PreprocessingOutput(NamedTuple):
 
     """
 
-    inst_labels: pd.Series
+    inst_labels: pd.Series  # type: ignore[type-arg]
     feat_labels: list[str]
     algo_labels: list[str]
     x: NDArray[np.double]
     y: NDArray[np.double]
-    s: pd.Series | None
+    s: pd.Series | None  # type: ignore[type-arg]
 
 
 class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
