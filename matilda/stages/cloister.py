@@ -175,9 +175,7 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
 
         Returns
         -------
-        tuple[NDArray[np.double], NDArray[np.double]]
-            A tuple containing z_edge (estimated boundary points) and z_ecorr
-            (correlated boundary points).
+        The output of the Cloister stage.
         """
         logger.info(
             "  -> CLOISTER is using correlation to estimate a boundary for the space.",

@@ -40,6 +40,7 @@ Functions:
 
 from dataclasses import dataclass
 from time import perf_counter
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -80,6 +81,94 @@ class _SvmRes:
     g: float
 
 
+class PythiaInput(NamedTuple):
+    """Inputs for the Pythia stage.
+
+    Attributes
+    ----------
+    z : NDArray[np.double]
+        The feature matrix.
+    y : NDArray[np.double]
+        The performance metrics.
+    y_bin : NDArray[np.bool_]
+        The binary labels.
+    y_best : NDArray[np.double]
+        The best performance metrics.
+    algo_labels : list[str]
+        The algorithm labels.
+    pythia_options : PythiaOptions
+        The options for the Pythia stage.
+    """
+
+    z: NDArray[np.double]
+    y: NDArray[np.double]
+    y_bin: NDArray[np.bool_]
+    y_best: NDArray[np.double]
+    algo_labels: list[str]
+    pythia_options: PythiaOptions
+
+class PythiaOutput(NamedTuple):
+    """Outputs from the Pythia stage.
+
+    Attributes
+    ----------
+    mu : list[float]
+        TODO: This.
+    sigma : list[float]
+        TODO: This.
+    w : NDArray[np.double]
+        TODO: This.
+    cp : StratifiedKFold
+        TODO: This.
+    svm : list[SVC]
+        TODO: This.
+    cvcmat : NDArray[np.double]
+        TODO: This.
+    y_sub : NDArray[np.bool_]
+        TODO: This.
+    y_hat : NDArray[np.bool_]
+        TODO: This.
+    pr0_sub : NDArray[np.double]
+        TODO: This.
+    pr0_hat : NDArray[np.double]
+        TODO: This.
+    box_consnt : list[float]
+        TODO: This.
+    k_scale : list[float]
+        TODO: This.
+    accuracy : list[float]
+        TODO: This.
+    precision : list[float]
+        TODO: This.
+    recall : list[float]
+        TODO: This.
+    selection0 : NDArray[np.integer]
+        TODO: This.
+    selection1 : NDArray[np.integer]
+        TODO: This.
+    summary : pd.DataFrame
+        TODO: This.
+    """
+
+    mu: list[float]
+    sigma: list[float]
+    w: NDArray[np.double]
+    cp: StratifiedKFold
+    svm: list[SVC]
+    cvcmat: NDArray[np.double]
+    y_sub: NDArray[np.bool_]
+    y_hat: NDArray[np.bool_]
+    pr0_sub: NDArray[np.double]
+    pr0_hat: NDArray[np.double]
+    box_consnt: list[float]
+    k_scale: list[float]
+    accuracy: list[float]
+    precision: list[float]
+    recall: list[float]
+    selection0: NDArray[np.integer]
+    selection1: NDArray[np.integer]
+    summary: pd.DataFrame
+
 class PythiaStage(Stage):
     """See file docstring."""
 
@@ -100,119 +189,22 @@ class PythiaStage(Stage):
         self.algo_labels = algo_labels
 
     @staticmethod
-    def _inputs() -> list[tuple[str, type]]:
-        """Define the inputs for the PythiaStage.
-
-        Returns
-        -------
-        list[tuple[str, type]]
-            A list of tuples containing the name of the input and its type.
-        """
-        return [
-            ("z", NDArray[np.double]),
-            ("y", NDArray[np.double]),
-            ("y_bin", NDArray[np.bool_]),
-            ("y_best", NDArray[np.double]),
-            ("algo_labels", list[str]),
-            ("z", NDArray[np.double]),
-            ("y", NDArray[np.double]),
-            ("y_bin", NDArray[np.bool_]),
-            ("y_best", NDArray[np.double]),
-            ("algo_labels", list[str]),
-        ]
+    def _inputs() -> type[PythiaInput]:
+        return PythiaInput
 
     @staticmethod
-    def _outputs() -> list[tuple[str, type]]:
-        """Define the outputs for the PythiaStage.
+    def _outputs() -> type[PythiaOutput]:
+        return PythiaOutput
 
-        Returns
-        -------
-        list[tuple[str, type]]
-            A list of tuples containing the name of the output and its type.
-        """
-        return [
-            ("mu", list[float]),
-            ("sigma", list[float]),
-            ("w", NDArray[np.double]),
-            ("cp", StratifiedKFold),
-            ("svm", list[SVC]),
-            ("cvcmat", NDArray[np.double]),
-            ("y_sub", NDArray[np.bool_]),
-            ("y_hat", NDArray[np.bool_]),
-            ("pr0_sub", NDArray[np.double]),
-            ("pr0_hat", NDArray[np.double]),
-            ("box_consnt", list[float]),
-            ("k_scale", list[float]),
-            ("accuracy", list[float]),
-            ("precision", list[float]),
-            ("recall", list[float]),
-            ("selection0", NDArray[np.integer]),
-            ("selection1", NDArray[np.integer]),
-            ("summary", pd.DataFrame),
-        ]
-
-    def _run(
-        self,
-        options: PythiaOptions,
-    ) -> tuple[
-        list[float],
-        list[float],
-        NDArray[np.double],
-        StratifiedKFold,
-        list[SVC],
-        NDArray[np.double],
-        NDArray[np.bool_],
-        NDArray[np.bool_],
-        NDArray[np.double],
-        NDArray[np.double],
-        list[float],
-        list[float],
-        list[float],
-        list[float],
-        list[float],
-        NDArray[np.integer],
-        NDArray[np.integer],
-        pd.DataFrame,
-    ]:
-        """Run the Pythia stage.
-
-        Parameters
-        ----------
-        options : PythiaOptions
-            The options for the Pythia stage.
-
-        Returns
-        -------
-        tuple[
-            list[float],
-            list[float],
-            NDArray[np.double],
-            StratifiedKFold,
-            list[SVC],
-            NDArray[np.double],
-            NDArray[np.bool_],
-            NDArray[np.bool_],
-            NDArray[np.double],
-            NDArray[np.double],
-            list[float],
-            list[float],
-            list[float],
-            list[float],
-            list[float],
-            NDArray[np.integer],
-            NDArray[np.integer],
-            pd.DataFrame,
-            The overall performance metrics and the dataframe for
-            summary of the results.
-        ]
-        """
+    @staticmethod
+    def _run(inputs: PythiaInput) -> PythiaOutput:
         return PythiaStage.pythia(
-            self.z,
-            self.y,
-            self.y_bin,
-            self.y_best,
-            self.algo_labels,
-            options,
+            inputs.z,
+            inputs.y,
+            inputs.y_bin,
+            inputs.y_best,
+            inputs.algo_labels,
+            inputs.pythia_options,
         )
 
     @staticmethod
@@ -223,26 +215,7 @@ class PythiaStage(Stage):
         y_best: NDArray[np.double],
         algo_labels: list[str],
         opts: PythiaOptions,
-    ) -> tuple[
-        list[float],
-        list[float],
-        NDArray[np.double],
-        StratifiedKFold,
-        list[SVC],
-        NDArray[np.double],
-        NDArray[np.bool_],
-        NDArray[np.bool_],
-        NDArray[np.double],
-        NDArray[np.double],
-        list[float],
-        list[float],
-        list[float],
-        list[float],
-        list[float],
-        NDArray[np.integer],
-        NDArray[np.integer],
-        pd.DataFrame,
-    ]:
+    ) -> PythiaOutput:
         """Run the Pythia stage.
 
         Parameters
@@ -262,27 +235,8 @@ class PythiaStage(Stage):
 
         Returns
         -------
-        tuple[
-            list[float],
-            list[float],
-            NDArray[np.double],
-            StratifiedKFold,
-            list[SVC],
-            NDArray[np.double],
-            NDArray[np.bool_],
-            NDArray[np.bool_],
-            NDArray[np.double],
-            NDArray[np.double],
-            list[float],
-            list[float],
-            list[float],
-            list[float],
-            list[float],
-            NDArray[np.integer],
-            NDArray[np.integer],
-            pd.DataFrame,
-        The overall performance metrics and the dataframe for
-        summary of the results.
+        PythiaOutput
+            The output of the Pythia stage.
         """
         print(
             "=========================================================================",
@@ -455,7 +409,7 @@ class PythiaStage(Stage):
             k_scale,
         )
 
-        return (
+        return PythiaOutput(
             mu,
             sigma,
             w,
