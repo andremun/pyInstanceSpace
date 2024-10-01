@@ -99,7 +99,7 @@ class Sifted(Stage):
         opts: SiftedOptions,
     ) -> None:
         """Define the input variables for the stage.
-        
+
         Args
         -----
         None
@@ -129,7 +129,6 @@ class Sifted(Stage):
         inst_labels : pd.Series
             Instance labels for the dataset.
         """
-        
         self.x = x
         self.y = y
         self.y_bin = y_bin
@@ -281,8 +280,8 @@ class Sifted(Stage):
             s = self.s,
         )
 
+    @staticmethod
     def _sifted(
-        self,
         x: NDArray[np.double],
         y: NDArray[np.double],
         y_bin: NDArray[np.bool_],
@@ -450,27 +449,26 @@ class Sifted(Stage):
                 silhouette_scores,
                 clust,
             ]
-        else:
-            return [
-                x_aux,
-                y,
-                y_bin,
-                x_raw,
-                y_raw,
-                beta,
-                num_good_algos,
-                y_best,
-                p,
-                inst_labels,
-                s,
-                [feat_labels[i] for i in selvars],
-                selvars,
-                idx,
-                rho,
-                pval,
-                silhouette_scores,
-                clust,
-            ]
+        return [
+            x_aux,
+            y,
+            y_bin,
+            x_raw,
+            y_raw,
+            beta,
+            num_good_algos,
+            y_best,
+            p,
+            inst_labels,
+            s,
+            [feat_labels[i] for i in selvars],
+            selvars,
+            idx,
+            rho,
+            pval,
+            silhouette_scores,
+            clust,
+        ]
 
     def _select_features_by_performance(
         self,
