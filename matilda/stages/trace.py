@@ -238,7 +238,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         self.opts = opts
 
     @staticmethod
-    def _inputs() -> type[NamedTuple]:
+    def _inputs() -> type[TraceInputs]:
         """Use the method for determining the inputs for trace.
 
         Args
@@ -253,7 +253,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         return TraceInputs
 
     @staticmethod
-    def _outputs() -> type[NamedTuple]:
+    def _outputs() -> type[TraceOutputs]:
         """Use the method for determining the outputs for trace.
 
         Args
