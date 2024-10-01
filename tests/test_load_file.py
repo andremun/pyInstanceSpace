@@ -372,8 +372,9 @@ class TestOption:
         assert returned is None
         captured = capsys.readouterr()
         expected_error_msg = (
-            "Error details: Conflicting fields in JSON: 'pi' and 'purity' both map to the "
-            "field 'purity' in 'TraceOptions'."
+            "Error details: Conflicting fields in JSON: 'pi' "
+            "and 'purity' both map to the "
+            "field 'purity' in 'TraceOptions'.\n"
         )
 
         assert expected_error_msg in captured.out

@@ -433,7 +433,6 @@ class InstanceSpaceOptions:
                 PerformanceOptions,
                 file_contents.get("perf", {}),
             ),
-
             auto=InstanceSpaceOptions._load_dataclass(
                 AutoOptions,
                 file_contents.get("auto", {}),
@@ -580,14 +579,16 @@ class InstanceSpaceOptions:
             if mapped_field in mapped_json_fields:
                 original_json_field = reverse_mapping.get(mapped_field, mapped_field)
                 raise ValueError(
-                    f"Conflicting fields in JSON: '{original_json_field}' and '{json_field}' both map to "
-                    f"the field '{mapped_field}' in '{data_class.__name__}'."
+                    f"Conflicting fields in JSON: "
+                    f"'{original_json_field}' and '{json_field}' both map to "
+                    f"the field '{mapped_field}' in '{data_class.__name__}'.",
                 )
 
             # Check if the mapped field is valid (exists in the dataclass)
             if mapped_field not in known_fields:
                 raise ValueError(
-                    f"Field '{mapped_field}' from JSON is not defined in the data class '{data_class.__name__}'."
+                    f"Field '{mapped_field}' from JSON is not defined "
+                    f"in the data class '{data_class.__name__}'.",
                 )
 
             mapped_json_fields[mapped_field] = value
@@ -641,7 +642,7 @@ class InstanceSpaceOptions:
             # If the field is explicitly mapped, use the mapped field name
             json_field_name = field_mapping.get(field_name, field_name)
 
-            # Fetch the value from the input dictionary, or fall back to the default if the key is missing
+            # Fetch the value from the input dictionary, or fall back to the default
             mapped_data[field_name] = data.get(json_field_name, default_value)
 
         # Validate the fields before returning the dataclass instance
