@@ -26,7 +26,6 @@ import pandas as pd
 from numpy.typing import NDArray
 from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
-from skopt.space import Real
 
 from matilda.data.options import PythiaOptions
 from matilda.stages.pythia import PythiaStage
