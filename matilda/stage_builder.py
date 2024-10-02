@@ -79,7 +79,13 @@ class StageBuilder:
         outputs = stage._outputs()  # noqa: SLF001
 
         for output_name, output_type in self._named_tuple_to_stage_arguments(outputs):
-            if issubclass(output_type, RunBefore) or issubclass(output_type, RunAfter):
+            if (
+                isinstance(output_type, type)
+                and (
+                    issubclass(output_type, RunBefore)
+                    or issubclass(output_type, RunAfter)
+                )
+            ):
                 raise TypeError(
                     f"Argument {output_name} is a {output_type}. "
                     + f"{output_type}s are only allowed as inputs.",
@@ -145,8 +151,7 @@ class StageBuilder:
         while (
             previous_resolved_stages is None
             or len(resolved_stages - previous_resolved_stages) > 0
-        ):
-            # No stages left to resolve, return the ordering
+        ):            # No stages left to resolve, return the ordering
             if len(self.stages - resolved_stages) == 0:
                 return stage_order
 
@@ -192,6 +197,35 @@ class StageBuilder:
 
             stage_order.append(list(stages_can_run_post_mutating_check))
 
+        # If stage resolution failed, raise a detailed error
+        if len(self.stages - resolved_stages) > 0:
+            inputs_message = ""
+            for stage in self.stages - resolved_stages:
+                required_inputs = self._strip_run_restriction_arguments(
+                    self.stage_inputs[stage],
+                )
+
+                missing_inputs = required_inputs - available_inputs
+                inputs_message += f"    [{stage.__name__}]\n"
+                inputs_message += "".join(map(
+                    lambda x : f"       {x.parameter_name}: {x.parameter_type}\n",
+                    missing_inputs,
+                ))
+
+            available_inputs_message = ""
+            available_inputs_message += "".join(map(
+                lambda x : f"       {x.parameter_name}: {x.parameter_type}\n",
+                available_inputs,
+            ))
+
+            raise StageResolutionError(
+                "Stages could not be resolved due to missing inputs.\n"
+                + "Missing inputs:\n"
+                + inputs_message
+                +"\nAvailable inputs:\n"
+                + available_inputs_message,
+            )
+
         return stage_order
 
     @staticmethod
@@ -201,7 +235,7 @@ class StageBuilder:
         return {
             argument
             for argument in arguments
-            if not (
+            if isinstance(argument.parameter_type, type) and not (
                 issubclass(argument.parameter_type, RunBefore)
                 or issubclass(argument.parameter_type, RunAfter)
             )
@@ -227,13 +261,19 @@ class StageBuilder:
 
         for stage in self.stages:
             for argument in self.stage_inputs[stage]:
-                if issubclass(argument.parameter_type, RunBefore):
+                if (
+                    isinstance(argument.parameter_type, type)
+                    and issubclass(argument.parameter_type, RunBefore)
+                ):
                     before_stage = get_args(argument.parameter_type)[0]
                     ordering_restrictions.add(
                         _BeforeAfterRestriction(stage, before_stage),
                     )
 
-                if issubclass(argument.parameter_type, RunAfter):
+                if (
+                    isinstance(argument.parameter_type, type)
+                    and issubclass(argument.parameter_type, RunAfter)
+                ):
                     after_stage = get_args(argument.parameter_type)[0]
                     ordering_restrictions.add(
                         _BeforeAfterRestriction(after_stage, stage),

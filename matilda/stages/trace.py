@@ -43,8 +43,6 @@ from_polygon(polygon, z, y_bin, smoothen=False):
     instance data, optionally smoothing the polygon borders.
 """
 
-from __future__ import annotations
-
 import math
 import multiprocessing
 import time

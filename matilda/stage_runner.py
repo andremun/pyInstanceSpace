@@ -234,7 +234,8 @@ class StageRunner:
                 if len(input_arguments[stage] - available_arguments) > 0:
                     raise StageRunningError(
                         "Stage order was not runnable. Not all inputs were available "
-                        + "for a stage at the time of running.",
+                        + "for a stage at the time of running. Missing inputs: "
+                        + f"{list(input_arguments[stage] - available_arguments)}",
                     )
 
             for stage in schedule_element:
