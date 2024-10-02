@@ -471,6 +471,9 @@ class InstanceSpaceOptions:
             pythia=InstanceSpaceOptions._load_dataclass(
                 PythiaOptions,
                 file_contents.get("pythia", {}),
+                field_mapping={
+                    "use_lib_svm": "_",
+                }, # ignoring use_lib_svm
             ),
             trace=InstanceSpaceOptions._load_dataclass(
                 TraceOptions,
@@ -594,7 +597,7 @@ class InstanceSpaceOptions:
                 )
 
             # Check if the mapped field is valid (exists in the dataclass)
-            if mapped_field not in known_fields:
+            if mapped_field not in known_fields and mapped_field != "_":
                 raise ValueError(
                     f"Field '{mapped_field}' from JSON is not defined "
                     f"in the data class '{data_class.__name__}'.",
