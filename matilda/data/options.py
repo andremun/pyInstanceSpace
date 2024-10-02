@@ -418,7 +418,7 @@ class InstanceSpaceOptions:
 
         if extra_fields:
             raise ValueError(
-                f"Extra fields in JSON are not defined in InstanceSpaceOptions:"
+                f"Extra fields in JSON are not defined in InstanceSpaceOptions: "
                 f" {extra_fields}",
             )
 
@@ -468,6 +468,9 @@ class InstanceSpaceOptions:
             trace=InstanceSpaceOptions._load_dataclass(
                 TraceOptions,
                 file_contents.get("trace", {}),
+                field_mapping={
+                    "pi": "purity",
+                },  # mapping the 'pi' in JSON to the 'purity' in TraceOptions
             ),
             outputs=InstanceSpaceOptions._load_dataclass(
                 OutputOptions,
@@ -532,7 +535,11 @@ class InstanceSpaceOptions:
     )
 
     @staticmethod
-    def _validate_fields(data_class: type[T], data: dict[str, Any]) -> None:
+    def _validate_fields(
+        data_class: type[T],
+        data: dict[str, Any],
+        field_mapping: dict[str, str] | None = None,
+    ) -> None:
         """Validate all keys in the provided dictionary are valid fields in dataclass.
 
         Args
@@ -541,6 +548,12 @@ class InstanceSpaceOptions:
             The dataclass type to validate against.
         data : dict
             The dictionary whose keys are to be validated.
+        field_mapping : Optional[dict[str, str]], optional
+            An optional dictionary that maps field names from the input JSON
+            to the corresponding field names in the dataclass.
+            For example, if the dataclass has a field `purity`, but the input
+            dictionary uses the key `pi`, this mapping
+            would be `{"pi": "purity"}`.
 
         Raises
         ------
@@ -548,19 +561,44 @@ class InstanceSpaceOptions:
             If an undefined field is found in the dictionary or
 
         """
-        # Get all defined fields in the data class
+        if field_mapping is None:
+            field_mapping = {}
+
+        # Get all valid field names from the dataclass
         known_fields = {f.name for f in fields(data_class)}
 
-        # Check if all fields in the JSON are defined in the data class
-        extra_fields = set(data.keys()) - known_fields
-        if extra_fields:
-            raise ValueError(
-                f"Field(s) '{extra_fields}' in JSON are not "
-                f"defined in the data class '{data_class.__name__}'.",
-            )
+        # Collect JSON fields and apply mapping (map pi to purity, etc.)
+        mapped_json_fields = {}
+        reverse_mapping = {v: k for k, v in field_mapping.items()}
+
+        for json_field, value in data.items():
+            # Use field mapping if available, otherwise keep the original field name
+            mapped_field = field_mapping.get(json_field, json_field)
+
+            # Check for conflicts, i.e., if the JSON contains both 'pi' and 'purity'
+            if mapped_field in mapped_json_fields:
+                original_json_field = reverse_mapping.get(mapped_field, mapped_field)
+                raise ValueError(
+                    f"Conflicting fields in JSON: "
+                    f"'{original_json_field}' and '{json_field}' both map to "
+                    f"the field '{mapped_field}' in '{data_class.__name__}'.",
+                )
+
+            # Check if the mapped field is valid (exists in the dataclass)
+            if mapped_field not in known_fields:
+                raise ValueError(
+                    f"Field '{mapped_field}' from JSON is not defined "
+                    f"in the data class '{data_class.__name__}'.",
+                )
+
+            mapped_json_fields[mapped_field] = value
 
     @staticmethod
-    def _load_dataclass(data_class: type[T], data: dict[str, Any]) -> T:
+    def _load_dataclass(
+        data_class: type[T],
+        data: dict[str, Any],
+        field_mapping: dict[str, str] | None = None,
+    ) -> T:
         """Load data into a dataclass from a dictionary.
 
         Ensures all dictionary keys match dataclass fields and fills in fields
@@ -573,6 +611,12 @@ class InstanceSpaceOptions:
             The dataclass type to populate.
         data : dict
             Dictionary containing data to load into the dataclass.
+        field_mapping : Optional[dict[str, str]], optional
+            An optional dictionary that maps field names from the input JSON
+            to the corresponding field names in the dataclass.
+            For example, if the dataclass has a field `purity`, but the input
+            dictionary uses the key `pi`, this mapping
+            would be `{"pi": "purity"}`.
 
         Returns
         -------
@@ -584,17 +628,27 @@ class InstanceSpaceOptions:
         ValueError
             If the dictionary contains keys that are not valid fields in the dataclass.
         """
-        # Get the default values for the dataclass fields
+        if field_mapping is None:
+            field_mapping = {}
+
+            # Get the default values for the dataclass fields
         default_values = {
             f.name: getattr(data_class.default(), f.name) for f in fields(data_class)
         }
 
-        InstanceSpaceOptions._validate_fields(data_class, data)
+        mapped_data = {}
+        # Loop through each field in the dataclass, applying field mappings if needed
+        for field_name, default_value in default_values.items():
+            # If the field is explicitly mapped, use the mapped field name
+            json_field_name = field_mapping.get(field_name, field_name)
 
-        # Update the default values with the provided data
-        init_args = {**default_values, **data}
+            # Fetch the value from the input dictionary, or fall back to the default
+            mapped_data[field_name] = data.get(json_field_name, default_value)
 
-        return data_class(**init_args)
+        # Validate the fields before returning the dataclass instance
+        InstanceSpaceOptions._validate_fields(data_class, data, field_mapping)
+
+        return data_class(**mapped_data)
 
 
 # InstanceSpaceOptions not part of the main InstanceSpaceOptions class

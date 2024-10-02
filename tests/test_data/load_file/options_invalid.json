@@ -40,7 +40,7 @@
       "use_weights": false,
       "use_lib_svm": false
     },
-    "trace": { "use_sim": true, "purity": 0.55 },
+    "trace": { "use_sim": true, "pi": 0.55 },
     "outputs": { "csv": true, "png": true, "web": false }
   }
   
