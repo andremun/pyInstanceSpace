@@ -435,10 +435,18 @@ class InstanceSpaceOptions:
             parallel=InstanceSpaceOptions._load_dataclass(
                 ParallelOptions,
                 file_contents.get("parallel", {}),
+                {
+                    "ncores": "n_cores",
+                },
             ),
             perf=InstanceSpaceOptions._load_dataclass(
                 PerformanceOptions,
                 file_contents.get("perf", {}),
+                {
+                    "maxperf": "max_perf",
+                    "absperf": "abs_perf",
+                    "betathreshold": "beta_threshold",
+                },
             ),
             auto=InstanceSpaceOptions._load_dataclass(
                 AutoOptions,
@@ -455,24 +463,49 @@ class InstanceSpaceOptions:
             selvars=InstanceSpaceOptions._load_dataclass(
                 SelvarsOptions,
                 file_contents.get("selvars", {}),
+                {
+                    "smallscaleflag": "small_scale_flag",
+                    "smallscale": "small_scale",
+                    "fileidxflag": "file_idx_flag",
+                    "fileidx": "file_idx",
+                    "densityflag": "density_flag",
+                    "mindistance": "min_distance",
+                    "type": "selvars_type",
+                },
             ),
             sifted=InstanceSpaceOptions._load_dataclass(
                 SiftedOptions,
                 file_contents.get("sifted", {}),
+                {
+                    "ntrees": "n_trees",
+                    "maxiter": "max_iter",
+                    "replicates": "replicates",
+                },
             ),
             pilot=InstanceSpaceOptions._load_dataclass(
                 PilotOptions,
                 file_contents.get("pilot", {}),
+                {
+                    "ntries": "n_tries",
+                },
             ),
             cloister=InstanceSpaceOptions._load_dataclass(
                 CloisterOptions,
                 file_contents.get("cloister", {}),
+                {
+                    "pval": "p_val",
+                    "cthres": "c_thres",
+                },
             ),
             pythia=InstanceSpaceOptions._load_dataclass(
                 PythiaOptions,
                 file_contents.get("pythia", {}),
                 field_mapping={
+                    "cvfolds": "cv_folds",
+                    "ispolykrnl": "is_poly_krnl",
+                    "useweights": "use_weights",
                     "use_lib_svm": "_",
+                    "uselibsvm": "_",
                 }, # ignoring use_lib_svm
             ),
             trace=InstanceSpaceOptions._load_dataclass(
@@ -480,6 +513,7 @@ class InstanceSpaceOptions:
                 file_contents.get("trace", {}),
                 field_mapping={
                     "pi": "purity",
+                    "usesim": "use_sim",
                 },  # mapping the 'pi' in JSON to the 'purity' in TraceOptions
             ),
             outputs=InstanceSpaceOptions._load_dataclass(
@@ -583,9 +617,11 @@ class InstanceSpaceOptions:
         mapped_json_fields = {}
         reverse_mapping = {v: k for k, v in field_mapping.items()}
 
+        value_errors = []
+
         for json_field, value in data.items():
             # Use field mapping if available, otherwise keep the original field name
-            mapped_field = field_mapping.get(json_field, json_field)
+            mapped_field = field_mapping.get(json_field.lower(), json_field.lower())
 
             # Check for conflicts, i.e., if the JSON contains both 'pi' and 'purity'
             if mapped_field in mapped_json_fields:
@@ -598,12 +634,16 @@ class InstanceSpaceOptions:
 
             # Check if the mapped field is valid (exists in the dataclass)
             if mapped_field not in known_fields and mapped_field != "_":
-                raise ValueError(
-                    f"Field '{mapped_field}' from JSON is not defined "
-                    f"in the data class '{data_class.__name__}'.",
-                )
+                value_errors.append(mapped_field)
 
             mapped_json_fields[mapped_field] = value
+
+        if len(value_errors) > 0:
+            raise ValueError(
+                "The following fields from JSON are not defined in the data class "
+                + data_class.__name__ + "\n"
+                + "\n".join(map(lambda x : f"   {x}", value_errors)),
+            )
 
     @staticmethod
     def _load_dataclass(
@@ -653,7 +693,7 @@ class InstanceSpaceOptions:
         # Loop through each field in the dataclass, applying field mappings if needed
         for field_name, default_value in default_values.items():
             # If the field is explicitly mapped, use the mapped field name
-            json_field_name = field_mapping.get(field_name, field_name)
+            json_field_name = field_mapping.get(field_name.lower(), field_name)
 
             # Fetch the value from the input dictionary, or fall back to the default
             mapped_data[field_name] = data.get(json_field_name, default_value)

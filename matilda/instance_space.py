@@ -132,6 +132,7 @@ class InstanceSpace:
         self._stages = stages
 
         self._model = None
+        self._final_output = None
 
         stage_builder = StageBuilder()
 
@@ -175,8 +176,8 @@ class InstanceSpace:
         -------
             Model: _description_
         """
-        if not self._model:
-            if not self._final_output:
+        if self._model is None:
+            if self._final_output is None:
                 raise StageRunningError("InstanceSpace has not been completely ran.")
 
             self._model = Model.from_stage_runner_output(
@@ -188,8 +189,6 @@ class InstanceSpace:
 
     def build(
         self,
-        metadata: Metadata,
-        options: InstanceSpaceOptions,
         **_arguments: Any,  # noqa: ANN401 # TODO: make this work
     ) -> Model:
         """Build the instance space.
@@ -207,8 +206,11 @@ class InstanceSpace:
             tuple[Any]: The output of all stages
 
         """
-        inputs = _InstanceSpaceInputs.from_metadata_and_options(metadata, options)
-        self._runner.run_all(inputs)
+        inputs = _InstanceSpaceInputs.from_metadata_and_options(
+            self.metadata,
+            self.options,
+        )
+        self._final_output = self._runner.run_all(inputs)
 
         return self.model
 
