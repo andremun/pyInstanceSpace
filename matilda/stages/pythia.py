@@ -562,7 +562,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         Returns
         -------
-        list | None
+        NDArray[np.double] | None
         The pre-calculated hyper-parameters or None.
         """
         if params is None:
