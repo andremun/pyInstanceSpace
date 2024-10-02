@@ -224,11 +224,11 @@ def test_run() -> None:
        inputs.y_best,
        inputs.p,
        inputs.inst_labels,
-       inputs.s,
-       inputs.feat_labels,
-       inputs.opts,
-       inputs.opts_selvar,
-       inputs.data_dense,
+       s=inputs.s,
+       feat_labels=inputs.feat_labels,
+       opts=inputs.opts,
+       opts_selvars=inputs.opts_selvar,
+       data_dense=inputs.data_dense,
     )
 
     sifted_output = SiftedStage._run(sifted_input)  # noqa: SLF001
