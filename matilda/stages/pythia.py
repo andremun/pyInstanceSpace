@@ -80,7 +80,7 @@ class _SvmRes:
     g: float
 
 
-class PythiaStage(Stage):
+class Pythia(Stage):
     """See file docstring."""
 
     def __init__(
