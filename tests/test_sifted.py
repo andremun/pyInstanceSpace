@@ -233,11 +233,11 @@ def test_run() -> None:
 
     sifted_output = SiftedStage._run(sifted_input)  # noqa: SLF001
     x_python, x_matlab = sifted_output[0], SiftedMatlabOutput().x_matlab
-    x_python = pd.DataFrame(x_python)
-    x_matlab = pd.DataFrame(x_matlab)
+    df_python = pd.DataFrame(x_python)
+    df_matlab = pd.DataFrame(x_matlab)
 
     # compute correlation matrix that has been categorised into high, normal and low
-    correlation_matrix = compute_correlation(x_python, x_matlab)
+    correlation_matrix = compute_correlation(df_python, df_matlab)
 
     # test case pass if 70%
     assert correlation_matrix_check(correlation_matrix, threshold=0.5)
