@@ -345,3 +345,24 @@ def test_save_for_web() -> None:
             pass
         else:
             pd.testing.assert_frame_equal(expected_data, actual_data)
+
+
+def test_save_graphs() -> None:
+    """Test saving graphs from a completed instance space."""
+    model = _MatlabResults().get_model()
+
+    model.save_graphs(script_dir / "test_data/serializers/actual_output/png")
+
+    test_data_dir = script_dir / "test_data/serializers"
+
+    for csv_file in os.listdir(
+        test_data_dir / "expected_output/png",
+    ):
+        expected_file_path = test_data_dir / "expected_output/png" / csv_file
+        actual_file_path = test_data_dir / "actual_output/png" / csv_file
+
+        # Expected file isn't a directory, and actual file exists
+        assert Path.is_file(expected_file_path)
+        assert Path.is_file(actual_file_path)
+
+        # We can't test the images, so we must check visually that they are consistant

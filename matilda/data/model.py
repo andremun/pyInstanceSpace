@@ -305,7 +305,7 @@ class PythiaOut:
     precision: list[float]
     recall: list[float]
     accuracy: list[float]
-    selection0: NDArray[np.double]
+    selection0: NDArray[np.int_]
     selection1: Any  # Change it to proper type
     summary: pd.DataFrame
 

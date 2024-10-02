@@ -6,7 +6,7 @@ from typing import Any
 
 from typing_extensions import TypeVar
 
-from matilda._serialisers import save_instance_space_for_web, save_instance_space_to_csv
+from matilda._serialisers import save_instance_space_for_web, save_instance_space_graphs, save_instance_space_to_csv
 from matilda.data.model import (
     CloisterOut,
     Data,
@@ -97,7 +97,21 @@ class Model:
         save_instance_space_for_web(
             output_directory,
             self.data,
-            self.prelim,
-            self.sifted,
             self.feat_sel,
+        )
+
+    def save_graphs(self, output_directory: Path) -> None:
+        """Save csv outputs used for the web frontend to a directory."""
+        print(
+            "=========================================================================",
+        )
+        print("-> Producing the plots.")
+
+        save_instance_space_graphs(
+            output_directory,
+            self.data,
+            self.opts,
+            self.pythia,
+            self.pilot,
+            self.trace,
         )
