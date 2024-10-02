@@ -28,7 +28,7 @@ Classes:
 Functions:
 ----------
 - pythia: The main function for the Pythia stage.
-- _fitmatsvm: Train a SVM model using MATLAB's 'fitcsvm' function.
+- _fitmatsvm: Train the SVM model with configurable options.
 - _display_overall_perf: Output overall performance metrics.
 - _compute_znorm: Compute normalized instance space.
 - _check_precalcparams: Check pre-calculated hyper-parameters.
@@ -107,47 +107,30 @@ class PythiaInput(NamedTuple):
     algo_labels: list[str]
     pythia_options: PythiaOptions
 
+
 class PythiaOutput(NamedTuple):
     """Outputs from the Pythia stage.
 
     Attributes
     ----------
     mu : list[float]
-        TODO: This.
     sigma : list[float]
-        TODO: This.
     w : NDArray[np.double]
-        TODO: This.
     cp : StratifiedKFold
-        TODO: This.
     svm : list[SVC]
-        TODO: This.
     cvcmat : NDArray[np.double]
-        TODO: This.
     y_sub : NDArray[np.bool_]
-        TODO: This.
     y_hat : NDArray[np.bool_]
-        TODO: This.
     pr0_sub : NDArray[np.double]
-        TODO: This.
     pr0_hat : NDArray[np.double]
-        TODO: This.
     box_consnt : list[float]
-        TODO: This.
     k_scale : list[float]
-        TODO: This.
     accuracy : list[float]
-        TODO: This.
     precision : list[float]
-        TODO: This.
     recall : list[float]
-        TODO: This.
-    selection0 : NDArray[np.integer]
-        TODO: This.
-    selection1 : NDArray[np.integer]
-        TODO: This.
+    selection0 : NDArray[np.int_]
+    selection1 : NDArray[np.int_]
     summary : pd.DataFrame
-        TODO: This.
     """
 
     mu: list[float]
@@ -165,11 +148,12 @@ class PythiaOutput(NamedTuple):
     accuracy: list[float]
     precision: list[float]
     recall: list[float]
-    selection0: NDArray[np.integer]
-    selection1: NDArray[np.integer]
+    selection0: NDArray[np.int_]
+    selection1: NDArray[np.int_]
     summary: pd.DataFrame
 
-class PythiaStage(Stage):
+
+class PythiaStage(Stage[PythiaInput, PythiaOutput]):
     """See file docstring."""
 
     def __init__(
@@ -327,7 +311,7 @@ class PythiaStage(Stage):
             param_space = (
                 PythiaStage._generate_params(opts.use_grid_search, rng)
                 if precalcparams is None
-                else precalcparams[i]
+                else {"C":precalcparams[i][0], "gamma":precalcparams[i][1]}
             )
 
             res = PythiaStage._fitmatsvm(
@@ -437,7 +421,7 @@ class PythiaStage(Stage):
         w: NDArray[np.double],
         skf: StratifiedKFold,
         is_poly_kernel: bool,
-        param_space: dict | None,
+        param_space: dict[str, list[float]] | None,
         use_grid_search: bool,
     ) -> _SvmRes:
         """Train a SVM model based on configuration.
@@ -562,7 +546,9 @@ class PythiaStage(Stage):
         return (mu, sigma, z)
 
     @staticmethod
-    def _check_precalcparams(params: NDArray | None, nalgos: int) -> list | None:
+    def _check_precalcparams(
+        params: NDArray[np.double] | None, nalgos: int,
+    ) -> NDArray[np.double] | None:
         """Check pre-calculated hyper-parameters.
 
         Parameters
@@ -587,9 +573,9 @@ class PythiaStage(Stage):
             print("Hyper-parameters will be auto-generated.")
             return None
         print("-> Using pre-calculated hyper-parameters for the SVM.")
-        c_list = params[:, 0]
-        gamma_list = params[:, 1]
-        return [{"C": c, "gamma": g} for c, g in zip(c_list, gamma_list)]
+        #c_list = params[:, 0]
+        #gamma_list = params[:, 1]
+        return params #[{"C": c, "gamma": g} for c, g in zip(c_list, gamma_list)]
 
     @staticmethod
     def _determine_selections(
@@ -597,7 +583,7 @@ class PythiaStage(Stage):
         precision: list[float],
         y_hat: NDArray[np.bool_],
         y_bin: NDArray[np.bool_],
-    ) -> tuple[NDArray[np.integer], NDArray[np.integer]]:
+    ) -> tuple[NDArray[np.int_], NDArray[np.int_]]:
         """Determine the selections based on the predicted labels and precision.
 
         Parameters
@@ -633,7 +619,9 @@ class PythiaStage(Stage):
         return (selection0, selection1)
 
     @staticmethod
-    def _generate_params(use_grid_search: bool, rng: np.random.Generator) -> dict:
+    def _generate_params(
+        use_grid_search: bool, rng: np.random.Generator,
+    ) -> dict[str, list[float]]:
         """Generate hyperparameters for the SVM models.
 
         Parameters
@@ -670,8 +658,8 @@ class PythiaStage(Stage):
         y_hat: NDArray[np.bool_],
         y_bin: NDArray[np.bool_],
         y_best: NDArray[np.double],
-        selection0: NDArray[np.integer],
-        selection1: NDArray[np.integer],
+        selection0: NDArray[np.int_],
+        selection1: NDArray[np.int_],
         precision: list[float],
         accuracy: list[float],
         recall: list[float],
