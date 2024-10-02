@@ -114,23 +114,41 @@ class PythiaOutput(NamedTuple):
     Attributes
     ----------
     mu : list[float]
+    TODO: This.
     sigma : list[float]
+    TODO: This.
     w : NDArray[np.double]
+    TODO: This.
     cp : StratifiedKFold
+    TODO: This.
     svm : list[SVC]
+    TODO: This.
     cvcmat : NDArray[np.double]
+    TODO: This.
     y_sub : NDArray[np.bool_]
+    TODO: This.
     y_hat : NDArray[np.bool_]
+    TODO: This.
     pr0_sub : NDArray[np.double]
+    TODO: This.
     pr0_hat : NDArray[np.double]
+    TODO: This.
     box_consnt : list[float]
+    TODO: This.
     k_scale : list[float]
+    TODO: This.
     accuracy : list[float]
+    TODO: This.
     precision : list[float]
+    TODO: This.
     recall : list[float]
+    TODO: This.
     selection0 : NDArray[np.int_]
+    TODO: This.
     selection1 : NDArray[np.int_]
+    TODO: This.
     summary : pd.DataFrame
+    TODO: This.
     """
 
     mu: list[float]
@@ -573,9 +591,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             print("Hyper-parameters will be auto-generated.")
             return None
         print("-> Using pre-calculated hyper-parameters for the SVM.")
-        #c_list = params[:, 0]
-        #gamma_list = params[:, 1]
-        return params #[{"C": c, "gamma": g} for c, g in zip(c_list, gamma_list)]
+        return params
 
     @staticmethod
     def _determine_selections(
