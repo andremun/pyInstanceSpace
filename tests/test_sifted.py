@@ -23,9 +23,9 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
+from matilda.data.model import DataDense
 from matilda.data.options import SelvarsOptions, SiftedOptions
-from matilda.stages.prelim_stage import DataDense
-from matilda.stages.sifted import Sifted
+from matilda.stages.sifted import SiftedInput, SiftedStage
 
 
 class SiftedMatlabInput:
@@ -64,28 +64,28 @@ class SiftedMatlabInput:
 
         # Create DataDense instance
         self.data_dense = DataDense(
-            x_data_dense=np.genfromtxt(script_dir /
+            x=np.genfromtxt(script_dir /
                 "test_data/sifted/input/input_dense_X.csv", delimiter=","),
-            y_data_dense=np.genfromtxt(script_dir /
+            y=np.genfromtxt(script_dir /
                 "test_data/sifted/input/input_dense_Y.csv", delimiter=","),
-            x_raw_data_dense=np.genfromtxt(script_dir /
+            x_raw=np.genfromtxt(script_dir /
                 "test_data/sifted/input/input_dense_Xraw.csv", delimiter=","),
-            y_raw_data_dense=np.genfromtxt(script_dir /
+            y_raw=np.genfromtxt(script_dir /
                 "test_data/sifted/input/input_dense_Yraw.csv", delimiter=","),
-            y_bin_data_dense=np.genfromtxt(script_dir /
+            y_bin=np.genfromtxt(script_dir /
                 "test_data/sifted/input/input_dense_Ybin.csv", delimiter=","),
-            y_best_data_dense=np.genfromtxt(script_dir /
+            y_best=np.genfromtxt(script_dir /
                 "test_data/sifted/input/input_dense_Ybest.csv", delimiter=","),
-            p_data_dense=np.genfromtxt(script_dir /
+            p=np.genfromtxt(script_dir /
                 "test_data/sifted/input/input_dense_P.csv", delimiter=","),
-            num_good_algos_data_dense=np.genfromtxt(script_dir /
+            num_good_algos=np.genfromtxt(script_dir /
                 "test_data/sifted/input/input_dense_numGoodAlgos.csv", delimiter=","),
-            beta_data_dense=np.genfromtxt(script_dir /
+            beta=np.genfromtxt(script_dir /
                 "test_data/sifted/input/input_dense_beta.csv", delimiter=","),
-            inst_labels_data_dense=np.genfromtxt(script_dir /
+            inst_labels=np.genfromtxt(script_dir /
                 "test_data/sifted/input/input_dense_instlabels.csv", delimiter=",",
                 dtype=str).tolist(),
-            s_data_dense=None,
+            s=None,
         )
 
         # Set up options
@@ -115,21 +115,21 @@ def test_select_features_by_performance() -> None:
     Ensures that `xaux` after filtering by correlation performance is exactly the
     same as MATLAB's output.
     """
-    input = SiftedMatlabInput()
-    sifted = Sifted(
-       input.x,
-       input.y,
-       input.y_bin,
-       input.x_raw,
-       input.y_raw,
-       input.beta,
-       input.num_good_algos,
-       input.y_best,
-       input.p,
-       input.inst_labels,
-       input.s,
-       input.feat_labels,
-       input.opts,
+    inputs = SiftedMatlabInput()
+    sifted = SiftedStage(
+       inputs.x,
+       inputs.y,
+       inputs.y_bin,
+       inputs.x_raw,
+       inputs.y_raw,
+       inputs.beta,
+       inputs.num_good_algos,
+       inputs.y_best,
+       inputs.p,
+       inputs.inst_labels,
+       inputs.s,
+       inputs.feat_labels,
+       inputs.opts,
     )
     xaux_python, _, _, _ = sifted.select_features_by_performance()
     assert np.allclose(SiftedMatlabOutput().correlation_matlab, xaux_python, atol=1e-04)
@@ -141,21 +141,21 @@ def test_select_features_by_clustering() -> None:
     python's cluster are 80% same as items in matlab's cluster.
     """
     rng = np.random.default_rng(seed=0)
-    input = SiftedMatlabInput()
-    sifted = Sifted(
-       input.x,
-       input.y,
-       input.y_bin,
-       input.x_raw,
-       input.y_raw,
-       input.beta,
-       input.num_good_algos,
-       input.y_best,
-       input.p,
-       input.inst_labels,
-       input.s,
-       input.feat_labels,
-       input.opts,
+    inputs = SiftedMatlabInput()
+    sifted = SiftedStage(
+       inputs.x,
+       inputs.y,
+       inputs.y_bin,
+       inputs.x_raw,
+       inputs.y_raw,
+       inputs.beta,
+       inputs.num_good_algos,
+       inputs.y_best,
+       inputs.p,
+       inputs.inst_labels,
+       inputs.s,
+       inputs.feat_labels,
+       inputs.opts,
     )
     x_aux, _, _, _ = sifted.select_features_by_performance()
     sifted.evaluate_cluster(x_aux, rng)
@@ -211,24 +211,27 @@ def test_run() -> None:
     between them. Check for each column and row, there's only one value that has high
     correlation (>0.9) and other correlation values are low (<0.9)
     """
-    input = SiftedMatlabInput()
-    sifted = Sifted(
-       input.x,
-       input.y,
-       input.y_bin,
-       input.x_raw,
-       input.y_raw,
-       input.beta,
-       input.num_good_algos,
-       input.y_best,
-       input.p,
-       input.inst_labels,
-       input.s,
-       input.feat_labels,
-       input.opts,
+    inputs = SiftedMatlabInput()
+
+    sifted_input = SiftedInput(
+       inputs.x,
+       inputs.y,
+       inputs.y_bin,
+       inputs.x_raw,
+       inputs.y_raw,
+       inputs.beta,
+       inputs.num_good_algos,
+       inputs.y_best,
+       inputs.p,
+       inputs.inst_labels,
+       inputs.s,
+       inputs.feat_labels,
+       inputs.opts,
+       inputs.opts_selvar,
+       inputs.data_dense,
     )
 
-    sifted_output = sifted._run(input.opts_selvar, input.data_dense)
+    sifted_output = SiftedStage._run(sifted_input)  # noqa: SLF001
     x_python, x_matlab = sifted_output[0], SiftedMatlabOutput().x_matlab
     x_python = pd.DataFrame(x_python)
     x_matlab = pd.DataFrame(x_matlab)

@@ -44,6 +44,8 @@ compute_correlation(...)
     Computes Pearson correlation coefficients between features and performance metrics.
 """
 
+from typing import NamedTuple
+
 import numpy as np
 import pygad
 from numpy.typing import NDArray
@@ -54,11 +56,11 @@ from sklearn.metrics import silhouette_score
 from sklearn.model_selection import KFold, cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
 
+from matilda.data.model import DataDense
 from matilda.data.options import PilotOptions, SelvarsOptions, SiftedOptions
-from matilda.stages.filter import Filter
-from matilda.stages.pilot import Pilot
-from matilda.stages.prelim_stage import DataDense
+from matilda.stages.pilot import PilotStage
 from matilda.stages.stage import Stage
+from matilda.utils.filter import do_filter
 
 
 class NotEnoughFeatureError(Exception):
@@ -74,7 +76,108 @@ class NotEnoughFeatureError(Exception):
         """
         super().__init__(msg)
 
-class Sifted(Stage):
+
+
+class SiftedInput(NamedTuple):
+    """Inputs for the Sifted stage.
+
+    Attributes
+    ----------
+    x : NDArray[np.double]
+        Feature matrix to be processed (instances x features).
+    y : NDArray[np.double]
+        Algorithm performance matrix (instances x algorithms).
+    y_bin : NDArray[np.bool_]
+        Binary matrix indicating good algorithm performance.
+    x_raw : NDArray[np.double]
+        Raw feature matrix.
+    y_raw : NDArray[np.double]
+        Raw performance matrix.
+    beta : NDArray[np.bool_]
+        Binary selection for good features.
+    num_good_algos : NDArray[np.double]
+        Number of good algorithms for each feature.
+    y_best : NDArray[np.double]
+        Best algorithm performance for each instance.
+    p : NDArray[np.double]
+        Correlation p-values for features.
+    inst_labels : pd.Series
+        Instance labels for the dataset.
+    feat_labels : list[str]
+        List of feature labels.
+    s: set[str] | None
+        TODO: This.
+    opts: SiftedOptions
+        TODO: This.
+    opts_selvars: SelvarsOptions
+        TODO: This.
+    data_dense: DataDense
+        TODO: This.
+
+    """
+
+    x: NDArray[np.double]
+    y: NDArray[np.double]
+    y_bin: NDArray[np.bool_]
+    x_raw: NDArray[np.double]
+    y_raw: NDArray[np.double]
+    beta: NDArray[np.bool_]
+    num_good_algos: NDArray[np.double]
+    y_best: NDArray[np.double]
+    p: NDArray[np.double]
+    inst_labels: Series  # type: ignore[type-arg]
+    feat_labels: list[str]
+    s: set[str] | None
+    opts: SiftedOptions
+    opts_selvars: SelvarsOptions
+    data_dense: DataDense
+
+class SiftedOutput(NamedTuple):
+    """Outputs from the Sifted stage.
+
+    Attributes
+    ----------
+    selvars
+        NDArray[np.intc]
+        Array of selected feature indices.
+    idx
+        NDArray[np.intc]
+        Array of selected algorithm indices.
+    rho
+        NDArray[np.double] | None
+        Coefficients or feature weights after the sifted stage.
+    pval
+        NDArray[np.double] | None
+        Performance metrics after the sifted stage.
+    silhouette_scores
+        list[float] | None
+        List of p-values for the sifted features.
+    clust
+        NDArray[np.bool_] | None
+        Boolean array indicating whether features were selected or not.
+    """
+
+    x: NDArray[np.double]
+    y: NDArray[np.double]
+    y_bin: NDArray[np.bool_]
+    x_raw: NDArray[np.double]
+    y_raw: NDArray[np.double]
+    beta: NDArray[np.bool_]
+    num_good_algos: NDArray[np.double]
+    y_best: NDArray[np.double]
+    p: NDArray[np.double]
+    inst_labels: Series  # type: ignore[type-arg]
+    s: set[str] | None
+    feat_labels: list[str]
+    selvars: NDArray[np.intc]
+    idx: NDArray[np.intc]
+    rho: NDArray[np.double] | None
+    pval: NDArray[np.double] | None
+    silhouette_scores: list[float] | None
+    clust: NDArray[np.bool_] | None
+
+
+class SiftedStage(Stage[SiftedInput, SiftedOutput]):
     """Class for SIFTED stage."""
 
     MIN_FEAT_REQUIRED: int = 3
@@ -93,7 +196,7 @@ class Sifted(Stage):
         num_good_algos: NDArray[np.double],
         y_best: NDArray[np.double],
         p: NDArray[np.double],
-        inst_labels: Series,
+        inst_labels: Series,  # type: ignore[type-arg]
         s: set[str] | None,
         feat_labels: list[str],
         opts: SiftedOptions,
@@ -101,10 +204,6 @@ class Sifted(Stage):
         """Define the input variables for the stage.
 
         Args
-        -----
-        None
-
-        Return
         -----
         x : NDArray[np.double]
             Feature matrix to be processed (instances x features).
@@ -140,96 +239,20 @@ class Sifted(Stage):
         self.y_best = y_best
         self.p = p
         self.inst_labels = inst_labels
-        self.s = np.array(s)
+        self.s = s
         self.opts = opts
 
 
     @staticmethod
-    def _inputs() -> list[tuple[str, type]]:
-        """Use the method for determining the inputs for sifted.
-
-        Args
-        ----
-            None
-
-        Returns
-        -------
-            list[tuple[str, type]]
-                List of inputs for the stage
-        """
-        return [
-            ("x", NDArray[np.double]),
-            ("y", NDArray[np.double]),
-            ("y_bin", NDArray[np.bool_]),
-            ("x_raw", NDArray[np.double]),
-            ("y_raw", NDArray[np.double]),
-            ("beta", NDArray[np.bool_]),
-            ("num_good_algos", NDArray[np.double]),
-            ("y_best", NDArray[np.double]),
-            ("p", NDArray[np.double]),
-            ("inst_labels", Series),
-            ("s", set[str] | None),
-            ("feat_labels", list[str]),
-            ("opts", SiftedOptions),
-            ("opts_selvars", SelvarsOptions),
-            ("data_dense", DataDense),
-        ]
+    def _inputs() -> type[SiftedInput]:
+        return SiftedInput
 
     @staticmethod
-    def _outputs() -> list[tuple[str, type]]:
-        """Use the method for determining the outputs for sifted.
+    def _outputs() -> type[SiftedOutput]:
+        return SiftedOutput
 
-        Args
-        ----
-            None
-
-        Returns
-        -------
-            list[tuple[str, type]]
-                List of outputs for the stage
-        """
-        return [
-            ("x", NDArray[np.double]),
-            ("y", NDArray[np.double]),
-            ("y_bin", NDArray[np.bool_]),
-            ("x_raw", NDArray[np.double]),
-            ("y_raw", NDArray[np.double]),
-            ("beta", NDArray[np.bool_]),
-            ("num_good_algos", NDArray[np.double]),
-            ("y_best", NDArray[np.double]),
-            ("p", NDArray[np.double]),
-            ("inst_labels", Series),
-            ("s", set[str] | None),
-            ("feat_labels", list[str]),
-            ("selvars", NDArray[np.intc]),
-            ("idx", NDArray[np.intc]),
-            ("rho", NDArray[np.double] | None),
-            ("pval", NDArray[np.double] | None),
-            ("silhouette_scores", list[float] | None),
-            ("clust", NDArray[np.bool_] | None),
-        ]
-
-
-    def _run(self, opts_selvars: SelvarsOptions, data_dense: DataDense) -> tuple[
-        NDArray[np.double],          # x
-        NDArray[np.double],          # y
-        NDArray[np.bool_],           # y_bin
-        NDArray[np.double],          # x_raw
-        NDArray[np.double],          # y_raw
-        NDArray[np.bool_],           # beta
-        NDArray[np.double],          # num_good_algos
-        NDArray[np.double],          # y_best
-        NDArray[np.double],          # p
-        Series,                   # inst_labels
-        set[str] | None,             # s
-        list[str],                   # feat_labels
-        NDArray[np.intc],            # selvars
-        NDArray[np.intc],            # idx
-        NDArray[np.double] | None,   # rho
-        NDArray[np.double] | None,   # pval
-        list[float] | None,          # silhouette_scores
-        NDArray[np.bool_] | None,     # clust
-    ]:
+    @staticmethod
+    def _run(inputs: SiftedInput) -> SiftedOutput:
         """Execute the sifted stage of the pipeline using the provided options and data.
 
         Args
@@ -262,24 +285,24 @@ class Sifted(Stage):
             NDArray[np.bool_] | None
             Boolean array indicating whether features were selected or not.
         """
-        return self._sifted(
-            x = self.x,
-            y = self.y,
-            y_bin = self.y_bin,
-            feat_labels = self.feat_labels,
-            opts = self.opts,
-            opts_selvars = opts_selvars,
-            data_dense = data_dense,
-            x_raw = self.x_raw,
-            y_raw = self.y_raw,
-            beta = self.beta,
-            num_good_algos = self.num_good_algos,
-            y_best = self.y_best,
-            p = self.p,
-            inst_labels = self.inst_labels,
-            s = self.s,
+        return SiftedStage.sifted(
+            x = inputs.x,
+            y = inputs.y,
+            y_bin = inputs.y_bin,
+            feat_labels = inputs.feat_labels,
+            opts = inputs.opts,
+            opts_selvars = inputs.opts_selvars,
+            data_dense = inputs.data_dense,
+            x_raw = inputs.x_raw,
+            y_raw = inputs.y_raw,
+            beta = inputs.beta,
+            num_good_algos = inputs.num_good_algos,
+            y_best = inputs.y_best,
+            p = inputs.p,
+            inst_labels = inputs.inst_labels,
+            s = inputs.s,
         )
-    
+
     @staticmethod
     def sifted(
         x: NDArray[np.double],
@@ -291,34 +314,15 @@ class Sifted(Stage):
         num_good_algos: NDArray[np.double],
         y_best: NDArray[np.double],
         p: NDArray[np.double],
-        inst_labels: Series,
+        inst_labels: Series,  # type: ignore[type-arg]
         s: set[str] | None,
         feat_labels: list[str],
         opts: SiftedOptions,
         opts_selvars: SelvarsOptions,
         data_dense: DataDense,
-    ) -> tuple[
-        NDArray[np.double],          # x
-        NDArray[np.double],          # y
-        NDArray[np.bool_],           # y_bin
-        NDArray[np.double],          # x_raw
-        NDArray[np.double],          # y_raw
-        NDArray[np.bool_],           # beta
-        NDArray[np.double],          # num_good_algos
-        NDArray[np.double],          # y_best
-        NDArray[np.double],          # p
-        Series,                   # inst_labels
-        set[str] | None,             # s
-        list[str],                   # feat_labels
-        NDArray[np.intc],            # selvars
-        NDArray[np.intc],            # idx
-        NDArray[np.double] | None,   # rho
-        NDArray[np.double] | None,   # pval
-        list[float] | None,          # silhouette_scores
-        NDArray[np.bool_] | None,     # clust
-    ]:
+    ) -> SiftedOutput:
         """See file docstring."""
-        sifted = Sifted(
+        sifted = SiftedStage(
             x,
             y,
             y_bin,
@@ -333,63 +337,32 @@ class Sifted(Stage):
             feat_labels,
             opts,
         )
-        
-        return sifted._sifted(
-            x = x,
-            y = y,
-            y_bin = y_bin,
-            feat_labels = feat_labels,
-            opts = opts,
+
+        return sifted._sifted(  # noqa: SLF001
             opts_selvars = opts_selvars,
             data_dense = data_dense,
-            x_raw = x_raw,
-            y_raw = y_raw,
-            beta = beta,
-            num_good_algos = num_good_algos,
-            y_best = y_best,
-            p = p,
-            inst_labels = inst_labels,
-            s = s,
         )
 
     def _sifted(
         self,
-        x: NDArray[np.double],
-        y: NDArray[np.double],
-        y_bin: NDArray[np.bool_],
-        x_raw: NDArray[np.double],
-        y_raw: NDArray[np.double],
-        beta: NDArray[np.bool_],
-        num_good_algos: NDArray[np.double],
-        y_best: NDArray[np.double],
-        p: NDArray[np.double],
-        inst_labels: Series,
-        s: set[str] | None,
-        feat_labels: list[str],
-        opts: SiftedOptions,
         opts_selvars: SelvarsOptions,
         data_dense: DataDense,
-    ) -> tuple[
-        NDArray[np.double],          # x
-        NDArray[np.double],          # y
-        NDArray[np.bool_],           # y_bin
-        NDArray[np.double],          # x_raw
-        NDArray[np.double],          # y_raw
-        NDArray[np.bool_],           # beta
-        NDArray[np.double],          # num_good_algos
-        NDArray[np.double],          # y_best
-        NDArray[np.double],          # p
-        Series,                   # inst_labels
-        set[str] | None,             # s
-        list[str],                   # feat_labels
-        NDArray[np.intc],            # selvars
-        NDArray[np.intc],            # idx
-        NDArray[np.double] | None,   # rho
-        NDArray[np.double] | None,   # pval
-        list[float] | None,          # silhouette_scores
-        NDArray[np.bool_] | None,     # clust
-    ]:
+    ) -> SiftedOutput:
         """See file docstring."""
+        x = self.x
+        y = self.y
+        y_bin = self.y_bin
+        x_raw = self.x_raw
+        y_raw = self.y_raw
+        beta = self.beta
+        num_good_algos = self.num_good_algos
+        y_best = self.y_best
+        p = self.p
+        inst_labels = self.inst_labels
+        s = self.s
+        feat_labels = self.feat_labels
+        opts = self.opts
+
         nfeats = x.shape[1]
         idx = np.arange(nfeats)
         rng = np.random.default_rng(seed=0)
@@ -410,13 +383,13 @@ class Sifted(Stage):
                 "-> There is only 1 feature. Stopping space construction.",
             )
 
-        if nfeats <= Sifted.MIN_FEAT_REQUIRED:
+        if nfeats <= SiftedStage.MIN_FEAT_REQUIRED:
             print(
                 "-> There are 3 or less features to do selection.",
                 "Skipping feature selection.",
             )
             selvars = np.arange(nfeats)
-            return [
+            return SiftedOutput(
                 x,
                 y,
                 y_bin,
@@ -428,14 +401,14 @@ class Sifted(Stage):
                 p,
                 inst_labels,
                 s,
-                feat_labels,
+                list(feat_labels),
                 selvars,
                 idx,
                 None,
                 None,
                 None,
                 None,
-            ]
+            )
 
         print("-> Selecting features based on correlation with performance.")
 
@@ -448,12 +421,12 @@ class Sifted(Stage):
                 "-> There is only 1 feature. Stopping space construction.",
             )
 
-        if nfeats <= Sifted.MIN_FEAT_REQUIRED:
+        if nfeats <= SiftedStage.MIN_FEAT_REQUIRED:
             print(
                 "-> There are 3 or less features to do selection.",
                 "Skipping correlation clustering selection.",
             )
-            return [
+            return SiftedOutput(
                 x_aux,
                 y,
                 y_bin,
@@ -472,14 +445,14 @@ class Sifted(Stage):
                 pval,
                 None,
                 None,
-            ]
+            )
 
         if nfeats <= opts.k:
             print(
                 "-> There are less features than clusters.",
                 "Skipping correlation clustering selection.",
             )
-            return [
+            return SiftedOutput(
                 x_aux,
                 y,
                 y_bin,
@@ -498,7 +471,7 @@ class Sifted(Stage):
                 pval,
                 None,
                 None,
-            ]
+            )
 
         print("-> Selecting features based on correlation clustering.")
 
@@ -511,26 +484,27 @@ class Sifted(Stage):
         print(f"Bydensity value is : {bydensity}")
         # Run filter for small experiment
         if bydensity:
-            subset_index, _, _, _ = Filter(
-                data_dense.x_data_dense[:, selvars],
-                data_dense.y_data_dense,
-                data_dense.y_bin_data_dense,
-                opts_selvars,
+            subset_index, _, _, _ = do_filter(
+                data_dense.x[:, selvars],
+                data_dense.y,
+                data_dense.y_bin,
+                opts_selvars.selvars_type,
+                opts_selvars.min_distance,
             )
             subset_index = ~subset_index
-            if data_dense.s_data_dense is not None:
-                s = data_dense.s_data_dense[subset_index]
-            return [
-                data_dense.x_data_dense[subset_index][:selvars],
-                data_dense.y_data_dense[subset_index][:],
-                data_dense.y_bin_data_dense[subset_index][:],
-                data_dense.x_raw_data_dense[subset_index][:],
-                data_dense.y_raw_data_dense[subset_index][:],
-                data_dense.beta_data_dense[subset_index],
-                data_dense.num_good_algos_data_dense[subset_index],
-                data_dense.y_best_data_dense[subset_index][:],
-                data_dense.p_data_dense[subset_index],
-                data_dense.inst_labels_data_dense[subset_index],
+            if data_dense.s is not None:
+                s = set(data_dense.s[subset_index])
+            return SiftedOutput(
+                data_dense.x[subset_index][:selvars],
+                data_dense.y[subset_index][:],
+                data_dense.y_bin[subset_index][:],
+                data_dense.x_raw[subset_index][:],
+                data_dense.y_raw[subset_index][:],
+                data_dense.beta[subset_index],
+                data_dense.num_good_algos[subset_index],
+                data_dense.y_best[subset_index][:],
+                data_dense.p[subset_index],
+                data_dense.inst_labels[subset_index],
                 s,
                 [feat_labels[i] for i in selvars],
                 selvars,
@@ -539,8 +513,8 @@ class Sifted(Stage):
                 pval,
                 silhouette_scores,
                 clust,
-            ]
-        return [
+            )
+        return SiftedOutput(
             x_aux,
             y,
             y_bin,
@@ -559,7 +533,7 @@ class Sifted(Stage):
             pval,
             silhouette_scores,
             clust,
-        ]
+        )
 
     def select_features_by_performance(
         self,
@@ -681,7 +655,7 @@ class Sifted(Stage):
             Indices of the selected features.
         """
         cv_partition = KFold(
-            n_splits=Sifted.KFOLDS,
+            n_splits=SiftedStage.KFOLDS,
             shuffle=True,
             random_state=rng.integers(1000),
         )
@@ -715,7 +689,7 @@ class Sifted(Stage):
                 selected = aux[value % aux.size]
                 idx[selected] = True
 
-            _, _, _, _, _, z, _, _, _, _, _ = Pilot.pilot(
+            _, _, _, _, _, z, _, _, _, _, _ = PilotStage.pilot(
                 self.x[:, idx],
                 self.y,
                 self.feat_labels[idx].tolist(),
@@ -724,7 +698,7 @@ class Sifted(Stage):
 
             y = -np.inf
             for i in range(self.y.shape[1]):
-                knn = KNeighborsClassifier(n_neighbors=Sifted.K_NEIGHBORS)
+                knn = KNeighborsClassifier(n_neighbors=SiftedStage.K_NEIGHBORS)
                 scores: NDArray[np.double] = cross_val_score(
                     knn,
                     z,

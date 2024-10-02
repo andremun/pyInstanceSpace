@@ -20,7 +20,7 @@ from matilda.stages.pilot import PilotStage
 from matilda.stages.prelim import PrelimStage
 from matilda.stages.preprocessing import PreprocessingStage
 from matilda.stages.pythia import PythiaStage
-from matilda.stages.sifted_stage import SiftedStage
+from matilda.stages.sifted import SiftedStage
 from matilda.stages.stage import IN, OUT, Stage, StageClass
 from matilda.stages.trace import TraceStage
 
