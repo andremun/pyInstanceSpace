@@ -138,7 +138,7 @@ class InstanceSpace:
         """
         self._runner.run_all(**metadata.__dict__, **options.__dict__, **arguments)
 
-        raise NotImplementedError
+        return self.model
 
     def run_iter(
         self,
