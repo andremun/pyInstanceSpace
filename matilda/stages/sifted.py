@@ -279,6 +279,78 @@ class Sifted(Stage):
             inst_labels = self.inst_labels,
             s = self.s,
         )
+    
+    @staticmethod
+    def sifted(
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        x_raw: NDArray[np.double],
+        y_raw: NDArray[np.double],
+        beta: NDArray[np.bool_],
+        num_good_algos: NDArray[np.double],
+        y_best: NDArray[np.double],
+        p: NDArray[np.double],
+        inst_labels: Series,
+        s: set[str] | None,
+        feat_labels: list[str],
+        opts: SiftedOptions,
+        opts_selvars: SelvarsOptions,
+        data_dense: DataDense,
+    ) -> tuple[
+        NDArray[np.double],          # x
+        NDArray[np.double],          # y
+        NDArray[np.bool_],           # y_bin
+        NDArray[np.double],          # x_raw
+        NDArray[np.double],          # y_raw
+        NDArray[np.bool_],           # beta
+        NDArray[np.double],          # num_good_algos
+        NDArray[np.double],          # y_best
+        NDArray[np.double],          # p
+        Series,                   # inst_labels
+        set[str] | None,             # s
+        list[str],                   # feat_labels
+        NDArray[np.intc],            # selvars
+        NDArray[np.intc],            # idx
+        NDArray[np.double] | None,   # rho
+        NDArray[np.double] | None,   # pval
+        list[float] | None,          # silhouette_scores
+        NDArray[np.bool_] | None,     # clust
+    ]:
+        """See file docstring."""
+        sifted = Sifted(
+            x,
+            y,
+            y_bin,
+            x_raw,
+            y_raw,
+            beta,
+            num_good_algos,
+            y_best,
+            p,
+            inst_labels,
+            s,
+            feat_labels,
+            opts,
+        )
+        
+        return sifted._sifted(
+            x = x,
+            y = y,
+            y_bin = y_bin,
+            feat_labels = feat_labels,
+            opts = opts,
+            opts_selvars = opts_selvars,
+            data_dense = data_dense,
+            x_raw = x_raw,
+            y_raw = y_raw,
+            beta = beta,
+            num_good_algos = num_good_algos,
+            y_best = y_best,
+            p = p,
+            inst_labels = inst_labels,
+            s = s,
+        )
 
     def _sifted(
         self,
