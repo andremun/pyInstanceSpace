@@ -151,7 +151,8 @@ class StageBuilder:
         while (
             previous_resolved_stages is None
             or len(resolved_stages - previous_resolved_stages) > 0
-        ):            # No stages left to resolve, return the ordering
+        ):
+            # No stages left to resolve, return the ordering
             if len(self.stages - resolved_stages) == 0:
                 return stage_order
 
@@ -221,8 +222,8 @@ class StageBuilder:
             raise StageResolutionError(
                 "Stages could not be resolved due to missing inputs.\n"
                 + "Missing inputs:\n"
-                + inputs_message
-                +"\nAvailable inputs:\n"
+                + inputs_message + "\n"
+                + "Available inputs:\n"
                 + available_inputs_message,
             )
 
@@ -235,7 +236,7 @@ class StageBuilder:
         return {
             argument
             for argument in arguments
-            if isinstance(argument.parameter_type, type) and not (
+            if not isinstance(argument.parameter_type, type) or not (
                 issubclass(argument.parameter_type, RunBefore)
                 or issubclass(argument.parameter_type, RunAfter)
             )
@@ -372,3 +373,9 @@ class StageBuilder:
             stage_arguments.add(StageArgument(argument_name, argument_type))
 
         return stage_arguments
+
+def _format_stage_arguments(stage_arguments: set[StageArgument]) -> str:
+    return "".join(map(
+        lambda x : f"{x.parameter_name}, {x.parameter_type}\n",
+        stage_arguments,
+    ))

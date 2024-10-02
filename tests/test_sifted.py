@@ -226,8 +226,8 @@ def test_run() -> None:
        inputs.inst_labels,
        s=inputs.s,
        feat_labels=inputs.feat_labels,
-       opts=inputs.opts,
-       opts_selvars=inputs.opts_selvar,
+       sifted_options=inputs.opts,
+       selvars_options=inputs.opts_selvar,
        data_dense=inputs.data_dense,
     )
 

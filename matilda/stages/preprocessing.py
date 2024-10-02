@@ -23,23 +23,23 @@ class PreprocessingInput(NamedTuple):
         TODO: This.
     instance_labels : pd.Series
         TODO: This.
-    instance_sources : pd.Series
+    instance_sources : pd.Series | None
         TODO: This.
     features : NDArray[np.double]
         TODO: This.
     algorithms : NDArray[np.double]
         TODO: This.
-    selvars : SelvarsOptions
+    selvars_options : SelvarsOptions
         TODO: This.
     """
 
     feature_names: list[str]
     algorithm_names: list[str]
     instance_labels: pd.Series  # type: ignore[type-arg]
-    instance_sources: pd.Series  # type: ignore[type-arg]
+    instance_sources: pd.Series | None  # type: ignore[type-arg]
     features: NDArray[np.double]
     algorithms: NDArray[np.double]
-    selvars: SelvarsOptions
+    selvars_options: SelvarsOptions
 
 
 class PreprocessingOutput(NamedTuple):
@@ -59,6 +59,10 @@ class PreprocessingOutput(NamedTuple):
         2D numpy array representing the algorithm matrix (instances x algorithms).
     s : pd.Series | None
         Optional series containing the source of instances.
+    NDArray[np.double]
+        The x variable before any future modifications are made to it.
+    NDArray[np.double]
+        The y variable before any future modifications are made to it.
 
     """
 
@@ -68,6 +72,8 @@ class PreprocessingOutput(NamedTuple):
     x: NDArray[np.double]
     y: NDArray[np.double]
     s: pd.Series | None  # type: ignore[type-arg]
+    x_raw: NDArray[np.double]
+    y_raw: NDArray[np.double]
 
 
 class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
@@ -124,9 +130,8 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             inputs.algorithms,
             inputs.feature_names,
             inputs.algorithm_names,
-            inputs.selvars,
+            inputs.selvars_options,
         )
-
 
         (
             updated_x,
@@ -149,6 +154,8 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             updated_x,
             updated_y,
             updated_s,
+            updated_x,
+            updated_y,
         )
 
     @staticmethod

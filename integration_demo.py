@@ -41,12 +41,12 @@ instance_space = InstanceSpace(
     stages=[
         PreprocessingStage,
         PrelimStage,
-        # SiftedStage,
-        # PilotStage,
-        # PythiaStage,
-        # CloisterStage,
-        # TraceStage,
+        SiftedStage,
+        PilotStage,
+        PythiaStage,
+        CloisterStage,
+        TraceStage,
     ],
 )
 
-print(instance_space._runner._stage_order)
+print(instance_space._runner._stage_order)  # noqa: SLF001

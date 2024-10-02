@@ -5,13 +5,33 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Any, NamedTuple
 
+import numpy as np
+import pandas as pd
+from numpy.typing import NDArray
+from typing_extensions import TypeVar
+
 from matilda.data.metadata import Metadata, from_csv_file
-from matilda.data.options import InstanceSpaceOptions, from_json_file
+from matilda.data.options import (
+    AutoOptions,
+    BoundOptions,
+    CloisterOptions,
+    InstanceSpaceOptions,
+    NormOptions,
+    OutputOptions,
+    ParallelOptions,
+    PerformanceOptions,
+    PilotOptions,
+    PrelimOptions,
+    PythiaOptions,
+    SelvarsOptions,
+    SiftedOptions,
+    TraceOptions,
+    from_json_file,
+)
 from matilda.model import Model
 from matilda.stage_builder import StageBuilder
 from matilda.stage_runner import (
     AnnotatedStageOutput,
-    StageArgument,
     StageRunner,
     StageRunningError,
 )
@@ -23,6 +43,56 @@ from matilda.stages.pythia import PythiaStage
 from matilda.stages.sifted import SiftedStage
 from matilda.stages.stage import IN, OUT, Stage, StageClass
 from matilda.stages.trace import TraceStage
+
+T = TypeVar("T", bound="_InstanceSpaceInputs")
+class _InstanceSpaceInputs(NamedTuple):
+    feature_names: list[str]
+    algorithm_names: list[str]
+    instance_labels: pd.Series  # type: ignore[type-arg]
+    instance_sources: pd.Series | None  # type: ignore[type-arg]
+    features: NDArray[np.double]
+    algorithms: NDArray[np.double]
+    parallel_options: ParallelOptions
+    perf_options: PerformanceOptions
+    auto_options: AutoOptions
+    bound_options: BoundOptions
+    norm_options: NormOptions
+    selvars_options: SelvarsOptions
+    sifted_options: SiftedOptions
+    pilot_options: PilotOptions
+    cloister_options: CloisterOptions
+    pythia_options: PythiaOptions
+    trace_options: TraceOptions
+    outputs_options: OutputOptions
+    prelim_options: PrelimOptions
+
+    @classmethod
+    def from_metadata_and_options(
+        cls: type[T],
+        metadata: Metadata,
+        options: InstanceSpaceOptions,
+    ) -> T:
+        return cls(
+            feature_names=metadata.feature_names,
+            algorithm_names=metadata.algorithm_names,
+            instance_labels=metadata.instance_labels,
+            instance_sources=metadata.instance_sources,
+            features=metadata.features,
+            algorithms=metadata.algorithms,
+            parallel_options=options.parallel,
+            perf_options=options.perf,
+            auto_options=options.auto,
+            bound_options=options.bound,
+            norm_options=options.norm,
+            selvars_options=options.selvars,
+            sifted_options=options.sifted,
+            pilot_options=options.pilot,
+            cloister_options=options.cloister,
+            pythia_options=options.pythia,
+            trace_options=options.trace,
+            outputs_options=options.outputs,
+            prelim_options=PrelimOptions.from_options(options),
+        )
 
 
 class InstanceSpace:
@@ -50,7 +120,7 @@ class InstanceSpace:
             CloisterStage,
             TraceStage,
         ],
-        additional_initial_inputs: type[NamedTuple] | None = None,
+        additional_initial_inputs_type: type[NamedTuple] | None = None,
     ) -> None:
         """Initialise the InstanceSpace.
 
@@ -68,14 +138,15 @@ class InstanceSpace:
         for stage in stages:
             stage_builder.add_stage(stage)
 
-        annotations = {StageArgument(k, v) for k, v in Metadata.__annotations__.items()}
-        annotations |= {
-            StageArgument(k, v) for k, v in InstanceSpaceOptions.__annotations__.items()
-        }
-        if additional_initial_inputs is not None:
+
+        annotations = stage_builder._named_tuple_to_stage_arguments(  # noqa: SLF001
+            _InstanceSpaceInputs,
+        )
+
+        if additional_initial_inputs_type is not None:
             annotations |= (
                 stage_builder._named_tuple_to_stage_arguments(  # noqa: SLF001
-                    additional_initial_inputs,
+                    additional_initial_inputs_type,
                 )
             )
 
@@ -119,8 +190,8 @@ class InstanceSpace:
         self,
         metadata: Metadata,
         options: InstanceSpaceOptions,
-        **arguments: Any,  # noqa: ANN401
-    ) -> Model:  # TODO: Replace this with model / get_model
+        **_arguments: Any,  # noqa: ANN401 # TODO: make this work
+    ) -> Model:
         """Build the instance space.
 
         Options will be broken down to sub fields to be passed to stages. You can
@@ -136,7 +207,8 @@ class InstanceSpace:
             tuple[Any]: The output of all stages
 
         """
-        self._runner.run_all(**metadata.__dict__, **options.__dict__, **arguments)
+        inputs = _InstanceSpaceInputs.from_metadata_and_options(metadata, options)
+        self._runner.run_all(inputs)
 
         return self.model
 
@@ -144,7 +216,7 @@ class InstanceSpace:
         self,
         metadata: Metadata,
         options: InstanceSpaceOptions,
-        **arguments: Any,  # noqa: ANN401
+        **_arguments: Any,  # noqa: ANN401 # TODO: make this work
     ) -> Generator[AnnotatedStageOutput, None, None]:
         """Run all stages, yielding between so the data can be examined.
 
@@ -157,12 +229,9 @@ class InstanceSpace:
         ------
             Generator[None, tuple[Any], None]: _description_
         """
+        inputs = _InstanceSpaceInputs.from_metadata_and_options(metadata, options)
         # TODO: split out metadata and options into component fields
-        yield from self._runner.run_iter(
-            **metadata.__dict__,
-            **options.__dict__,
-            **arguments,
-        )
+        yield from self._runner.run_iter(inputs)
 
     def run_stage(
         self,
@@ -191,7 +260,7 @@ class InstanceSpace:
         stage: StageClass,
         metadata: Metadata,
         options: InstanceSpaceOptions,
-        **arguments: Any,  # noqa: ANN401
+        **_arguments: Any,  # noqa: ANN401
     ) -> None:
         """Run all stages until the specified stage, as well as the specified stage.
 
@@ -208,12 +277,11 @@ class InstanceSpace:
         -------
             list[Any]: _description_
         """
+        inputs = _InstanceSpaceInputs.from_metadata_and_options(metadata, options)
         # TODO: split out metadata and options into component fields
         self._runner.run_until_stage(
             stage,
-            **metadata.__dict__,
-            **options.__dict__,
-            **arguments,
+            inputs,
         )
 
 

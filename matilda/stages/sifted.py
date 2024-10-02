@@ -47,9 +47,9 @@ compute_correlation(...)
 from typing import NamedTuple
 
 import numpy as np
+import pandas as pd
 import pygad
 from numpy.typing import NDArray
-from pandas import Series
 from scipy.stats import pearsonr
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
@@ -99,13 +99,13 @@ class SiftedInput(NamedTuple):
         Number of good algorithms for each feature.
     y_best : NDArray[np.double]
         Best algorithm performance for each instance.
-    p : NDArray[np.double]
+    p : NDArray[np.int_]
         Correlation p-values for features.
     inst_labels : pd.Series
         Instance labels for the dataset.
     feat_labels : list[str]
         List of feature labels.
-    s: set[str] | None
+    s: pd.Series | None
         TODO: This.
     opts: SiftedOptions
         TODO: This.
@@ -124,13 +124,13 @@ class SiftedInput(NamedTuple):
     beta: NDArray[np.bool_]
     num_good_algos: NDArray[np.double]
     y_best: NDArray[np.double]
-    p: NDArray[np.double]
-    inst_labels: Series  # type: ignore[type-arg]
+    p: NDArray[np.int_]
+    inst_labels: pd.Series  # type: ignore[type-arg]
     feat_labels: list[str]
-    s: set[str] | None
-    opts: SiftedOptions
-    opts_selvars: SelvarsOptions
-    data_dense: DataDense
+    s: pd.Series | None # type: ignore[type-arg]
+    sifted_options: SiftedOptions
+    selvars_options: SelvarsOptions
+    data_dense: DataDense | None
 
 class SiftedOutput(NamedTuple):
     """Outputs from the Sifted stage.
@@ -165,9 +165,9 @@ class SiftedOutput(NamedTuple):
     beta: NDArray[np.bool_]
     num_good_algos: NDArray[np.double]
     y_best: NDArray[np.double]
-    p: NDArray[np.double]
-    inst_labels: Series  # type: ignore[type-arg]
-    s: set[str] | None
+    p: NDArray[np.int_]
+    inst_labels: pd.Series  # type: ignore[type-arg]
+    s: pd.Series | None  # type: ignore[type-arg]
     feat_labels: list[str]
     selvars: NDArray[np.intc]
     idx: NDArray[np.intc]
@@ -195,9 +195,9 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         beta: NDArray[np.bool_],
         num_good_algos: NDArray[np.double],
         y_best: NDArray[np.double],
-        p: NDArray[np.double],
-        inst_labels: Series,  # type: ignore[type-arg]
-        s: set[str] | None,
+        p: NDArray[np.int_],
+        inst_labels: pd.Series,  # type: ignore[type-arg]
+        s: pd.Series | None,  # type: ignore[type-arg]
         feat_labels: list[str],
         opts: SiftedOptions,
     ) -> None:
@@ -223,7 +223,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             Number of good algorithms for each feature.
         y_best : NDArray[np.double]
             Best algorithm performance for each instance.
-        p : NDArray[np.double]
+        p : NDArray[np.int_]
             Correlation p-values for features.
         inst_labels : pd.Series
             Instance labels for the dataset.
@@ -290,8 +290,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             y = inputs.y,
             y_bin = inputs.y_bin,
             feat_labels = inputs.feat_labels,
-            opts = inputs.opts,
-            opts_selvars = inputs.opts_selvars,
+            opts = inputs.sifted_options,
+            opts_selvars = inputs.selvars_options,
             data_dense = inputs.data_dense,
             x_raw = inputs.x_raw,
             y_raw = inputs.y_raw,
@@ -313,13 +313,13 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         beta: NDArray[np.bool_],
         num_good_algos: NDArray[np.double],
         y_best: NDArray[np.double],
-        p: NDArray[np.double],
-        inst_labels: Series,  # type: ignore[type-arg]
-        s: set[str] | None,
+        p: NDArray[np.int_],
+        inst_labels: pd.Series,  # type: ignore[type-arg]
+        s: pd.Series | None,  # type: ignore[type-arg]
         feat_labels: list[str],
         opts: SiftedOptions,
         opts_selvars: SelvarsOptions,
-        data_dense: DataDense,
+        data_dense: DataDense | None,
     ) -> SiftedOutput:
         """See file docstring."""
         sifted = SiftedStage(
@@ -346,7 +346,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
     def _sifted(
         self,
         opts_selvars: SelvarsOptions,
-        data_dense: DataDense,
+        data_dense: DataDense | None,
     ) -> SiftedOutput:
         """See file docstring."""
         x = self.x
@@ -483,7 +483,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
 
         print(f"Bydensity value is : {bydensity}")
         # Run filter for small experiment
-        if bydensity:
+        if bydensity and data_dense is not None:
             subset_index, _, _, _ = do_filter(
                 data_dense.x[:, selvars],
                 data_dense.y,
@@ -493,7 +493,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             )
             subset_index = ~subset_index
             if data_dense.s is not None:
-                s = set(data_dense.s[subset_index])
+                s = data_dense.s[subset_index]
             return SiftedOutput(
                 data_dense.x[subset_index][:selvars],
                 data_dense.y[subset_index][:],

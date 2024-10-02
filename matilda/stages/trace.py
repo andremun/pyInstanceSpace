@@ -72,18 +72,18 @@ class TraceInputs(NamedTuple):
     ----------
     z : NDArray[np.double]
         The space of instances, represented as an array of data points (features).
-    p_pythia : NDArray[np.double]
+    selection0 : NDArray[np.int_]
         Performance metrics from the Pythia algorithm, represented as an array.
-    p_data : NDArray[np.double]
+    p : NDArray[np.int_]
         Performance metrics from the data source, represented as an array of values.
     beta : NDArray[np.bool_]
         A binary array indicating specific beta thresholds for the footprint.
     algo_labels : list[str]
         A list of labels for each algorithm, represented as strings.
-    y_bin_pythia : NDArray[np.bool_]
+    y_hat : NDArray[np.bool_]
         A binary array indicating performance of the Pythia algorithm,
         where each column corresponds to an algorithm's performance.
-    y_bin_data : NDArray[np.bool_]
+    y_bin : NDArray[np.bool_]
         A binary array indicating performance of the data-driven approach,
         where each column corresponds to an algorithm's performance.
     trace_options : TraceOptions
@@ -92,12 +92,12 @@ class TraceInputs(NamedTuple):
     """
 
     z: NDArray[np.double]
-    p_pythia: NDArray[np.double]
-    p_data: NDArray[np.double]
+    selection0: NDArray[np.int_]
+    p: NDArray[np.int_]
     beta: NDArray[np.bool_]
     algo_labels: list[str]
-    y_bin_pythia: NDArray[np.bool_]
-    y_bin_data: NDArray[np.bool_]
+    y_hat: NDArray[np.bool_]
+    y_bin: NDArray[np.bool_]
     trace_options: TraceOptions
 
 
@@ -205,7 +205,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         self,
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
-        p: NDArray[np.double],
+        p: NDArray[np.int_],
         beta: NDArray[np.bool_],
         algo_labels: list[str],
         opts: TraceOptions,
@@ -218,7 +218,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             The space of instances, represented as an array of data points (features).
         y_bin : NDArray[np.bool_]
             Binary indicators of performance for each algorithm.
-        p : NDArray[np.double]
+        p : NDArray[np.int_]
             Performance metrics for algorithms, where each value corresponds to
             the index of an algorithm.
         beta : NDArray[np.bool_]
@@ -290,8 +290,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             print("  -> TRACE will use PYTHIA's results to calculate the footprints.")
             return TraceStage.trace(
                 inputs.z,
-                inputs.y_bin_pythia,
-                inputs.p_pythia,
+                inputs.y_hat,
+                inputs.selection0,
                 inputs.beta,
                 inputs.algo_labels,
                 inputs.trace_options,
@@ -299,8 +299,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         print("  -> TRACE will use experimental data to calculate the footprints.")
         return TraceStage.trace(
             inputs.z,
-            inputs.y_bin_data,
-            inputs.p_data,
+            inputs.y_bin,
+            inputs.p,
             inputs.beta,
             inputs.algo_labels,
             inputs.trace_options,
@@ -310,7 +310,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
     def trace(
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
-        p: NDArray[np.double],
+        p: NDArray[np.int_],
         beta: NDArray[np.bool_],
         algo_labels: list[str],
         opts: TraceOptions,
@@ -323,7 +323,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             The space of instances.
         y_bin : NDArray[np.bool_]
             Binary indicators of performance.
-        p : NDArray[np.double]
+        p : NDArray[np.int_]
             Performance metrics for algorithms.
         beta : NDArray[np.bool_]
             Specific beta threshold for footprint calculation.
@@ -352,7 +352,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             The space of instances.
         y_bin : NDArray[np.bool_]
             Binary indicators of performance.
-        p : NDArray[np.double]
+        p : NDArray[np.int_]
             Performance metrics for algorithms.
         beta : NDArray[np.bool_]
             Specific beta threshold for footprint calculation.

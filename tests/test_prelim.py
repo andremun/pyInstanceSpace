@@ -308,14 +308,14 @@ def test_prelim_run() -> None:
     )
 
     inputs = PrelimInput(
-        x_input_run,
-        y_input_run,
-        x_raw_run,
-        y_raw_run,
-        s,
-        pd.Series(inst_labels_input_run),
-        prelim_opts,
-        selvars_opts,
+        x=x_input_run,
+        y=y_input_run,
+        x_raw=x_raw_run,
+        y_raw=y_raw_run,
+        s=s,
+        inst_labels=pd.Series(inst_labels_input_run),
+        prelim_options=prelim_opts,
+        selvars_options=selvars_opts,
     )
 
     (

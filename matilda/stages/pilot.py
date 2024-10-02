@@ -40,7 +40,7 @@ class PilotInput(NamedTuple):
     x: NDArray[np.double]
     y: NDArray[np.double]
     feat_labels: list[str]
-    options: PilotOptions
+    pilot_options: PilotOptions
 
 class PilotOutput(NamedTuple):
     """Outputs for the Pilot stage.
@@ -154,7 +154,12 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             pd.DataFrame
 
         """
-        return PilotStage.pilot(inputs.x, inputs.y, inputs.feat_labels, inputs.options)
+        return PilotStage.pilot(
+            inputs.x,
+            inputs.y,
+            inputs.feat_labels,
+            inputs.pilot_options,
+        )
 
     @staticmethod
     def pilot(

@@ -78,7 +78,7 @@ class StageRunner:
 
     def run_iter(
         self,
-        **additional_arguments: Any,  # noqa: ANN401
+        additional_arguments: NamedTuple,
     ) -> Generator[AnnotatedStageOutput, None, dict[str, Any]]:
         """Run all stages, yielding after every run.
 
@@ -88,7 +88,7 @@ class StageRunner:
         """
         self._rollback_to_schedule_index(0)
 
-        self._available_arguments = additional_arguments
+        self._available_arguments = additional_arguments._asdict()
 
         for schedule in self._stage_order:
             for stage in schedule:

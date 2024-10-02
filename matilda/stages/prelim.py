@@ -42,9 +42,9 @@ class PrelimInput(NamedTuple):
         TODO: This.
     inst_labels : pd.Series
         TODO: This.
-    prelim_opts : PrelimOptions
+    prelim_options : PrelimOptions
         TODO: This.
-    selvars_opts : SelvarsOptions
+    selvars_options : SelvarsOptions
         TODO: This.
     """
 
@@ -54,8 +54,8 @@ class PrelimInput(NamedTuple):
     y_raw: NDArray[np.double]
     s: pd.Series | None  # type: ignore[type-arg]
     inst_labels: pd.Series  # type: ignore[type-arg]
-    prelim_opts: PrelimOptions
-    selvars_opts: SelvarsOptions
+    prelim_options: PrelimOptions
+    selvars_options: SelvarsOptions
 
 
 # needs to be changes to output including prelim output, and data changed by stage
@@ -100,7 +100,7 @@ class PrelimOutput(NamedTuple):
         TODO: This.
     y_best : NDArray[np.double]
         TODO: This.
-    p : NDArray[np.double]
+    p : NDArray[np.int_]
         TODO: This.
     num_good_algos : NDArray[np.double]
         TODO: This.
@@ -132,7 +132,7 @@ class PrelimOutput(NamedTuple):
     y_raw: NDArray[np.double]
     y_bin: NDArray[np.bool_]
     y_best: NDArray[np.double]
-    p: NDArray[np.double]
+    p: NDArray[np.int_]
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
     instlabels: pd.Series | None  # type: ignore[type-arg]
@@ -227,8 +227,8 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             inputs.y_raw,
             inputs.s,
             inputs.inst_labels,
-            inputs.prelim_opts,
-            inputs.selvars_opts,
+            inputs.prelim_options,
+            inputs.selvars_options,
         )
 
         prelim = PrelimStage(
@@ -238,8 +238,8 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             inputs.y_raw,
             inputs.s,
             inputs.inst_labels,
-            inputs.prelim_opts,
-            inputs.selvars_opts,
+            inputs.prelim_options,
+            inputs.selvars_options,
         )
 
         (
@@ -268,7 +268,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             num_good_algos,
             beta,
             inputs.s,
-            inputs.selvars_opts,
+            inputs.selvars_options,
         )
 
         return PrelimOutput(
@@ -314,7 +314,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         NDArray[np.double],  # PrelimDataChanged.y
         NDArray[np.bool_],  # PrelimDataChanged.y_bin
         NDArray[np.double],  # PrelimDataChanged.y_best
-        NDArray[np.double],  # PrelimDataChanged.p
+        NDArray[np.int_],  # PrelimDataChanged.p
         NDArray[np.double],  # PrelimDataChanged.num_good_algos
         NDArray[np.bool_],  # PrelimDataChanged.beta
         NDArray[np.double],  # PrelimOut.med_val
@@ -368,8 +368,8 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         y_bin: NDArray[np.bool_],
         nalgos: int,
         beta_threshold: float,
-        p: NDArray[np.double],
-    ) -> tuple[NDArray[np.double], NDArray[np.double], NDArray[np.bool_]]:
+        p: NDArray[np.int_],
+    ) -> tuple[NDArray[np.double], NDArray[np.int_], NDArray[np.bool_]]:
         """Select the best algorithms based on the given criteria.
 
         Args
@@ -574,7 +574,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         NDArray[np.double],  # PrelimDataChanged.y
         NDArray[np.bool_],  # PrelimDataChanged.y_bin
         NDArray[np.double],  # PrelimDataChanged.y_best
-        NDArray[np.double],  # PrelimDataChanged.p
+        NDArray[np.int_],  # PrelimDataChanged.p
         NDArray[np.double],  # PrelimDataChanged.num_good_algos
         NDArray[np.bool_],  # PrelimDataChanged.beta
         NDArray[np.double],  # PrelimOut.med_val
@@ -710,7 +710,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         y_best: NDArray[np.double],
         x_raw: NDArray[np.double],
         y_raw: NDArray[np.double],
-        p: NDArray[np.double],
+        p: NDArray[np.int_],
         num_good_algos: NDArray[np.double],
         beta: NDArray[np.bool_],
         s: pd.Series | None,  # type: ignore[type-arg]
@@ -725,7 +725,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         NDArray[np.bool_],  # beta
         NDArray[np.double],  # num_good_algos
         NDArray[np.double],  # y_best
-        NDArray[np.double],  # p
+        NDArray[np.int_],  # p
         pd.Series,  # inst_labels
         pd.Series | None,  # s
         DataDense | None,  # data_dense
