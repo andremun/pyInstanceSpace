@@ -507,8 +507,7 @@ class InstanceSpaceOptions:
                     "cvfolds": "cv_folds",
                     "ispolykrnl": "is_poly_krnl",
                     "useweights": "use_weights",
-                    "use_lib_svm": "_",
-                    "uselibsvm": "_",
+                    "uselibsvm": "use_grid_search",
                 }, # ignoring use_lib_svm
             ),
             trace=InstanceSpaceOptions._load_dataclass(
