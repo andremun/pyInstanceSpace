@@ -614,23 +614,27 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         y_bin : NDArray[np.bool_]
             The binary labels.
         """
-        default = 0
+        # Stores the index of the column with the highest mean value.
+        # Index starts from 0
+        default = np.argmax(np.mean(y_bin, axis=0))
         """Selects the best-performing algorithm for each instance using
         precision-weighted predictions. If no algorithm is selected (i.e., all
         scores are non-positive), it defaults to the algorithm with the best
         average performance
         """
         if nalgos > 1:
+            # Boardcast corresponding col of y_hat with precision
             precision_array = np.array(precision)
-            weighted_yhat = y_hat.T * precision_array[:, np.newaxis]
-            best = np.max(weighted_yhat, axis=0)
-            selection0 = np.argmax(weighted_yhat, axis=0)
+            weighted_yhat = y_hat * precision_array[np.newaxis, :]
+            # Find the maximum value for each row in weighted_yhat
+            best = np.max(weighted_yhat, axis=1)
+            # Get the index of the maximum value in each row
+            selection0 = np.argmax(weighted_yhat, axis=1)
         else:
-            best = y_hat.T
-            selection0 = y_hat.T.astype(np.int32)
-            default = int(np.argmax(np.mean(y_bin, axis=0)))
+            best = y_hat
+            selection0 = y_hat.astype(np.int_)
 
-        selection1 = selection0
+        selection1 = np.copy(selection0)
         selection0[best <= 0] = 0
         selection1[best <= 0] = default
         return (selection0, selection1)
