@@ -456,7 +456,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         )
         print("  -> PILOT is solving numerically the projection problem.")
         print(
-            "  -> This may take a while. Trials will not be" "run sequentially.",
+            "  -> This may take a while. Trials will not be run sequentially.",
         )
         print(
             "-------------------------------------------------------------------------",

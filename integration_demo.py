@@ -16,8 +16,8 @@ from matilda.stages.trace import TraceStage
 script_dir = Path(__file__).parent / "tests" / "test_data" / "serialisers" / "input"
 # script_dir / "test_data/serialisers/actual_output" / directory
 
-metadata_path = script_dir / "metadata.csv"
-options_path = script_dir / "options/options_13.json"
+metadata_path = script_dir / "metadata/metadata_tsp.csv"
+options_path = script_dir / "options.json"
 
 metadata_object = metadata.from_csv_file(metadata_path)
 options_object = options.from_json_file(options_path)
