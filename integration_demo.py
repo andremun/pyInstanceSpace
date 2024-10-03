@@ -17,7 +17,7 @@ script_dir = Path(__file__).parent / "tests" / "test_data" / "serialisers" / "in
 # script_dir / "test_data/serialisers/actual_output" / directory
 
 metadata_path = script_dir / "metadata.csv"
-options_path = script_dir / "options.json"
+options_path = script_dir / "options/options_13.json"
 
 metadata_object = metadata.from_csv_file(metadata_path)
 options_object = options.from_json_file(options_path)
