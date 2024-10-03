@@ -702,7 +702,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 scores: NDArray[np.double] = cross_val_score(
                     knn,
                     z,
-                    self.y_bin[:, i],
+                    self.y_bin[:, i].astype(int),
                     cv=cv_partition,
                     scoring="neg_mean_squared_error",
                 )
