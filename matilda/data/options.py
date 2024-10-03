@@ -443,9 +443,9 @@ class InstanceSpaceOptions:
                 PerformanceOptions,
                 file_contents.get("perf", {}),
                 {
-                    "maxperf": "max_perf",
-                    "absperf": "abs_perf",
-                    "betathreshold": "beta_threshold",
+                    "MaxPerf": "max_perf",
+                    "AbsPerf": "abs_perf",
+                    "betaThreshold": "beta_threshold",
                 },
             ),
             auto=InstanceSpaceOptions._load_dataclass(
@@ -477,9 +477,11 @@ class InstanceSpaceOptions:
                 SiftedOptions,
                 file_contents.get("sifted", {}),
                 {
-                    "ntrees": "n_trees",
-                    "maxiter": "max_iter",
-                    "replicates": "replicates",
+                    "NTREES": "n_trees",
+                    "MaxIter": "max_iter",
+                    "Replicates": "replicates",
+                    "K": "k",
+
                 },
             ),
             pilot=InstanceSpaceOptions._load_dataclass(
@@ -487,6 +489,7 @@ class InstanceSpaceOptions:
                 file_contents.get("pilot", {}),
                 {
                     "ntries": "n_tries",
+                    "X0": "x0"
                 },
             ),
             cloister=InstanceSpaceOptions._load_dataclass(
@@ -512,7 +515,7 @@ class InstanceSpaceOptions:
                 TraceOptions,
                 file_contents.get("trace", {}),
                 field_mapping={
-                    "pi": "purity",
+                    "PI": "purity",
                     "usesim": "use_sim",
                 },  # mapping the 'pi' in JSON to the 'purity' in TraceOptions
             ),
