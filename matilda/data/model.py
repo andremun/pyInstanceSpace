@@ -32,7 +32,7 @@ class Data:
     num_good_algos: NDArray[np.double]
     beta: NDArray[np.bool_]
     s: pd.Series | None  # type: ignore[type-arg]
-    uniformity: float | None
+    # uniformity: float | None
 
     T = TypeVar("T", bound="Data")
 
@@ -67,7 +67,7 @@ class Data:
             num_good_algos=stage_runner_output["num_good_algos"],
             beta=stage_runner_output["beta"],
             s=stage_runner_output["s"],
-            uniformity=stage_runner_output["uniformity"],
+            # uniformity=stage_runner_output["uniformity"],
         )
 
 @dataclass(frozen=True)

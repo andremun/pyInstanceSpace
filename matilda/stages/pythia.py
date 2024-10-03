@@ -489,7 +489,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 cv=skf,
                 verbose=0,
                 random_state=0,
-                n_jobs=20, # TODO: YOU SET THIS, TAKE FROM OPTIONS
+                n_jobs=10, # TODO: YOU SET THIS, TAKE FROM OPTIONS
             )
         optimization.fit(z, y_bin, sample_weight=w)
         best_svm = optimization.best_estimator_
