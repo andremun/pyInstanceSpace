@@ -18,7 +18,7 @@ from sklearn.model_selection import KFold, cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
 
 from matilda.data.model import SiftedDataChanged, SiftedOut
-from matilda.data.options import PilotOptions, SiftedOptions
+from matilda.data.options import ParallelOptions, PilotOptions, SiftedOptions
 from matilda.stages.pilot import Pilot
 
 
@@ -49,6 +49,7 @@ class Sifted:
     y_bin: NDArray[np.bool_]
     feat_labels: NDArray[np.str_]
     opts: SiftedOptions
+    par_opts: ParallelOptions
 
     def __init__(
         self,
@@ -57,6 +58,7 @@ class Sifted:
         y_bin: NDArray[np.bool_],
         feat_labels: list[str],
         opts: SiftedOptions,
+        par_opts: ParallelOptions,
     ) -> None:
         """Initialize the Sifted stage.
 
@@ -72,12 +74,15 @@ class Sifted:
             List of feature labels.
         opts : SiftedOptions
             Sifted options used for processing.
+        par_opts : ParallelOptions
+            An instance of ParallelOptions containing parallel processing parameters.
         """
         self.x = x
         self.y = y
         self.y_bin = y_bin
         self.feat_labels = np.array(feat_labels)
         self.opts = opts
+        self.par_opts = par_opts
 
     @staticmethod
     def run(
@@ -86,6 +91,7 @@ class Sifted:
         y_bin: NDArray[np.bool_],
         feat_labels: list[str],
         opts: SiftedOptions,
+        par_opts: ParallelOptions,
     ) -> tuple[SiftedDataChanged, SiftedOut]:
         """Process data matrices and options to produce a sifted dataset.
 
@@ -101,6 +107,8 @@ class Sifted:
             List of feature labels.
         opts : SiftedOptions
             An instance of SiftedOptions containing processing parameters.
+        par_opts : ParallelOptions
+            An instance of ParallelOptions containing parallel processing parameters.
 
         Returns
         -------
@@ -110,7 +118,14 @@ class Sifted:
             Output data from the Sifted stage including selected features and
             performance metrics.
         """
-        sifted = Sifted(x=x, y=y, y_bin=y_bin, feat_labels=feat_labels, opts=opts)
+        sifted = Sifted(
+            x=x,
+            y=y,
+            y_bin=y_bin,
+            feat_labels=feat_labels,
+            opts=opts,
+            par_opts=par_opts,
+        )
 
         nfeats = x.shape[1]
         idx = np.arange(nfeats)
@@ -272,6 +287,59 @@ class Sifted:
 
         return clust, cluster_labels
 
+    @staticmethod
+    def cost_fcn(
+        instance: pygad.GA,
+        solutions: NDArray[np.intc],
+        _solution_idx: int,
+    ) -> float:
+        """Fitness function to evaluate the quality of solution in GA.
+
+        Parameters
+        ----------
+        instance : pygad.GA
+            The instance of the genetic algorithm.
+        solutions : NDArray[np.intc]
+            The array of integer values representing the solution to be evaluated.
+        solution_idx : int
+            The index of the solution being evaluated.
+
+        Returns
+        -------
+        float
+            The fitness score of the solution, representing the negative mean
+            squared error of the k-NN classification.
+        """
+        idx = np.zeros(instance.selfx.shape[1], dtype=bool)
+
+        for i, value in enumerate(solutions):
+            aux = np.where(instance.clust[:, i])[0]
+            selected = aux[value % aux.size]
+            idx[selected] = True
+
+        _, out = Pilot.run(
+            instance.selfx[:, idx],
+            instance.selfy,
+            instance.selffeat_labels[idx].tolist(),
+            PilotOptions.default(),
+        )
+
+        z = out.z
+
+        y = -np.inf
+        for i in range(instance.selfy.shape[1]):
+            knn = KNeighborsClassifier(n_neighbors=Sifted.K_NEIGHBORS)
+            scores: NDArray[np.double] = cross_val_score(
+                knn,
+                z,
+                instance.selfy_bin[:, i],
+                cv=instance.cv_partition,
+                scoring="neg_mean_squared_error",
+            )
+            y = max(y, -scores.mean())
+
+        return y
+
     def find_best_combination(
         self,
         x_aux: NDArray[np.double],
@@ -305,60 +373,8 @@ class Sifted:
             random_state=rng.integers(1000),
         )
 
-        def cost_fcn(
-            instance: pygad.GA,
-            solutions: NDArray[np.intc],
-            solution_idx: int,
-        ) -> float:
-            """Fitness function to evaluate the quality of solution in GA.
-
-            Parameters
-            ----------
-            instance : pygad.GA
-                The instance of the genetic algorithm.
-            solutions : NDArray[np.intc]
-                The array of integer values representing the solution to be evaluated.
-            solution_idx : int
-                The index of the solution being evaluated.
-
-            Returns
-            -------
-            float
-                The fitness score of the solution, representing the negative mean
-                squared error of the k-NN classification.
-            """
-            idx = np.zeros(self.x.shape[1], dtype=bool)
-
-            for i, value in enumerate(solutions):
-                aux = np.where(clust[:, i])[0]
-                selected = aux[value % aux.size]
-                idx[selected] = True
-
-            _, out = Pilot.run(
-                self.x[:, idx],
-                self.y,
-                self.feat_labels[idx].tolist(),
-                PilotOptions.default(),
-            )
-
-            z = out.z
-
-            y = -np.inf
-            for i in range(self.y.shape[1]):
-                knn = KNeighborsClassifier(n_neighbors=Sifted.K_NEIGHBORS)
-                scores: NDArray[np.double] = cross_val_score(
-                    knn,
-                    z,
-                    self.y_bin[:, i],
-                    cv=cv_partition,
-                    scoring="neg_mean_squared_error",
-                )
-                y = max(y, -scores.mean())
-
-            return y
-
         ga_instance = pygad.GA(
-            fitness_func=cost_fcn,
+            fitness_func=Sifted.cost_fcn,
             num_generations=self.opts.num_generations,
             num_parents_mating=self.opts.num_parents_mating,
             sol_per_pop=self.opts.sol_per_pop,
@@ -377,7 +393,15 @@ class Sifted:
             init_range_low=1,
             init_range_high=x_aux.shape[1],
             save_solutions=True,
+            parallel_processing=["process", self.par_opts.n_cores],
         )
+
+        ga_instance.selfx = self.x
+        ga_instance.selfy = self.y
+        ga_instance.selfy_bin = self.y_bin
+        ga_instance.cv_partition = cv_partition
+        ga_instance.clust = clust
+        ga_instance.selffeat_labels = self.feat_labels
 
         ga_instance.run()
 
