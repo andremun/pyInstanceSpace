@@ -57,7 +57,12 @@ from sklearn.model_selection import KFold, cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
 
 from matilda.data.model import DataDense
-from matilda.data.options import PilotOptions, SelvarsOptions, SiftedOptions
+from matilda.data.options import (
+    ParallelOptions,
+    PilotOptions,
+    SelvarsOptions,
+    SiftedOptions,
+)
 from matilda.stages.pilot import PilotStage
 from matilda.stages.stage import Stage
 from matilda.utils.filter import do_filter
@@ -184,6 +189,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
     PVAL_THRESHOLD: float = 0.05
     KFOLDS: int = 5
     K_NEIGHBORS: int = 3
+    par_opts: ParallelOptions
 
     def __init__(
         self,
@@ -200,6 +206,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         s: pd.Series | None,  # type: ignore[type-arg]
         feat_labels: list[str],
         opts: SiftedOptions,
+        par_opts: ParallelOptions,
     ) -> None:
         """Define the input variables for the stage.
 
@@ -227,6 +234,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             Correlation p-values for features.
         inst_labels : pd.Series
             Instance labels for the dataset.
+        par_opts : ParallelOptions
+            An instance of ParallelOptions containing parallel processing parameters.
         """
         self.x = x
         self.y = y
@@ -241,67 +250,6 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         self.inst_labels = inst_labels
         self.s = s
         self.opts = opts
-
-
-    @staticmethod
-    def _inputs() -> type[SiftedInput]:
-        return SiftedInput
-
-    @staticmethod
-    def _outputs() -> type[SiftedOutput]:
-        return SiftedOutput
-
-    @staticmethod
-    def _run(inputs: SiftedInput) -> SiftedOutput:
-        """Execute the sifted stage of the pipeline using the provided options and data.
-
-        Args
-        -------
-        opts : SiftedOptions
-            Options for configuring the Sifted stage.
-        opts_selvars : SelvarsOptions
-            Selection variables options used for filtering.
-        data_dense : Data
-            Dense data representation used for processing.
-
-        Return
-        -------
-        selvars
-            NDArray[np.intc]
-            Array of selected feature indices.
-        idx
-            NDArray[np.intc]
-            Array of selected algorithm indices.
-        rho
-            NDArray[np.double] | None
-            Coefficients or feature weights after the sifted stage.
-        pval
-            NDArray[np.double] | None
-            Performance metrics after the sifted stage.
-        silhouette_scores
-            list[float] | None
-            List of p-values for the sifted features.
-        clust
-            NDArray[np.bool_] | None
-            Boolean array indicating whether features were selected or not.
-        """
-        return SiftedStage.sifted(
-            x = inputs.x,
-            y = inputs.y,
-            y_bin = inputs.y_bin,
-            feat_labels = inputs.feat_labels,
-            opts = inputs.sifted_options,
-            opts_selvars = inputs.selvars_options,
-            data_dense = inputs.data_dense,
-            x_raw = inputs.x_raw,
-            y_raw = inputs.y_raw,
-            beta = inputs.beta,
-            num_good_algos = inputs.num_good_algos,
-            y_best = inputs.y_best,
-            p = inputs.p,
-            inst_labels = inputs.inst_labels,
-            s = inputs.s,
-        )
 
     @staticmethod
     def sifted(
@@ -320,6 +268,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         opts: SiftedOptions,
         opts_selvars: SelvarsOptions,
         data_dense: DataDense | None,
+        par_opts: ParallelOptions,
     ) -> SiftedOutput:
         """See file docstring."""
         sifted = SiftedStage(
@@ -362,6 +311,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         s = self.s
         feat_labels = self.feat_labels
         opts = self.opts
+        par_opts = self.par_opts
 
         nfeats = x.shape[1]
         idx = np.arange(nfeats)
@@ -627,6 +577,59 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
 
         return clust, cluster_labels
 
+    @staticmethod
+    def cost_fcn(
+        instance: pygad.GA,
+        solutions: NDArray[np.intc],
+        _solution_idx: int,
+    ) -> float:
+        """Fitness function to evaluate the quality of solution in GA.
+
+        Parameters
+        ----------
+        instance : pygad.GA
+            The instance of the genetic algorithm.
+        solutions : NDArray[np.intc]
+            The array of integer values representing the solution to be evaluated.
+        solution_idx : int
+            The index of the solution being evaluated.
+
+        Returns
+        -------
+        float
+            The fitness score of the solution, representing the negative mean
+            squared error of the k-NN classification.
+        """
+        idx = np.zeros(instance.selfx.shape[1], dtype=bool)
+
+        for i, value in enumerate(solutions):
+            aux = np.where(instance.clust[:, i])[0]
+            selected = aux[value % aux.size]
+            idx[selected] = True
+
+        _, out = PilotStage.run(
+            instance.selfx[:, idx],
+            instance.selfy,
+            instance.selffeat_labels[idx].tolist(),
+            PilotOptions.default(),
+        )
+
+        z = out.z
+
+        y = -np.inf
+        for i in range(instance.selfy.shape[1]):
+            knn = KNeighborsClassifier(n_neighbors=SiftedStage.K_NEIGHBORS)
+            scores: NDArray[np.double] = cross_val_score(
+                knn,
+                z,
+                instance.selfy_bin[:, i],
+                cv=instance.cv_partition,
+                scoring="neg_mean_squared_error",
+            )
+            y = max(y, -scores.mean())
+
+        return y
+
     def _find_best_combination(
         self,
         x_aux: NDArray[np.double],
@@ -712,7 +715,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             return y
 
         ga_instance = pygad.GA(
-            fitness_func=cost_fcn,
+            fitness_func=Sifted.cost_fcn,
             num_generations=self.opts.num_generations,
             num_parents_mating=self.opts.num_parents_mating,
             sol_per_pop=self.opts.sol_per_pop,
@@ -731,7 +734,15 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             init_range_low=1,
             init_range_high=x_aux.shape[1],
             save_solutions=True,
+            parallel_processing=["process", self.par_opts.n_cores],
         )
+
+        ga_instance.selfx = self.x
+        ga_instance.selfy = self.y
+        ga_instance.selfy_bin = self.y_bin
+        ga_instance.cv_partition = cv_partition
+        ga_instance.clust = clust
+        ga_instance.selffeat_labels = self.feat_labels
 
         ga_instance.run()
 

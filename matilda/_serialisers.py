@@ -18,7 +18,6 @@ from matilda.data.model import (
     FeatSel,
     Footprint,
     PilotOut,
-    PrelimOut,
     PythiaOut,
     SiftedOut,
     TraceOut,
