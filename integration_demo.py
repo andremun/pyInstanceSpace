@@ -13,10 +13,10 @@ from matilda.stages.pythia import PythiaStage
 from matilda.stages.sifted import SiftedStage
 from matilda.stages.trace import TraceStage
 
-script_dir = Path(__file__).parent / "tests" / "test_data" / "serialisers" / "input"
+script_dir = Path(__file__).parent / "tests" / "test_data" / "demo"
 # script_dir / "test_data/serialisers/actual_output" / directory
 
-metadata_path = script_dir / "metadata/metadata_tsp.csv"
+metadata_path = script_dir / "metadata.csv"
 options_path = script_dir / "options.json"
 
 metadata_object = metadata.from_csv_file(metadata_path)
