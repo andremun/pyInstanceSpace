@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from matilda.instance_space import instance_space_from_files
-from matilda.stages.preprocessing_stage import PreprocessingStage
+from matilda.stages.preprocessing import PreprocessingStage
 
 
 def test_run_method() -> None:

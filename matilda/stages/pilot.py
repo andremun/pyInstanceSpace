@@ -8,6 +8,8 @@ from one edge of the space to the opposite.
 
 """
 
+from typing import Any, NamedTuple
+
 import numpy as np
 import pandas as pd
 import scipy.linalg as la
@@ -20,7 +22,68 @@ from matilda.data.options import PilotOptions
 from matilda.stages.stage import Stage
 
 
-class Pilot(Stage):
+class PilotInput(NamedTuple):
+    """Inputs for the Pilot stage.
+
+    Attributes
+    ----------
+    x : NDArray[np.double]
+        The feature matrix (instances x features) to process.
+    y : NDArray[np.double]
+        The data points for the selected feature.
+    feat_labels : list[str]
+        List feature names.
+    options: PilotOptions
+        The options enabled for the Pilot Class
+    """
+
+    x: NDArray[np.double]
+    y: NDArray[np.double]
+    feat_labels: list[str]
+    pilot_options: PilotOptions
+
+class PilotOutput(NamedTuple):
+    """Outputs for the Pilot stage.
+
+    Attributes
+    ----------
+    X0 : NDArray[np.double] | None
+        TODO: This
+    alpha : NDArray[np.double] | None
+        TODO: This
+    eoptim : NDArray[np.double] | None
+        TODO: This
+    perf : NDArray[np.double] | None
+        TODO: This
+    a : NDArray[np.double]
+        TODO: This
+    z : NDArray[np.double]
+        TODO: This
+    c : NDArray[np.double]
+        TODO: This
+    b : NDArray[np.double]
+        TODO: This
+    error : NDArray[np.double]
+        TODO: This
+    r2 : NDArray[np.double]
+        TODO: This
+    summary : pd.DataFrame
+        TODO: This
+    """
+
+    X0: NDArray[np.double] | None
+    alpha: NDArray[np.double] | None
+    eoptim: NDArray[np.double] | None
+    perf: NDArray[np.double] | None
+    a: NDArray[np.double]
+    z: NDArray[np.double]
+    c: NDArray[np.double]
+    b: NDArray[np.double]
+    error: NDArray[np.double]
+    r2: NDArray[np.double]
+    summary: pd.DataFrame
+
+class PilotStage(Stage[PilotInput, PilotOutput]):
     """Class for PILOT stage."""
 
     def __init__(
@@ -49,64 +112,15 @@ class Pilot(Stage):
         self.feat_labels = feat_labels
 
     @staticmethod
-    def _inputs() -> list[tuple[str, type]]:
-        """Use the method for determining the inputs for pilot.
-
-        Args
-        ----
-            None
-
-        Returns
-        -------
-            list[tuple[str, type]]
-                List of inputs for the stage
-        """
-        return [
-            ("x", NDArray[np.double]),
-            ("y", NDArray[np.double]),
-            ("feat_labels", list[str]),
-        ]
+    def _inputs() -> type[PilotInput]:
+        return PilotInput
 
     @staticmethod
-    def _outputs() -> list[tuple[str, type]]:
-        """Use the method for determining the outputs for pilot.
+    def _outputs() -> type[PilotOutput]:
+        return PilotOutput
 
-        Args
-        ----
-            None
-
-        Returns
-        -------
-            list[tuple[str, type]]
-                List of outputs for the stage
-        """
-        return [
-            ("X0", NDArray[np.double]),  # not sure about the dimensions
-            ("alpha", NDArray[np.double]),
-            ("eoptim", NDArray[np.double]),
-            ("perf", NDArray[np.double]),
-            ("a", NDArray[np.double]),
-            ("z", NDArray[np.double]),
-            ("c", NDArray[np.double]),
-            ("b", NDArray[np.double]),
-            ("error", NDArray[np.double]),  # or just the double
-            ("r2", NDArray[np.double]),
-            ("summary", pd.DataFrame),
-        ]
-
-    def _run(self, options: PilotOptions) -> tuple[
-        NDArray[np.double] | None,
-        NDArray[np.double] | None,
-        NDArray[np.double] | None,
-        NDArray[np.double] | None,
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        pd.DataFrame,
-    ]:
+    @staticmethod
+    def _run(inputs: PilotInput) -> PilotOutput:
         """Implement all the code in and around this class in buildIS.
 
         Args
@@ -140,7 +154,20 @@ class Pilot(Stage):
             pd.DataFrame
 
         """
-        return Pilot.pilot(self.x, self.y, self.feat_labels, options)
+        return PilotStage.pilot(
+            inputs.x,
+            inputs.y,
+            inputs.feat_labels,
+            inputs.pilot_options,
+        )
+
+    @staticmethod
+    def _pilot_print(
+        a: Any,  # noqa: ANN401
+        _do_output: bool,
+    ) -> None:
+        if _do_output:
+            print(a)
 
     @staticmethod
     def pilot(
@@ -148,19 +175,8 @@ class Pilot(Stage):
         y: NDArray[np.double],
         feat_labels: list[str],
         options: PilotOptions,
-    ) -> tuple[
-        NDArray[np.double] | None,
-        NDArray[np.double] | None,
-        NDArray[np.double] | None,
-        NDArray[np.double] | None,
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.double],
-        pd.DataFrame,
-    ]:
+        _do_output: bool = True,
+    ) -> PilotOutput:
         """Run the PILOT dimensionality reduction algorithm.
 
         Args
@@ -168,36 +184,16 @@ class Pilot(Stage):
         x : NDArray[double]
             The feature matrix (instances x features) to process.
         y: NDArray[double]
-            The data points for the selected feature
+            The data points for the selected feature.
         feat_labels :  list[str]
-            List feature names
+            List feature names.
         options : PilotOptions
-            The options enabled for the Pilot Class
+            The options enabled for the Pilot Class.
 
         Return
         -------
-        X0
-            NDArray[np.double] | None  # not sure about the dimensions
-        alpha
-            NDArray[np.float16] | None
-        eoptim
-            NDArray[np.double] | None
-        perf
-            NDArray[np.double] | None
-        a
-            NDArray[np.double]
-        z
-            NDArray[np.double]
-        c
-            NDArray[np.double]
-        b
-            NDArray[np.double]
-        error
-            NDArray[np.double]  # or just the double
-        r2
-            NDArray[np.double]
-        summary
-            pd.DataFrame
+        PilotOutput
+            Outputs from the Pilot stage.
 
         """
         n = x.shape[1]
@@ -214,7 +210,7 @@ class Pilot(Stage):
 
         # Analytical solution
         if options.analytic:
-            out_a, out_z, out_c, out_b, error, r2 = Pilot.analytic_solve(
+            out_a, out_z, out_c, out_b, error, r2 = PilotStage.analytic_solve(
                 x,
                 x_bar,
                 n,
@@ -224,17 +220,24 @@ class Pilot(Stage):
         # Numerical solution
         else:
             if options.alpha is not None and options.alpha.shape == (2 * m + 2 * n, 1):
-                print(" -> PILOT is using a pre-calculated solution.")
+                PilotStage._pilot_print(
+                    " -> PILOT is using a pre-calculated solution.",
+                    _do_output,
+                )
                 alpha = options.alpha
             else:
                 if options.x0 is not None:
-                    print(
+                    PilotStage._pilot_print(
                         "  -> PILOT is using a user defined starting points"
                         " for BFGS.",
+                        _do_output,
                     )
                     x0 = options.x0
                 else:
-                    print("  -> PILOT is using random starting points for BFGS.")
+                    PilotStage._pilot_print(
+                        "  -> PILOT is using random starting points for BFGS.",
+                        _do_output,
+                    )
                     rng = np.random.default_rng(seed=0)
                     x0 = 2 * rng.random((2 * m + 2 * n, options.n_tries)) - 1
 
@@ -242,7 +245,7 @@ class Pilot(Stage):
                 eoptim = np.zeros(options.n_tries)
                 perf = np.zeros(options.n_tries)
 
-                idx, alpha, eoptim, perf = Pilot.numerical_solve(
+                idx, alpha, eoptim, perf = PilotStage.numerical_solve(
                     x,
                     hd,
                     x0,
@@ -253,6 +256,7 @@ class Pilot(Stage):
                     eoptim,
                     perf,
                     options,
+                    _do_output,
                 )
 
             out_a = alpha[: 2 * n, idx].reshape(2, n)
@@ -283,7 +287,7 @@ class Pilot(Stage):
         if alpha is not None and x0 is not None:
             alpha = alpha.astype(np.float16)
             x_init: NDArray[np.double] = x0
-            pout = [
+            pout = PilotOutput(
                 x_init,
                 alpha,
                 eoptim,
@@ -295,9 +299,9 @@ class Pilot(Stage):
                 error,
                 r2,
                 summary,
-            ]
+            )
         else:
-            pout = [
+            pout = PilotOutput(
                 x0,
                 alpha,
                 eoptim,
@@ -309,13 +313,17 @@ class Pilot(Stage):
                 error,
                 r2,
                 summary,
-            ]
+            )
 
-        print(
+        PilotStage._pilot_print(
             "-------------------------------------------------------------------------",
+            _do_output,
         )
-        print("  -> PILOT has completed. The projection matrix A is:")
-        print(out_a)
+        PilotStage._pilot_print(
+            "  -> PILOT has completed. The projection matrix A is:",
+            _do_output,
+        )
+        PilotStage._pilot_print(out_a, _do_output)
 
         return pout
 
@@ -325,6 +333,7 @@ class Pilot(Stage):
         x_bar: NDArray[np.double],
         n: int,
         m: int,
+        _do_output: bool = True,
     ) -> tuple[
         NDArray[np.double],
         NDArray[np.double],
@@ -363,12 +372,17 @@ class Pilot(Stage):
             The coefficient of determination between x_bar
             and its low-dimensional approximation.
         """
-        print(
+        PilotStage._pilot_print(
             "-------------------------------------------------------------------------",
+            _do_output,
         )
-        print("  -> PILOT is solving analytically the projection problem.")
-        print(
+        PilotStage._pilot_print(
+            "  -> PILOT is solving analytically the projection problem.",
+            _do_output,
+        )
+        PilotStage._pilot_print(
             "-------------------------------------------------------------------------",
+            _do_output,
         )
         x_bar = x_bar.T
 
@@ -426,6 +440,7 @@ class Pilot(Stage):
         eoptim: NDArray[np.double],
         perf: NDArray[np.double],
         opts: PilotOptions,
+        _do_output: bool = True,
     ) -> tuple[int, NDArray[np.double], NDArray[np.double], NDArray[np.double]]:
         """Solve the projection problem numerically.
 
@@ -464,21 +479,27 @@ class Pilot(Stage):
         int
             The index for the most optimal array indices
         """
-        print(
+        PilotStage._pilot_print(
             "-------------------------------------------------------------------------",
+            _do_output,
         )
-        print("  -> PILOT is solving numerically the projection problem.")
-        print(
-            "  -> This may take a while. Trials will not be" "run sequentially.",
+        PilotStage._pilot_print(
+            "  -> PILOT is solving numerically the projection problem.",
+            _do_output,
         )
-        print(
+        PilotStage._pilot_print(
+            "  -> This may take a while. Trials will not be run sequentially.",
+            _do_output,
+        )
+        PilotStage._pilot_print(
             "-------------------------------------------------------------------------",
+            _do_output,
         )
 
         for i in range(opts.n_tries):
             initial_guess = x0[:, i]
             result = optim.fmin_bfgs(
-                Pilot.error_function,
+                PilotStage.error_function,
                 initial_guess,
                 args=(x_bar, n, m),
                 full_output=True,
@@ -495,7 +516,7 @@ class Pilot(Stage):
 
             perf[i], _ = pearsonr(hd, pdist(z))
             idx = np.argmax(perf).astype(int)
-            print(f"Pilot has completed trial {i + 1}")
+            PilotStage._pilot_print(f"Pilot has completed trial {i + 1}", _do_output)
 
             al: NDArray[np.float16] = alpha.astype(np.float16)
             ept: NDArray[np.double] = eoptim

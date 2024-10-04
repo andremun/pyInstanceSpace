@@ -8,12 +8,16 @@ from the MATLAB implementation with diffcult kernel and optimisation.
 Tests includes:
     - test_compute_znorm: Test that the output of the compute_znorm.
     - test_compare_output: Test that the output of the compute_znorm is as expected.
-    - test_generate_params_true: Test that the output of the compute_znorm is as expected.
-    - test_generate_params_false: Test that the output of the generate_params function is as expected.
-    - test_bayes_opt: Test that the output of the function is as expected when BO is required.
-    - test_bayes_opt_poly: Test that the output of the function is as expected when BO and polykernal is required.
-    - test_grid_gaussian: Test that the performance of model is asexpected when grid search & gaussian.
-    - test_grid_poly: Test that the performance of model is asexpected when grid search & poly .
+    - test_generate_params_true: Test that the output of the compute_znorm is as
+        expected.
+    - test_bayes_opt: Test that the output of the function is as expected when BO is
+        required.
+    - test_bayes_opt_poly: Test that the output of the function is as expected when BO
+        and polykernal is required.
+    - test_grid_gaussian: Test that the performance of model is asexpected when grid
+        search & gaussian.
+    - test_grid_poly: Test that the performance of model is asexpected when grid search
+        & poly.
 """
 from pathlib import Path
 
@@ -82,22 +86,6 @@ def test_generate_params_true() -> None:
     params = PythiaStage._generate_params(opt.use_grid_search, rng) # noqa: SLF001
     assert all(min_value <= param <= max_value for param in params["C"])
     assert all(min_value <= param <= max_value for param in params["gamma"])
-
-
-def test_generate_params_false() -> None:
-    """Test that the output of the generate_params function is as expected."""
-    min_value = 2**-10
-    max_value = 2**4
-    rng = np.random.default_rng(seed=0)
-
-    params = PythiaStage._generate_params(False, rng) # noqa: SLF001
-    assert params["C"].low == min_value
-    assert params["C"].high == max_value
-    assert params["C"].prior == "log-uniform"
-
-    assert params["gamma"].low == min_value
-    assert params["gamma"].high == max_value
-    assert params["gamma"].prior == "log-uniform"
 
 
 def test_bayes_opt() -> None:
@@ -259,8 +247,8 @@ def compare_performance(
         list[float],
         list[float],
         list[float],
-        NDArray[np.integer],
-        NDArray[np.integer],
+        NDArray[np.int_],
+        NDArray[np.int_],
         pd.DataFrame,
     ],
     matlab_accuracy: NDArray[np.double],

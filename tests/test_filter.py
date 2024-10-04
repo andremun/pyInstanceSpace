@@ -18,7 +18,7 @@ import pandas as pd
 import pytest
 
 from matilda.data.options import SelvarsOptions
-from matilda.stages.filter import Filter
+from matilda.utils.filter import compute_uniformity, do_filter, filter_instance
 
 script_dir = Path(__file__).parent
 
@@ -84,11 +84,12 @@ class TestFtr:
         ).to_numpy()
         is_visa_ml = pd.read_csv(csv_path_is_visa, header=None, dtype=bool).to_numpy()
 
-        subset_index, is_dissimilar, is_visa, _ = Filter.run(
+        subset_index, is_dissimilar, is_visa, _ = do_filter(
             input_x,
             input_y,
             input_y_bin,
-            ftr_option,
+            ftr_option.selvars_type,
+            ftr_option.min_distance,
         )
 
         assert np.all(subset_index == subset_index_ml[:, 0])
@@ -111,9 +112,17 @@ class TestFtr:
             pd.read_csv(csv_path_uniformity, header=None, dtype=float).to_numpy().item()
         )
 
-        data_filter = Filter(input_x, input_y, input_y_bin, ftr_option)
-        subset_index, _, _ = data_filter.filter_instance()
-        uniformity = data_filter.compute_uniformity(subset_index)
+        subset_index, _, _ = filter_instance(
+            input_x,
+            input_y,
+            input_y_bin,
+            ftr_option.selvars_type,
+            ftr_option.min_distance,
+        )
+        uniformity = compute_uniformity(
+            input_x,
+            subset_index,
+        )
 
         assert np.allclose(uniformity, uniformity_ml)
 
@@ -171,11 +180,12 @@ class TestFtrAp:
         ).to_numpy()
         is_visa_ml = pd.read_csv(csv_path_is_visa, header=None, dtype=bool).to_numpy()
 
-        subset_index, is_dissimilar, is_visa, _ = Filter.run(
+        subset_index, is_dissimilar, is_visa, _ = do_filter(
             input_x,
             input_y,
             input_y_bin,
-            ftr_ap_option,
+            ftr_ap_option.selvars_type,
+            ftr_ap_option.min_distance,
         )
 
         assert np.all(subset_index == subset_index_ml[:, 0])
@@ -200,9 +210,14 @@ class TestFtrAp:
             pd.read_csv(csv_path_uniformity, header=None, dtype=float).to_numpy().item()
         )
 
-        data_filter = Filter(input_x, input_y, input_y_bin, ftr_ap_option)
-        subset_index, _, _ = data_filter.filter_instance()
-        uniformity = data_filter.compute_uniformity(subset_index)
+        subset_index, _, _ = filter_instance(
+            input_x,
+            input_y,
+            input_y_bin,
+            ftr_ap_option.selvars_type,
+            ftr_ap_option.min_distance,
+        )
+        uniformity = compute_uniformity(input_x, subset_index)
 
         assert np.allclose(uniformity, uniformity_ml)
 
@@ -261,11 +276,12 @@ class TestFtrApGood:
         ).to_numpy()
         is_visa_ml = pd.read_csv(csv_path_is_visa, header=None, dtype=bool).to_numpy()
 
-        subset_index, is_dissimilar, is_visa, _ = Filter.run(
+        subset_index, is_dissimilar, is_visa, _ = do_filter(
             input_x,
             input_y,
             input_y_bin,
-            ftr_ap_good_option,
+            ftr_ap_good_option.selvars_type,
+            ftr_ap_good_option.min_distance,
         )
 
         assert np.all(subset_index == subset_index_ml[:, 0])
@@ -291,9 +307,14 @@ class TestFtrApGood:
             pd.read_csv(csv_path_uniformity, header=None, dtype=float).to_numpy().item()
         )
 
-        data_filter = Filter(input_x, input_y, input_y_bin, ftr_ap_good_option)
-        subset_index, _, _ = data_filter.filter_instance()
-        uniformity = data_filter.compute_uniformity(subset_index)
+        subset_index, _, _ = filter_instance(
+            input_x,
+            input_y,
+            input_y_bin,
+            ftr_ap_good_option.selvars_type,
+            ftr_ap_good_option.min_distance,
+        )
+        uniformity = compute_uniformity(input_x, subset_index)
 
         assert np.allclose(uniformity, uniformity_ml)
 
@@ -351,11 +372,12 @@ class TestFtrGood:
         ).to_numpy()
         is_visa_ml = pd.read_csv(csv_path_is_visa, header=None, dtype=bool).to_numpy()
 
-        subset_index, is_dissimilar, is_visa, _ = Filter.run(
+        subset_index, is_dissimilar, is_visa, _ = do_filter(
             input_x,
             input_y,
             input_y_bin,
-            ftr_good_option,
+            ftr_good_option.selvars_type,
+            ftr_good_option.min_distance,
         )
 
         assert np.all(subset_index == subset_index_ml[:, 0])
@@ -380,8 +402,13 @@ class TestFtrGood:
             pd.read_csv(csv_path_uniformity, header=None, dtype=float).to_numpy().item()
         )
 
-        data_filter = Filter(input_x, input_y, input_y_bin, ftr_good_option)
-        subset_index, _, _ = data_filter.filter_instance()
-        uniformity = data_filter.compute_uniformity(subset_index)
+        subset_index, _, _ = filter_instance(
+            input_x,
+            input_y,
+            input_y_bin,
+            ftr_good_option.selvars_type,
+            ftr_good_option.min_distance,
+        )
+        uniformity = compute_uniformity(input_x, subset_index)
 
         assert np.allclose(uniformity, uniformity_ml)
