@@ -479,7 +479,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 estimator=svm_model,
                 cv=skf,
                 param_grid=param_space,
-                n_jobs=-1,
+                n_jobs=10,
             )
         else:
             optimization = BayesSearchCV(
@@ -489,7 +489,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 cv=skf,
                 verbose=0,
                 random_state=0,
-                #n_jobs=10, # TODO: YOU SET THIS, TAKE FROM OPTIONS
+                n_jobs=10, # TODO: YOU SET THIS, TAKE FROM OPTIONS
             )
         optimization.fit(z, y_bin, sample_weight=w)
         best_svm = optimization.best_estimator_
