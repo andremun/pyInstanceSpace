@@ -26,7 +26,6 @@ class AnnotatedStageOutput(NamedTuple):
     stage: StageClass
     output: NamedTuple
 
-
 class StageRunner:
     """A runner to run a list of stages."""
 
@@ -44,6 +43,12 @@ class StageRunner:
 
     _current_schedule_item: int
     _stages_ran: defaultdict[StageClass, bool]
+
+    @staticmethod
+    def _debug_print(a: Any, do_print: bool) -> None:  # noqa: ANN401
+        if do_print:
+            print("[DEBUG]: ", end="")
+            print(a)
 
     def __init__(
         self,
@@ -112,6 +117,7 @@ class StageRunner:
                 the runner will try to get them from previously ran stages. If they
                 still aren't present the stage will raise an error.
         """
+        StageRunner._debug_print("running " + stage.__name__, True)
         # Make sure stage can be ran
         stage_schedule_index = self._stage_to_schedule_index[stage]
         if stage_schedule_index > self._current_schedule_item:

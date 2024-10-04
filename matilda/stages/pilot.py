@@ -8,7 +8,7 @@ from one edge of the space to the opposite.
 
 """
 
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -162,11 +162,20 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         )
 
     @staticmethod
+    def _pilot_print(
+        a: Any,  # noqa: ANN401
+        _do_output: bool,
+    ) -> None:
+        if _do_output:
+            print(a)
+
+    @staticmethod
     def pilot(
         x: NDArray[np.double],
         y: NDArray[np.double],
         feat_labels: list[str],
         options: PilotOptions,
+        _do_output: bool = True,
     ) -> PilotOutput:
         """Run the PILOT dimensionality reduction algorithm.
 
@@ -211,17 +220,24 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         # Numerical solution
         else:
             if options.alpha is not None and options.alpha.shape == (2 * m + 2 * n, 1):
-                print(" -> PILOT is using a pre-calculated solution.")
+                PilotStage._pilot_print(
+                    " -> PILOT is using a pre-calculated solution.",
+                    _do_output,
+                )
                 alpha = options.alpha
             else:
                 if options.x0 is not None:
-                    print(
+                    PilotStage._pilot_print(
                         "  -> PILOT is using a user defined starting points"
                         " for BFGS.",
+                        _do_output,
                     )
                     x0 = options.x0
                 else:
-                    print("  -> PILOT is using random starting points for BFGS.")
+                    PilotStage._pilot_print(
+                        "  -> PILOT is using random starting points for BFGS.",
+                        _do_output,
+                    )
                     rng = np.random.default_rng(seed=0)
                     x0 = 2 * rng.random((2 * m + 2 * n, options.n_tries)) - 1
 
@@ -240,6 +256,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                     eoptim,
                     perf,
                     options,
+                    _do_output,
                 )
 
             out_a = alpha[: 2 * n, idx].reshape(2, n)
@@ -298,11 +315,15 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                 summary,
             )
 
-        print(
+        PilotStage._pilot_print(
             "-------------------------------------------------------------------------",
+            _do_output,
         )
-        print("  -> PILOT has completed. The projection matrix A is:")
-        print(out_a)
+        PilotStage._pilot_print(
+            "  -> PILOT has completed. The projection matrix A is:",
+            _do_output,
+        )
+        PilotStage._pilot_print(out_a, _do_output)
 
         return pout
 
@@ -312,6 +333,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         x_bar: NDArray[np.double],
         n: int,
         m: int,
+        _do_output: bool = True,
     ) -> tuple[
         NDArray[np.double],
         NDArray[np.double],
@@ -350,12 +372,17 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             The coefficient of determination between x_bar
             and its low-dimensional approximation.
         """
-        print(
+        PilotStage._pilot_print(
             "-------------------------------------------------------------------------",
+            _do_output,
         )
-        print("  -> PILOT is solving analytically the projection problem.")
-        print(
+        PilotStage._pilot_print(
+            "  -> PILOT is solving analytically the projection problem.",
+            _do_output,
+        )
+        PilotStage._pilot_print(
             "-------------------------------------------------------------------------",
+            _do_output,
         )
         x_bar = x_bar.T
 
@@ -413,6 +440,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         eoptim: NDArray[np.double],
         perf: NDArray[np.double],
         opts: PilotOptions,
+        _do_output: bool = True,
     ) -> tuple[int, NDArray[np.double], NDArray[np.double], NDArray[np.double]]:
         """Solve the projection problem numerically.
 
@@ -451,15 +479,21 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         int
             The index for the most optimal array indices
         """
-        print(
+        PilotStage._pilot_print(
             "-------------------------------------------------------------------------",
+            _do_output,
         )
-        print("  -> PILOT is solving numerically the projection problem.")
-        print(
+        PilotStage._pilot_print(
+            "  -> PILOT is solving numerically the projection problem.",
+            _do_output,
+        )
+        PilotStage._pilot_print(
             "  -> This may take a while. Trials will not be run sequentially.",
+            _do_output,
         )
-        print(
+        PilotStage._pilot_print(
             "-------------------------------------------------------------------------",
+            _do_output,
         )
 
         for i in range(opts.n_tries):
@@ -482,7 +516,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
 
             perf[i], _ = pearsonr(hd, pdist(z))
             idx = np.argmax(perf).astype(int)
-            print(f"Pilot has completed trial {i + 1}")
+            PilotStage._pilot_print(f"Pilot has completed trial {i + 1}", _do_output)
 
             al: NDArray[np.float16] = alpha.astype(np.float16)
             ept: NDArray[np.double] = eoptim

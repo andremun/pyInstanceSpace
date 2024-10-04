@@ -694,6 +694,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 self.y,
                 self.feat_labels[idx].tolist(),
                 PilotOptions.default(),
+                False,
             )
 
             y = -np.inf
