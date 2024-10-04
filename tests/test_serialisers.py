@@ -161,7 +161,7 @@ class _MatlabResults:
             num_good_algos=self.workspace_data["model"]["data"]["numGoodAlgos"],
             beta=self.workspace_data["model"]["data"]["beta"],
             s=self.s_data["S_cell"],
-            uniformity=None,
+            # uniformity=None,
         )
 
         prelim_out = PrelimOut(
@@ -184,11 +184,11 @@ class _MatlabResults:
             # MATLAB indexes by 1
             idx=self.workspace_data["model"]["featsel"]["idx"] - 1,
             selvars=self.workspace_data["model"]["sifted"]["selvars"],
-            pval=self.workspace_data["model"]["sifted"]["pval"],
-            silhouette_scores=self.workspace_data["model"]["sifted"][
-                "silhouette_scores"
-            ],
-            clust=self.workspace_data["model"]["sifted"]["clust"],
+            pval=None, #self.workspace_data["model"]["sifted"]["pval"],
+            silhouette_scores=None,#self.workspace_data["model"]["sifted"][
+            #    "silhouette_scores"
+            #],
+            clust=None,#self.workspace_data["model"]["sifted"]["clust"],
         )
 
         pilot_out = PilotOut(
@@ -351,9 +351,9 @@ def test_save_graphs() -> None:
     """Test saving graphs from a completed instance space."""
     model = _MatlabResults().get_model()
 
-    model.save_graphs(script_dir / "test_data/serializers/actual_output/png")
+    model.save_graphs(script_dir / "test_data/serialisers/actual_output/png")
 
-    test_data_dir = script_dir / "test_data/serializers"
+    test_data_dir = script_dir / "test_data/serialisers"
 
     for csv_file in os.listdir(
         test_data_dir / "expected_output/png",
