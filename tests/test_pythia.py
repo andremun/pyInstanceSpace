@@ -19,6 +19,7 @@ Tests includes:
     - test_grid_poly: Test that the performance of model is asexpected when grid search
         & poly.
 """
+
 from pathlib import Path
 
 import numpy as np
@@ -27,7 +28,7 @@ from numpy.typing import NDArray
 from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
 
-from matilda.data.options import PythiaOptions
+from matilda.data.options import ParallelOptions, PythiaOptions
 from matilda.stages.pythia import PythiaStage
 
 script_dir = Path(__file__).parent
@@ -70,7 +71,15 @@ def test_compute_znorm() -> None:
 def test_compare_output() -> None:
     """Test that the output of the compute_znorm is as expected."""
     pythia = PythiaStage(z, y, y_bin, y_best, algo)
-    pythia_out = pythia.pythia(z, y, y_bin, y_best, algo, opt)
+    pythia_out = pythia.pythia(
+        z,
+        y,
+        y_bin,
+        y_best,
+        algo,
+        opt,
+        ParallelOptions.default(),
+    )
     mu = np.genfromtxt(csv_path_mu_input, delimiter=",")
 
     assert np.allclose(mu, pythia_out[0])
@@ -83,7 +92,7 @@ def test_generate_params_true() -> None:
     max_value = 2**4
     rng = np.random.default_rng(seed=0)
 
-    params = PythiaStage._generate_params(opt.use_grid_search, rng) # noqa: SLF001
+    params = PythiaStage._generate_params(opt.use_grid_search, rng)  # noqa: SLF001
     assert all(min_value <= param <= max_value for param in params["C"])
     assert all(min_value <= param <= max_value for param in params["gamma"])
 
@@ -98,7 +107,15 @@ def test_bayes_opt() -> None:
         params=None,
     )
     pythia = PythiaStage(z, y, y_bin, y_best, algo)
-    pythia_out = pythia.pythia(z, y, y_bin, y_best, algo, opts)
+    pythia_out = pythia.pythia(
+        z,
+        y,
+        y_bin,
+        y_best,
+        algo,
+        opts,
+        ParallelOptions.default(),
+    )
 
     # read the actual output
     matlab_output = pd.read_csv(output_dir / "BO_gaussian/gaussian.csv")
@@ -140,7 +157,15 @@ def test_bayes_opt_poly() -> None:
         params=None,
     )
     pythia = PythiaStage(z, y, y_bin, y_best, algo)
-    pythia_out = pythia.pythia(z, y, y_bin, y_best, algo, opts)
+    pythia_out = pythia.pythia(
+        z,
+        y,
+        y_bin,
+        y_best,
+        algo,
+        opts,
+        ParallelOptions.default(),
+    )
 
     # read the actual output
     matlab_output = pd.read_csv(output_dir / "BO_poly/poly.csv")
@@ -170,7 +195,15 @@ def test_grid_gaussian() -> None:
         params=None,
     )
     pythia = PythiaStage(z, y, y_bin, y_best, algo)
-    pythia_out = pythia.pythia(z, y, y_bin, y_best, algo, opts)
+    pythia_out = pythia.pythia(
+        z,
+        y,
+        y_bin,
+        y_best,
+        algo,
+        opts,
+        ParallelOptions.default(),
+    )
     # read the actual output
     matlab_accuracy = pd.read_csv(
         output_dir / "gridsearch_gaussian/accuracy.csv",
@@ -204,7 +237,15 @@ def test_grid_poly() -> None:
         params=None,
     )
     pythia = PythiaStage(z, y, y_bin, y_best, algo)
-    pythia_out = pythia.pythia(z, y, y_bin, y_best, algo, opts)
+    pythia_out = pythia.pythia(
+        z,
+        y,
+        y_bin,
+        y_best,
+        algo,
+        opts,
+        ParallelOptions.default(),
+    )
 
     # read the actual output
     matlab_accuracy = pd.read_csv(

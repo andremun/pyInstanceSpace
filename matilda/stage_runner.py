@@ -26,6 +26,7 @@ class AnnotatedStageOutput(NamedTuple):
     stage: StageClass
     output: NamedTuple
 
+
 class StageRunner:
     """A runner to run a list of stages."""
 

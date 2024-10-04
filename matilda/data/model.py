@@ -70,6 +70,7 @@ class Data:
             # uniformity=stage_runner_output["uniformity"],
         )
 
+
 @dataclass(frozen=True)
 class DataDense:
     """TODO: This."""

@@ -61,7 +61,7 @@ from sklearn.svm import SVC
 from skopt import BayesSearchCV
 from skopt.space import Real
 
-from matilda.data.options import PythiaOptions
+from matilda.data.options import ParallelOptions, PythiaOptions
 from matilda.stages.stage import Stage
 
 LARGE_NUM_INSTANCE: int = 1000
@@ -98,6 +98,8 @@ class PythiaInput(NamedTuple):
         The algorithm labels.
     pythia_options : PythiaOptions
         The options for the Pythia stage.
+    parallel_options: ParallelOptions
+        TODO: This.
     """
 
     z: NDArray[np.double]
@@ -106,6 +108,7 @@ class PythiaInput(NamedTuple):
     y_best: NDArray[np.double]
     algo_labels: list[str]
     pythia_options: PythiaOptions
+    parallel_options: ParallelOptions
 
 
 class PythiaOutput(NamedTuple):
@@ -207,6 +210,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             inputs.y_best,
             inputs.algo_labels,
             inputs.pythia_options,
+            inputs.parallel_options,
         )
 
     @staticmethod
@@ -217,6 +221,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         y_best: NDArray[np.double],
         algo_labels: list[str],
         opts: PythiaOptions,
+        parallel_options: ParallelOptions,
     ) -> PythiaOutput:
         """Run the Pythia stage.
 
@@ -234,6 +239,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             The algorithm labels.
         opts : PythiaOptions
             The options for the Pythia stage.
+        parallel_options : ParallelOptions
+            TODO: This.
 
         Returns
         -------
@@ -329,7 +336,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             param_space = (
                 PythiaStage._generate_params(opts.use_grid_search, rng)
                 if precalcparams is None
-                else {"C":precalcparams[i][0], "gamma":precalcparams[i][1]}
+                else {"C": precalcparams[i][0], "gamma": precalcparams[i][1]}
             )
 
             res = PythiaStage._fitmatsvm(
@@ -340,6 +347,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 opts.is_poly_krnl,
                 param_space,
                 opts.use_grid_search,
+                parallel_options,
             )
 
             # Record performance metrics
@@ -441,6 +449,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         is_poly_kernel: bool,
         param_space: dict[str, list[float]] | None,
         use_grid_search: bool,
+        parallel_options: ParallelOptions,
     ) -> _SvmRes:
         """Train a SVM model based on configuration.
 
@@ -460,6 +469,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             The hyperparameters for the SVM model.
         use_grid_search : bool
             Whether to use grid search for hyperparameter optimization.
+        parallel_options : ParallelOptions
+            TODO: This.
 
         Returns
         -------
@@ -479,7 +490,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 estimator=svm_model,
                 cv=skf,
                 param_grid=param_space,
-                n_jobs=10,
+                n_jobs=-1,
             )
         else:
             optimization = BayesSearchCV(
@@ -489,7 +500,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 cv=skf,
                 verbose=0,
                 random_state=0,
-                n_jobs=10, # TODO: YOU SET THIS, TAKE FROM OPTIONS
+                n_jobs=parallel_options.n_cores,
             )
         optimization.fit(z, y_bin, sample_weight=w)
         best_svm = optimization.best_estimator_
@@ -566,7 +577,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
     @staticmethod
     def _check_precalcparams(
-        params: NDArray[np.double] | None, nalgos: int,
+        params: NDArray[np.double] | None,
+        nalgos: int,
     ) -> NDArray[np.double] | None:
         """Check pre-calculated hyper-parameters.
 
@@ -641,7 +653,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
     @staticmethod
     def _generate_params(
-        use_grid_search: bool, rng: np.random.Generator,
+        use_grid_search: bool,
+        rng: np.random.Generator,
     ) -> dict[str, list[float]]:
         """Generate hyperparameters for the SVM models.
 

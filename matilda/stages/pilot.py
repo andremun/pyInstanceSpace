@@ -42,6 +42,7 @@ class PilotInput(NamedTuple):
     feat_labels: list[str]
     pilot_options: PilotOptions
 
+
 class PilotOutput(NamedTuple):
     """Outputs for the Pilot stage.
 
@@ -82,6 +83,7 @@ class PilotOutput(NamedTuple):
     error: NDArray[np.double]
     r2: NDArray[np.double]
     summary: pd.DataFrame
+
 
 class PilotStage(Stage[PilotInput, PilotOutput]):
     """Class for PILOT stage."""

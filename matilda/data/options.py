@@ -481,7 +481,6 @@ class InstanceSpaceOptions:
                     "maxiter": "max_iter",
                     "replicates": "replicates",
                     # "k": "k",
-
                 },
             ),
             pilot=InstanceSpaceOptions._load_dataclass(
@@ -508,7 +507,7 @@ class InstanceSpaceOptions:
                     "ispolykrnl": "is_poly_krnl",
                     "useweights": "use_weights",
                     "uselibsvm": "use_grid_search",
-                }, # ignoring use_lib_svm
+                },  # ignoring use_lib_svm
             ),
             trace=InstanceSpaceOptions._load_dataclass(
                 TraceOptions,
@@ -643,8 +642,9 @@ class InstanceSpaceOptions:
         if len(value_errors) > 0:
             raise ValueError(
                 "The following fields from JSON are not defined in the data class "
-                + data_class.__name__ + "\n"
-                + "\n".join(map(lambda x : f"   {x}", value_errors)),
+                + data_class.__name__
+                + "\n"
+                + "\n".join(map(lambda x: f"   {x}", value_errors)),
             )
 
     @staticmethod

@@ -82,7 +82,6 @@ class NotEnoughFeatureError(Exception):
         super().__init__(msg)
 
 
-
 class SiftedInput(NamedTuple):
     """Inputs for the Sifted stage.
 
@@ -134,11 +133,12 @@ class SiftedInput(NamedTuple):
     p: NDArray[np.int_]
     inst_labels: pd.Series  # type: ignore[type-arg]
     feat_labels: list[str]
-    s: pd.Series | None # type: ignore[type-arg]
+    s: pd.Series | None  # type: ignore[type-arg]
     sifted_options: SiftedOptions
     selvars_options: SelvarsOptions
     data_dense: DataDense | None
     parallel_options: ParallelOptions
+
 
 class SiftedOutput(NamedTuple):
     """Outputs from the Sifted stage.
@@ -298,22 +298,22 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             Boolean array indicating whether features were selected or not.
         """
         return SiftedStage.sifted(
-            x = inputs.x,
-            y = inputs.y,
-            y_bin = inputs.y_bin,
-            feat_labels = inputs.feat_labels,
-            opts = inputs.sifted_options,
-            opts_selvars = inputs.selvars_options,
-            data_dense = inputs.data_dense,
-            x_raw = inputs.x_raw,
-            y_raw = inputs.y_raw,
-            beta = inputs.beta,
-            num_good_algos = inputs.num_good_algos,
-            y_best = inputs.y_best,
-            p = inputs.p,
-            inst_labels = inputs.inst_labels,
-            s = inputs.s,
-            parallel_options = inputs.parallel_options,
+            x=inputs.x,
+            y=inputs.y,
+            y_bin=inputs.y_bin,
+            feat_labels=inputs.feat_labels,
+            opts=inputs.sifted_options,
+            opts_selvars=inputs.selvars_options,
+            data_dense=inputs.data_dense,
+            x_raw=inputs.x_raw,
+            y_raw=inputs.y_raw,
+            beta=inputs.beta,
+            num_good_algos=inputs.num_good_algos,
+            y_best=inputs.y_best,
+            p=inputs.p,
+            inst_labels=inputs.inst_labels,
+            s=inputs.s,
+            parallel_options=inputs.parallel_options,
         )
 
     @staticmethod
@@ -354,8 +354,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         )
 
         return sifted._sifted(  # noqa: SLF001
-            opts_selvars = opts_selvars,
-            data_dense = data_dense,
+            opts_selvars=opts_selvars,
+            data_dense=data_dense,
         )
 
     def _sifted(
@@ -384,13 +384,13 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
 
         # Prepare for Filter
         bydensity = (
-            opts_selvars is not None and
-            "density_flag" in opts_selvars.__dict__ and
-            opts_selvars.density_flag and
-            "min_distance" in opts_selvars.__dict__ and
-            isinstance(opts_selvars.min_distance , float) and
-            "selvars_type" in opts_selvars.__dict__ and
-            isinstance(opts_selvars.selvars_type , str)
+            opts_selvars is not None
+            and "density_flag" in opts_selvars.__dict__
+            and opts_selvars.density_flag
+            and "min_distance" in opts_selvars.__dict__
+            and isinstance(opts_selvars.min_distance, float)
+            and "selvars_type" in opts_selvars.__dict__
+            and isinstance(opts_selvars.selvars_type, str)
         )
 
         if nfeats <= 1:

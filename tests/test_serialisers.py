@@ -184,11 +184,11 @@ class _MatlabResults:
             # MATLAB indexes by 1
             idx=self.workspace_data["model"]["featsel"]["idx"] - 1,
             selvars=self.workspace_data["model"]["sifted"]["selvars"],
-            pval=None, #self.workspace_data["model"]["sifted"]["pval"],
-            silhouette_scores=None,#self.workspace_data["model"]["sifted"][
+            pval=None,  # self.workspace_data["model"]["sifted"]["pval"],
+            silhouette_scores=None,  # self.workspace_data["model"]["sifted"][
             #    "silhouette_scores"
-            #],
-            clust=None,#self.workspace_data["model"]["sifted"]["clust"],
+            # ],
+            clust=None,  # self.workspace_data["model"]["sifted"]["clust"],
         )
 
         pilot_out = PilotOut(
@@ -286,7 +286,6 @@ def test_save_to_csv() -> None:
     """Test saving information from a completed instance space to CSVs."""
     model = _MatlabResults().get_model()
 
-
     model.save_to_csv(script_dir / "test_data/serialisers/actual_output/csv")
 
     test_data_dir = script_dir / "test_data/serialisers"
@@ -311,9 +310,7 @@ def test_save_for_web() -> None:
     """Test saving information for export to the web frontend."""
     model = _MatlabResults().get_model()
 
-
     model.save_for_web(script_dir / "test_data/serialisers/actual_output/web")
-
 
     test_data_dir = script_dir / "test_data/serialisers"
 

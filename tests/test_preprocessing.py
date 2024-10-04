@@ -69,6 +69,8 @@ def test_run_method() -> None:
         updated_y,
         df_y,
     ), "The data arrays X and Y are not approximately equal."
+
+
 """
 Testcases for the preprocessing stage of the Matilda project.
 

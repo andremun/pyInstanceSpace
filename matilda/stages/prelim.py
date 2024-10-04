@@ -139,6 +139,7 @@ class PrelimOutput(NamedTuple):
     data_dense: DataDense | None
     s: pd.Series | None  # type: ignore[type-arg]
 
+
 @dataclass(frozen=True)
 class _BoundOut:
     x: NDArray[np.double]
@@ -298,7 +299,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             s,
         )
 
-     # prelim matlab file implementation, will return only prelim output
+    # prelim matlab file implementation, will return only prelim output
     @staticmethod
     def prelim(
         x: NDArray[np.double],
@@ -561,7 +562,6 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             sigma_y=sigma_y,
             mu_y=mu_y,
         )
-
 
     # prelim matlab file implementation, will return only prelim output
     def _prelim(

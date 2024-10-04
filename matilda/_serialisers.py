@@ -436,6 +436,7 @@ def _colour_scale_g(
 
     return out
 
+
 def _draw_sources(
     z: NDArray[Any],
     s: NDArray[np.str_],

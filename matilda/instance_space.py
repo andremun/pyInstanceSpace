@@ -45,6 +45,8 @@ from matilda.stages.stage import IN, OUT, Stage, StageClass
 from matilda.stages.trace import TraceStage
 
 T = TypeVar("T", bound="_InstanceSpaceInputs")
+
+
 class _InstanceSpaceInputs(NamedTuple):
     feature_names: list[str]
     algorithm_names: list[str]
@@ -138,7 +140,6 @@ class InstanceSpace:
 
         for stage in stages:
             stage_builder.add_stage(stage)
-
 
         annotations = stage_builder._named_tuple_to_stage_arguments(  # noqa: SLF001
             _InstanceSpaceInputs,
