@@ -1,114 +1,237 @@
-"""CLOISTER is using correlation to estimate a boundary for the space.
+"""CLOISTER Stage Module for Correlation-Based Boundary Estimation.
 
-The function uses the correlation between the features and the performance of the
-algorithms to estimate a boundary for the space. It constructs edges based on the
-correlation between the features. The function then uses these edges to construct
-a convex hull, providing a boundary estimate for the dataset.
+This module implements the CLOISTER stage, which estimates boundaries in a dataset
+by calculating feature correlations and using convex hull construction to define
+the boundary. It is designed to analyze the relationship between features and
+algorithmic performance, using correlation matrices to determine which features
+are significant.
+
+The CLOISTER stage has several key steps:
+1. Calculate Pearson correlation coefficients between features.
+2. Filter correlations based on statistical significance (using a p-value threshold).
+3. Generate boundary estimates using minimum and maximum feature values.
+4. Apply convex hull construction to define the boundary of the feature space.
+
+This module is structured around the `CloisterStage` class, which encapsulates
+the entire boundary estimation process. Utility methods are provided to calculate
+correlation matrices, generate binary representations for boundary selection, and
+compute convex hulls.
+
+Dependencies:
+- numpy
+- scipy
+- loguru
+
+Classes
+-------
+CloisterStage :
+    The primary class that implements the CLOISTER stage, providing methods to
+    estimate boundaries using correlation and convex hulls.
+
+Functions
+---------
+cloister(x, a, options):
+    The main function to estimate boundaries for a dataset, using a feature matrix `x`
+    and projection matrix `a`.
 """
 
+from typing import NamedTuple
+
 import numpy as np
+from loguru import logger
 from numpy.typing import NDArray
 from scipy.spatial import ConvexHull, QhullError
 from scipy.stats import pearsonr
 
-from matilda.data.model import BoundaryResult, CloisterDataChanged, CloisterOut
 from matilda.data.options import CloisterOptions
+from matilda.stages.stage import Stage
 
 
-class Cloister:
-    """See file docstring."""
+class CloisterInput(NamedTuple):
+    """Inputs for the Cloister stage.
+
+    Attributes
+    ----------
+    x : NDArray[np.double]
+        The feature matrix (instances x features) provided to the CLOISTER stage.
+    a : NDArray[np.double]
+        The projection matrix provided to the CLOISTER stage.
+    cloister_options : Cloister Options
+        Options for running Cloister.
+    """
 
     x: NDArray[np.double]
     a: NDArray[np.double]
-    opts: CloisterOptions
-    nfeats: int
+    cloister_options: CloisterOptions
 
-    def __init__(
-        self,
-        x: NDArray[np.double],
-        a: NDArray[np.double],
-        opts: CloisterOptions,
-    ) -> None:
-        """Initialize the Cloister stage.
+class CloisterOutput(NamedTuple):
+    """Outputs from the Cloister stage.
 
-        Args
-        ----
-            x (NDArray): The feature matrix (instances x features) to process.
-            a (NDArray): A projection matrix computed from Pilot
-            opts (CloisterOptions): Configuration options for CLOISTER
-        """
-        self.x = x
-        self.a = a
-        self.opts = opts
-        self.nfeats = x.shape[1]
+    Attributes
+    ----------
+    z_edge : NDArray[np.double]
+        Estimated boundary points.
+    z_ecorr : NDArray[np.double]
+        Correlated boundary points.
+    """
+
+    z_edge: NDArray[np.double]
+    z_ecorr: NDArray[np.double]
+
+
+class CloisterStage(Stage[CloisterInput, CloisterOutput]):
+    """CloisterStage class for Correlation-Based Boundary Estimation.
+
+    The `CloisterStage` class implements the core functionality of the CLOISTER stage,
+    which estimates boundaries in a dataset by analyzing the correlation between
+    features.
+
+    The class provides methods to compute Pearson correlation coefficients, filter
+    insignificant correlations, and generate convex hulls to create boundary estimates.
+
+    Methods
+    -------
+    __init__(x, a)
+        Initializes the `CloisterStage` with the provided feature matrix `x` and
+        projection matrix `a`.
+
+    _run(options)
+        Executes the CLOISTER stage to estimate boundaries based on the configuration
+        options.
+
+    cloister(x, a, options)
+        Main method that estimates boundaries by analyzing correlations between features
+        and applying convex hull construction.
+
+    _inputs()
+        Defines the input parameters required for the CLOISTER stage, which include
+        the feature matrix `x` and the projection matrix `a`.
+
+    _outputs()
+        Defines the output parameters returned by the CLOISTER stage, which include
+        the estimated boundary points (`z_edge`) and the correlation-based boundary
+        points (`z_ecorr`).
+
+    _compute_correlation(x, options)
+        Computes the Pearson correlation matrix for the feature matrix `x`, and filters
+        correlations based on statistical significance using the provided p-value
+        threshold.
+
+    _generate_boundaries(x, rho, options)
+        Generates boundary points for the feature matrix `x` based on the computed
+        correlation matrix `rho` and configuration options.
+
+    _compute_convex_hull(points)
+        Computes the convex hull for a given set of points to estimate the boundary
+        of the dataset.
+
+    _decimal_to_binary_matrix(nfeats)
+        Generates a binary matrix representing all possible boundary combinations for
+        a given number of features.
+    """
 
     @staticmethod
-    def run(
-        x: NDArray[np.double],
-        a: NDArray[np.double],
-        opts: CloisterOptions,
-    ) -> tuple[CloisterDataChanged, CloisterOut]:
-        """Estimate a boundary for the space using correlation.
+    def _inputs() -> type[CloisterInput]:
+        return CloisterInput
 
-        Args
-        ----
-            x (NDArray[np.double]): The feature matrix (instances x features) to process
-            a (NDArray[np.double]): A projection matrix computed from Pilot
-            opts (CloisterOptions): Configuration options for CLOISTER
+    @staticmethod
+    def _outputs() -> type[CloisterOutput]:
+        return CloisterOutput
+
+    @staticmethod
+    def _run(
+        inputs: CloisterInput,
+    ) -> CloisterOutput:
+        """Execute the CLOISTER stage to estimate boundaries.
+
+        Parameters
+        ----------
+        inputs : CloisterInput
+            Inputs for the cloister stage.
 
         Returns
         -------
-            cloister_out: A structure containing z_edge and z_ecorr
+        CloisterOutput
+            Output of the Cloister stage.
         """
-        print(
+        return CloisterStage.cloister(inputs.x, inputs.a, inputs.cloister_options)
+
+    @staticmethod
+    def cloister(
+        x: NDArray[np.double],
+        a: NDArray[np.double],
+        options: CloisterOptions,
+    ) -> CloisterOutput:
+        """Estimate a boundary for the space using correlation.
+
+        Parameters
+        ----------
+        x : NDArray[np.double]
+            Feature matrix (instances x features) to process.
+        a : NDArray[np.double]
+            Projection matrix computed from Pilot.
+        options : CloisterOptions
+            Configuration options for CLOISTER.
+
+        Returns
+        -------
+        The output of the Cloister stage.
+        """
+        logger.info(
             "  -> CLOISTER is using correlation to estimate a boundary for the space.",
         )
 
-        cloister = Cloister(x, a, opts)
-        rho = cloister.compute_correlation()
-        x_edge, remove = cloister.generate_boundaries(rho)
-        z_edge = cloister.compute_convex_hull(np.dot(x_edge, cloister.a.T))
-        z_ecorr = cloister.compute_convex_hull(np.dot(x_edge[~remove, :], cloister.a.T))
+        rho = CloisterStage._compute_correlation(x, options)
+        x_edge, remove = CloisterStage._generate_boundaries(x, rho, options)
+        z_edge = CloisterStage._compute_convex_hull(np.dot(x_edge, a.T))
+        z_ecorr = CloisterStage._compute_convex_hull(np.dot(x_edge[~remove, :], a.T))
 
         if z_ecorr.size == 0:
-            print("  -> The acceptable correlation threshold was too strict.")
-            print("  -> The features are weakely correlated.")
-            print("  -> Please consider increasing it.")
+            logger.info("  -> The acceptable correlation threshold was too strict.")
+            logger.info("  -> The features are weakely correlated.")
+            logger.info("  -> Please consider increasing it.")
             z_ecorr = z_edge
 
-        print("-----------------------------------------------------------------------")
-        print("  -> CLOISTER has completed.")
+        logger.info("-----------------------------------------------------------------")
+        logger.info("  -> CLOISTER has completed.")
 
-        return (CloisterDataChanged(), CloisterOut(z_edge=z_edge, z_ecorr=z_ecorr))
+        return CloisterOutput(z_edge, z_ecorr)
 
-    """
-    % =========================================================================
-    % SUBFUNCTIONS
-    % =========================================================================
-    """
-
-    def compute_correlation(self) -> NDArray[np.double]:
+    @staticmethod
+    def _compute_correlation(
+        x: NDArray[np.double],
+        options: CloisterOptions,
+    ) -> NDArray[np.double]:
         """Calculate the Pearson correlation coefficient for the dataset.
+
+        Parameters
+        ----------
+        x : NDArray[np.double]
+            The feature matrix (instances x features).
+        options : CloisterOptions
+            Configuration options for CLOISTER, including p-value threshold.
 
         Returns
         -------
-            NDArray[np.double]: A matrix of Pearson correlation coefficients between
-            each pair of features.
+        NDArray[np.double]
+            A matrix of Pearson correlation coefficients between each pair of features.
         """
-        rho = np.zeros((self.nfeats, self.nfeats))
-        pval = np.zeros((self.nfeats, self.nfeats))
+        nfeats = x.shape[1]
 
-        for i in range(self.nfeats):
-            for j in range(self.nfeats):
+        rho = np.zeros((nfeats, nfeats))
+        pval = np.zeros((nfeats, nfeats))
+
+        for i in range(nfeats):
+            for j in range(nfeats):
                 if i != j:
-                    rho[i, j], pval[i, j] = pearsonr(self.x[:, i], self.x[:, j])
+                    rho[i, j], pval[i, j] = pearsonr(x[:, i], x[:, j])
                 else:
                     rho[i, j] = 0
                     pval[i, j] = 1
 
         # Create a boolean mask where calculated pval exceeds specified p-value
         # threshold from the option.
-        insignificant_pvals = pval > self.opts.p_val
+        insignificant_pvals = pval > options.p_val
 
         # Set the correlation coefficients to zero where correlations are not
         # statistically significant
@@ -116,82 +239,103 @@ class Cloister:
 
         return rho
 
-    def decimal_to_binary_matrix(self) -> NDArray[np.intc]:
-        """Generate a matrix converting decimal numbers to binary representation.
+    @staticmethod
+    def _decimal_to_binary_matrix(nfeats: int) -> NDArray[np.intc]:
+        """Generate a binary matrix representation of decimal numbers.
+
+        Parameters
+        ----------
+        nfeats : int
+            Number of features (columns) in the dataset.
 
         Returns
         -------
-            NDArray[np.intc]: A matrix where each row represents a binary number as an
-            array of bits.
+        NDArray[np.intc]
+            A matrix where each row represents a binary number as an array of bits.
         """
-        decimals = np.arange(2**self.nfeats)
-        binary_strings = [np.binary_repr(dec, width=self.nfeats) for dec in decimals]
+        decimals = np.arange(2**nfeats)
+        binary_strings = [np.binary_repr(dec, width=nfeats) for dec in decimals]
         binary_matrix = np.array(
             [[int(bit) for bit in string] for string in binary_strings],
         )
         return binary_matrix[:, ::-1]
 
-    def compute_convex_hull(self, points: NDArray[np.double]) -> NDArray[np.double]:
+    @staticmethod
+    def _compute_convex_hull(points: NDArray[np.double]) -> NDArray[np.double]:
         """Calculate the convex hull of a set of points.
 
-        Args
-        ----
-            points (NDArray[np.double]): A 2d array of points
+        Parameters
+        ----------
+        points : NDArray[np.double]
+            A 2D array of points (instances x features).
 
         Returns
         -------
-            NDArray[np.double]: The vertices of the convex hull, or an empty array if
-            an error occurs.
+        NDArray[np.double]
+            The vertices of the convex hull or an empty array if an error occurs.
         """
         try:
             hull = ConvexHull(points)
             return points[hull.vertices, :]
         except QhullError as qe:
-            print("QhullError: Encountered geometrical degeneracy:", str(qe))
+            logger.info("QhullError: Encountered geometrical degeneracy:", str(qe))
             return np.array([])
         except ValueError as ve:
-            print("ValueError: Imcompatible value encountered:", str(ve))
+            logger.info("ValueError: Imcompatible value encountered:", str(ve))
             return np.array([])
 
-    def generate_boundaries(self, rho: NDArray[np.double]) -> BoundaryResult:
-        """Generate boundaries based on the correlation matrix and options.
+    @staticmethod
+    def _generate_boundaries(
+        x: NDArray[np.double],
+        rho: NDArray[np.double],
+        options: CloisterOptions,
+    ) -> tuple[NDArray[np.double], NDArray[np.bool_]]:
+        """Generate boundaries based on the correlation matrix and configuration option.
 
-        Args
-        ----
-            rho (NDArray[np.double]): Correlation matrix.
+        Parameters
+        ----------
+        x : NDArray[np.double]
+            Feature matrix (instances x features).
+        rho : NDArray[np.double]
+            Correlation matrix computed using Pearson correlation.
+        options : CloisterOptions
+            Configuration options for CLOISTER.
 
         Returns
         -------
-            BoundaryResult: Contains the coordinates of boundary edges and indicators
-            for which should be removed.
+        tuple[NDArray[np.double], NDArray[np.bool_]]
+            A tuple containing the boundary coordinates (x_edge) and a boolean array
+            indicating which boundaries should be removed.
         """
         # if no feature selection. then make a note in the boundary construction
         # that it won't work, because nfeats is so large that decimal to binary matrix
         # conversion wont be able to make a matrix.
+        nfeats = x.shape[1]
 
-        x_bnds = np.array([np.min(self.x, axis=0), np.max(self.x, axis=0)])
-        idx = self.decimal_to_binary_matrix()
+        idx = CloisterStage._decimal_to_binary_matrix(nfeats)
         ncomb = idx.shape[0]
-        x_edge = np.zeros((ncomb, self.nfeats))
+
+        x_bnds = np.array([np.min(x, axis=0), np.max(x, axis=0)])
+        x_edge = np.zeros((ncomb, nfeats))
         remove = np.zeros(ncomb, dtype=bool)
 
         for i in range(ncomb):
             # Convert the binary indices to flat indices for the boundary selection
             ind = np.ravel_multi_index(
-                (idx[i], np.arange(self.nfeats)),
-                (2, self.nfeats),
+                (idx[i], np.arange(nfeats)),
+                (2, nfeats),
                 order="F",
             )
             # Select the boundary points corresponding to the flat indices
             x_edge[i, :] = x_bnds.T.flatten()[ind]
-            for j in range(self.nfeats):
-                for k in range(j + 1, self.nfeats):
+            for j in range(nfeats):
+                for k in range(j + 1, nfeats):
                     # Check for valid points give the correlation trend
                     if (
-                        rho[j, k] > self.opts.c_thres
+                        rho[j, k] > options.c_thres
                         and np.sign(x_edge[i, j]) != np.sign(x_edge[i, k])
                     ) or (
-                        rho[j, k] < -self.opts.c_thres
+                        rho[j, k] < -options.c_thres
                         and np.sign(x_edge[i, j]) == np.sign(x_edge[i, k])
                     ):
                         remove[i] = True
@@ -200,4 +344,4 @@ class Cloister:
                 if remove[i]:
                     break
 
-        return BoundaryResult(x_edge=x_edge, remove=remove)
+        return (x_edge, remove)

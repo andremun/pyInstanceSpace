@@ -11,6 +11,9 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Self, TypeVar
 
+import numpy as np
+from numpy.typing import NDArray
+
 from matilda.data.default_options import (
     DEFAULT_AUTO_PREPROC,
     DEFAULT_BOUND_FLAG,
@@ -30,7 +33,7 @@ from matilda.data.default_options import (
     DEFAULT_PILOT_N_TRIES,
     DEFAULT_PYTHIA_CV_FOLDS,
     DEFAULT_PYTHIA_IS_POLY_KRNL,
-    DEFAULT_PYTHIA_USE_LIB_SVM,
+    DEFAULT_PYTHIA_USE_GRID_SEARCH,
     DEFAULT_PYTHIA_USE_WEIGHTS,
     DEFAULT_SELVARS_DENSITY_FLAG,
     DEFAULT_SELVARS_FILE_IDX,
@@ -271,6 +274,8 @@ class SiftedOptions:
 class PilotOptions:
     """Options for pilot studies or preliminary analysis phases."""
 
+    x0: NDArray[np.double] | None
+    alpha: NDArray[np.double] | None
     analytic: bool
     n_tries: int
 
@@ -278,12 +283,11 @@ class PilotOptions:
     def default(
         analytic: bool = DEFAULT_PILOT_ANALYTICS,
         n_tries: int = DEFAULT_PILOT_N_TRIES,
+        x0: NDArray[np.double] | None = None,
+        alpha: NDArray[np.double] | None = None,
     ) -> PilotOptions:
         """Instantiate with default values."""
-        return PilotOptions(
-            analytic=analytic,
-            n_tries=n_tries,
-        )
+        return PilotOptions(analytic=analytic, n_tries=n_tries, x0=x0, alpha=alpha)
 
 
 @dataclass(frozen=True)
@@ -312,21 +316,23 @@ class PythiaOptions:
     cv_folds: int
     is_poly_krnl: bool
     use_weights: bool
-    use_lib_svm: bool
+    use_grid_search: bool
+    params: NDArray[np.double] | None
 
     @staticmethod
     def default(
         cv_folds: int = DEFAULT_PYTHIA_CV_FOLDS,
         is_poly_krnl: bool = DEFAULT_PYTHIA_IS_POLY_KRNL,
         use_weights: bool = DEFAULT_PYTHIA_USE_WEIGHTS,
-        use_lib_svm: bool = DEFAULT_PYTHIA_USE_LIB_SVM,
+        use_grid_search: bool = DEFAULT_PYTHIA_USE_GRID_SEARCH,
     ) -> PythiaOptions:
         """Instantiate with default values."""
         return PythiaOptions(
             cv_folds=cv_folds,
             is_poly_krnl=is_poly_krnl,
             use_weights=use_weights,
-            use_lib_svm=use_lib_svm,
+            use_grid_search=use_grid_search,
+            params=None,
         )
 
 
@@ -397,20 +403,21 @@ class InstanceSpaceOptions:
         the InstanceSpaceOptions with data from the file, and sets missing optional
         fields using their default values.
 
-        Args
-        ----------
+        Args:
+        ----
         file_contents
             Content of the dict with configuration options.
 
-        Returns
+        Returns:
         -------
         InstanceSpaceOptions
             InstanceSpaceOptions object populated with data from the file.
 
-        Raises
+        Raises:
         ------
         ValueError
             If the JSON file contains undefined sub options.
+
         """
         # Validate if the top-level fields match those in the InstanceSpaceOptions class
         options_fields = {f.name for f in fields(InstanceSpaceOptions)}
@@ -428,10 +435,18 @@ class InstanceSpaceOptions:
             parallel=InstanceSpaceOptions._load_dataclass(
                 ParallelOptions,
                 file_contents.get("parallel", {}),
+                {
+                    "ncores": "n_cores",
+                },
             ),
             perf=InstanceSpaceOptions._load_dataclass(
                 PerformanceOptions,
                 file_contents.get("perf", {}),
+                {
+                    "maxperf": "max_perf",
+                    "absperf": "abs_perf",
+                    "betathreshold": "beta_threshold",
+                },
             ),
             auto=InstanceSpaceOptions._load_dataclass(
                 AutoOptions,
@@ -448,28 +463,59 @@ class InstanceSpaceOptions:
             selvars=InstanceSpaceOptions._load_dataclass(
                 SelvarsOptions,
                 file_contents.get("selvars", {}),
+                {
+                    "smallscaleflag": "small_scale_flag",
+                    "smallscale": "small_scale",
+                    "fileidxflag": "file_idx_flag",
+                    "fileidx": "file_idx",
+                    "densityflag": "density_flag",
+                    "mindistance": "min_distance",
+                    "type": "selvars_type",
+                },
             ),
             sifted=InstanceSpaceOptions._load_dataclass(
                 SiftedOptions,
                 file_contents.get("sifted", {}),
+                {
+                    "ntrees": "n_trees",
+                    "maxiter": "max_iter",
+                    "replicates": "replicates",
+                    # "k": "k",
+
+                },
             ),
             pilot=InstanceSpaceOptions._load_dataclass(
                 PilotOptions,
                 file_contents.get("pilot", {}),
+                {
+                    "ntries": "n_tries",
+                    # "x0": "x0"
+                },
             ),
             cloister=InstanceSpaceOptions._load_dataclass(
                 CloisterOptions,
                 file_contents.get("cloister", {}),
+                {
+                    "pval": "p_val",
+                    "cthres": "c_thres",
+                },
             ),
             pythia=InstanceSpaceOptions._load_dataclass(
                 PythiaOptions,
                 file_contents.get("pythia", {}),
+                field_mapping={
+                    "cvfolds": "cv_folds",
+                    "ispolykrnl": "is_poly_krnl",
+                    "useweights": "use_weights",
+                    "uselibsvm": "use_grid_search",
+                }, # ignoring use_lib_svm
             ),
             trace=InstanceSpaceOptions._load_dataclass(
                 TraceOptions,
                 file_contents.get("trace", {}),
                 field_mapping={
                     "pi": "purity",
+                    "usesim": "use_sim",
                 },  # mapping the 'pi' in JSON to the 'purity' in TraceOptions
             ),
             outputs=InstanceSpaceOptions._load_dataclass(
@@ -484,6 +530,7 @@ class InstanceSpaceOptions:
         Returns
         -------
         The options object serialised into a string.
+
         """
         raise NotImplementedError
 
@@ -540,10 +587,11 @@ class InstanceSpaceOptions:
         data: dict[str, Any],
         field_mapping: dict[str, str] | None = None,
     ) -> None:
-        """Validate all keys in the provided dictionary are valid fields in dataclass.
+        """
+        Validate all keys in the provided dictionary are valid fields in dataclass.
 
-        Args
-        ----------
+        Args:
+        ----
         data_class : type[T]
             The dataclass type to validate against.
         data : dict
@@ -555,7 +603,7 @@ class InstanceSpaceOptions:
             dictionary uses the key `pi`, this mapping
             would be `{"pi": "purity"}`.
 
-        Raises
+        Raises:
         ------
         ValueError
             If an undefined field is found in the dictionary or
@@ -571,9 +619,11 @@ class InstanceSpaceOptions:
         mapped_json_fields = {}
         reverse_mapping = {v: k for k, v in field_mapping.items()}
 
+        value_errors = []
+
         for json_field, value in data.items():
             # Use field mapping if available, otherwise keep the original field name
-            mapped_field = field_mapping.get(json_field, json_field)
+            mapped_field = field_mapping.get(json_field.lower(), json_field.lower())
 
             # Check for conflicts, i.e., if the JSON contains both 'pi' and 'purity'
             if mapped_field in mapped_json_fields:
@@ -585,13 +635,17 @@ class InstanceSpaceOptions:
                 )
 
             # Check if the mapped field is valid (exists in the dataclass)
-            if mapped_field not in known_fields:
-                raise ValueError(
-                    f"Field '{mapped_field}' from JSON is not defined "
-                    f"in the data class '{data_class.__name__}'.",
-                )
+            if mapped_field not in known_fields and mapped_field != "_":
+                value_errors.append(mapped_field)
 
             mapped_json_fields[mapped_field] = value
+
+        if len(value_errors) > 0:
+            raise ValueError(
+                "The following fields from JSON are not defined in the data class "
+                + data_class.__name__ + "\n"
+                + "\n".join(map(lambda x : f"   {x}", value_errors)),
+            )
 
     @staticmethod
     def _load_dataclass(
@@ -605,8 +659,8 @@ class InstanceSpaceOptions:
         with available data. If a field is missing in the dictionary, the default
         value from the dataclass is used.
 
-        Args
-        ----------
+        Args:
+        ----
         data_class : type[T]
             The dataclass type to populate.
         data : dict
@@ -618,15 +672,16 @@ class InstanceSpaceOptions:
             dictionary uses the key `pi`, this mapping
             would be `{"pi": "purity"}`.
 
-        Returns
+        Returns:
         -------
         T
             An instance of the dataclass populated with data.
 
-        Raises
+        Raises:
         ------
         ValueError
             If the dictionary contains keys that are not valid fields in the dataclass.
+
         """
         if field_mapping is None:
             field_mapping = {}
@@ -640,7 +695,7 @@ class InstanceSpaceOptions:
         # Loop through each field in the dataclass, applying field mappings if needed
         for field_name, default_value in default_values.items():
             # If the field is explicitly mapped, use the mapped field name
-            json_field_name = field_mapping.get(field_name, field_name)
+            json_field_name = field_mapping.get(field_name.lower(), field_name)
 
             # Fetch the value from the input dictionary, or fall back to the default
             mapped_data[field_name] = data.get(json_field_name, default_value)
@@ -681,18 +736,18 @@ class PrelimOptions:
 def from_json_file(file_path: Path) -> InstanceSpaceOptions | None:
     """Parse options from a JSON file and construct an InstanceSpaceOptions object.
 
-    Args
+    Args:
     ----
     file_path : Path
         The path to the JSON file containing the options.
 
-    Returns
+    Returns:
     -------
     InstanceSpaceOptions or None
         An InstanceSpaceOptions object constructed from the parsed JSON data, or None
         if an error occurred during file reading or parsing.
 
-    Raises
+    Raises:
     ------
     FileNotFoundError
         If the specified file does not exist.
@@ -702,6 +757,7 @@ def from_json_file(file_path: Path) -> InstanceSpaceOptions | None:
         If an I/O error occurred while reading the file.
     ValueError
         If the parsed JSON data contains invalid options.
+
     """
     try:
         with file_path.open() as o:
