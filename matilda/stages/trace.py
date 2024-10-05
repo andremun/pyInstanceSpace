@@ -534,7 +534,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         if unique_rows.shape[0] < POLYGON_MIN_POINT_REQUIREMENT:
             return self.throw()
 
-        labels = self.run_dbscan(y_bin, unique_rows)
+        labels = self.run_dbscan(y_bin, unique_rows)[0]
         flag = False
         polygon_body: Polygon = Polygon()
         for i in range(0, np.max(labels) + 1):
@@ -721,7 +721,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         if polydata.shape[0] < POLYGON_MIN_POINT_REQUIREMENT:
             return None
 
-        polygon = alphashape.alphashape(polydata, 2.2).simplify(
+        polygon = alphashape.alphashape(polydata, 2.15).simplify(
             0.05,
         )
 
@@ -802,9 +802,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
     @staticmethod
     def run_dbscan(
-        y_bin: NDArray[np.bool_],
-        data: NDArray[np.double],
-    ) -> NDArray[np.int_]:
+            self,
+            y_bin: NDArray[np.bool_],
+            data: NDArray[np.double],
+    ) -> NDArray[np.int_] | tuple:
         """Perform DBSCAN clustering on the dataset.
 
         Parameters:
@@ -820,24 +821,112 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Array of cluster labels for each data point.
         """
         nn = max(min(np.ceil(np.sum(y_bin) / 20), 50), 3)
-        m, n = data.shape
-
-        # Compute the range of each feature
-        feature_ranges = np.max(data, axis=0) - np.min(data, axis=0)
-
-        # Product of the feature ranges
-        product_ranges = np.prod(feature_ranges)
-
-        # Compute the gamma function value
-        gamma_val = gamma(0.5 * n + 1)
-
         # Compute Eps
-        eps = ((product_ranges * nn * gamma_val) / (m * math.sqrt(math.pi**n))) ** (
-            1 / n
-        )
-        return np.array(
-            DBSCAN(eps=eps, min_samples=int(nn), metric="euclidean").fit_predict(data),
-        )
+        eps = self.epsilon(data, nn)
+        return self.dbscan(data, nn, eps)
+
+    @staticmethod
+    def epsilon(x:NDArray[np.double], k:int):
+        """
+        Analytical way of estimating neighborhood radius for DBSCAN.
+
+        Parameters:
+        x - data matrix (m, n); m-objects, n-variables
+        k - number of objects in a neighborhood of an object
+            (minimal number of objects considered as a cluster)
+
+        Returns:
+        Eps - Estimated neighborhood radius
+        """
+        m, n = x.shape
+        ranges = np.max(x, axis=0) - np.min(x, axis=0)
+        prod_ranges = np.prod(ranges)
+        numerator = prod_ranges * k * gamma(0.5 * n + 1)
+        denominator = m * np.sqrt(np.pi ** n)
+        eps = (numerator / denominator) ** (1.0 / n)
+        return eps
+
+    @staticmethod
+    def dist(i, x):
+        """
+        Calculates the Euclidean distances between the i-th object and all objects in x
+
+        Parameters:
+        i - an object (1, n)
+        x - data matrix (m, n); m-objects, n-variables
+
+        Returns:
+        D - Euclidean distance (m,)
+        """
+        m, n = x.shape
+        if n == 1:
+            d = np.abs(x - i).flatten()
+        else:
+            d = np.sqrt(np.sum((x - i) ** 2, axis=1))
+        return d
+
+    def dbscan(self, x, k, eps=None):
+        """
+        Density-Based Spatial Clustering of Applications with Noise (DBSCAN) algorithm.
+
+        Parameters:
+        x   - data matrix (m, n); m-objects, n-variables
+        k   - minimum number of points to form a cluster
+        Eps - neighborhood radius; if None, it will be estimated using the epsilon
+        function
+
+        Returns:
+        class_ - Cluster assignments for each point (-1 for noise)
+        type   - Type of each point (1: core, 0: border, -1: noise)
+        """
+        m, n = x.shape
+        if eps is None:
+            eps = self.epsilon(x, k)
+        # Augment x with indices
+        x_with_index = np.hstack((np.arange(m).reshape(m, 1), x))
+        type_ = np.zeros(m)  # 1: core, 0: border, -1: noise
+        no = 1  # Cluster label
+        touched = np.zeros(m)  # 0: not processed, 1: processed
+        class_ = np.zeros(m)  # Cluster assignment
+        for i in range(m):
+            if touched[i] == 0:
+                ob = x_with_index[i, :]
+                d = self.dist(ob[1:], x_with_index[:, 1:])
+                ind = np.where(d <= eps)[0]
+                if 1 < len(ind) < k + 1:
+                    type_[i] = 0  # Border point
+                    class_[i] = 0
+                if len(ind) == 1:
+                    type_[i] = -1  # Noise point
+                    class_[i] = -1
+                    touched[i] = 1
+                if len(ind) >= k + 1:
+                    type_[i] = 1  # Core point
+                    class_[ind] = no
+                    ind_list = list(ind)
+                    while len(ind_list) > 0:
+                        current_index = ind_list[0]
+                        ob = x_with_index[current_index, :]
+                        touched[current_index] = 1
+                        ind_list.pop(0)
+                        d = self.dist(ob[1:], x_with_index[:, 1:])
+                        i1 = np.where(d <= eps)[0]
+                        if len(i1) > 1:
+                            class_[i1] = no
+                            if len(i1) >= k + 1:
+                                type_[int(ob[0])] = 1
+                            else:
+                                type_[int(ob[0])] = 0
+                            for j in i1:
+                                if touched[j] == 0:
+                                    touched[j] = 1
+                                    ind_list.append(j)
+                                    class_[j] = no
+                    no += 1
+        i1 = np.where(class_ == 0)[0]
+        class_[i1] = -1
+        type_[i1] = -1
+        return class_, type_
 
     def process_algorithm(self, i: int) -> tuple[int, Footprint, Footprint]:
         """Process an algorithm to calculate its good and best performance footprints.
