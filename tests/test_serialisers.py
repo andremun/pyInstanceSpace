@@ -300,6 +300,8 @@ def test_save_to_csv() -> None:
         assert Path.is_file(expected_file_path)
         assert Path.is_file(actual_file_path)
 
+        print(expected_file_path)
+
         expected_data = pd.read_csv(expected_file_path)
         actual_data = pd.read_csv(actual_file_path)
 
