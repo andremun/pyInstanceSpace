@@ -1,7 +1,7 @@
 {
     "parallel": { "flag": false, "n_cores": 2},
     "perf": {
-      "MaxPerf": false,
+      "MaxPerf": true,
       "AbsPerf": true,
       "epsilon": 0.2,
       "betaThreshold": 8765435678976546789
@@ -28,7 +28,7 @@
       "flag": true,
       "rho": 0.1,
       "k": 10,
-      "ntrees": 10000000000,
+      "NTREES": 10000000000,
       "maxIter": 77787878,
       "replicates": 100
     },
