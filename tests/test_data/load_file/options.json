@@ -1,5 +1,5 @@
 {
-    "parallel": { "flag": false, "n_cores": 2},
+    "parallel": { "flag": false, "ncores": 89898},
     "perf": {
       "MaxPerf": true,
       "AbsPerf": true,
@@ -10,13 +10,13 @@
     "bound": { "flag": true },
     "norm": { "flag": true },
     "selvars": {
-      "small_scale_flag": false,
-      "small_scale": 0.5,
-      "file_idx_flag": false,
-      "file_idx": "",
-      "density_flag": false,
-      "min_distance": 0.1,
-      "selvars_type": "Ftr&Good",
+      "smallscaleflag": false,
+      "smallscale": 0.5999,
+      "fileidxflag": false,
+      "fileidx": "aaaaaaa",
+      "densityflag": false,
+      "mindistance": 0.10007,
+      "type": "Ftr&Good and so on",
       "feats": [
         "feature_Max_Normalized_Entropy_attributes",
         "feature_Normalized_Entropy_Class_Attribute",
@@ -27,18 +27,18 @@
     "sifted": {
       "flag": true,
       "rho": 0.1,
-      "k": 10,
+      "K": 89899,
       "NTREES": 10000000000,
-      "maxIter": 77787878,
-      "replicates": 100
+      "MaxIter": 77787878,
+      "Replicates": 100
     },
-    "trace": { "use_sim": true, "pi": 0.55 },
-    "pilot": { "analytic": false, "n_tries": 5 },
-    "cloister": { "c_thres": 0.7, "p_val": 0.05 },
+    "trace": { "usesim": true, "PI": 0.59999 },
+    "pilot": { "analytic": false, "ntries": 8989 },
+    "cloister": { "cthres": 0.79, "pval": 0.0599 },
     "pythia": {
-      "cv_folds": 5,
-      "is_poly_krnl": false,
-      "use_weights": false,
+      "cvfolds": 59,
+      "ispolykrnl": true,
+      "useweights": true,
       "uselibsvm": true
     },
     "outputs": { "csv": true, "png": true, "web": false }
