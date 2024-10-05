@@ -241,7 +241,6 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
         Args
         ----
-            None
 
         Returns
         -------
@@ -256,7 +255,6 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
         Args
         ----
-            None
 
         Returns
         -------
@@ -802,7 +800,6 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
     @staticmethod
     def run_dbscan(
-            self,
             y_bin: NDArray[np.bool_],
             data: NDArray[np.double],
     ) -> NDArray[np.int_] | tuple:
@@ -822,11 +819,11 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         """
         nn = max(min(np.ceil(np.sum(y_bin) / 20), 50), 3)
         # Compute Eps
-        eps = self.epsilon(data, nn)
-        return self.dbscan(data, nn, eps)
+        eps = TraceStage.epsilon(data, nn)
+        return TraceStage.dbscan(data, nn, eps)
 
     @staticmethod
-    def epsilon(x:NDArray[np.double], k:int):
+    def epsilon(x: NDArray[np.double], k: int):
         """
         Analytical way of estimating neighborhood radius for DBSCAN.
 
@@ -865,7 +862,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             d = np.sqrt(np.sum((x - i) ** 2, axis=1))
         return d
 
-    def dbscan(self, x, k, eps=None):
+    @staticmethod
+    def dbscan(x: NDArray[np.double], k: int, eps: float = None):
         """
         Density-Based Spatial Clustering of Applications with Noise (DBSCAN) algorithm.
 
@@ -881,38 +879,38 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         """
         m, n = x.shape
         if eps is None:
-            eps = self.epsilon(x, k)
+            eps = TraceStage.epsilon(x, k)
         # Augment x with indices
         x_with_index = np.hstack((np.arange(m).reshape(m, 1), x))
         type_ = np.zeros(m)  # 1: core, 0: border, -1: noise
         no = 1  # Cluster label
         touched = np.zeros(m)  # 0: not processed, 1: processed
-        class_ = np.zeros(m)  # Cluster assignment
+        classes = np.zeros(m)  # Cluster assignment
         for i in range(m):
             if touched[i] == 0:
                 ob = x_with_index[i, :]
-                d = self.dist(ob[1:], x_with_index[:, 1:])
+                d = TraceStage.dist(ob[1:], x_with_index[:, 1:])
                 ind = np.where(d <= eps)[0]
                 if 1 < len(ind) < k + 1:
                     type_[i] = 0  # Border point
-                    class_[i] = 0
+                    classes[i] = 0
                 if len(ind) == 1:
                     type_[i] = -1  # Noise point
-                    class_[i] = -1
+                    classes[i] = -1
                     touched[i] = 1
                 if len(ind) >= k + 1:
                     type_[i] = 1  # Core point
-                    class_[ind] = no
+                    classes[ind] = no
                     ind_list = list(ind)
                     while len(ind_list) > 0:
                         current_index = ind_list[0]
                         ob = x_with_index[current_index, :]
                         touched[current_index] = 1
                         ind_list.pop(0)
-                        d = self.dist(ob[1:], x_with_index[:, 1:])
+                        d = TraceStage.dist(ob[1:], x_with_index[:, 1:])
                         i1 = np.where(d <= eps)[0]
                         if len(i1) > 1:
-                            class_[i1] = no
+                            classes[i1] = no
                             if len(i1) >= k + 1:
                                 type_[int(ob[0])] = 1
                             else:
@@ -921,12 +919,12 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                                 if touched[j] == 0:
                                     touched[j] = 1
                                     ind_list.append(j)
-                                    class_[j] = no
+                                    classes[j] = no
                     no += 1
-        i1 = np.where(class_ == 0)[0]
-        class_[i1] = -1
+        i1 = np.where(classes == 0)[0]
+        classes[i1] = -1
         type_[i1] = -1
-        return class_, type_
+        return classes, type_
 
     def process_algorithm(self, i: int) -> tuple[int, Footprint, Footprint]:
         """Process an algorithm to calculate its good and best performance footprints.
