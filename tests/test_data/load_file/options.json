@@ -1,10 +1,10 @@
 {
     "parallel": { "flag": false, "n_cores": 2},
     "perf": {
-      "max_perf": false,
-      "abs_perf": true,
+      "MaxPerf": false,
+      "AbsPerf": true,
       "epsilon": 0.2,
-      "beta_threshold": 0.55
+      "betaThreshold": 8765435678976546789
     },
     "auto": { "preproc": true },
     "bound": { "flag": true },
@@ -28,8 +28,8 @@
       "flag": true,
       "rho": 0.1,
       "k": 10,
-      "n_trees": 50,
-      "max_iter": 1000,
+      "ntrees": 10000000000,
+      "maxIter": 77787878,
       "replicates": 100
     },
     "trace": { "use_sim": true, "pi": 0.55 },
@@ -39,7 +39,7 @@
       "cv_folds": 5,
       "is_poly_krnl": false,
       "use_weights": false,
-      "use_lib_svm": false
+      "uselibsvm": true
     },
     "outputs": { "csv": true, "png": true, "web": false }
   }
