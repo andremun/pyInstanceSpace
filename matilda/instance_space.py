@@ -355,8 +355,3 @@ def instance_space_from_directory(directory: Path) -> InstanceSpace | None:
     options_path = Path(directory / "options.json")
 
     return instance_space_from_files(metadata_path, options_path)
-
-if __name__ == "__main__":
-
-    option_path = "/Users/junhengchen/Documents/GitHub/MT-Updating-Matilda/tests/test_data/load_file"
-    returned = instance_space_from_directory(Path(option_path))
