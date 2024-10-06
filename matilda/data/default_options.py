@@ -1,7 +1,7 @@
 """Contains default values for options as constants."""
 
 DEFAULT_PARALLEL_FLAG = False
-DEFAULT_PARALLEL_N_CORES = 10
+DEFAULT_PARALLEL_N_CORES = 2
 
 DEFAULT_PERFORMANCE_MAX_PERF = False
 DEFAULT_PERFORMANCE_ABS_PERF = True
