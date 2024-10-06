@@ -1,5 +1,7 @@
 """Data about the output of running InstanceSpace."""
 
+import os
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -23,6 +25,7 @@ from matilda.data.model import (
 )
 from matilda.data.options import InstanceSpaceOptions
 
+DEFAULT_OUTPUT_ZIP_NAME = "output.zip"
 
 @dataclass(frozen=True)
 class Model:
@@ -119,3 +122,19 @@ class Model:
             self.pilot,
             self.trace,
         )
+
+    def save_zip(self, output_directory: Path) -> None:
+        """Save csv outputs used for the web frontend to a directory."""
+        print(
+            "=========================================================================",
+        )
+        zip_filename = DEFAULT_OUTPUT_ZIP_NAME
+        with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zf:
+            for root, dirs, files in os.walk(output_directory):
+                for filename in files:
+                    file_path = Path(root) / filename
+                    print(file_path)
+                    # Add file to the zip archive
+                    zf.write(file_path, arcname=filename)
+
+        print(f"-> Successfully saved files into {zip_filename}.")
