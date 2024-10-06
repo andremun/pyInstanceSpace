@@ -63,7 +63,7 @@ from matilda.data.options import TraceOptions
 from matilda.stages.stage import Stage
 
 POLYGON_MIN_POINT_REQUIREMENT = 3
-
+CORE_MAX_LIMIT = 3
 
 class TraceInputs(NamedTuple):
     """A named tuple to encapsulate the inputs required for the TRACE analysis.
@@ -892,7 +892,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         # Determine the number of workers available for parallel processing
         good: list[Footprint] = [self.throw() for _ in range(n_algos)]
         best: list[Footprint] = [self.throw() for _ in range(n_algos)]
-        with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+        worker_count = min(CORE_MAX_LIMIT, multiprocessing.cpu_count())
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = [
                 executor.submit(self.process_algorithm, i) for i in range(n_algos)
             ]
