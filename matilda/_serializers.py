@@ -268,6 +268,8 @@ def save_instance_space_graphs(
             output_directory / filename,
         )
 
+    assert False
+
     for i in range(num_algorithms):
         algo_label = data.algo_labels[i]
 
@@ -449,8 +451,8 @@ def _draw_scatter(
     title_label: str,
     output: Path,
 ) -> None:
-    upper_bound = np.ceil(np.max(z))
-    lower_bound = np.floor(np.min(z))
+    upper_bound = np.ceil(np.max(x))
+    lower_bound = np.floor(np.min(x))
 
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
@@ -460,6 +462,8 @@ def _draw_scatter(
     norm = Normalize(lower_bound, upper_bound)
 
     ax.scatter(z[:, 0], z[:, 1], s=8, c=x, norm=norm, cmap=cmap)
+    ax.set_xlim([-5, 5]) 
+    ax.set_ylim([-5, 5])
     ax.set_xlabel("z_{1}")
     ax.set_ylabel("z_{2}")
     fig.colorbar(
