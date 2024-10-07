@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from matilda.instance_space import instance_space_from_files
-from matilda.stages.preprocessing import PreprocessingStage
+from matilda.stages.preprocessing import PreprocessingStage, PreprocessingInput
 
 
 def test_run_method() -> None:
@@ -38,6 +38,17 @@ def test_run_method() -> None:
     )
 
     run_method = getattr(preprocessing_stage, "_run")
+
+    preprocessing_input = PreprocessingInput(
+        feature_names=instance_space.metadata.feature_names,
+        algorithm_names=instance_space.metadata.algorithm_names,
+        instance_labels=instance_space.metadata.instance_labels,
+        instance_sources=instance_space.metadata.instance_sources,
+        features=instance_space.metadata.features,
+        algorithms=instance_space.metadata.algorithms,
+        selvars_options=instance_space.options.selvars,
+    )
+
     (
         updated_inst_labels,
         updated_feat_labels,
@@ -45,7 +56,9 @@ def test_run_method() -> None:
         updated_x,
         updated_y,
         updated_s,
-    ) = run_method(instance_space.options.selvars)
+        returned_x_raw,
+        returned_y_raw,
+    ) = run_method(preprocessing_input)
 
     df_x = pd.read_csv(script_dir / "test_data/preprocessing/X.csv", header=None)
     df_y = pd.read_csv(script_dir / "test_data/preprocessing/Y.csv", header=None)
