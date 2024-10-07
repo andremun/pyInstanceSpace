@@ -616,7 +616,6 @@ class InstanceSpaceOptions:
 
         # Collect JSON fields and apply mapping (map pi to purity, etc.)
         mapped_json_fields = {}
-        reverse_mapping = {v: k for k, v in field_mapping.items()}
 
         value_errors = []
 
@@ -626,11 +625,8 @@ class InstanceSpaceOptions:
 
             # Check for conflicts, i.e., if the JSON contains both 'pi' and 'purity'
             if mapped_field in mapped_json_fields:
-                original_json_field = reverse_mapping.get(mapped_field, mapped_field)
                 raise ValueError(
-                    f"Conflicting fields in JSON: "
-                    f"'{original_json_field}' and '{json_field}' both map to "
-                    f"the field '{mapped_field}' in '{data_class.__name__}'.",
+                    f"Conflicting fields in JSON: " f"'{json_field}' was defined twice",
                 )
 
             # Check if the mapped field is valid (exists in the dataclass)
@@ -696,14 +692,22 @@ class InstanceSpaceOptions:
         data_lowercase = {k.lower(): v for k, v in data.items()}
         # Loop through each field in the dataclass, applying field mappings if needed
         for field_name, default_value in default_values.items():
-            # If the field is explicitly mapped, use the mapped field name
-            json_field_name = next(
-                (k for k, v in field_mapping.items() if v == field_name),
-                field_name,
-            )
 
-            # Fetch the value from the input dictionary, or fall back to the default
-            mapped_data[field_name] = data_lowercase.get(json_field_name, default_value)
+            # If the field name is found in the dictionary, directly use its value
+            if field_name.lower() in data_lowercase:
+                mapped_data[field_name] = data_lowercase[field_name.lower()]
+            else:
+                # The field is explicitly mapped, use the mapped field name
+                json_field_name = next(
+                    (k for k, v in field_mapping.items() if v == field_name),
+                    field_name,
+                )
+
+                # Fetch the value from the input dictionary, or fall back to the default
+                mapped_data[field_name] = data_lowercase.get(
+                    json_field_name,
+                    default_value,
+                )
 
         # Validate the fields before returning the dataclass instance
         InstanceSpaceOptions._validate_fields(data_class, data, field_mapping)
