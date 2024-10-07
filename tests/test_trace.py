@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
-from matilda.data.options import TraceOptions
+from matilda.data.options import TraceOptions, ParallelOptions
 from matilda.stages.trace import TraceInputs, TraceOutputs, TraceStage
 
 
@@ -88,6 +88,8 @@ def test_trace_pythia() -> None:
     # Setting TRACE options with a purity value of 0.55 and enabling sim values
     trace_options = TraceOptions(True, 0.55)
 
+    parallel_options = ParallelOptions(False, 3)
+
     # Initialising and running the TRACE analysis
     trace_inputs: TraceInputs = TraceInputs(
         z,
@@ -98,7 +100,9 @@ def test_trace_pythia() -> None:
         y_bin,
         y_bin2,
         trace_options,
+        parallel_options,
     )
+
     trace_output: TraceOutputs = TraceStage._run(trace_inputs)  # noqa: SLF001
 
     correct_result_path = main_dir / "test_data/trace_csvs/correct_results_pythia.csv"
@@ -181,6 +185,9 @@ def test_trace_simulation() -> None:
     # Setting TRACE options with a purity value of 0.55 and disabling sim values
     trace_options = TraceOptions(False, 0.55)
 
+    parallel_options = ParallelOptions(False, 3)
+
+
     # Initialising and running the TRACE analysis
     trace_inputs: TraceInputs = TraceInputs(
         z,
@@ -191,7 +198,9 @@ def test_trace_simulation() -> None:
         y_bin,
         y_bin2,
         trace_options,
+        parallel_options,
     )
+
     trace_output: TraceOutputs = TraceStage._run(trace_inputs)  # noqa: SLF001
     correct_result_path = (
         script_dir / "test_data/trace_csvs/correct_results_simulation.csv"
