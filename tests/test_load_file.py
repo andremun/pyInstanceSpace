@@ -295,7 +295,7 @@ class TestOption:
             ("sifted", "max_iter", 77787878),
             ("sifted", "replicates", 100),
             ("pilot", "analytic", False),
-            ("pilot", "n_tries", 8989 ),
+            ("pilot", "n_tries", 8989),
             ("cloister", "c_thres", 0.79),
             ("cloister", "p_val", 0.0599),
             ("pythia", "cv_folds", 59),

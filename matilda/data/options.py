@@ -698,7 +698,8 @@ class InstanceSpaceOptions:
         for field_name, default_value in default_values.items():
             # If the field is explicitly mapped, use the mapped field name
             json_field_name = next(
-            (k for k, v in field_mapping.items() if v == field_name), field_name)
+                (k for k, v in field_mapping.items() if v == field_name), field_name,
+            )
 
             # Fetch the value from the input dictionary, or fall back to the default
             mapped_data[field_name] = data_lowercase.get(json_field_name, default_value)
