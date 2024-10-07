@@ -304,7 +304,7 @@ def save_instance_space_graphs(
             algo_label.replace("_", " "),
             output_directory / f"binary_svm_{algo_label}.png",
         )
-        assert False
+
         # TODO: Same as above
         _draw_good_bad_footprint(
             pilot_state.out.z,
@@ -313,6 +313,8 @@ def save_instance_space_graphs(
             algo_label.replace("_", " "),
             output_directory / f"footprint_{algo_label}.png",
         )
+        
+        assert False
 
     _draw_scatter(
         pilot_state.out.z,
@@ -586,23 +588,27 @@ def _draw_good_bad_footprint(
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
     fig.suptitle(title_label)
-
-    not_y_bin = y_bin != 1
+    ax.set_xlim([-5, 5]) 
+    ax.set_ylim([-5, 5])
+    not_y_bin = y_bin == 0  
+    good_y_bin = y_bin == 1  
 
     if np.any(not_y_bin):
         ax.scatter(
             z[not_y_bin, 0],
             z[not_y_bin, 1],
             s=8,
-            c=orange,
+            c=[orange],
+            label="BAD"
         )
 
-    if np.any(y_bin):
+    if np.any(good_y_bin):
         ax.scatter(
-            z[y_bin, 0],
-            z[y_bin, 1],
+            z[good_y_bin, 0],
+            z[good_y_bin, 1],
             s=8,
-            c=blue,
+            c=[blue],
+            label="GOOD"
         )
         _draw_footprint(ax, good, blue, 0.3)
 
