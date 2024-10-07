@@ -264,21 +264,21 @@ class TestOption:
         ("option_key", "subkey", "expected_value"),
         [
             ("parallel", "flag", False),
-            ("parallel", "n_cores", 2),
-            ("perf", "max_perf", False),
+            ("parallel", "n_cores", 89898),
+            ("perf", "max_perf", True),
             ("perf", "abs_perf", True),
             ("perf", "epsilon", 0.2),
-            ("perf", "beta_threshold", 0.55),
+            ("perf", "beta_threshold", 8765435678976546789),
             ("auto", "preproc", True),
             ("bound", "flag", True),
             ("norm", "flag", True),
             ("selvars", "small_scale_flag", False),
-            ("selvars", "small_scale", 0.5),
+            ("selvars", "small_scale", 0.5999),
             ("selvars", "file_idx_flag", False),
-            ("selvars", "file_idx", ""),
+            ("selvars", "file_idx", "aaaaaaa"),
             ("selvars", "density_flag", False),
-            ("selvars", "min_distance", 0.1),
-            ("selvars", "selvars_type", "Ftr&Good"),
+            ("selvars", "min_distance", 0.10007),
+            ("selvars", "selvars_type", "Ftr&Good and so on"),
             (
                 "selvars",
                 "feats",
@@ -290,20 +290,20 @@ class TestOption:
             ),
             ("sifted", "flag", True),
             ("sifted", "rho", 0.1),
-            ("sifted", "k", 10),
-            ("sifted", "n_trees", 50),
-            ("sifted", "max_iter", 1000),
+            ("sifted", "k", 89899),
+            ("sifted", "n_trees", 10000000000),
+            ("sifted", "max_iter", 77787878),
             ("sifted", "replicates", 100),
             ("pilot", "analytic", False),
-            ("pilot", "n_tries", 5),
-            ("cloister", "c_thres", 0.7),
-            ("cloister", "p_val", 0.05),
-            ("pythia", "cv_folds", 5),
-            ("pythia", "is_poly_krnl", False),
-            ("pythia", "use_weights", False),
-            ("pythia", "use_lib_svm", False),
+            ("pilot", "n_tries", 8989),
+            ("cloister", "c_thres", 0.79),
+            ("cloister", "p_val", 0.0599),
+            ("pythia", "cv_folds", 59),
+            ("pythia", "is_poly_krnl", True),
+            ("pythia", "use_weights", True),
+            ("pythia", "use_grid_search", True),
             ("trace", "use_sim", True),
-            ("trace", "purity", 0.55),
+            ("trace", "purity", 0.59999),
             ("outputs", "csv", True),
             ("outputs", "png", True),
             ("outputs", "web", False),
@@ -348,8 +348,10 @@ class TestOption:
         assert returned is None
         captured = capsys.readouterr()
         expected_error_msg = (
-            "Field 'MaxPerf_invalid' from JSON is not defined in the data "
-            "class 'PerformanceOptions'."
+            "Error details: The following fields from JSON are not defined in the data "
+            "class PerformanceOptions\n"
+            "   maxperf_invalid\n"
+            "Failed to initialize options\n"
         )
 
         assert expected_error_msg in captured.out
@@ -410,9 +412,9 @@ class TestOption:
 
         # check the dropped selvars.feats is filled with default value
         assert loaded_options.selvars.feats is None
-        wanted_value = 0.8
+        wanted_value = DEFAULT_SELVARS_SMALL_SCALE
         assert loaded_options.selvars.small_scale == wanted_value
-        assert loaded_options.selvars.file_idx_flag is True
+        assert loaded_options.selvars.file_idx_flag is DEFAULT_SELVARS_FILE_IDX_FLAG
 
     def test_extra_top_fields(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Any top field are not defined in the class."""

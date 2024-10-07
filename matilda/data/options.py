@@ -686,19 +686,23 @@ class InstanceSpaceOptions:
         if field_mapping is None:
             field_mapping = {}
 
-            # Get the default values for the dataclass fields
+        # Get the default values for the dataclass fields
         default_values = {
             f.name: getattr(data_class.default(), f.name) for f in fields(data_class)
         }
 
         mapped_data = {}
+
+        data_lowercase = {k.lower(): v for k, v in data.items()}
         # Loop through each field in the dataclass, applying field mappings if needed
         for field_name, default_value in default_values.items():
             # If the field is explicitly mapped, use the mapped field name
-            json_field_name = field_mapping.get(field_name.lower(), field_name)
+            json_field_name = next(
+                (k for k, v in field_mapping.items() if v == field_name), field_name,
+            )
 
             # Fetch the value from the input dictionary, or fall back to the default
-            mapped_data[field_name] = data.get(json_field_name, default_value)
+            mapped_data[field_name] = data_lowercase.get(json_field_name, default_value)
 
         # Validate the fields before returning the dataclass instance
         InstanceSpaceOptions._validate_fields(data_class, data, field_mapping)
