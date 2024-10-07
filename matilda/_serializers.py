@@ -268,7 +268,6 @@ def save_instance_space_graphs(
             output_directory / filename,
         )
 
-    assert False
 
     for i in range(num_algorithms):
         algo_label = data.algo_labels[i]
@@ -288,6 +287,7 @@ def save_instance_space_graphs(
             algo_label.replace("_", " "),
             output_directory / filename,
         )
+        
 
         _draw_binary_performance(
             pilot_state.out.z,
@@ -304,7 +304,7 @@ def save_instance_space_graphs(
             algo_label.replace("_", " "),
             output_directory / f"binary_svm_{algo_label}.png",
         )
-
+        assert False
         # TODO: Same as above
         _draw_good_bad_footprint(
             pilot_state.out.z,
@@ -451,8 +451,10 @@ def _draw_scatter(
     title_label: str,
     output: Path,
 ) -> None:
-    upper_bound = np.ceil(np.max(x))
-    lower_bound = np.floor(np.min(x))
+    plt.clf()
+    
+    upper_bound = np.max(x)
+    lower_bound = np.min(x)
 
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
@@ -627,34 +629,45 @@ def _draw_binary_performance(
     title_label: str,
     output: Path,
 ) -> None:
-    orange = (1.0, 0.6471, 0.0, 1.0)
-    blue = (0.0, 0.0, 1.0, 1.0)
+    try:
+        orange = (1.0, 0.6471, 0.0, 1.0)
+        blue = (0.0, 0.0, 1.0, 1.0)
 
-    labels = ["GOOD", "BAD"]
+        labels = ["GOOD", "BAD"]
+        
+        plt.clf()
 
-    fig, ax2 = plt.subplots()
-    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
-    fig.suptitle(title_label)
-    not_y_bin = y_bin != 1
+        fig, ax2 = plt.subplots()
+        ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+        fig.suptitle(title_label)
+        ax.set_xlim([-5, 5]) 
+        ax.set_ylim([-5, 5])
+        not_y_bin = y_bin == 0  
+        good_y_bin = y_bin == 1  
 
-    if np.any(not_y_bin != 1):
-        ax.scatter(
-            z[not_y_bin, 0],
-            z[not_y_bin, 1],
-            s=8,
-            c=orange,
-        )
+        if np.any(not_y_bin):
+            ax.scatter(
+                z[not_y_bin, 0],
+                z[not_y_bin, 1],
+                s=8,
+                c=[orange],
+                label="BAD"
+            )
 
-    if np.any(y_bin):
-        ax.scatter(
-            z[y_bin, 0],
-            z[y_bin, 1],
-            s=8,
-            c=blue,
-        )
+        if np.any(good_y_bin):
+            ax.scatter(
+                z[good_y_bin, 0],
+                z[good_y_bin, 1],
+                s=8,
+                c=[blue],
+                label="GOOD"
+            )
 
-    ax.set_xlabel("z_{1}")
-    ax.set_ylabel("z_{2}")
-    ax.legend()
+        ax.set_xlabel("z_{1}")
+        ax.set_ylabel("z_{2}")
+        ax.legend()
 
-    fig.savefig(output)
+        fig.savefig(output)
+        
+    except Exception as e:
+        print("No binary performance has been calculated")
