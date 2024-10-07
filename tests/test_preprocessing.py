@@ -27,18 +27,6 @@ def test_run_method() -> None:
     instance_space = instance_space_from_files(metadata_path, option_path)
     assert instance_space is not None
 
-    preprocessing_stage = PreprocessingStage(
-        instance_space.metadata.feature_names,
-        instance_space.metadata.algorithm_names,
-        instance_space.metadata.instance_labels,
-        instance_space.metadata.instance_sources,
-        instance_space.metadata.features,
-        instance_space.metadata.algorithms,
-        instance_space.options.selvars,
-    )
-
-    run_method = getattr(preprocessing_stage, "_run")
-
     preprocessing_input = PreprocessingInput(
         feature_names=instance_space.metadata.feature_names,
         algorithm_names=instance_space.metadata.algorithm_names,
@@ -49,37 +37,29 @@ def test_run_method() -> None:
         selvars_options=instance_space.options.selvars,
     )
 
-    (
-        updated_inst_labels,
-        updated_feat_labels,
-        new_algo_labels,
-        updated_x,
-        updated_y,
-        updated_s,
-        returned_x_raw,
-        returned_y_raw,
-    ) = run_method(preprocessing_input)
+    run_method = getattr(PreprocessingStage, "_run")
+    pre_output = run_method(preprocessing_input)
 
     df_x = pd.read_csv(script_dir / "test_data/preprocessing/X.csv", header=None)
     df_y = pd.read_csv(script_dir / "test_data/preprocessing/Y.csv", header=None)
 
     assert np.array_equal(
-        updated_x,
+        pre_output.x,
         df_x,
     ), "The data arrays X and Y are not equal."
 
     assert np.allclose(
-        updated_x,
+        pre_output.x,
         df_x,
     ), "The data arrays X and Y are not approximately equal."
 
     assert np.array_equal(
-        updated_y,
+        pre_output.y,
         df_y,
     ), "The data arrays X and Y are not equal."
 
     assert np.allclose(
-        updated_y,
+        pre_output.y,
         df_y,
     ), "The data arrays X and Y are not approximately equal."
 
