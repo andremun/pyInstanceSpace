@@ -607,7 +607,7 @@ def _draw_good_bad_footprint(
     orange = (1.0, 0.6471, 0.0, 1.0)
     blue = (0.0, 0.0, 1.0, 1.0)
 
-    labels = ["GOOD", "BAD"]
+    # labels = ["GOOD", "BAD"]
 
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
@@ -658,7 +658,7 @@ def _draw_binary_performance(
     orange = (1.0, 0.6471, 0.0, 1.0)
     blue = (0.0, 0.0, 1.0, 1.0)
 
-    labels = ["GOOD", "BAD"]
+    # labels = ["GOOD", "BAD"]
 
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
