@@ -50,8 +50,8 @@ class TestFtr:
             selvars_type="Ftr",
             density_flag=True,
             min_distance=0.1,
-            algos=pd.get_dummies(pd.Series(list("abc")), dtype=float),
-            feats=pd.get_dummies(pd.Series(list("abc")), dtype=float),
+            algos=list("abc"),
+            feats=list("abc"),
         )
 
     def test_ftr_filter(self, ftr_option: SelvarsOptions) -> None:
@@ -137,8 +137,8 @@ class TestFtrAp:
             selvars_type="Ftr&AP",
             density_flag=True,
             min_distance=0.1,
-            algos=pd.get_dummies(pd.Series(list("abc")), dtype=float),
-            feats=pd.get_dummies(pd.Series(list("abc")), dtype=float),
+            algos=list("abc"),
+            feats=list("abc"),
         )
 
     def test_ftr_ap_filter(self, ftr_ap_option: SelvarsOptions) -> None:
@@ -226,8 +226,8 @@ class TestFtrApGood:
             selvars_type="Ftr&AP&Good",
             density_flag=True,
             min_distance=0.1,
-            algos=pd.get_dummies(pd.Series(list("abc")), dtype=float),
-            feats=pd.get_dummies(pd.Series(list("abc")), dtype=float),
+            algos=list("abc"),
+            feats=list("abc"),
         )
 
     def test_ftr_ap_good_filter(self, ftr_ap_good_option: SelvarsOptions) -> None:
@@ -317,8 +317,8 @@ class TestFtrGood:
             selvars_type="Ftr&Good",
             density_flag=True,
             min_distance=0.1,
-            algos=pd.get_dummies(pd.Series(list("abc")), dtype=float),
-            feats=pd.get_dummies(pd.Series(list("abc")), dtype=float),
+            algos=list("abc"),
+            feats=list("abc"),
         )
 
     def test_ftr_good_filter(self, ftr_good_option: SelvarsOptions) -> None:

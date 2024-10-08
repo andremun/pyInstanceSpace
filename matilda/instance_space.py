@@ -133,6 +133,7 @@ class InstanceSpace:
             self._metadata.features,
             self._metadata.algorithms,
             PrelimOptions.from_options(self._options),
+            self._options.selvars,
         )
 
         if self._data is None:
@@ -171,6 +172,7 @@ class InstanceSpace:
             self._prelim_state.data.x,
             self._prelim_state.data.y,
             self._prelim_state.data.y_bin,
+            self._prelim_state.data.feat_labels,
             self._options.sifted,
         )
 
@@ -278,7 +280,7 @@ class InstanceSpace:
 
         self._clear_stages_after_trace()
 
-        data_changed, trace_out = Trace.run(
+        data_changed, trace_out = Trace().run(
             self._pilot_state.out.z,
             self._pilot_state.data.y_bin,
             self._pilot_state.data.p,
