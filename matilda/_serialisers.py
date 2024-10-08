@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, TypeVar, Union
+from typing import Any
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -19,7 +19,6 @@ from matilda.data.model import (
     FeatSel,
     Footprint,
     PilotOut,
-    PrelimOut,
     PythiaOut,
     SiftedOut,
     TraceOut,
@@ -605,7 +604,7 @@ def _draw_good_bad_footprint(
     orange = (1.0, 0.6471, 0.0, 1.0)
     blue = (0.0, 0.0, 1.0, 1.0)
 
-    labels = ["GOOD", "BAD"]
+    #labels = ["GOOD", "BAD"]
 
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
@@ -656,7 +655,7 @@ def _draw_binary_performance(
     orange = (1.0, 0.6471, 0.0, 1.0)
     blue = (0.0, 0.0, 1.0, 1.0)
 
-    labels = ["GOOD", "BAD"]
+    # labels = ["GOOD", "BAD"]
 
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
@@ -685,14 +684,16 @@ def _draw_binary_performance(
 
     fig.savefig(output)
 
+
 def save_instance_space_output_mat(
     output_directory: Path,
     data: Data,
 ) -> None:
-    """Offline dashboard only use the algo labels from the data"""
+    """Offline dashboard only use the algo labels from the data."""
     try:
-        savemat(output_directory / "model.mat",
-                {"data": {"algo_labels":data.algo_labels}})
+        savemat(
+            output_directory / "model.mat", {"data": {"algo_labels": data.algo_labels}},
+        )
         print("saved data to mat file")
     except Exception as e:
         print(f"Error saving data to mat file: {e}")
