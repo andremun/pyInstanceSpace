@@ -57,6 +57,8 @@ def save_instance_space_to_csv(
                     boundary_coords = np.array([x, y]).T
                     boundaries = np.concatenate((boundaries, boundary_coords))
 
+            boundaries = boundaries[1:-1, :]
+
             algorithm_labels = data.algo_labels[i]
             _write_array_to_csv(
                 boundaries,
@@ -80,6 +82,8 @@ def save_instance_space_to_csv(
                     x, y = poly.exterior.xy
                     boundary_coords = np.array([x, y]).T
                     boundaries = np.concatenate((boundaries, boundary_coords))
+
+            boundaries = boundaries[1:-1, :]
 
             algorithm_labels = data.algo_labels[i]
             _write_array_to_csv(
