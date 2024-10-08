@@ -1,11 +1,10 @@
 """Test module for serialisers."""
 
 import os
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-import re
 from typing import Any
-import zipfile
 
 import numpy as np
 import pandas as pd
@@ -366,15 +365,19 @@ def test_save_graphs() -> None:
 
         # We can't test the images, so we must check visually that they are consistant
 
+
 def test_save_mat() -> None:
     """Test saving a mat file of the output directory."""
     model = _MatlabResults().get_model()
     model.save_to_mat(script_dir / "test_data/serialisers/actual_output/mat")
-    actual_output = loadmat(script_dir / "test_data/serialisers/actual_output/mat/model.mat",
-                            chars_as_strings=True,
-                            simplify_cells=True)["data"]["algo_labels"]
+    actual_output = loadmat(
+        script_dir / "test_data/serialisers/actual_output/mat/model.mat",
+        chars_as_strings=True,
+        simplify_cells=True,
+    )["data"]["algo_labels"]
     print(actual_output)
     assert np.array_equal(model.data.algo_labels, actual_output)
+
 
 def test_save_zip() -> None:
     """Test saving a zip file of the output directory."""
@@ -383,18 +386,20 @@ def test_save_zip() -> None:
     model.save_zip(script_dir / "test_data/serialisers/actual_output")
     """Require the following files to be in the zip for dashboard"""
     required_files = [
-            "coordinates.csv",
-            # "metadata.csv",
-            "svm_table.csv",
-            "bounds_prunned.csv",
-            "feature_process.csv",
-            "feature_raw.csv",
-            "algorithm_raw.csv",
-            "algorithm_process.csv",
-            "algorithm_svm.csv",
-            "portfolio_svm.csv",
-            "model.mat",
-        ]
+        "coordinates.csv",
+        # "metadata.csv",
+        "svm_table.csv",
+        "bounds_prunned.csv",
+        "feature_process.csv",
+        "feature_raw.csv",
+        "algorithm_raw.csv",
+        "algorithm_process.csv",
+        "algorithm_svm.csv",
+        "portfolio_svm.csv",
+        "model.mat",
+    ]
     with zipfile.ZipFile(script_dir.parent / "output.zip", "r") as zf:
         file_list = [Path(f).name for f in zf.namelist()]
-        assert all(item in file_list for item in required_files), f"Missing files: {set(required_files) - set(file_list)}"
+        assert all(
+            item in file_list for item in required_files
+        ), f"Missing files: {set(required_files) - set(file_list)}"
