@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
-from matilda.data.options import TraceOptions
+from matilda.data.options import TraceOptions, ParallelOptions
 from matilda.stages.trace import TraceInputs, TraceOutputs, TraceStage
 
 from matilda.data.options import PilotOptions
@@ -12,6 +12,7 @@ from matilda.stages.pilot import PilotStage, PilotOutput
 from scipy.io import loadmat
 
 script_dir = Path(__file__).parent
+PARALLEL_OPTIONS = ParallelOptions(False, 3)
 
 
 def test_pilot_analytical_trace_pythia() -> None:
@@ -91,6 +92,7 @@ def test_pilot_analytical_trace_pythia() -> None:
         y_bin,
         y_bin2,
         trace_options,
+        PARALLEL_OPTIONS,
     )
     trace_output: TraceOutputs = TraceStage._run(trace_inputs)  # noqa: SLF001
 
@@ -176,6 +178,7 @@ def test_pilot_analytical_trace_simulation() -> None:
         y_bin,
         y_bin2,
         trace_options,
+        PARALLEL_OPTIONS,
     )
     trace_output: TraceOutputs = TraceStage._run(trace_inputs)  # noqa: SLF001
     correct_result_path = (
@@ -262,6 +265,7 @@ def test_pilot_numerical_trace_pythia() -> None:
         y_bin,
         y_bin2,
         trace_options,
+        PARALLEL_OPTIONS,
     )
     trace_output: TraceOutputs = TraceStage._run(trace_inputs)  # noqa: SLF001
 
@@ -347,6 +351,7 @@ def test_pilot_numerical_trace_simulation() -> None:
         y_bin,
         y_bin2,
         trace_options,
+        PARALLEL_OPTIONS,
     )
     trace_output: TraceOutputs = TraceStage._run(trace_inputs)  # noqa: SLF001
     correct_result_path = (
