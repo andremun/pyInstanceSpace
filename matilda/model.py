@@ -143,13 +143,11 @@ class Model:
             "=========================================================================",
         )
         dir_name = DEFAULT_DIRECTARY_NAME
-        with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zf:
+        ignored_files = [".gitignore", ".zip"]
+        with zipfile.ZipFile(output_directory/zip_filename, "w", zipfile.ZIP_DEFLATED) as zf:
             for root, _, files in os.walk(output_directory):
                 for filename in files:
-                    if ".gitignore" in filename:
+                    if filename in ignored_files:
                         continue
-                    file_path = Path(root) / filename
-                    # Add file to the zip archive
-                    arcname = Path(dir_name) / filename
-                    zf.write(file_path, arcname=arcname)
+                    zf.write(Path(root) / filename, arcname=Path(dir_name) / filename)
         print(f"-> Successfully saved files into {zip_filename}.")

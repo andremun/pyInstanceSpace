@@ -398,8 +398,11 @@ def test_save_zip() -> None:
         "portfolio_svm.csv",
         "model.mat",
     ]
-    with zipfile.ZipFile(script_dir.parent / zip_filename, "r") as zf:
+    with zipfile.ZipFile(script_dir / "test_data/serialisers/actual_output" /
+                         zip_filename, "r") as zf:
         file_list = [Path(f).name for f in zf.namelist()]
         assert all(
             item in file_list for item in required_files
         ), f"Missing files: {set(required_files) - set(file_list)}"
+
+
