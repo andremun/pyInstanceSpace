@@ -625,8 +625,11 @@ def _draw_footprint(
     colour: tuple[float, float, float, float],
     alpha: float,
 ) -> None:
-    # TODO: Blockered on TRACE
-    pass
+    # TODO: double check with yusuf if exterior used is correct
+    coords = footprint.polygon.convex_hull.exterior.coords
+    if coords is not None:
+        polygon = plt.Polygon(coords, color=colour, alpha=alpha)
+        ax.add_patch(polygon)
 
 
 def _draw_binary_performance(
