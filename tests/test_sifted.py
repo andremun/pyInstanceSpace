@@ -158,20 +158,6 @@ class SiftedMatlabOutput:
         )
 
 
-# prepare input required for testing
-script_dir = Path(__file__).parent
-csv_path_x = script_dir / "test_data/sifted/input/0-input_X.csv"
-csv_path_y = script_dir / "test_data/sifted/input/0-input_Y.csv"
-csv_path_ybin = script_dir / "test_data/sifted/input/0-input_Ybin.csv"
-csv_path_feat_labels = script_dir / "test_data/sifted/input/0-input_featlabels.csv"
-input_x = np.genfromtxt(csv_path_x, delimiter=",")
-input_y = np.genfromtxt(csv_path_y, delimiter=",")
-input_ybin = np.genfromtxt(csv_path_ybin, delimiter=",")
-feat_labels = np.genfromtxt(csv_path_feat_labels, delimiter=",", dtype=str).tolist()
-opts = SiftedOptions.default()
-par_opts = ParallelOptions.default(n_cores=10)
-
-
 def test_select_features_by_performance() -> None:
     """Test performance selection against MATLAB's performance selection output.
 

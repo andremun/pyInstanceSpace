@@ -58,6 +58,8 @@ def save_instance_space_to_csv(
                     boundary_coords = np.array([x, y]).T
                     boundaries = np.concatenate((boundaries, boundary_coords))
 
+            boundaries = boundaries[1:-1, :]
+
             algorithm_labels = data.algo_labels[i]
             _write_array_to_csv(
                 boundaries,
@@ -81,6 +83,8 @@ def save_instance_space_to_csv(
                     x, y = poly.exterior.xy
                     boundary_coords = np.array([x, y]).T
                     boundaries = np.concatenate((boundaries, boundary_coords))
+
+            boundaries = boundaries[1:-1, :]
 
             algorithm_labels = data.algo_labels[i]
             _write_array_to_csv(
@@ -604,7 +608,7 @@ def _draw_good_bad_footprint(
     orange = (1.0, 0.6471, 0.0, 1.0)
     blue = (0.0, 0.0, 1.0, 1.0)
 
-    #labels = ["GOOD", "BAD"]
+    # labels = ["GOOD", "BAD"]
 
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
