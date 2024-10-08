@@ -310,11 +310,10 @@ def save_instance_space_graphs(
             pilot_state.out.z,
             trace_state.out.good[i],
             y_foot[:, i],
-            algo_label.replace("_", " "),
+            algo_label.replace("_", " ") + " Footprint",
             output_directory / f"footprint_{algo_label}.png",
         )
         
-        assert False
 
     _draw_scatter(
         pilot_state.out.z,
@@ -330,6 +329,7 @@ def save_instance_space_graphs(
         "Best algorithm",
         output_directory / "distribution_portfolio.png",
     )
+    
 
     _draw_portfolio_selections(
         pilot_state.out.z,
@@ -338,15 +338,7 @@ def save_instance_space_graphs(
         "Predicted best algorithm",
         output_directory / "distribution_svm_portfolio.png",
     )
-
-    _draw_portfolio_footprint(
-        pilot_state.out.z,
-        trace_state.out.best,
-        p_foot,
-        np.array(data.algo_labels),
-        output_directory / "footprint_portfolio.png",
-    )
-
+    
     _draw_binary_performance(
         pilot_state.out.z,
         data.beta,
@@ -360,7 +352,17 @@ def save_instance_space_graphs(
             np.array(data.s),
             output_directory / "distribution_sources.png",
         )
-
+    
+    
+    # Can't draw polygon for this one  
+    # _draw_portfolio_footprint(
+    #     pilot_state.out.z,
+    #     trace_state.out.best,
+    #     p_foot,
+    #     np.array(data.algo_labels),
+    #     output_directory / "footprint_portfolio.png",
+    # )
+    
 
 def _write_array_to_csv(
     data: NDArray[Any],  # TODO: Try to unify these
@@ -426,6 +428,8 @@ def _draw_sources(
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    ax.set_xlim([-5, 5]) 
+    ax.set_ylim([-5, 5])
     fig.suptitle("Sources")
 
     norm = Normalize(lower_bound, upper_bound)
@@ -438,6 +442,7 @@ def _draw_sources(
             # c=source_labels[i],
             norm=norm,
             cmap=cmap,
+            label=source_labels[i]
         )
 
     ax.set_xlabel("z_{1}")
@@ -479,6 +484,8 @@ def _draw_scatter(
     )
 
     fig.savefig(output)
+    
+    plt.close(fig)
 
 
 def _draw_portfolio_selections(
@@ -488,6 +495,7 @@ def _draw_portfolio_selections(
     title_label: str,
     output: Path,
 ) -> None:
+    plt.clf()
     upper_bound = np.ceil(np.max(z))
     lower_bound = np.floor(np.min(z))
     num_algorithms = len(algorithm_labels)
@@ -502,6 +510,8 @@ def _draw_portfolio_selections(
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    ax.set_xlim([-5, 5]) 
+    ax.set_ylim([-5, 5])
     fig.suptitle(title_label)
 
     norm = Normalize(lower_bound, upper_bound)
@@ -525,6 +535,8 @@ def _draw_portfolio_selections(
     ax.legend()
 
     fig.savefig(output)
+    
+    plt.close(fig)
 
 
 def _draw_portfolio_footprint(
@@ -534,6 +546,7 @@ def _draw_portfolio_footprint(
     algorithm_labels: NDArray[np.str_],
     output: Path,
 ) -> None:
+    plt.clf()
     upper_bound = np.ceil(np.max(z))
     lower_bound = np.floor(np.min(z))
     num_algorithms = len(algorithm_labels)
@@ -546,6 +559,8 @@ def _draw_portfolio_footprint(
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    ax.set_xlim([-5, 5]) 
+    ax.set_ylim([-5, 5])
     fig.suptitle("Portfolio footprints")
 
     norm = Normalize(lower_bound, upper_bound)
@@ -571,6 +586,8 @@ def _draw_portfolio_footprint(
     ax.legend()
 
     fig.savefig(output)
+    
+    plt.close(fig)
 
 
 def _draw_good_bad_footprint(
@@ -580,6 +597,7 @@ def _draw_good_bad_footprint(
     title_label: str,
     output: Path,
 ) -> None:
+    plt.clf()
     orange = (1.0, 0.6471, 0.0, 1.0)
     blue = (0.0, 0.0, 1.0, 1.0)
 
@@ -617,6 +635,8 @@ def _draw_good_bad_footprint(
     ax.legend()
 
     fig.savefig(output)
+    
+    plt.close(fig)
 
 
 def _draw_footprint(
@@ -677,6 +697,8 @@ def _draw_binary_performance(
         ax.legend()
 
         fig.savefig(output)
+        
+        plt.close(fig)
         
     except Exception as e:
         print("No binary performance has been calculated")
