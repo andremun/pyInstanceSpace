@@ -62,7 +62,7 @@ default_sifted = SiftedOptions(
     mutation_probability=0.2,
     stop_criteria="max_generations",
 )
-default_pilot = PilotOptions(
+default_pilot = PilotOptions.default(
     analytic=False,
     n_tries=5,
 )
@@ -70,11 +70,11 @@ default_cloister = CloisterOptions(
     p_val=0.05,
     c_thres=0.7,
 )
-default_pythia = PythiaOptions(
+default_pythia = PythiaOptions.default(
     cv_folds=5,
     is_poly_krnl=False,
     use_weights=False,
-    use_lib_svm=False,
+    # use_lib_svm=False,
 )
 default_trace = TraceOptions(
     use_sim=True,

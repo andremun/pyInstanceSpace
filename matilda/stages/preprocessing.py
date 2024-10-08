@@ -1,103 +1,162 @@
-"""Process the input data before running the main analysis."""
+"""File for preprocessing stage."""
+
+from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
 from numpy._typing import NDArray
 
-from matilda.data.metadata import Metadata
-from matilda.data.model import (
-    PreprocessingDataChanged,
-    PreprocessingOut,
+from matilda.data.options import (
+    SelvarsOptions,
 )
-from matilda.data.options import InstanceSpaceOptions
+from matilda.stages.stage import Stage
 
 
-class Preprocessing:
-    """See file docstring."""
+class PreprocessingInput(NamedTuple):
+    """Inputs for the Preprocessing stage.
+
+    Attributes
+    ----------
+    feature_names : list[str]
+        TODO: This.
+    algorithm_names : list[str]
+        TODO: This.
+    instance_labels : pd.Series
+        TODO: This.
+    instance_sources : pd.Series | None
+        TODO: This.
+    features : NDArray[np.double]
+        TODO: This.
+    algorithms : NDArray[np.double]
+        TODO: This.
+    selvars_options : SelvarsOptions
+        TODO: This.
+    """
+
+    feature_names: list[str]
+    algorithm_names: list[str]
+    instance_labels: pd.Series  # type: ignore[type-arg]
+    instance_sources: pd.Series | None  # type: ignore[type-arg]
+    features: NDArray[np.double]
+    algorithms: NDArray[np.double]
+    selvars_options: SelvarsOptions
+
+
+class PreprocessingOutput(NamedTuple):
+    """Outputs for the Preprocessing stage.
+
+    Attributes
+    ----------
+    inst_labels : pd.Series
+            Series containing labels for each instance.
+    feat_labels : list[str]
+        List of labels corresponding to the features in 'x'.
+    algo_labels : list[str]
+        List of labels corresponding to the algorithms in 'y'.
+    x : NDArray[np.double]
+        2D numpy array representing the feature matrix (instances x features).
+    y : NDArray[np.double]
+        2D numpy array representing the algorithm matrix (instances x algorithms).
+    s : pd.Series | None
+        Optional series containing the source of instances.
+    NDArray[np.double]
+        The x variable before any future modifications are made to it.
+    NDArray[np.double]
+        The y variable before any future modifications are made to it.
+
+    """
+
+    inst_labels: pd.Series  # type: ignore[type-arg]
+    feat_labels: list[str]
+    algo_labels: list[str]
+    x: NDArray[np.double]
+    y: NDArray[np.double]
+    s: pd.Series | None  # type: ignore[type-arg]
+    x_raw: NDArray[np.double]
+    y_raw: NDArray[np.double]
+
+
+class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
+    """Class for Preprocessing stage."""
 
     def __init__(
         self,
-        matadata: Metadata,
-        opts: InstanceSpaceOptions,
+        feature_names: list[str],
+        algorithm_names: list[str],
+        instance_labels: pd.Series,  # type: ignore[type-arg]
+        instance_sources: pd.Series | None,  # type: ignore[type-arg]
+        features: NDArray[np.double],
+        algorithms: NDArray[np.double],
+        selvars: SelvarsOptions,
     ) -> None:
-        """Initialize the preprocessing stage.
-
-        Args
-        ----
-            matadata: A Metadata object constructed from the parsed CSV data
-            opts (Options): Configuration options.
-        """
-        self.matadata = matadata
-        self.opts = opts
+        """Initialize the Preprocessing stage."""
+        self.feature_names = feature_names
+        self.algorithm_names = algorithm_names
+        self.instance_labels = instance_labels
+        self.instance_sources = instance_sources
+        self.features = features
+        self.algorithms = algorithms
+        self.selvars = selvars
 
     @staticmethod
-    def run(
-        matadata: Metadata,
-        opts: InstanceSpaceOptions,
-    ) -> tuple[PreprocessingDataChanged, PreprocessingOut]:
+    def _inputs() -> type[PreprocessingInput]:
+        return PreprocessingInput
+
+    @staticmethod
+    def _outputs() -> type[PreprocessingOutput]:
+        return PreprocessingOutput
+
+    @staticmethod
+    def _run(inputs: PreprocessingInput) -> PreprocessingOutput:
         """Perform preliminary processing on the input data 'x' and 'y'.
 
         Args
-            matadata: An object of data class that contains data
-                from CSV file.
-            opts: An object of type Options containing options for
-                processing.
+        -------
+        inputs : PreprocessingInput
+            Inputs for the cloister stage.
 
         Returns
         -------
-            A tuple containing the processed data (as 'PreprocessingDataChanged' object)
-            and dummy object for further implementation (as 'PreprocessingOut' object).
+        PreprocessingOutput
+            Output of the Preprocessing stage.
         """
-        new_x, new_y, new_feat_labels, new_algo_labels = (
-            Preprocessing.select_features_and_algorithms(
-                matadata.features,
-                matadata.algorithms,
-                matadata.feature_names,
-                matadata.algorithm_names,
-                opts,
-            )
+        (
+            new_x,
+            new_y,
+            new_feat_labels,
+            new_algo_labels,
+        ) = PreprocessingStage.select_features_and_algorithms(
+            inputs.features,
+            inputs.algorithms,
+            inputs.feature_names,
+            inputs.algorithm_names,
+            inputs.selvars_options,
         )
 
-        updated_x, updated_y, updated_inst_labels, updated_feat_labels, updated_s = (
-            Preprocessing.remove_instances_with_many_missing_values(
-                new_x,
-                new_y,
-                matadata.instance_sources,
-                new_feat_labels,
-                matadata.instance_labels,
-            )
+        (
+            updated_x,
+            updated_y,
+            updated_inst_labels,
+            updated_feat_labels,
+            updated_s,
+        ) = PreprocessingStage.remove_instances_with_many_missing_values(
+            new_x,
+            new_y,
+            inputs.instance_sources,
+            new_feat_labels,
+            inputs.instance_labels,
         )
 
-        # From here return the tuple[PreprocessingDataChanged, PreprocessingOut(dummy)]
-
-        pre_data_changed = PreprocessingDataChanged(
-            inst_labels=updated_inst_labels,
-            feat_labels=updated_feat_labels,
-            algo_labels=new_algo_labels,
-            x=updated_x,
-            y=updated_y,
-            s=updated_s,
+        return PreprocessingOutput(
+            updated_inst_labels,
+            updated_feat_labels,
+            new_algo_labels,
+            updated_x,
+            updated_y,
+            updated_s,
+            updated_x,
+            updated_y,
         )
-
-        preprocess_out = PreprocessingOut()
-
-        # these stuff will be moved into PRILIM
-        """after_process, prelim_opts = Preprocessing.process_data(after_washing, opts)
-        prelim_data, prelim_out = Prelim.run(
-            after_process.x,
-            after_process.y,
-            prelim_opts,
-        )
-
-        # These should be a part of FILTRER, leave it not delete
-
-        bad_instances_removed = Preprocessing.remove_bad_instances(
-            prelim_data.merge_with(data),
-        )
-        # Preprocessing.split_data(bad_instances_removed, opts, model)
-        """
-
-        return pre_data_changed, preprocess_out
 
     @staticmethod
     def select_features_and_algorithms(
@@ -105,7 +164,7 @@ class Preprocessing:
         y: NDArray[np.double],
         feat_labels: list[str],
         algo_labels: list[str],
-        opts: InstanceSpaceOptions,
+        selvars: SelvarsOptions,
     ) -> tuple[NDArray[np.double], NDArray[np.double], list[str], list[str]]:
         """Select features and algorithms based on options provided in opts.
 
@@ -121,8 +180,9 @@ class Preprocessing:
             List of labels corresponding to the features in 'x'.
         algo_labels : list[str]
             List of labels corresponding to the algorithms in 'y'.
-        opts : InstanceSpaceOptions
-            An instance of InstanceSpaceOptions that contains settings.
+        selvars : SelvarsOptions
+            An instance of SelvarsOptions that contains settings of the prefered
+            algorithms and instances.
 
         Returns
         -------
@@ -138,10 +198,8 @@ class Preprocessing:
         new_feat_labels = feat_labels
         new_y = y
         new_algo_labels = algo_labels
-        if opts.selvars.feats is not None:
-            selected_features = [
-                feat for feat in feat_labels if feat in opts.selvars.feats
-            ]
+        if selvars.feats is not None:
+            selected_features = [feat for feat in feat_labels if feat in selvars.feats]
 
             # if something were chosen, based on the logic index,
             # rather than the name string
@@ -164,9 +222,9 @@ class Preprocessing:
                 )
 
         print("---------------------------------------------------")
-        if opts.selvars.algos is not None:
+        if selvars.algos is not None:
             selected_algorithms = [
-                algo for algo in algo_labels if algo in opts.selvars.algos
+                algo for algo in algo_labels if algo in selvars.algos
             ]
 
             if selected_algorithms:

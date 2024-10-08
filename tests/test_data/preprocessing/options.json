@@ -1,0 +1,39 @@
+{
+    "parallel": { "flag": false, "n_cores": 2},
+    "perf": {
+      "max_perf": false,
+      "abs_perf": true,
+      "epsilon": 0.2,
+      "beta_threshold": 0.55
+    },
+    "auto": { "preproc": true },
+    "bound": { "flag": true },
+    "norm": { "flag": true },
+    "selvars": {
+      "small_scale_flag": false,
+      "small_scale": 0.5,
+      "file_idx_flag": false,
+      "file_idx": "",
+      "density_flag": false,
+      "min_distance": 0.1,
+      "selvars_type": "Ftr&Good"
+    },
+    "sifted": {
+      "flag": true,
+      "rho": 0.1,
+      "k": 10,
+      "n_trees": 50,
+      "max_iter": 1000,
+      "replicates": 100
+    },
+    "trace": { "use_sim": true, "pi": 0.55 },
+    "pilot": { "analytic": false, "n_tries": 5 },
+    "cloister": { "c_thres": 0.7, "p_val": 0.05 },
+    "pythia": {
+      "cv_folds": 5,
+      "is_poly_krnl": false,
+      "use_weights": false,
+      "use_lib_svm": false
+    },
+    "outputs": { "csv": true, "png": true, "web": false }
+  }

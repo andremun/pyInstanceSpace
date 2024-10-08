@@ -27,7 +27,7 @@ from matilda.data.options import (
     SiftedOptions,
     TraceOptions,
 )
-from matilda.stages.preprocessing import Preprocessing
+from matilda.stages.preprocessing import PreprocessingStage
 
 path_root = Path(__file__).parent
 sys.path.append(str(path_root))
@@ -57,23 +57,16 @@ def create_dummy_opt(selvars: SelvarsOptions) -> InstanceSpaceOptions:
         bound=BoundOptions(flag=False),
         norm=NormOptions(flag=False),
         selvars=selvars,
-        sifted=SiftedOptions(
-            flag=False,
-            rho=0.5,
-            k=10,
-            n_trees=100,
-            max_iter=100,
-            replicates=10,
-        ),
-        pilot=PilotOptions(analytic=False, n_tries=10),
+        sifted=SiftedOptions.default(),
+        pilot=PilotOptions.default(analytic=False, n_tries=10),
         cloister=CloisterOptions(p_val=0.05, c_thres=0.5),
-        pythia=PythiaOptions(
+        pythia=PythiaOptions.default(
             cv_folds=5,
             is_poly_krnl=False,
             use_weights=False,
-            use_lib_svm=False,
+            # use_lib_svm=False,
         ),
-        trace=TraceOptions(use_sim=False, pi=0.95),
+        trace=TraceOptions(use_sim=False, purity=0.95),
         outputs=OutputOptions(csv=False, web=False, png=False),
     )
 
@@ -99,12 +92,12 @@ def test_manual_selection() -> None:
     opts = create_dummy_opt(selvars)
 
     new_x, new_y, new_feat_labels, new_algo_labels = (
-        Preprocessing.select_features_and_algorithms(
+        PreprocessingStage.select_features_and_algorithms(
             large_x,
             large_y,
             feat_labels,
             algo_labels,
-            opts,
+            opts.selvars,
         )
     )
 
@@ -153,12 +146,12 @@ def test_manual_wrong_names() -> None:
     opts = create_dummy_opt(selvars)
 
     new_x, new_y, new_feat_labels, new_algo_labels = (
-        Preprocessing.select_features_and_algorithms(
+        PreprocessingStage.select_features_and_algorithms(
             large_x,
             large_y,
             feat_labels,
             algo_labels,
-            opts,
+            opts.selvars,
         )
     )
 
@@ -204,12 +197,12 @@ def test_manual_none_feats_empty_algo() -> None:
     opts = create_dummy_opt(selvars)
 
     new_x, new_y, new_feat_labels, new_algo_labels = (
-        Preprocessing.select_features_and_algorithms(
+        PreprocessingStage.select_features_and_algorithms(
             large_x,
             large_y,
             feat_labels,
             algo_labels,
-            opts,
+            opts.selvars,
         )
     )
 
@@ -249,12 +242,12 @@ def test_manual_empty_feats_none_algo() -> None:
     opts = create_dummy_opt(selvars)
 
     new_x, new_y, new_feat_labels, new_algo_labels = (
-        Preprocessing.select_features_and_algorithms(
+        PreprocessingStage.select_features_and_algorithms(
             large_x,
             large_y,
             feat_labels,
             algo_labels,
-            opts,
+            opts.selvars,
         )
     )
 
@@ -277,3 +270,13 @@ def test_manual_empty_feats_none_algo() -> None:
         expected_y,
         err_msg="Algorithm data content mismatch",
     )
+
+
+"""
+Contains test cases for the remove_instances_with_many_missing_values function.
+
+These testing codes are tested by artificial data
+(the data that I generated, rather than read from CSV)
+and check against with the logic of original codes of BuildIS
+
+"""
