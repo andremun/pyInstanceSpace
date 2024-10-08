@@ -59,7 +59,7 @@ from shapely.ops import triangulate, unary_union
 from sklearn.cluster import DBSCAN
 
 from matilda.data.model import Footprint
-from matilda.data.options import TraceOptions
+from matilda.data.options import TraceOptions, ParallelOptions
 from matilda.stages.stage import Stage
 
 POLYGON_MIN_POINT_REQUIREMENT = 3
@@ -99,6 +99,7 @@ class TraceInputs(NamedTuple):
     y_hat: NDArray[np.bool_]
     y_bin: NDArray[np.bool_]
     trace_options: TraceOptions
+    parallel_options: ParallelOptions
 
 
 class TraceOutputs(NamedTuple):
@@ -208,7 +209,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         p: NDArray[np.int_],
         beta: NDArray[np.bool_],
         algo_labels: list[str],
-        opts: TraceOptions,
+        trace_opts: TraceOptions,
+        parallel_opts: ParallelOptions
     ) -> None:
         """Initialise the Trace analysis with provided data and options.
 
@@ -233,7 +235,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         self.p = p
         self.beta = beta
         self.algo_labels = algo_labels
-        self.opts = opts
+        self.opts = trace_opts
+        self.parallel_opts = parallel_opts
 
     @staticmethod
     def _inputs() -> type[TraceInputs]:
@@ -241,7 +244,6 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
         Args
         ----
-
         Returns
         -------
             list[tuple[str, type]]
@@ -255,7 +257,6 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
         Args
         ----
-
         Returns
         -------
             list[tuple[str, type]]
@@ -293,6 +294,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 inputs.beta,
                 inputs.algo_labels,
                 inputs.trace_options,
+                inputs.parallel_options,
             )
         print("  -> TRACE will use experimental data to calculate the footprints.")
         return TraceStage.trace(
@@ -302,6 +304,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             inputs.beta,
             inputs.algo_labels,
             inputs.trace_options,
+            inputs.parallel_options,
         )
 
     @staticmethod
@@ -311,7 +314,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         p: NDArray[np.int_],
         beta: NDArray[np.bool_],
         algo_labels: list[str],
-        opts: TraceOptions,
+        trace_opts: TraceOptions,
+        parallel_opts: ParallelOptions
     ) -> TraceOutputs:
         """Perform the TRACE footprint analysis.
 
@@ -338,7 +342,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             An instance of TraceOut containing the analysis results, including
             the calculated footprints and summary statistics.
         """
-        trace = TraceStage(z, y_bin, p, beta, algo_labels, opts)
+        trace = TraceStage(z, y_bin, p, beta, algo_labels, trace_opts, parallel_opts)
         return trace._trace()  # noqa: SLF001
 
     def _trace(self) -> TraceOutputs:
@@ -979,7 +983,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         # Determine the number of workers available for parallel processing
         good: list[Footprint] = [self.throw() for _ in range(n_algos)]
         best: list[Footprint] = [self.throw() for _ in range(n_algos)]
-        with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
+        worker_count = min(self.parallel_opts.n_cores, multiprocessing.cpu_count())
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = [
                 executor.submit(self.process_algorithm, i) for i in range(n_algos)
             ]

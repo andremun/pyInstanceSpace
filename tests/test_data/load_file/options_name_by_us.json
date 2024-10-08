@@ -39,7 +39,7 @@
       "cv_folds": 5,
       "is_poly_krnl": false,
       "use_weights": false,
-      "use_lib_svm": false
+      "uselibsvm": false
     },
     "outputs": { "csv": true, "png": true, "web": false }
   }
