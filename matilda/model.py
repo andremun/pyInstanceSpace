@@ -11,6 +11,7 @@ from typing_extensions import TypeVar
 from matilda._serialisers import (
     save_instance_space_for_web,
     save_instance_space_graphs,
+    save_instance_space_output_mat,
     save_instance_space_to_csv,
 )
 from matilda.data.model import (
@@ -26,7 +27,7 @@ from matilda.data.model import (
 from matilda.data.options import InstanceSpaceOptions
 
 DEFAULT_OUTPUT_ZIP_NAME = "output.zip"
-
+DEFAULT_DIRECTARY_NAME = "output"
 @dataclass(frozen=True)
 class Model:
     """The output of running InstanceSpace."""
@@ -123,18 +124,32 @@ class Model:
             self.trace,
         )
 
-    def save_zip(self, output_directory: Path) -> None:
+    def save_to_mat(self, output_directory: Path) -> None:
         """Save csv outputs used for the web frontend to a directory."""
         print(
             "=========================================================================",
         )
-        zip_filename = DEFAULT_OUTPUT_ZIP_NAME
-        with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zf:
-            for root, dirs, files in os.walk(output_directory):
-                for filename in files:
-                    file_path = Path(root) / filename
-                    print(file_path)
-                    # Add file to the zip archive
-                    zf.write(file_path, arcname=filename)
+        print("-> Writing the data for the web interface.")
 
+        save_instance_space_output_mat(
+            output_directory,
+            self.data,
+        )
+
+    def save_zip(self, output_directory: Path) -> None:
+        """Save serializer outputs into a zip used for the web frontend."""
+        print(
+            "=========================================================================",
+        )
+        zip_filename = DEFAULT_OUTPUT_ZIP_NAME
+        dir_name = DEFAULT_DIRECTARY_NAME
+        with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zf:
+            for root, _, files in os.walk(output_directory):
+                for filename in files:
+                    if ".gitignore" in filename:
+                        continue
+                    file_path = Path(root) / filename
+                    # Add file to the zip archive
+                    arcname = Path(dir_name) / filename
+                    zf.write(file_path, arcname=arcname)
         print(f"-> Successfully saved files into {zip_filename}.")

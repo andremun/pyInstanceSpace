@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, TypeVar, Union
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -10,6 +10,7 @@ import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.colors import Normalize
 from numpy.typing import NDArray
+from scipy.io import savemat
 from shapely import MultiPolygon, Polygon
 
 from matilda.data.model import (
@@ -18,6 +19,7 @@ from matilda.data.model import (
     FeatSel,
     Footprint,
     PilotOut,
+    PrelimOut,
     PythiaOut,
     SiftedOut,
     TraceOut,
@@ -682,3 +684,15 @@ def _draw_binary_performance(
     ax.legend()
 
     fig.savefig(output)
+
+def save_instance_space_output_mat(
+    output_directory: Path,
+    data: Data,
+) -> None:
+    """Offline dashboard only use the algo labels from the data"""
+    try:
+        savemat(output_directory / "model.mat",
+                {"data": {"algo_labels":data.algo_labels}})
+        print("saved data to mat file")
+    except Exception as e:
+        print(f"Error saving data to mat file: {e}")
