@@ -26,7 +26,6 @@ from matilda.data.model import (
 )
 from matilda.data.options import InstanceSpaceOptions
 
-DEFAULT_OUTPUT_ZIP_NAME = "output.zip"
 DEFAULT_DIRECTARY_NAME = "output"
 
 
