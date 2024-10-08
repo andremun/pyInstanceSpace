@@ -138,12 +138,11 @@ class Model:
             self.data,
         )
 
-    def save_zip(self, output_directory: Path) -> None:
+    def save_zip(self, zip_filename:str, output_directory: Path) -> None:
         """Save serializer outputs into a zip used for the web frontend."""
         print(
             "=========================================================================",
         )
-        zip_filename = DEFAULT_OUTPUT_ZIP_NAME
         dir_name = DEFAULT_DIRECTARY_NAME
         with zipfile.ZipFile(zip_filename, "w", zipfile.ZIP_DEFLATED) as zf:
             for root, _, files in os.walk(output_directory):
