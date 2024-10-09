@@ -43,7 +43,6 @@ from_polygon(polygon, z, y_bin, smoothen=False):
     instance data, optionally smoothing the polygon borders.
 """
 
-import math
 import multiprocessing
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -56,7 +55,6 @@ from numpy.typing import NDArray
 from scipy.special import gamma
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
 from shapely.ops import triangulate, unary_union
-from sklearn.cluster import DBSCAN
 
 from matilda.data.model import Footprint
 from matilda.data.options import ParallelOptions, TraceOptions
@@ -983,8 +981,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Lists of good and best performance footprints for each algorithm.
         """
         # Determine the number of workers available for parallel processing
-        good: list[Footprint] = [self.throw() for _ in range(n_algos)]
-        best: list[Footprint] = [self.throw() for _ in range(n_algos)]
+        good: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0)
+                                 for _ in range(n_algos)]
+        best: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0)
+                                 for _ in range(n_algos)]
         worker_count = min(self.parallel_opts.n_cores, multiprocessing.cpu_count())
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = [
