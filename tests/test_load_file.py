@@ -326,6 +326,75 @@ class TestOption:
             getattr(getattr(test_valid_options, option_key), subkey) == expected_value
         )
 
+    @pytest.mark.parametrize(
+        ("option_key", "subkey", "expected_value"),
+        [
+            ("parallel", "flag", False),
+            ("parallel", "n_cores", 89898),
+            ("perf", "max_perf", True),
+            ("perf", "abs_perf", True),
+            ("perf", "epsilon", 0.2),
+            ("perf", "beta_threshold", 8765435678976546789),
+            ("auto", "preproc", True),
+            ("bound", "flag", True),
+            ("norm", "flag", True),
+            ("selvars", "small_scale_flag", False),
+            ("selvars", "small_scale", 0.5999),
+            ("selvars", "file_idx_flag", False),
+            ("selvars", "file_idx", "aaaaaaa"),
+            ("selvars", "density_flag", False),
+            ("selvars", "min_distance", 0.10007),
+            ("selvars", "selvars_type", "Ftr&Good and so on"),
+            (
+                "selvars",
+                "feats",
+                [
+                    "feature_Max_Normalized_Entropy_attributes",
+                    "feature_Normalized_Entropy_Class_Attribute",
+                    "feature_Nonlinearity_Nearest_Neighbor_Classifier_N4",
+                ],
+            ),
+            ("sifted", "flag", True),
+            ("sifted", "rho", 0.1),
+            ("sifted", "k", 89899),
+            ("sifted", "n_trees", 10000000000),
+            ("sifted", "max_iter", 77787878),
+            ("sifted", "replicates", 100),
+            ("pilot", "analytic", False),
+            ("pilot", "n_tries", 8989),
+            ("cloister", "c_thres", 0.79),
+            ("cloister", "p_val", 0.0599),
+            ("pythia", "cv_folds", 59),
+            ("pythia", "is_poly_krnl", True),
+            ("pythia", "use_weights", True),
+            ("pythia", "use_grid_search", True),
+            ("trace", "use_sim", True),
+            ("trace", "purity", 0.59999),
+            ("outputs", "csv", True),
+            ("outputs", "png", True),
+            ("outputs", "web", False),
+        ],
+    )
+    def test_option_by_dataclass_name_loading(
+        self: Self,
+        option_key: str,
+        subkey: str,
+        expected_value: bool | float | int,
+    ) -> None:
+        """
+        Test attributes for each options is loaded.
+
+        The test will iterate over all attributes defined in pytest's mark parametrize
+        to verify that the attributes are correctly loaded.
+        """
+        option_path = script_dir / "test_data/load_file/options_dataclass_names.json"
+        metadata_path = script_dir / "test_data/load_file/metadata.csv"
+
+        loaded = instance_space_from_files(metadata_path, option_path)
+        assert loaded is not None, "Expected instance space to be returned"
+
+        assert getattr(getattr(loaded.options, option_key), subkey) == expected_value
+
     def test_dir_loading(
         self: Self,
         directory_options: InstanceSpaceOptions,
@@ -373,9 +442,32 @@ class TestOption:
         assert returned is None
         captured = capsys.readouterr()
         expected_error_msg = (
-            "Error details: Conflicting fields in JSON: 'pi' "
-            "and 'purity' both map to the "
-            "field 'purity' in 'TraceOptions'.\n"
+            "Error details: Conflicting fields in JSON: " "'purity' was defined twice\n"
+        )
+
+        assert expected_error_msg in captured.out
+
+    def test_option_value_specified_twice(
+        self: Self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """
+        Another invalid attribute case in the JSON file.
+
+        Test loading option with attribute name that is definded by us
+        but exists in the JSON, will raise value error.
+        """
+        invalid_option_path = (
+            script_dir / "test_data/load_file/options_name_by_us2.json"
+        )
+        metadata_path = script_dir / "test_data/load_file/metadata.csv"
+
+        returned = instance_space_from_files(metadata_path, invalid_option_path)
+        assert returned is None
+        captured = capsys.readouterr()
+        expected_error_msg = (
+            "Error details: Conflicting fields in JSON: "
+            "'MaxPerf' was defined twice\n"
         )
 
         assert expected_error_msg in captured.out

@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
-from matilda.data.options import TraceOptions, ParallelOptions
+from matilda.data.options import ParallelOptions, TraceOptions
 from matilda.stages.trace import TraceInputs, TraceOutputs, TraceStage
 
 
@@ -186,7 +186,6 @@ def test_trace_simulation() -> None:
     trace_options = TraceOptions(False, 0.55)
 
     parallel_options = ParallelOptions(False, 3)
-
 
     # Initialising and running the TRACE analysis
     trace_inputs: TraceInputs = TraceInputs(

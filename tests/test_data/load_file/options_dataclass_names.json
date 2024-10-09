@@ -1,0 +1,45 @@
+{
+  "parallel": { "flag": false, "n_cores": 89898 },
+  "perf": {
+    "max_perf": true,
+    "AbsPerf": true,
+    "epsilon": 0.2,
+    "betaThreshold": 8765435678976546789
+  },
+  "auto": { "preproc": true },
+  "bound": { "flag": true },
+  "norm": { "flag": true },
+  "selvars": {
+    "small_scale_flag": false,
+    "small_scale": 0.5999,
+    "file_idx_flag": false,
+    "fileidx": "aaaaaaa",
+    "density_flag": false,
+    "mindistance": 0.10007,
+    "selvars_type": "Ftr&Good and so on",
+    "feats": [
+      "feature_Max_Normalized_Entropy_attributes",
+      "feature_Normalized_Entropy_Class_Attribute",
+      "feature_Nonlinearity_Nearest_Neighbor_Classifier_N4"
+    ],
+    "algos": ["algo_NB", "algo_CART", "algo_KNN", "algo_RBF_SVM", "algo_RandF"]
+  },
+  "sifted": {
+    "flag": true,
+    "rho": 0.1,
+    "K": 89899,
+    "n_trees": 10000000000,
+    "MaxIter": 77787878,
+    "replicates": 100
+  },
+  "trace": { "use_sim": true, "pi": 0.59999 },
+  "pilot": { "analytic": false, "n_tries": 8989 },
+  "cloister": { "c_thres": 0.79, "p_val": 0.0599 },
+  "pythia": {
+    "cvfolds": 59,
+    "is_poly_krnl": true,
+    "useweights": true,
+    "use_grid_search": true
+  },
+  "outputs": { "csv": true, "png": true, "web": false }
+}
