@@ -143,7 +143,7 @@ class Model:
             "=========================================================================",
         )
         dir_name = DEFAULT_DIRECTARY_NAME
-        ignored_files = [".gitignore", ".zip"]
+        ignored_files = [".gitignore", f"{zip_filename}.zip"]
         with zipfile.ZipFile(output_directory/zip_filename, "w", zipfile.ZIP_DEFLATED) as zf:
             for root, _, files in os.walk(output_directory):
                 for filename in files:
