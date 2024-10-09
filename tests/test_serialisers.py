@@ -364,4 +364,5 @@ def test_save_graphs() -> None:
 
         # We can't test the images, so we must check visually that they are consistant
 
+
 test_save_graphs()
