@@ -384,13 +384,15 @@ def test_save_zip() -> None:
     """Test saving a zip file of the output directory."""
     model = _MatlabResults().get_model()
     # Clear the output before running the test
-    # shutil.rmtree(script_dir / "test_data/serialisers/actual_output/png")
-    # shutil.rmtree(script_dir / "test_data/serialisers/actual_output/csv")
-    # shutil.rmtree(script_dir / "test_data/serialisers/actual_output/web")
+    clean_dir(script_dir / "test_data/serialisers/actual_output/png")
+    clean_dir(script_dir / "test_data/serialisers/actual_output/csv")
+    clean_dir(script_dir / "test_data/serialisers/actual_output/web")
+    clean_dir(script_dir / "test_data/serialisers/actual_output/mat")
 
     model.save_graphs(script_dir / "test_data/serialisers/actual_output/png")
     model.save_to_csv(script_dir / "test_data/serialisers/actual_output/csv")
     model.save_for_web(script_dir / "test_data/serialisers/actual_output/web")
+    model.save_to_mat(script_dir / "test_data/serialisers/actual_output/mat")
     # Copy metadata and options from input folder into expected output folder
     shutil.copy(
         script_dir / "test_data/serialisers/input/metadata.csv",
@@ -418,3 +420,12 @@ def test_save_zip() -> None:
         assert all(
             item in file_list for item in required_files
         ), f"Missing files: {set(required_files) - set(file_list)}"
+
+def clean_dir(path: Path) -> None:
+    """Remove all files in a directory."""
+    ignored_files = [".gitignore",]
+
+    for file in os.listdir(path):
+        if file in ignored_files:
+            continue
+        Path.unlink(path / file)
