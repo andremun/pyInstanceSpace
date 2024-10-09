@@ -389,10 +389,12 @@ def test_save_zip() -> None:
     clean_dir(script_dir / "test_data/serialisers/actual_output/web")
     clean_dir(script_dir / "test_data/serialisers/actual_output/mat")
 
+    # Save the data to the output directory
     model.save_graphs(script_dir / "test_data/serialisers/actual_output/png")
     model.save_to_csv(script_dir / "test_data/serialisers/actual_output/csv")
     model.save_for_web(script_dir / "test_data/serialisers/actual_output/web")
     model.save_to_mat(script_dir / "test_data/serialisers/actual_output/mat")
+
     # Copy metadata and options from input folder into expected output folder
     shutil.copy(
         script_dir / "test_data/serialisers/input/metadata.csv",
@@ -423,7 +425,7 @@ def test_save_zip() -> None:
 
 def clean_dir(path: Path) -> None:
     """Remove all files in a directory."""
-    ignored_files = [".gitignore",]
+    ignored_files = [".gitignore"]
 
     for file in os.listdir(path):
         if file in ignored_files:
