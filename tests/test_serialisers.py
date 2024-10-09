@@ -1,6 +1,7 @@
 """Test module for serialisers."""
 
 import os
+import shutil
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -382,12 +383,25 @@ def test_save_mat() -> None:
 def test_save_zip() -> None:
     """Test saving a zip file of the output directory."""
     model = _MatlabResults().get_model()
+    # Clear the output before running the test
+    # shutil.rmtree(script_dir / "test_data/serialisers/actual_output/png")
+    # shutil.rmtree(script_dir / "test_data/serialisers/actual_output/csv")
+    # shutil.rmtree(script_dir / "test_data/serialisers/actual_output/web")
+
+    model.save_graphs(script_dir / "test_data/serialisers/actual_output/png")
+    model.save_to_csv(script_dir / "test_data/serialisers/actual_output/csv")
+    model.save_for_web(script_dir / "test_data/serialisers/actual_output/web")
+    # Copy metadata and options from input folder into expected output folder
+    shutil.copy(
+        script_dir / "test_data/serialisers/input/metadata.csv",
+        script_dir / "test_data/serialisers/actual_output/csv/metadata.csv",
+    )
     zip_filename = "output.zip"
     model.save_zip(zip_filename,script_dir / "test_data/serialisers/actual_output")
     """Require the following files to be in the zip for dashboard"""
     required_files = [
         "coordinates.csv",
-        # "metadata.csv",
+        "metadata.csv",
         "svm_table.csv",
         "bounds_prunned.csv",
         "feature_process.csv",
@@ -404,5 +418,3 @@ def test_save_zip() -> None:
         assert all(
             item in file_list for item in required_files
         ), f"Missing files: {set(required_files) - set(file_list)}"
-
-
