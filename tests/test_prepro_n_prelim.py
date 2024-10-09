@@ -1,15 +1,28 @@
+"""
+Testcases for the integration of preprocessing and PRELIM stage of the Matilda project.
+
+Specifically, it tests the `run` method of the `Preprocessing` and 'PRELIM' class to
+ensure that the output matches the expected results of MATLAB results
+"""
+
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
-
-from matilda.data.options import PrelimOptions, SelvarsOptions
+from matilda.data.options import PrelimOptions
 from matilda.instance_space import instance_space_from_files
 from matilda.stages.prelim import PrelimInput, PrelimStage
 from matilda.stages.preprocessing import PreprocessingInput, PreprocessingStage
 
 
 def test_integrated_prepro_n_prelim() -> None:
+    """
+    Test the preprocessing and PRELIM run method.
+
+    This test verifies that the output of the integarted run method matches
+    the expected results of corresponding MATLAB codes
+    """
     script_dir = Path(__file__).resolve().parent
     metadata_path = script_dir / "test_data/preprocessing/metadata.csv"
     option_path = script_dir / "test_data/preprocessing/options.json"
@@ -31,19 +44,24 @@ def test_integrated_prepro_n_prelim() -> None:
 
     # Load prelim test data
     csv_output_prelim_p_run = script_dir / "test_data/prelim/run/output/output_P.csv"
-    csv_output_prelim_ybest_run = script_dir / "test_data/prelim/run/output/output_Ybest.csv"
-    csv_output_prelim_ybin_run = script_dir / "test_data/prelim/run/output/output_Ybin.csv"
+    csv_output_prelim_ybest_run = (
+        script_dir / "test_data/prelim/run/output/output_Ybest.csv"
+    )
+    csv_output_prelim_ybin_run = (
+        script_dir / "test_data/prelim/run/output/output_Ybin.csv"
+    )
     csv_output_prelim_x_run = script_dir / "test_data/prelim/run/output/output_X.csv"
     csv_output_prelim_y_run = script_dir / "test_data/prelim/run/output/output_Y.csv"
 
-
-    p_output_run = pd.read_csv(csv_output_prelim_p_run, sep=",", header=None).iloc[:, 0].values
-    ybest_output_run = pd.read_csv(csv_output_prelim_ybest_run, sep=",", header=None).iloc[:, 0].values
+    p_output_run = (
+        pd.read_csv(csv_output_prelim_p_run, sep=",", header=None).iloc[:, 0].values
+    )
+    ybest_output_run = (
+        pd.read_csv(csv_output_prelim_ybest_run, sep=",", header=None).iloc[:, 0].values
+    )
     ybin_output_run = pd.read_csv(csv_output_prelim_ybin_run, sep=",", header=None)
     x_output_run = pd.read_csv(csv_output_prelim_x_run, header=None).to_numpy()
     y_output_run = pd.read_csv(csv_output_prelim_y_run, header=None).to_numpy()
-
-
 
     prelim_opts = PrelimOptions(
         max_perf=instance_space.options.perf.max_perf,
@@ -73,5 +91,8 @@ def test_integrated_prepro_n_prelim() -> None:
     assert np.allclose(prelim_output.x, x_output_run)
     assert np.allclose(prelim_output.y, y_output_run)
     assert np.allclose(prelim_output.y_bin, ybin_output_run)
-    assert np.allclose(np.array(prelim_output.y_best).flatten(), np.array(ybest_output_run, dtype=np.float64))
+    assert np.allclose(
+        np.array(prelim_output.y_best).flatten(),
+        np.array(ybest_output_run, dtype=np.float64),
+    )
     assert np.allclose(prelim_output.p, np.array(p_output_run, dtype=np.float64))
