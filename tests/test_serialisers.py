@@ -363,3 +363,5 @@ def test_save_graphs() -> None:
         assert Path.is_file(actual_file_path)
 
         # We can't test the images, so we must check visually that they are consistant
+
+test_save_graphs()

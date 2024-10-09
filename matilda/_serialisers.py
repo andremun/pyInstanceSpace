@@ -573,6 +573,9 @@ def _draw_portfolio_footprint(
     algorithm_labels: NDArray[np.str_],
     output: Path,
 ) -> None:
+    print("AAAAAAA")
+    print(best)
+
     plt.clf()
     upper_bound = np.ceil(np.max(z))
     lower_bound = np.floor(np.min(z))
@@ -605,6 +608,8 @@ def _draw_portfolio_footprint(
             cmap=cmap,
             label="None" if i == 0 else algorithm_labels[i - 1].replace("_", " "),
         )
+
+        print(best[i])
 
         _draw_footprint(ax, best[i], cmap(norm(i)), 0.3)
 
@@ -660,6 +665,7 @@ def _draw_footprint(
     colour: tuple[float, float, float, float],
     alpha: float,
 ) -> None:
+    print(footprint.polygon)
     if footprint.polygon is not None:
         coords = footprint.polygon.exterior.coords
         polygon = plt.Polygon(coords, color=colour, alpha=alpha)
