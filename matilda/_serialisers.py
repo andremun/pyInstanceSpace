@@ -263,9 +263,9 @@ def save_instance_space_graphs(
     output_directory: Path,
     data: Data,
     options: InstanceSpaceOptions,
-    pythia_state: PythiaOut,
-    pilot_state: PilotOut,
-    trace_state: TraceOut,
+    pythia_state: StageState[PythiaOut],
+    pilot_state: StageState[PilotOut],
+    trace_state: StageState[TraceOut],
 ) -> None:
     if not output_directory.is_dir():
         raise ValueError("output_directory isn't a directory.")
@@ -284,8 +284,8 @@ def save_instance_space_graphs(
     y_glb = (y_glb - np.min(y_glb)) / y_glb_range
 
     if options.trace.use_sim:
-        y_foot = pythia_state.y_hat
-        p_foot = pythia_state.selection0
+        y_foot = pythia_state.out.y_hat
+        p_foot = pythia_state.out.selection0
     else:
         y_foot = data.y_bin
         p_foot = data.p
@@ -293,18 +293,19 @@ def save_instance_space_graphs(
     for i in range(num_feats):
         filename = f"distribution_feature_{data.feat_labels[i]}.png"
         _draw_scatter(
-            pilot_state.z,
+            pilot_state.out.z,
             x_aux[:, i],
             data.feat_labels[i].replace("_", " "),
             output_directory / filename,
         )
+
 
     for i in range(num_algorithms):
         algo_label = data.algo_labels[i]
 
         filename = f"distribution_performance_global_normalized_{algo_label}.png"
         _draw_scatter(
-            pilot_state.z,
+            pilot_state.out.z,
             y_glb[:, i],
             algo_label.replace("_", " "),
             output_directory / filename,
@@ -312,14 +313,15 @@ def save_instance_space_graphs(
 
         filename = f"distribution_performance_individual_normalized_{algo_label}.png"
         _draw_scatter(
-            pilot_state.z,
+            pilot_state.out.z,
             y_ind[:, i],
             algo_label.replace("_", " "),
             output_directory / filename,
         )
+        
 
         _draw_binary_performance(
-            pilot_state.z,
+            pilot_state.out.z,
             data.y_bin[:, i],
             algo_label.replace("_", " "),
             output_directory / f"binary_performance_{algo_label}.png",
@@ -328,54 +330,48 @@ def save_instance_space_graphs(
         # TODO: MATLAB has a try catch for this one, when pythia is done maybe make
         # optional? in model?
         _draw_binary_performance(
-            pilot_state.z,
-            pythia_state.y_hat[:, i],
+            pilot_state.out.z,
+            pythia_state.out.y_hat[:, i],
             algo_label.replace("_", " "),
             output_directory / f"binary_svm_{algo_label}.png",
         )
 
         # TODO: Same as above
         _draw_good_bad_footprint(
-            pilot_state.z,
-            trace_state.good[i],
+            pilot_state.out.z,
+            trace_state.out.good[i],
             y_foot[:, i],
-            algo_label.replace("_", " "),
+            algo_label.replace("_", " ") + " Footprint",
             output_directory / f"footprint_{algo_label}.png",
         )
+        
 
     _draw_scatter(
-        pilot_state.z,
+        pilot_state.out.z,
         data.num_good_algos / num_algorithms,
         "Percentage of good algorithms",
         output_directory / "distribution_number_good_algos.png",
     )
 
     _draw_portfolio_selections(
-        pilot_state.z,
+        pilot_state.out.z,
         data.p,
         np.array(data.algo_labels),
         "Best algorithm",
         output_directory / "distribution_portfolio.png",
     )
+    
 
     _draw_portfolio_selections(
-        pilot_state.z,
-        pythia_state.selection0,
+        pilot_state.out.z,
+        pythia_state.out.selection0,
         np.array(data.algo_labels),
         "Predicted best algorithm",
         output_directory / "distribution_svm_portfolio.png",
     )
-
-    _draw_portfolio_footprint(
-        pilot_state.z,
-        trace_state.best,
-        p_foot,
-        np.array(data.algo_labels),
-        output_directory / "footprint_portfolio.png",
-    )
-
+    
     _draw_binary_performance(
-        pilot_state.z,
+        pilot_state.out.z,
         data.beta,
         "Beta score",
         output_directory / "distribution_beta_score.png",
@@ -383,10 +379,21 @@ def save_instance_space_graphs(
 
     if data.s is not None:
         _draw_sources(
-            pilot_state.z,
+            pilot_state.out.z,
             np.array(data.s),
             output_directory / "distribution_sources.png",
         )
+    
+    
+    # Can't draw polygon for this one  
+    _draw_portfolio_footprint(
+        pilot_state.out.z,
+        trace_state.out.best,
+        p_foot,
+        np.array(data.algo_labels),
+        output_directory / "footprint_portfolio.png",
+    )
+    
 
 
 def _write_array_to_csv(
@@ -454,6 +461,8 @@ def _draw_sources(
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    ax.set_xlim([-5, 5]) 
+    ax.set_ylim([-5, 5])
     fig.suptitle("Sources")
 
     norm = Normalize(lower_bound, upper_bound)
@@ -466,6 +475,7 @@ def _draw_sources(
             # c=source_labels[i],
             norm=norm,
             cmap=cmap,
+            label=source_labels[i]
         )
 
     ax.set_xlabel("z_{1}")
@@ -481,8 +491,10 @@ def _draw_scatter(
     title_label: str,
     output: Path,
 ) -> None:
-    upper_bound = np.ceil(np.max(z))
-    lower_bound = np.floor(np.min(z))
+    plt.clf()
+    
+    upper_bound = np.max(x)
+    lower_bound = np.min(x)
 
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
@@ -492,6 +504,8 @@ def _draw_scatter(
     norm = Normalize(lower_bound, upper_bound)
 
     ax.scatter(z[:, 0], z[:, 1], s=8, c=x, norm=norm, cmap=cmap)
+    ax.set_xlim([-5, 5]) 
+    ax.set_ylim([-5, 5])
     ax.set_xlabel("z_{1}")
     ax.set_ylabel("z_{2}")
     fig.colorbar(
@@ -503,6 +517,8 @@ def _draw_scatter(
     )
 
     fig.savefig(output)
+    
+    plt.close(fig)
 
 
 def _draw_portfolio_selections(
@@ -512,6 +528,7 @@ def _draw_portfolio_selections(
     title_label: str,
     output: Path,
 ) -> None:
+    plt.clf()
     upper_bound = np.ceil(np.max(z))
     lower_bound = np.floor(np.min(z))
     num_algorithms = len(algorithm_labels)
@@ -526,6 +543,8 @@ def _draw_portfolio_selections(
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    ax.set_xlim([-5, 5]) 
+    ax.set_ylim([-5, 5])
     fig.suptitle(title_label)
 
     norm = Normalize(lower_bound, upper_bound)
@@ -549,6 +568,8 @@ def _draw_portfolio_selections(
     ax.legend()
 
     fig.savefig(output)
+    
+    plt.close(fig)
 
 
 def _draw_portfolio_footprint(
@@ -558,6 +579,7 @@ def _draw_portfolio_footprint(
     algorithm_labels: NDArray[np.str_],
     output: Path,
 ) -> None:
+    plt.clf()
     upper_bound = np.ceil(np.max(z))
     lower_bound = np.floor(np.min(z))
     num_algorithms = len(algorithm_labels)
@@ -570,6 +592,8 @@ def _draw_portfolio_footprint(
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    ax.set_xlim([-5, 5]) 
+    ax.set_ylim([-5, 5])
     fig.suptitle("Portfolio footprints")
 
     norm = Normalize(lower_bound, upper_bound)
@@ -595,6 +619,8 @@ def _draw_portfolio_footprint(
     ax.legend()
 
     fig.savefig(output)
+    
+    plt.close(fig)
 
 
 def _draw_good_bad_footprint(
@@ -604,31 +630,36 @@ def _draw_good_bad_footprint(
     title_label: str,
     output: Path,
 ) -> None:
+    plt.clf()
     orange = (1.0, 0.6471, 0.0, 1.0)
     blue = (0.0, 0.0, 1.0, 1.0)
 
-    # labels = ["GOOD", "BAD"]
+    labels = ["GOOD", "BAD"]
 
     fig, ax2 = plt.subplots()
     ax: Axes = ax2  # TODO: Remove this before PR, just for programming
     fig.suptitle(title_label)
-
-    not_y_bin = y_bin != 1
+    ax.set_xlim([-5, 5]) 
+    ax.set_ylim([-5, 5])
+    not_y_bin = y_bin == 0  
+    good_y_bin = y_bin == 1  
 
     if np.any(not_y_bin):
         ax.scatter(
             z[not_y_bin, 0],
             z[not_y_bin, 1],
             s=8,
-            c=orange,
+            c=[orange],
+            label="BAD"
         )
 
-    if np.any(y_bin):
+    if np.any(good_y_bin):
         ax.scatter(
-            z[y_bin, 0],
-            z[y_bin, 1],
+            z[good_y_bin, 0],
+            z[good_y_bin, 1],
             s=8,
-            c=blue,
+            c=[blue],
+            label="GOOD"
         )
         _draw_footprint(ax, good, blue, 0.3)
 
@@ -637,6 +668,8 @@ def _draw_good_bad_footprint(
     ax.legend()
 
     fig.savefig(output)
+    
+    plt.close(fig)
 
 
 def _draw_footprint(
@@ -645,8 +678,10 @@ def _draw_footprint(
     colour: tuple[float, float, float, float],
     alpha: float,
 ) -> None:
-    # TODO: Blockered on TRACE
-    pass
+    if footprint.polygon is not None:
+        coords = footprint.polygon.exterior.coords
+        polygon = plt.Polygon(coords, color=colour, alpha=alpha)
+        ax.add_patch(polygon)
 
 
 def _draw_binary_performance(
@@ -655,34 +690,47 @@ def _draw_binary_performance(
     title_label: str,
     output: Path,
 ) -> None:
-    orange = (1.0, 0.6471, 0.0, 1.0)
-    blue = (0.0, 0.0, 1.0, 1.0)
+    try:
+        orange = (1.0, 0.6471, 0.0, 1.0)
+        blue = (0.0, 0.0, 1.0, 1.0)
 
-    # labels = ["GOOD", "BAD"]
+        labels = ["GOOD", "BAD"]
+        
+        plt.clf()
 
-    fig, ax2 = plt.subplots()
-    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
-    fig.suptitle(title_label)
-    not_y_bin = y_bin != 1
+        fig, ax2 = plt.subplots()
+        ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+        fig.suptitle(title_label)
+        ax.set_xlim([-5, 5]) 
+        ax.set_ylim([-5, 5])
+        not_y_bin = y_bin == 0  
+        good_y_bin = y_bin == 1  
 
-    if np.any(not_y_bin != 1):
-        ax.scatter(
-            z[not_y_bin, 0],
-            z[not_y_bin, 1],
-            s=8,
-            c=orange,
-        )
+        if np.any(not_y_bin):
+            ax.scatter(
+                z[not_y_bin, 0],
+                z[not_y_bin, 1],
+                s=8,
+                c=[orange],
+                label="BAD"
+            )
 
-    if np.any(y_bin):
-        ax.scatter(
-            z[y_bin, 0],
-            z[y_bin, 1],
-            s=8,
-            c=blue,
-        )
+        if np.any(good_y_bin):
+            ax.scatter(
+                z[good_y_bin, 0],
+                z[good_y_bin, 1],
+                s=8,
+                c=[blue],
+                label="GOOD"
+            )
 
-    ax.set_xlabel("z_{1}")
-    ax.set_ylabel("z_{2}")
-    ax.legend()
+        ax.set_xlabel("z_{1}")
+        ax.set_ylabel("z_{2}")
+        ax.legend()
 
-    fig.savefig(output)
+        fig.savefig(output)
+        
+        plt.close(fig)
+        
+    except Exception as e:
+        print("No binary performance has been calculated")
