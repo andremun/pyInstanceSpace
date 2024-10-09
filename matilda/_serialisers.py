@@ -10,6 +10,7 @@ import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.colors import Normalize
 from numpy.typing import NDArray
+from scipy.io import savemat
 from shapely import MultiPolygon, Polygon
 
 from matilda.data.model import (
@@ -686,3 +687,17 @@ def _draw_binary_performance(
     ax.legend()
 
     fig.savefig(output)
+
+
+def save_instance_space_output_mat(
+    output_directory: Path,
+    data: Data,
+) -> None:
+    """Offline dashboard only use the algo labels from the data."""
+    try:
+        savemat(
+            output_directory / "model.mat", {"data": {"algo_labels": data.algo_labels}},
+        )
+        print("saved data to mat file")
+    except Exception as e:
+        print(f"Error saving data to mat file: {e}")

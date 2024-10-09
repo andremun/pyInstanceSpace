@@ -1,6 +1,8 @@
 """Test module for serialisers."""
 
 import os
+import shutil
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -363,3 +365,69 @@ def test_save_graphs() -> None:
         assert Path.is_file(actual_file_path)
 
         # We can't test the images, so we must check visually that they are consistant
+
+
+def test_save_mat() -> None:
+    """Test saving a mat file of the output directory."""
+    model = _MatlabResults().get_model()
+    model.save_to_mat(script_dir / "test_data/serialisers/actual_output/mat")
+    actual_output = loadmat(
+        script_dir / "test_data/serialisers/actual_output/mat/model.mat",
+        chars_as_strings=True,
+        simplify_cells=True,
+    )["data"]["algo_labels"]
+    print(actual_output)
+    assert np.array_equal(model.data.algo_labels, actual_output)
+
+
+def test_save_zip() -> None:
+    """Test saving a zip file of the output directory."""
+    model = _MatlabResults().get_model()
+    # Clear the output before running the test
+    clean_dir(script_dir / "test_data/serialisers/actual_output/png")
+    clean_dir(script_dir / "test_data/serialisers/actual_output/csv")
+    clean_dir(script_dir / "test_data/serialisers/actual_output/web")
+    clean_dir(script_dir / "test_data/serialisers/actual_output/mat")
+
+    # Save the data to the output directory
+    model.save_graphs(script_dir / "test_data/serialisers/actual_output/png")
+    model.save_to_csv(script_dir / "test_data/serialisers/actual_output/csv")
+    model.save_for_web(script_dir / "test_data/serialisers/actual_output/web")
+    model.save_to_mat(script_dir / "test_data/serialisers/actual_output/mat")
+
+    # Copy metadata and options from input folder into expected output folder
+    shutil.copy(
+        script_dir / "test_data/serialisers/input/metadata.csv",
+        script_dir / "test_data/serialisers/actual_output/csv/metadata.csv",
+    )
+    zip_filename = "output.zip"
+    model.save_zip(zip_filename,script_dir / "test_data/serialisers/actual_output")
+    """Require the following files to be in the zip for dashboard"""
+    required_files = [
+        "coordinates.csv",
+        "metadata.csv",
+        "svm_table.csv",
+        "bounds_prunned.csv",
+        "feature_process.csv",
+        "feature_raw.csv",
+        "algorithm_raw.csv",
+        "algorithm_process.csv",
+        "algorithm_svm.csv",
+        "portfolio_svm.csv",
+        "model.mat",
+    ]
+    with zipfile.ZipFile(script_dir / "test_data/serialisers/actual_output" /
+                         zip_filename, "r") as zf:
+        file_list = [Path(f).name for f in zf.namelist()]
+        assert all(
+            item in file_list for item in required_files
+        ), f"Missing files: {set(required_files) - set(file_list)}"
+
+def clean_dir(path: Path) -> None:
+    """Remove all files in a directory."""
+    ignored_files = [".gitignore"]
+
+    for file in os.listdir(path):
+        if file in ignored_files:
+            continue
+        Path.unlink(path / file)
