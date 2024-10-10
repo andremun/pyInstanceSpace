@@ -414,8 +414,10 @@ class Footprint:
             [polygon.convex_hull.contains(point) for point in MultiPoint(z).geoms],
         )
         good_elements = np.sum(
-            [polygon.convex_hull.contains(point)
-             for point in MultiPoint(z[y_bin]).geoms],
+            [
+                polygon.convex_hull.contains(point)
+                for point in MultiPoint(z[y_bin]).geoms
+            ],
         )
         density = elements / polygon.area if polygon.area != 0 else 0
         purity = good_elements / elements if elements != 0 else 0

@@ -804,8 +804,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
     @staticmethod
     def run_dbscan(
-            y_bin: NDArray[np.bool_],
-            data: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        data: NDArray[np.double],
     ) -> NDArray[np.int_] | tuple:
         """Perform DBSCAN clustering on the dataset.
 
@@ -828,35 +828,37 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
     @staticmethod
     def epsilon(x: NDArray[np.double], k: int):
-        """
-        Analytical way of estimating neighborhood radius for DBSCAN.
+        """Analytical way of estimating neighborhood radius for DBSCAN.
 
         Parameters:
+        ----------
         x - data matrix (m, n); m-objects, n-variables
         k - number of objects in a neighborhood of an object
             (minimal number of objects considered as a cluster)
 
         Returns:
+        -------
         Eps - Estimated neighborhood radius
         """
         m, n = x.shape
         ranges = np.max(x, axis=0) - np.min(x, axis=0)
         prod_ranges = np.prod(ranges)
         numerator = prod_ranges * k * gamma(0.5 * n + 1)
-        denominator = m * np.sqrt(np.pi ** n)
+        denominator = m * np.sqrt(np.pi**n)
         eps = (numerator / denominator) ** (1.0 / n)
         return eps
 
     @staticmethod
     def dist(i, x):
-        """
-        Calculates the Euclidean distances between the i-th object and all objects in x
+        """Calculates the Euclidean distances between the i-th object and all objects in x
 
         Parameters:
+        ----------
         i - an object (1, n)
         x - data matrix (m, n); m-objects, n-variables
 
         Returns:
+        -------
         D - Euclidean distance (m,)
         """
         m, n = x.shape
@@ -868,16 +870,17 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
     @staticmethod
     def dbscan(x: NDArray[np.double], k: int, eps: float = None):
-        """
-        Density-Based Spatial Clustering of Applications with Noise (DBSCAN) algorithm.
+        """Density-Based Spatial Clustering of Applications with Noise (DBSCAN) algorithm.
 
         Parameters:
+        ----------
         x   - data matrix (m, n); m-objects, n-variables
         k   - minimum number of points to form a cluster
         Eps - neighborhood radius; if None, it will be estimated using the epsilon
         function
 
         Returns:
+        -------
         class_ - Cluster assignments for each point (-1 for noise)
         type   - Type of each point (1: core, 0: border, -1: noise)
         """
@@ -981,10 +984,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Lists of good and best performance footprints for each algorithm.
         """
         # Determine the number of workers available for parallel processing
-        good: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0)
-                                 for _ in range(n_algos)]
-        best: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0)
-                                 for _ in range(n_algos)]
+        good: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0) for _ in range(n_algos)]
+        best: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0) for _ in range(n_algos)]
         worker_count = min(self.parallel_opts.n_cores, multiprocessing.cpu_count())
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = [

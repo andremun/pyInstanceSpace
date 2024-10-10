@@ -137,7 +137,7 @@ class Model:
             self.data,
         )
 
-    def save_zip(self, zip_filename:str, output_directory: Path) -> None:
+    def save_zip(self, zip_filename: str, output_directory: Path) -> None:
         """Save serializer outputs into a zip used for the web frontend."""
         print(
             "=========================================================================",
