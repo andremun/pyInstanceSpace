@@ -726,7 +726,7 @@ def save_instance_space_output_mat(
     try:
         savemat(
             output_directory / "model.mat",
-            {"data": {"algo_labels": np.array(data.algo_labels)}},
+            {"data": {"algolabels": np.array(data.algo_labels)}},
         )
         print("saved data to mat file")
     except Exception as e:
