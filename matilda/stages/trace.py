@@ -225,8 +225,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Specific binary thresholds for footprint calculation.
         algo_labels : list[str]
             List of labels for each algorithm.
-        opts : TraceOptions
+        trace_opts : TraceOptions
             Configuration options for TRACE and its subroutines.
+        parallel_opts : ParallelOptions
+            Configuration options for parallel processing in Matilda.
         """
         self.z = z
         self.y_bin = y_bin
@@ -331,8 +333,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Specific beta threshold for footprint calculation.
         algo_labels : list[str]
             Labels for each algorithm.
-        opts : TraceOptions
+        trace_opts : TraceOptions
             Configuration options for TRACE and its subroutines.
+        parallel_opts : ParallelOptions
+            Configuration options for parallel processing in Matilda.
 
         Returns:
         -------
@@ -536,10 +540,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         if unique_rows.shape[0] < POLYGON_MIN_POINT_REQUIREMENT:
             return self.throw()
 
-        labels = self.run_dbscan(y_bin, unique_rows)[0]
+        labels = self.run_dbscan(y_bin, unique_rows)
         flag = False
         polygon_body: Polygon = Polygon()
-        for i in range(0, np.max(labels) + 1):
+        for i in range(1, int(np.max(labels)) + 1):
             polydata = unique_rows[labels == i]
 
             aux = self.fit_poly(polydata, y_bin)
@@ -733,15 +737,18 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             tri = triangulate(polygon)
             for piece in tri:
                 elements = np.sum(
-                    [piece.contains(point) for point in MultiPoint(self.z).geoms],
+                    [
+                        piece.convex_hull.contains(point)
+                        for point in MultiPoint(self.z).geoms
+                    ],
                 )
                 good_elements = np.sum(
                     [
-                        piece.contains(point)
+                        piece.convex_hull.contains(point)
                         for point in MultiPoint(self.z[y_bin]).geoms
                     ],
                 )
-                if (good_elements / elements) < self.opts.purity:
+                if elements > 0 and (good_elements / elements) < self.opts.purity:
                     polygon = polygon.difference(piece)
 
         return polygon
@@ -775,7 +782,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             if ((space_area is not None) and (space_area != 0))
             else float(area)
         )
-        density = int(footprint.density) if footprint.density is not None else 0
+        density = footprint.density if footprint.density is not None else 0
         normalised_density = (
             float(density / space_density)
             if ((space_density is not None) and (space_density != 0))
@@ -806,7 +813,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
     def run_dbscan(
         y_bin: NDArray[np.bool_],
         data: NDArray[np.double],
-    ) -> NDArray[np.int_] | tuple:
+    ) -> NDArray[np.float64]:
         """Perform DBSCAN clustering on the dataset.
 
         Parameters:
@@ -827,62 +834,73 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         return TraceStage.dbscan(data, nn, eps)
 
     @staticmethod
-    def epsilon(x: NDArray[np.double], k: int):
+    def epsilon(x: NDArray[np.double], k: int) -> float:
         """Analytical way of estimating neighborhood radius for DBSCAN.
 
         Parameters:
         ----------
-        x - data matrix (m, n); m-objects, n-variables
-        k - number of objects in a neighborhood of an object
+        x: NDArray[np.double]
+            data matrix (m, n); m-objects, n-variables
+        k: int
+            number of objects in a neighborhood of an object
             (minimal number of objects considered as a cluster)
 
         Returns:
         -------
-        Eps - Estimated neighborhood radius
+        Eps: float
+            Estimated neighborhood radius
         """
         m, n = x.shape
         ranges = np.max(x, axis=0) - np.min(x, axis=0)
-        prod_ranges = np.prod(ranges)
-        numerator = prod_ranges * k * gamma(0.5 * n + 1)
+        numerator = np.prod(ranges) * k * gamma(0.5 * n + 1)
         denominator = m * np.sqrt(np.pi**n)
-        eps = (numerator / denominator) ** (1.0 / n)
-        return eps
+        return float((numerator / denominator) ** (1.0 / n))
 
     @staticmethod
-    def dist(i, x):
-        """Calculates the Euclidean distances between the i-th object and all objects in x
+    def dist(
+        i: NDArray[np.double],
+        x: NDArray[np.double],
+    ) -> float | NDArray[np.double]:
+        """Calculate the Euclidean distances between objects.
 
         Parameters:
         ----------
-        i - an object (1, n)
-        x - data matrix (m, n); m-objects, n-variables
+        i: NDArray[np.double]
+            an object (1, n)
+        x: NDArray[np.double]
+            data matrix (m, n); m-objects, n-variables
 
         Returns:
         -------
-        D - Euclidean distance (m,)
+        D: float
+            Euclidean distance (m,)
         """
         m, n = x.shape
-        if n == 1:
-            d = np.abs(x - i).flatten()
-        else:
-            d = np.sqrt(np.sum((x - i) ** 2, axis=1))
-        return d
+
+        return (
+            float(np.abs(x - i).flatten())
+            if n == 1
+            else np.sqrt(np.sum((x - i) ** 2, axis=1))
+        )
 
     @staticmethod
-    def dbscan(x: NDArray[np.double], k: int, eps: float = None):
-        """Density-Based Spatial Clustering of Applications with Noise (DBSCAN) algorithm.
+    def dbscan(x: NDArray[np.double], k: int, eps: float) -> NDArray[np.float64]:
+        """Density-Based Spatial Clustering of Applications with Noise (DBSCAN).
 
         Parameters:
         ----------
-        x   - data matrix (m, n); m-objects, n-variables
-        k   - minimum number of points to form a cluster
-        Eps - neighborhood radius; if None, it will be estimated using the epsilon
-        function
+        x: NDArray[np.double]
+           data matrix (m, n); m-objects, n-variables
+        k: int
+            minimum number of points to form a cluster
+        eps: float
+            neighborhood radius; if None, it will be estimated using the epsilon
+            function
 
         Returns:
         -------
-        class_ - Cluster assignments for each point (-1 for noise)
-        type   - Type of each point (1: core, 0: border, -1: noise)
+        class_: NDArray[np.int_]
+            Cluster assignments for each point (-1 for noise)
         """
         m, n = x.shape
         if eps is None:
@@ -931,7 +949,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         i1 = np.where(classes == 0)[0]
         classes[i1] = -1
         type_[i1] = -1
-        return classes, type_
+        return classes
 
     def process_algorithm(self, i: int) -> tuple[int, Footprint, Footprint]:
         """Process an algorithm to calculate its good and best performance footprints.

@@ -417,7 +417,8 @@ def test_save_zip() -> None:
         "model.mat",
     ]
     with zipfile.ZipFile(
-        script_dir / "test_data/serialisers/actual_output" / zip_filename, "r",
+        script_dir / "test_data/serialisers/actual_output" / zip_filename,
+        "r",
     ) as zf:
         file_list = [Path(f).name for f in zf.namelist()]
         assert all(

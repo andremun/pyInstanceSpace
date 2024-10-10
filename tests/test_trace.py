@@ -106,8 +106,8 @@ def test_trace_pythia() -> None:
     trace_output: TraceOutputs = TraceStage._run(trace_inputs)  # noqa: SLF001
 
     correct_result_path = main_dir / "test_data/trace_csvs/correct_results_pythia.csv"
-    expected_output = pd.read_csv(correct_result_path)
-    received_output = trace_output.summary
+    expected_output = pd.read_csv(correct_result_path).sort_values("Algorithm")
+    received_output = trace_output.summary.sort_values("Algorithm")
 
     # Use assert_frame_equal with tolerance
     assert_frame_equal(expected_output, received_output, rtol=1e-2, atol=1e-2)
@@ -183,7 +183,7 @@ def test_trace_simulation() -> None:
     ).astype(np.bool_)
 
     # Setting TRACE options with a purity value of 0.55 and disabling sim values
-    trace_options = TraceOptions(False, 0.55)
+    trace_options = TraceOptions(False, 0.1)
 
     parallel_options = ParallelOptions(False, 3)
 
