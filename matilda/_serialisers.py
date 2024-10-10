@@ -677,7 +677,6 @@ def _draw_footprint(
                 ax.add_patch(polygon)
 
 
-
 def _draw_binary_performance(
     z: NDArray[Any],
     y_bin: NDArray[Any],
@@ -726,7 +725,8 @@ def save_instance_space_output_mat(
     """Offline dashboard only use the algo labels from the data."""
     try:
         savemat(
-            output_directory / "model.mat", {"data": {"algo_labels": data.algo_labels}},
+            output_directory / "model.mat",
+            {"data": {"algo_labels": np.array(data.algo_labels)}},
         )
         print("saved data to mat file")
     except Exception as e:
