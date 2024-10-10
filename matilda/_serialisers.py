@@ -666,9 +666,16 @@ def _draw_footprint(
     alpha: float,
 ) -> None:
     if footprint.polygon is not None:
-        coords = footprint.polygon.exterior.coords
-        polygon = plt.Polygon(coords, color=colour, alpha=alpha)
-        ax.add_patch(polygon)
+        if isinstance(footprint.polygon, Polygon):
+            coords = footprint.polygon.exterior.coords
+            polygon = plt.Polygon(coords, color=colour, alpha=alpha)
+            ax.add_patch(polygon)
+        elif isinstance(footprint.polygon, MultiPolygon):
+            for poly in footprint.polygon.geoms:
+                coords = poly.exterior.coords
+                polygon = plt.Polygon(coords, color=colour, alpha=alpha)
+                ax.add_patch(polygon)
+
 
 
 def _draw_binary_performance(
