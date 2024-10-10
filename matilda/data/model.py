@@ -347,7 +347,7 @@ class PythiaOut:
             accuracy=stage_runner_output["accuracy"],
             selection0=stage_runner_output["selection0"],
             selection1=stage_runner_output["selection1"],
-            summary=stage_runner_output["summary"],
+            summary=stage_runner_output["pythia_summary"],
         )
 
 
