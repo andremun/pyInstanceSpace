@@ -386,7 +386,7 @@ def test_save_mat() -> None:
         script_dir / "test_data/serialisers/actual_output/mat/model.mat",
         chars_as_strings=True,
         simplify_cells=True,
-    )["data"]["algo_labels"]
+    )["data"]["algolabels"]
     print(actual_output)
     assert np.array_equal(model.data.algo_labels, actual_output)
 
