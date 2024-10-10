@@ -125,7 +125,7 @@ class TraceOutputs(NamedTuple):
     good: list[Footprint]
     best: list[Footprint]
     hard: Footprint
-    summary: pd.DataFrame
+    trace_summary: pd.DataFrame
 
 
 class TraceStage(Stage[TraceInputs, TraceOutputs]):

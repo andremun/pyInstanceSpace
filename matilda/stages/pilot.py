@@ -82,7 +82,7 @@ class PilotOutput(NamedTuple):
     b: NDArray[np.double]
     error: NDArray[np.double]
     r2: NDArray[np.double]
-    summary: pd.DataFrame
+    pilot_summary: pd.DataFrame
 
 
 class PilotStage(Stage[PilotInput, PilotOutput]):

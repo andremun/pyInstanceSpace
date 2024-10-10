@@ -247,7 +247,7 @@ class PilotOut:
             b=stage_runner_output["b"],
             error=stage_runner_output["error"],
             r2=stage_runner_output["r2"],
-            summary=stage_runner_output["summary"],
+            summary=stage_runner_output["pilot_summary"],
         )
 
 
@@ -463,7 +463,7 @@ class TraceOut:
             good=stage_runner_output["good"],
             best=stage_runner_output["best"],
             hard=stage_runner_output["hard"],
-            summary=stage_runner_output["summary"],
+            summary=stage_runner_output["trace_summary"],
         )
 
 
