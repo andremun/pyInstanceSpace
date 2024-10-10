@@ -176,18 +176,23 @@ def save_instance_space_to_csv(
         output_directory / "portfolio_svm.csv",
     )
 
-    footprint_performance = trace_out.summary.iloc[:, [0, 2, 4, 5, 7, 9, 10]]
-    footprint_performance.to_csv(
+    trace_summary = trace_out.summary.iloc[:, [0, 2, 4, 5, 7, 9, 10]]
+    trace_summary.rename(columns={"Algorithm": "Row"}, inplace=True)
+    trace_summary.to_csv(
         output_directory / "footprint_performance.csv",
         index=False,
     )
 
     if pilot_out.summary is not None:
+        pilot_summary = pilot_out.summary
+        pilot_summary.rename(columns={0: "Row"}, inplace=True)
         pilot_out.summary.to_csv(
             output_directory / "projection_matrix.csv",
             index=False,
         )
 
+    pythia_summary = pythia_out.summary
+    pythia_summary.rename(columns={"Algorithms": "Row"}, inplace=True)
     pythia_out.summary.to_csv(
         output_directory / "svm_table.csv",
         index=False,
