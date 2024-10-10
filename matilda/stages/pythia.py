@@ -171,7 +171,7 @@ class PythiaOutput(NamedTuple):
     recall: list[float]
     selection0: NDArray[np.int_]
     selection1: NDArray[np.int_]
-    summary: pd.DataFrame
+    pythia_summary: pd.DataFrame
 
 
 class PythiaStage(Stage[PythiaInput, PythiaOutput]):
