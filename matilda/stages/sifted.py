@@ -44,6 +44,9 @@ compute_correlation(...)
     Computes Pearson correlation coefficients between features and performance metrics.
 """
 
+import csv
+import os
+import time
 from typing import NamedTuple
 
 import numpy as np
@@ -297,7 +300,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             NDArray[np.bool_] | None
             Boolean array indicating whether features were selected or not.
         """
-        return SiftedStage.sifted(
+        start = time.perf_counter()
+        output = SiftedStage.sifted(
             x=inputs.x,
             y=inputs.y,
             y_bin=inputs.y_bin,
@@ -316,6 +320,22 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             parallel_options=inputs.parallel_options,
         )
 
+        # 记录结束时间
+        elapsed_time = time.perf_counter() - start
+        csv_file = "STIFED_time.csv"
+        file_exists = os.path.isfile(csv_file)
+
+        # Open the CSV file in append mode and write the data
+        with open(csv_file, mode='a', newline='') as file:
+            writer = csv.writer(file)
+
+            # Write headers if the file is newly created
+            if not file_exists:
+                writer.writerow(['Task', 'Elapsed Time (seconds)'])
+
+            # Write the elapsed time
+            writer.writerow([elapsed_time])
+        return output
     @staticmethod
     def sifted(
         x: NDArray[np.double],
@@ -399,10 +419,10 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             )
 
         if nfeats <= SiftedStage.MIN_FEAT_REQUIRED:
-            print(
-                "-> There are 3 or less features to do selection.",
-                "Skipping feature selection.",
-            )
+            # print(
+            #     "-> There are 3 or less features to do selection.",
+            #     "Skipping feature selection.",
+            # )
             selvars = np.arange(nfeats)
             return SiftedOutput(
                 x,
@@ -425,7 +445,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 None,
             )
 
-        print("-> Selecting features based on correlation with performance.")
+        # print("-> Selecting features based on correlation with performance.")
 
         x_aux, rho, pval, selvars = self.select_features_by_performance()
 
@@ -437,10 +457,10 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             )
 
         if nfeats <= SiftedStage.MIN_FEAT_REQUIRED:
-            print(
-                "-> There are 3 or less features to do selection.",
-                "Skipping correlation clustering selection.",
-            )
+            # print(
+            #     "-> There are 3 or less features to do selection.",
+            #     "Skipping correlation clustering selection.",
+            # )
             return SiftedOutput(
                 x_aux,
                 y,

@@ -32,7 +32,7 @@
     "cvfolds": 5,
     "ispolykrnl": false,
     "useweights": false,
-    "use_grid_search": true
+    "use_grid_search": false
   },
   "trace": { "usesim": true, "PI": 0.55 },
   "outputs": { "csv": true, "web": true, "png": true }

@@ -42,7 +42,8 @@ from_polygon(polygon, z, y_bin, smoothen=False):
     A function to create a Footprint object from a given polygon and corresponding
     instance data, optionally smoothing the polygon borders.
 """
-
+import os
+import csv
 import math
 import multiprocessing
 import time
@@ -279,17 +280,17 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             tuple[Footprint, list[Footprint], list[Footprint], Footprint, pd.DataFrame]
                 The results of the trace stage
         """
-        print(
-            "========================================================================",
-        )
-        print("-> Calling TRACE to perform the footprint analysis.")
-        print(
-            "========================================================================",
-        )
-
+        # print(
+        #     "========================================================================",
+        # )
+        # print("-> Calling TRACE to perform the footprint analysis.")
+        # print(
+        #     "========================================================================",
+        # )
+        start = time.perf_counter()
         if inputs.trace_options.use_sim:
             print("  -> TRACE will use PYTHIA's results to calculate the footprints.")
-            return TraceStage.trace(
+            output = TraceStage.trace(
                 inputs.z,
                 inputs.y_hat,
                 inputs.selection0,
@@ -298,8 +299,26 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 inputs.trace_options,
                 inputs.parallel_options,
             )
+            print("========================================================================")
+            print(f"TRACE: {time.perf_counter() - start:.4f}s.")
+            elapsed_time = time.perf_counter() - start
+        # Check if the file exists; if not, write headers
+        csv_file = "trace_time.csv"
+        file_exists = os.path.isfile(csv_file)
+
+        # Open the CSV file in append mode and write the data
+        with open(csv_file, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            
+            # Write headers if the file is newly created
+            if not file_exists:
+                writer.writerow(['Task', 'Elapsed Time (seconds)'])
+            
+            # Write the elapsed time
+            writer.writerow(['TRACE', elapsed_time])
+            return output
         print("  -> TRACE will use experimental data to calculate the footprints.")
-        return TraceStage.trace(
+        output = TraceStage.trace(
             inputs.z,
             inputs.y_bin,
             inputs.p,
@@ -308,6 +327,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             inputs.trace_options,
             inputs.parallel_options,
         )
+        print("========================================================================")
+        print(f"TRACE: {time.perf_counter() - start:.4f}s.")
+        print("========================================================================")
+        return output
 
     @staticmethod
     def trace(
@@ -383,7 +406,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         # Calculate the space footprint (area and density)
         print("  -> TRACE is calculating the space area and density.")
         space = self.build(true_array)  # Build the footprint for the entire space
-        print(f"    -> Space area: {space.area} | Space density: {space.density}")
+        # print(f"    -> Space area: {space.area} | Space density: {space.density}")
 
         # Prepare to calculate footprints for each algorithm's
         # good and best performance
@@ -398,15 +421,15 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         good, best = self.compute_algorithm_qualities(n_algos)
 
         # Detect and resolve contradictions between the best performance footprints
-        print(
-            "------------------------------------------------------------------------",
-        )
-        print(
-            "  -> TRACE is detecting and removing contradictory"
-            " sections of the footprints.",
-        )
+        # print(
+        #     "------------------------------------------------------------------------",
+        # )
+        # print(
+        #     "  -> TRACE is detecting and removing contradictory"
+        #     " sections of the footprints.",
+        # )
         for i in range(n_algos):
-            print(f"  -> Base algorithm '{self.algo_labels[i]}'")
+            # print(f"  -> Base algorithm '{self.algo_labels[i]}'")
             start_base = (
                 time.time()
             )  # Track the start time for processing this base algorithm
@@ -417,10 +440,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             )
 
             for j in range(i + 1, n_algos):
-                print(
-                    f"      -> TRACE is comparing '"
-                    f"{self.algo_labels[i]}' with '{self.algo_labels[j]}'",
-                )
+                # print(
+                #     f"      -> TRACE is comparing '"
+                #     f"{self.algo_labels[i]}' with '{self.algo_labels[j]}'",
+                # )
                 start_test = time.time()  # Track the start time for the comparison
 
                 # Create boolean arrays indicating which points correspond
@@ -436,34 +459,34 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
                 # Print the elapsed time for the comparison
                 elapsed_test = time.time() - start_test
-                print(
-                    f"      -> Test algorithm '{self.algo_labels[j]}' completed. "
-                    f"Elapsed time: {elapsed_test:.2f}s",
-                )
+                # print(
+                #     f"      -> Test algorithm '{self.algo_labels[j]}' completed. "
+                #     f"Elapsed time: {elapsed_test:.2f}s",
+                # )
 
             # Print the elapsed time for processing this base algorithm
             elapsed_base = time.time() - start_base
-            print(
-                f"  -> Base algorithm '{self.algo_labels[i]}' completed. Elapsed time:"
-                f" {elapsed_base:.2f}s",
-            )
+            # print(
+            #     f"  -> Base algorithm '{self.algo_labels[i]}' completed. Elapsed time:"
+            #     f" {elapsed_base:.2f}s",
+            # )
 
         # Calculate the footprint for the beta threshold,
         # which is a stricter performance threshold
-        print(
-            "------------------------------------------------------------------------",
-        )
-        print("  -> TRACE is calculating the beta-footprint.")
+        # print(
+        #     "------------------------------------------------------------------------",
+        # )
+        # print("  -> TRACE is calculating the beta-footprint.")
         hard = self.build(
             ~self.beta,
         )  # Build the footprint for instances not meeting the beta threshold
 
         # Prepare the summary table for all algorithms,
         # which includes various performance metrics
-        print(
-            "------------------------------------------------------------------------",
-        )
-        print("  -> TRACE is preparing the summary table.")
+        # print(
+        #     "------------------------------------------------------------------------",
+        # )
+        # print("  -> TRACE is preparing the summary table.")
 
         # Create a pandas DataFrame and name the column "Algorithms"
         algorithm_names_df = pd.DataFrame(self.algo_labels, columns=["Algorithm"])
@@ -503,8 +526,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         final_df = pd.concat([algorithm_names_df, summary_df], axis=1)
         # Print the completed summary of the TRACE analysis
         print("  -> TRACE has completed. Footprint analysis results:")
-        print(" ")
-        print(final_df)
+        # print(" ")
+        # print(final_df)
 
         # Return the results as a TraceOut dataclass instance
         return TraceOutputs(
@@ -800,8 +823,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         Footprint:
             An instance of Footprint with default values.
         """
-        print("        -> There are not enough instances to calculate a footprint.")
-        print("        -> The subset of instances used is too small.")
+        # print("        -> There are not enough instances to calculate a footprint.")
+        # print("        -> The subset of instances used is too small.")
         return Footprint(None, 0, 0, 0, 0, 0)
 
     @staticmethod

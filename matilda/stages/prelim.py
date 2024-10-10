@@ -11,6 +11,7 @@ guided by the options specified in the `InstanceSpaceOptions` object.
 
 from dataclasses import dataclass
 from pathlib import Path
+import time
 from typing import NamedTuple
 
 import numpy as np
@@ -200,6 +201,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
     # stage
     @staticmethod
     def _run(inputs: PrelimInput) -> PrelimOutput:
+        start = time.perf_counter()
         """See file docstring."""
         (
             x,
@@ -271,7 +273,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             inputs.s,
             inputs.selvars_options,
         )
-
+        print(f"prelim: {time.perf_counter() - start:.4f}s")
         return PrelimOutput(
             med_val,
             iq_range,

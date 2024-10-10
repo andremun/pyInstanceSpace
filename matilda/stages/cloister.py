@@ -35,6 +35,8 @@ cloister(x, a, options):
     and projection matrix `a`.
 """
 
+import os
+import time
 from typing import NamedTuple
 
 import numpy as np
@@ -42,7 +44,8 @@ from loguru import logger
 from numpy.typing import NDArray
 from scipy.spatial import ConvexHull, QhullError
 from scipy.stats import pearsonr
-
+import os
+import csv
 from matilda.data.options import CloisterOptions
 from matilda.stages.stage import Stage
 
@@ -155,8 +158,25 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
         CloisterOutput
             Output of the Cloister stage.
         """
-        return CloisterStage.cloister(inputs.x, inputs.a, inputs.cloister_options)
+        start = time.perf_counter()
+        output = CloisterStage.cloister(inputs.x, inputs.a, inputs.cloister_options)
+        csv_file = 'cloister_timing.csv'
+        elapsed_time = time.perf_counter() - start
+        # Check if the file exists; if not, write headers
+        file_exists = os.path.isfile(csv_file)
 
+        # Open the CSV file in append mode and write the data
+        with open(csv_file, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            
+            # Write headers if the file is newly created
+            if not file_exists:
+                writer.writerow(['Task', 'Elapsed Time (seconds)'])
+            
+            # Write the elapsed time
+            writer.writerow(['CLOISTER', elapsed_time])
+
+        return output
     @staticmethod
     def cloister(
         x: NDArray[np.double],

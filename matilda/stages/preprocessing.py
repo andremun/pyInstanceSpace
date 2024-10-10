@@ -1,5 +1,6 @@
 """File for preprocessing stage."""
 
+from time import perf_counter
 from typing import NamedTuple
 
 import numpy as np
@@ -108,6 +109,7 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
 
     @staticmethod
     def _run(inputs: PreprocessingInput) -> PreprocessingOutput:
+        start = perf_counter()
         """Perform preliminary processing on the input data 'x' and 'y'.
 
         Args
@@ -146,7 +148,8 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             new_feat_labels,
             inputs.instance_labels,
         )
-
+        total_time = perf_counter() - start
+        print(f"PREPROCESSING {total_time:.4f} seconds.")
         return PreprocessingOutput(
             updated_inst_labels,
             updated_feat_labels,
@@ -243,6 +246,7 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
                     "No algorithms were specified in opts.selvars."
                     "algos or it was an empty list.",
                 )
+        
         return new_x, new_y, new_feat_labels, new_algo_labels
 
     @staticmethod

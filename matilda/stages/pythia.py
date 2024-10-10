@@ -38,8 +38,11 @@ Functions:
 
 """
 
+import csv
 from dataclasses import dataclass
+import os
 from time import perf_counter
+import time
 from typing import NamedTuple
 
 import numpy as np
@@ -247,6 +250,10 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         PythiaOutput
             The output of the Pythia stage.
         """
+        y_df = pd.DataFrame(y)
+        avg = np.round(np.mean(y[y>=0], axis=0), 3)
+        print(avg)
+        y_df.to_csv("y_input.csv", index=False, header=False)
         print(
             "=========================================================================",
         )
@@ -383,7 +390,21 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 )
             print(f"      -> Elapsed time: {perf_counter() - algo_start_time:.2f}s")
 
-        print(f"Total elapsed time:  {perf_counter() - overall_start_time:.2f}s")
+        print(f"Total elapsed time:  {perf_counter() - overall_start_time:.4f}s")
+        elapsed_time = time.perf_counter() - algo_start_time
+        csv_file = "pythia_time.csv"
+        file_exists = os.path.isfile(csv_file)
+
+        # Open the CSV file in append mode and write the data
+        with open(csv_file, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            
+            # Write headers if the file is newly created
+            if not file_exists:
+                writer.writerow(['Task', 'Elapsed Time (seconds)'])
+            
+            # Write the elapsed time
+            writer.writerow([elapsed_time])
         print(
             "-------------------------------------------------------------------------",
         )
@@ -737,6 +758,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         sel0 = selection0[:, np.newaxis] == np.arange(1, nalgos + 1)
         sel1 = selection1[:, np.newaxis] == np.arange(1, nalgos + 1)
 
+        y_df = pd.DataFrame(y)
+        y_df.to_csv("beforeavg.csv", index=False, header=False)
         # Compute the average performance of the selected algorithms
         avgperf = np.round(np.nanmean(y, axis=0), 3)
         stdperf = np.round(np.nanstd(y, axis=0), 3)

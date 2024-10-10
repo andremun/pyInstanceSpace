@@ -8,6 +8,7 @@ from one edge of the space to the opposite.
 
 """
 
+import time
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -156,12 +157,15 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             pd.DataFrame
 
         """
-        return PilotStage.pilot(
+        start = time.perf_counter()
+        output = PilotStage.pilot(
             inputs.x,
             inputs.y,
             inputs.feat_labels,
             inputs.pilot_options,
         )
+        print(f"PILOT took {time.perf_counter() - start} seconds to run.")
+        return output
 
     @staticmethod
     def _pilot_print(
