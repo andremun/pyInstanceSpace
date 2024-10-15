@@ -414,7 +414,6 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         cz = np.dot(out_c.T, out_z)
         x_hat = np.vstack((bz, cz))
 
-        out_z = out_z.T
 
         error = np.sum((x_bar - x_hat) ** 2)
         r2 = np.diag(np.corrcoef(x_bar.T, x_hat.T, rowvar=False)[:m, m:]) ** 2
