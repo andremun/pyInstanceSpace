@@ -668,12 +668,12 @@ def _draw_footprint(
     if footprint.polygon is not None:
         if isinstance(footprint.polygon, Polygon):
             coords = footprint.polygon.exterior.coords
-            polygon = Polygon(coords, color=colour, alpha=alpha)
+            polygon = mpl.patches.Polygon(coords, color=colour, alpha=alpha)
             ax.add_patch(polygon)
         elif isinstance(footprint.polygon, MultiPolygon):
             for poly in footprint.polygon.geoms:
                 coords = poly.exterior.coords
-                polygon = Polygon(coords, color=colour, alpha=alpha)
+                polygon = mpl.patches.Polygon(coords, color=colour, alpha=alpha)
                 ax.add_patch(polygon)
 
 
