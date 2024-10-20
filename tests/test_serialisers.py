@@ -193,6 +193,18 @@ class _MatlabResults:
             clust=None,  # self.workspace_data["model"]["sifted"]["clust"],
         )
 
+        cloister_out = CloisterOut(
+            z_edge=self.workspace_data["model"]["cloist"]["Zedge"],
+            z_ecorr=self.workspace_data["model"]["cloist"]["Zecorr"],
+        )
+
+        def matlab_array_to_dataframe(arr: NDArray[Any]) -> pd.DataFrame:
+            summary = arr.tolist()
+            headers = summary[0]
+            headers[0] = "Row"
+            data = summary[1:]
+            return pd.DataFrame(data, columns=headers)
+
         pilot_out = PilotOut(
             X0=self.workspace_data["model"]["pilot"]["X0"],
             alpha=self.workspace_data["model"]["pilot"]["alpha"],
@@ -204,12 +216,9 @@ class _MatlabResults:
             b=self.workspace_data["model"]["pilot"]["B"],
             error=self.workspace_data["model"]["pilot"]["error"],
             r2=self.workspace_data["model"]["pilot"]["R2"],
-            summary=self.workspace_data["model"]["pilot"]["summary"],
-        )
-
-        cloister_out = CloisterOut(
-            z_edge=self.workspace_data["model"]["cloist"]["Zedge"],
-            z_ecorr=self.workspace_data["model"]["cloist"]["Zecorr"],
+            summary=matlab_array_to_dataframe(
+                self.workspace_data["model"]["pilot"]["summary"],
+            ),
         )
 
         def translate_footprint(in_from_matlab: dict[str, Any]) -> Footprint:
@@ -237,7 +246,9 @@ class _MatlabResults:
             best=[translate_footprint(i) for i in self.clean_trace["best"]],
             # TODO: This will need to be translated to our footprint struct
             hard=translate_footprint(self.clean_trace["hard"]),
-            summary=self.workspace_data["model"]["trace"]["summary"],
+            summary=matlab_array_to_dataframe(
+                self.workspace_data["model"]["trace"]["summary"],
+            ),
         )
 
         summary = self.workspace_data["model"]["pythia"]["summary"]
@@ -263,7 +274,7 @@ class _MatlabResults:
             accuracy=self.workspace_data["model"]["pythia"]["accuracy"],
             selection0=self.workspace_data["model"]["pythia"]["selection0"],
             selection1=self.workspace_data["model"]["pythia"]["selection1"],
-            summary=self.workspace_data["model"]["pythia"]["summary"],
+            summary=matlab_array_to_dataframe(summary),
         )
 
         feat_sel = FeatSel(
@@ -301,7 +312,7 @@ def test_save_to_csv() -> None:
         # Expected file isn't a directory, and actual file exists
         assert Path.is_file(expected_file_path)
         assert Path.is_file(actual_file_path)
-
+        print("----------CSV File:", csv_file)
         expected_data = pd.read_csv(expected_file_path)
         actual_data = pd.read_csv(actual_file_path)
 
@@ -375,7 +386,7 @@ def test_save_mat() -> None:
         script_dir / "test_data/serialisers/actual_output/mat/model.mat",
         chars_as_strings=True,
         simplify_cells=True,
-    )["data"]["algo_labels"]
+    )["data"]["algolabels"]
     print(actual_output)
     assert np.array_equal(model.data.algo_labels, actual_output)
 

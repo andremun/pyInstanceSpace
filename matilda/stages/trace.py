@@ -123,7 +123,7 @@ class TraceOutputs(NamedTuple):
     good: list[Footprint]
     best: list[Footprint]
     hard: Footprint
-    summary: pd.DataFrame
+    trace_summary: pd.DataFrame
 
 
 class TraceStage(Stage[TraceInputs, TraceOutputs]):
@@ -514,7 +514,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             good=good,
             best=best,
             hard=hard,
-            summary=final_df,
+            trace_summary=final_df,
         )
 
     def build(self, y_bin: NDArray[np.bool_]) -> Footprint:

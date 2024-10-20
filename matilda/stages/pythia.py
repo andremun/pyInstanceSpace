@@ -103,7 +103,7 @@ class PythiaInput(NamedTuple):
     """
 
     z: NDArray[np.double]
-    y: NDArray[np.double]
+    y_raw: NDArray[np.double]
     y_bin: NDArray[np.bool_]
     y_best: NDArray[np.double]
     algo_labels: list[str]
@@ -171,7 +171,7 @@ class PythiaOutput(NamedTuple):
     recall: list[float]
     selection0: NDArray[np.int_]
     selection1: NDArray[np.int_]
-    summary: pd.DataFrame
+    pythia_summary: pd.DataFrame
 
 
 class PythiaStage(Stage[PythiaInput, PythiaOutput]):
@@ -180,7 +180,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
     def __init__(
         self,
         z: NDArray[np.double],
-        y: NDArray[np.double],
+        y_raw: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         y_best: NDArray[np.double],
         algo_labels: list[str],
@@ -188,7 +188,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         """See file docstring."""
         super().__init__()
         self.z = z
-        self.y = y
+        self.y = y_raw
         self.y_bin = y_bin
         self.y_best = y_best
         self.algo_labels = algo_labels
@@ -205,7 +205,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
     def _run(inputs: PythiaInput) -> PythiaOutput:
         return PythiaStage.pythia(
             inputs.z,
-            inputs.y,
+            inputs.y_raw,
             inputs.y_bin,
             inputs.y_best,
             inputs.algo_labels,
