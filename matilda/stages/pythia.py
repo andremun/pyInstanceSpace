@@ -39,6 +39,7 @@ Functions:
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 from time import perf_counter
 from typing import NamedTuple
 
@@ -56,6 +57,7 @@ from sklearn.model_selection import (
     GridSearchCV,
     StratifiedKFold,
     cross_val_predict,
+    RandomizedSearchCV,
 )
 from sklearn.svm import SVC
 from skopt import BayesSearchCV
@@ -331,6 +333,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         # Section 3: Train SVM model for each algorithm & Evaluate performance.
         overall_start_time = perf_counter()
+
         for i in range(nalgos):
             algo_start_time = perf_counter()
             param_space = (
@@ -338,16 +341,15 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 if precalcparams is None
                 else {"C": precalcparams[i][0], "gamma": precalcparams[i][1]}
             )
-
             res = PythiaStage._fitmatsvm(
-                z,
-                y_bin[:, i],
-                w[:, i].flatten(),
-                cp,
-                opts.is_poly_krnl,
-                param_space,
-                opts.use_grid_search,
-                parallel_options,
+                z=z,
+                y_bin=y_bin[:, i],
+                w=w[:, i].flatten(),
+                skf=cp,
+                is_poly_kernel=opts.is_poly_krnl,
+                param_space=param_space,
+                use_grid_search=opts.use_grid_search,
+                parallel_options=parallel_options,
             )
 
             # Record performance metrics
@@ -486,11 +488,20 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             coef0=1,
         )
         if use_grid_search:
-            optimization = GridSearchCV(
+            # optimization = GridSearchCV(
+            #     estimator=svm_model,
+            #     cv=skf,
+            #     param_grid=param_space,
+            #     n_jobs=parallel_options.n_cores,
+            # )
+            optimization = RandomizedSearchCV(
                 estimator=svm_model,
+                n_iter=30,
+                param_distributions=param_space,
                 cv=skf,
-                param_grid=param_space,
-                n_jobs=-1,
+                verbose=0,
+                random_state=0,
+                n_jobs=parallel_options.n_cores,
             )
         else:
             optimization = BayesSearchCV(
@@ -676,7 +687,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             samples = lhs.random(nvals)
             c = 2 ** ((maxgrid - mingrid) * samples[:, 0] + mingrid)
             gamma = 2 ** ((maxgrid - mingrid) * samples[:, 1] + mingrid)
-
+            print(c)
+            print(gamma)
             # Combine the two sets of samples into the parameter grid
             return {"C": list(c), "gamma": list(gamma)}
         return {
@@ -813,3 +825,26 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         print("  -> PYTHIA has completed! Performance of the models:")
         print(df)
         return df
+if __name__ == '__main__':
+    script_dir = Path(__file__).parent.parent.parent / "tests"
+    print(script_dir)
+    output_dir = script_dir / "test_data/pythia/output"
+
+    csv_path_z_input = script_dir / "test_data/pythia/input/Z.csv"
+    csv_path_y_input = script_dir / "test_data/pythia/input/y.csv"
+    csv_path_algo_input = script_dir / "test_data/pythia/input/algolabels.csv"
+    csv_path_y_best_input = script_dir / "test_data/pythia/input/ybest.csv"
+    csv_path_y_bin_input = script_dir / "test_data/pythia/input/ybin.csv"
+    z = np.genfromtxt(csv_path_z_input, delimiter=",")
+    y = np.genfromtxt(csv_path_y_input, delimiter=",")
+    algo = pd.read_csv(csv_path_algo_input, header=None).squeeze().tolist()
+    y_best = np.genfromtxt(csv_path_y_best_input, delimiter=",")
+    y_bin = np.genfromtxt(csv_path_y_bin_input, delimiter=",")
+    opt = PythiaOptions(
+    cv_folds=5,
+    is_poly_krnl=False,
+    use_weights=False,
+    use_grid_search=False,
+    params=None,
+    )
+    PythiaStage.pythia(z, y, y_bin, y_best, algo, opt, ParallelOptions.default())
