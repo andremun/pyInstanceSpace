@@ -378,6 +378,8 @@ def test_pilot_analytic_pythia_grid_gaussian() -> None:
         use_grid_search=True,
         params=None,
     )
+    
+    
     pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
     pythia_result = pythia.pythia(
         pilot_result[5],
