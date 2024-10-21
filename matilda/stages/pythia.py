@@ -843,7 +843,7 @@ if __name__ == "__main__":
     cv_folds=5,
     is_poly_krnl=False,
     use_weights=False,
-    use_grid_search=False,
+    use_grid_search=True,
     params=None,
     )
     PythiaStage.pythia(z, y, y_bin, y_best, algo, opt, ParallelOptions.default())
