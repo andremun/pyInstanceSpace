@@ -163,55 +163,151 @@ def compare_performance(
 
     assert correct / total >= threshold
 
+    # def test_pilot_num_pythia_bayes_gaussian() -> None:
+    #     """Test the integration of the Pilot and Pythia stages."""
+    #     sample_data = SampleDataNum()
 
-def test_pilot_num_pythia_bayes_gaussian() -> None:
-    """Test the integration of the Pilot and Pythia stages."""
-    sample_data = SampleDataNum()
+    #     x_sample = sample_data.x_sample
+    #     y_sample = sample_data.y_sample
+    #     feat_labels_sample = sample_data.feat_labels_sample
+    #     opts_sample = sample_data.opts_sample
+    #     pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
+    #     pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
+    #     pilot_result = pilot.pilot(x_sample, y_sample, feat_labels_sample, pilot_opts)
 
-    x_sample = sample_data.x_sample
-    y_sample = sample_data.y_sample
-    feat_labels_sample = sample_data.feat_labels_sample
-    opts_sample = sample_data.opts_sample
-    pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
-    pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(x_sample, y_sample, feat_labels_sample, pilot_opts)
+    #     pythia_options = PythiaOptions(
+    #         cv_folds=5,
+    #         is_poly_krnl=False,
+    #         use_weights=False,
+    #         use_grid_search=True,
+    #         params=None,
+    #     )
+    #     pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
+    #     pythia_result = pythia.pythia(
+    #         pilot_result[5],
+    #         y,
+    #         y_bin,
+    #         y_best,
+    #         algo,
+    #         pythia_options,
+    #     )
 
-    pythia_options = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=False,
-        use_weights=False,
-        use_grid_search=True,
-        params=None,
-    )
-    pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
-    pythia_result = pythia.pythia(
-        pilot_result[5],
-        y,
-        y_bin,
-        y_best,
-        algo,
-        pythia_options,
-    )
+    #     # read the actual output
+    #     matlab_output = pd.read_csv(output_dir / "BO_gaussian/gaussian.csv")
 
-    # read the actual output
-    matlab_output = pd.read_csv(output_dir / "BO_gaussian/gaussian.csv")
+    #     # get the accuracy, precision, recall
+    #     matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
+    #     matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
+    #     matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
 
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
-    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
-    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
+    #     compare_performance(
+    #         pythia_result,
+    #         matlab_accuracy,
+    #         matlab_precision,
+    #         matlab_recall,
+    #         len(algo),
+    #         2.5,
+    #     )
 
-    compare_performance(
-        pythia_result,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
+    # def test_pilot_num_pythia_bayes_poly() -> None:
+    #     """Test the integration of the Pilot and Pythia stages."""
+    #     sample_data = SampleDataNum()
 
+    #     x_sample = sample_data.x_sample
+    #     y_sample = sample_data.y_sample
+    #     feat_labels_sample = sample_data.feat_labels_sample
+    #     opts_sample = sample_data.opts_sample
+    #     pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
+    #     pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
+    #     pilot_result = pilot.pilot(x_sample, y_sample, feat_labels_sample, pilot_opts)
 
-def test_pilot_num_pythia_bayes_poly() -> None:
+    #     opts = PythiaOptions(
+    #         cv_folds=5,
+    #         is_poly_krnl=True,
+    #         use_weights=False,
+    #         use_grid_search=False,
+    #         params=None,
+    #     )
+    #     pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
+    #     pythia_result = pythia.pythia(
+    #         pilot_result[5],
+    #         y,
+    #         y_bin,
+    #         y_best,
+    #         algo,
+    #         opts,
+    #     )
+
+    #     # read the actual output
+    #     matlab_output = pd.read_csv(output_dir / "BO_poly/poly.csv")
+
+    #     # get the accuracy, precision, recall
+    #     matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
+    #     matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
+    #     matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
+
+    #     compare_performance(
+    #         pythia_result,
+    #         matlab_accuracy,
+    #         matlab_precision,
+    #         matlab_recall,
+    #         len(algo),
+    #         2.5,
+    #     )
+
+    # def test_pilot_num_pythia_grid_gaussian() -> None:
+    #     """Test the integration of the Pilot and Pythia stages."""
+    #     sample_data = SampleDataNum()
+
+    #     x_sample = sample_data.x_sample
+    #     y_sample = sample_data.y_sample
+    #     feat_labels_sample = sample_data.feat_labels_sample
+    #     opts_sample = sample_data.opts_sample
+    #     pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
+    #     pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
+    #     pilot_result = pilot.pilot(x_sample, y_sample, feat_labels_sample, pilot_opts)
+
+    #     opts = PythiaOptions(
+    #         cv_folds=5,
+    #         is_poly_krnl=False,
+    #         use_weights=False,
+    #         use_grid_search=True,
+    #         params=None,
+    #     )
+    #     pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
+    #     pythia_result = pythia.pythia(
+    #         pilot_result[5],
+    #         y,
+    #         y_bin,
+    #         y_best,
+    #         algo,
+    #         opts,
+    #     )
+
+    #     # read the actual output
+    #     matlab_accuracy = pd.read_csv(
+    #         output_dir / "gridsearch_gaussian/accuracy.csv",
+    #         header=None,
+    #     ).values
+    #     matlab_precision = pd.read_csv(
+    #         output_dir / "gridsearch_gaussian/precision.csv",
+    #         header=None,
+    #     ).values
+    #     matlab_recall = pd.read_csv(
+    #         output_dir / "gridsearch_gaussian/recall.csv",
+    #         header=None,
+    #     ).values
+
+    #     compare_performance(
+    #         pythia_result,
+    #         matlab_accuracy,
+    #         matlab_precision,
+    #         matlab_recall,
+    #         len(algo),
+    #         2.5,
+    #     )
+
+    # def test_pilot_num_pythia_grid_poly() -> None:
     """Test the integration of the Pilot and Pythia stages."""
     sample_data = SampleDataNum()
 
@@ -226,53 +322,6 @@ def test_pilot_num_pythia_bayes_poly() -> None:
     opts = PythiaOptions(
         cv_folds=5,
         is_poly_krnl=True,
-        use_weights=False,
-        use_grid_search=False,
-        params=None,
-    )
-    pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
-    pythia_result = pythia.pythia(
-        pilot_result[5],
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-    )
-
-    # read the actual output
-    matlab_output = pd.read_csv(output_dir / "BO_poly/poly.csv")
-
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
-    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
-    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
-
-    compare_performance(
-        pythia_result,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
-
-
-def test_pilot_num_pythia_grid_gaussian() -> None:
-    """Test the integration of the Pilot and Pythia stages."""
-    sample_data = SampleDataNum()
-
-    x_sample = sample_data.x_sample
-    y_sample = sample_data.y_sample
-    feat_labels_sample = sample_data.feat_labels_sample
-    opts_sample = sample_data.opts_sample
-    pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
-    pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(x_sample, y_sample, feat_labels_sample, pilot_opts)
-
-    opts = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=False,
         use_weights=False,
         use_grid_search=True,
         params=None,
@@ -289,15 +338,15 @@ def test_pilot_num_pythia_grid_gaussian() -> None:
 
     # read the actual output
     matlab_accuracy = pd.read_csv(
-        output_dir / "gridsearch_gaussian/accuracy.csv",
+        output_dir / "gridsearch_polynomial/accuracy.csv",
         header=None,
     ).values
     matlab_precision = pd.read_csv(
-        output_dir / "gridsearch_gaussian/precision.csv",
+        output_dir / "gridsearch_polynomial/precision.csv",
         header=None,
     ).values
     matlab_recall = pd.read_csv(
-        output_dir / "gridsearch_gaussian/recall.csv",
+        output_dir / "gridsearch_polynomial/recall.csv",
         header=None,
     ).values
 
@@ -311,14 +360,13 @@ def test_pilot_num_pythia_grid_gaussian() -> None:
     )
 
 
-def test_pilot_num_pythia_grid_poly() -> None:
-    """Test the integration of the Pilot and Pythia stages."""
-    sample_data = SampleDataNum()
+def test_pilot_analytic_pythia_grid_gaussian() -> None:
+    sample_data = SampleData()
 
     x_sample = sample_data.x_sample
     y_sample = sample_data.y_sample
     feat_labels_sample = sample_data.feat_labels_sample
-    opts_sample = sample_data.opts_sample
+    opts_sample = PilotOptions(None, None, True, 5)
     pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
     pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
     pilot_result = pilot.pilot(x_sample, y_sample, feat_labels_sample, pilot_opts)

@@ -329,7 +329,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             param_space = (
                 PythiaStage._generate_params(opts.use_grid_search, rng)
                 if precalcparams is None
-                else {"C":precalcparams[i][0], "gamma":precalcparams[i][1]}
+                else {"C": precalcparams[i][0], "gamma": precalcparams[i][1]}
             )
 
             res = PythiaStage._fitmatsvm(
@@ -489,8 +489,9 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 cv=skf,
                 verbose=0,
                 random_state=0,
-                n_jobs=10, # TODO: YOU SET THIS, TAKE FROM OPTIONS
+                n_jobs=10,  # TODO: YOU SET THIS, TAKE FROM OPTIONS
             )
+        print(z.shape)
         optimization.fit(z, y_bin, sample_weight=w)
         best_svm = optimization.best_estimator_
         c = optimization.best_params_["C"]
@@ -566,7 +567,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
     @staticmethod
     def _check_precalcparams(
-        params: NDArray[np.double] | None, nalgos: int,
+        params: NDArray[np.double] | None,
+        nalgos: int,
     ) -> NDArray[np.double] | None:
         """Check pre-calculated hyper-parameters.
 
@@ -641,7 +643,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
     @staticmethod
     def _generate_params(
-        use_grid_search: bool, rng: np.random.Generator,
+        use_grid_search: bool,
+        rng: np.random.Generator,
     ) -> dict[str, list[float]]:
         """Generate hyperparameters for the SVM models.
 
