@@ -54,10 +54,9 @@ from sklearn.metrics import (
     recall_score,
 )
 from sklearn.model_selection import (
-    GridSearchCV,
+    RandomizedSearchCV,
     StratifiedKFold,
     cross_val_predict,
-    RandomizedSearchCV,
 )
 from sklearn.svm import SVC
 from skopt import BayesSearchCV
@@ -825,7 +824,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         print("  -> PYTHIA has completed! Performance of the models:")
         print(df)
         return df
-if __name__ == '__main__':
+if __name__ == "__main__":
     script_dir = Path(__file__).parent.parent.parent / "tests"
     print(script_dir)
     output_dir = script_dir / "test_data/pythia/output"
