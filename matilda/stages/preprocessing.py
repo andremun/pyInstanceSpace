@@ -1,5 +1,21 @@
-"""File for preprocessing stage.
-w
+"""Preprocessing Stage Module.
+
+This module defines the classes and methods for the preprocessing stage
+of a machine learning pipeline. It filters data rows based on provided
+options, and removes instances or features with too many missing values.
+
+The preprocessing stage outputs a cleaned and filtered dataset that can be
+used for further modeling or analysis.
+
+Classes
+-------
+PreprocessingInput : NamedTuple
+    Defines the input data structure for the preprocessing stage.
+PreprocessingOutput : NamedTuple
+    Defines the output data structure for the preprocessing stage.
+PreprocessingStage : Stage
+    Class that executes the preprocessing stage.
+
 """
 
 from typing import NamedTuple
@@ -79,7 +95,18 @@ class PreprocessingOutput(NamedTuple):
 
 
 class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
-    """Class for Preprocessing stage."""
+    """Class for handling the preprocessing stage of the pipeline.
+
+    This stage includes tasks such as feature selection, algorithm selection,
+    and removing instances or features with too many missing values.
+
+    Methods
+    -------
+    select_features_and_algorithms(x, y, feat_labels, algo_labels, selvars)
+        Selects features and algorithms from the dataset based on user options.
+    remove_instances_with_many_missing_values(x, y, s, feat_labels, inst_labels)
+        Removes instances (rows) and features (columns) with excessive missing values.
+    """
 
     def __init__(
         self,
@@ -168,9 +195,10 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
         algo_labels: list[str],
         selvars: SelvarsOptions,
     ) -> tuple[NDArray[np.double], NDArray[np.double], list[str], list[str]]:
-        """Select features and algorithms based on options provided in opts.
+        """Select features and algorithms from the dataset.
 
-        Remove instances with too many missing values.
+        Based on the user's configuration, this method filters the features
+        and algorithms that should be used in subsequent stages.
 
         Args
         ----------
@@ -261,7 +289,13 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
         list[str],
         pd.Series | None,
     ]:
-        """Remove rows (instances) and features (X columns).
+        """Remove instances and features with excessive missing values.
+
+        Instances (rows) with too many missing values are removed. Additionally,
+        features (columns) that exceed a missing value threshold are also removed.
+        Washing criterion:
+            1. For any row, if that row in both X and Y are NaN, remove
+            2. For X columns, if that column's 20% grids are filled with NaN, remove
 
         Args
         ----------
@@ -285,10 +319,6 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             the modified algorithm matrix 'y',updated instance labels,
             list of feature labels that remain after removal, and optionally
             modified series 's' if provided.
-
-         Washing criterion:
-            1. For any row, if that row in both X and Y are NaN, remove
-            2. For X columns, if that column's 20% grids are filled with NaN, remove
         """
         new_x = x
         new_y = y
