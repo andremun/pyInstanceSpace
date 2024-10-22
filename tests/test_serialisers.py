@@ -198,7 +198,7 @@ class _MatlabResults:
             z_ecorr=self.workspace_data["model"]["cloist"]["Zecorr"],
         )
 
-        def matlab_array_to_dataframe(arr: np.ndarray) -> pd.DataFrame:
+        def matlab_array_to_dataframe(arr: NDArray[Any]) -> pd.DataFrame:
             summary = arr.tolist()
             headers = summary[0]
             headers[0] = "Row"
@@ -428,7 +428,8 @@ def test_save_zip() -> None:
         "model.mat",
     ]
     with zipfile.ZipFile(
-        script_dir / "test_data/serialisers/actual_output" / zip_filename, "r",
+        script_dir / "test_data/serialisers/actual_output" / zip_filename,
+        "r",
     ) as zf:
         file_list = [Path(f).name for f in zf.namelist()]
         assert all(

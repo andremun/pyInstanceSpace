@@ -43,7 +43,6 @@ from_polygon(polygon, z, y_bin, smoothen=False):
     instance data, optionally smoothing the polygon borders.
 """
 
-import math
 import multiprocessing
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -56,7 +55,6 @@ from numpy.typing import NDArray
 from scipy.special import gamma
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
 from shapely.ops import triangulate, unary_union
-from sklearn.cluster import DBSCAN
 
 from matilda.data.model import Footprint
 from matilda.data.options import ParallelOptions, TraceOptions
@@ -227,8 +225,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Specific binary thresholds for footprint calculation.
         algo_labels : list[str]
             List of labels for each algorithm.
-        opts : TraceOptions
+        trace_opts : TraceOptions
             Configuration options for TRACE and its subroutines.
+        parallel_opts : ParallelOptions
+            Configuration options for parallel processing in Matilda.
         """
         self.z = z
         self.y_bin = y_bin
@@ -333,8 +333,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Specific beta threshold for footprint calculation.
         algo_labels : list[str]
             Labels for each algorithm.
-        opts : TraceOptions
+        trace_opts : TraceOptions
             Configuration options for TRACE and its subroutines.
+        parallel_opts : ParallelOptions
+            Configuration options for parallel processing in Matilda.
 
         Returns:
         -------
@@ -541,7 +543,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         labels = self.run_dbscan(y_bin, unique_rows)
         flag = False
         polygon_body: Polygon = Polygon()
-        for i in range(0, np.max(labels) + 1):
+        for i in range(1, int(np.max(labels)) + 1):
             polydata = unique_rows[labels == i]
 
             aux = self.fit_poly(polydata, y_bin)
@@ -725,7 +727,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         if polydata.shape[0] < POLYGON_MIN_POINT_REQUIREMENT:
             return None
 
-        polygon = alphashape.alphashape(polydata, 2.2).simplify(
+        polygon = alphashape.alphashape(polydata, 2.15).simplify(
             0.05,
         )
 
@@ -735,15 +737,18 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             tri = triangulate(polygon)
             for piece in tri:
                 elements = np.sum(
-                    [piece.contains(point) for point in MultiPoint(self.z).geoms],
+                    [
+                        piece.convex_hull.contains(point)
+                        for point in MultiPoint(self.z).geoms
+                    ],
                 )
                 good_elements = np.sum(
                     [
-                        piece.contains(point)
+                        piece.convex_hull.contains(point)
                         for point in MultiPoint(self.z[y_bin]).geoms
                     ],
                 )
-                if (good_elements / elements) < self.opts.purity:
+                if elements > 0 and (good_elements / elements) < self.opts.purity:
                     polygon = polygon.difference(piece)
 
         return polygon
@@ -777,7 +782,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             if ((space_area is not None) and (space_area != 0))
             else float(area)
         )
-        density = int(footprint.density) if footprint.density is not None else 0
+        density = footprint.density if footprint.density is not None else 0
         normalised_density = (
             float(density / space_density)
             if ((space_density is not None) and (space_density != 0))
@@ -808,7 +813,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
     def run_dbscan(
         y_bin: NDArray[np.bool_],
         data: NDArray[np.double],
-    ) -> NDArray[np.int_]:
+    ) -> NDArray[np.float64]:
         """Perform DBSCAN clustering on the dataset.
 
         Parameters:
@@ -824,24 +829,127 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Array of cluster labels for each data point.
         """
         nn = max(min(np.ceil(np.sum(y_bin) / 20), 50), 3)
-        m, n = data.shape
-
-        # Compute the range of each feature
-        feature_ranges = np.max(data, axis=0) - np.min(data, axis=0)
-
-        # Product of the feature ranges
-        product_ranges = np.prod(feature_ranges)
-
-        # Compute the gamma function value
-        gamma_val = gamma(0.5 * n + 1)
-
         # Compute Eps
-        eps = ((product_ranges * nn * gamma_val) / (m * math.sqrt(math.pi**n))) ** (
-            1 / n
+        eps = TraceStage.epsilon(data, nn)
+        return TraceStage.dbscan(data, nn, eps)
+
+    @staticmethod
+    def epsilon(x: NDArray[np.double], k: int) -> float:
+        """Analytical way of estimating neighborhood radius for DBSCAN.
+
+        Parameters:
+        ----------
+        x: NDArray[np.double]
+            data matrix (m, n); m-objects, n-variables
+        k: int
+            number of objects in a neighborhood of an object
+            (minimal number of objects considered as a cluster)
+
+        Returns:
+        -------
+        Eps: float
+            Estimated neighborhood radius
+        """
+        m, n = x.shape
+        ranges = np.max(x, axis=0) - np.min(x, axis=0)
+        numerator = np.prod(ranges) * k * gamma(0.5 * n + 1)
+        denominator = m * np.sqrt(np.pi**n)
+        return float((numerator / denominator) ** (1.0 / n))
+
+    @staticmethod
+    def dist(
+        i: NDArray[np.double],
+        x: NDArray[np.double],
+    ) -> float | NDArray[np.double]:
+        """Calculate the Euclidean distances between objects.
+
+        Parameters:
+        ----------
+        i: NDArray[np.double]
+            an object (1, n)
+        x: NDArray[np.double]
+            data matrix (m, n); m-objects, n-variables
+
+        Returns:
+        -------
+        D: float
+            Euclidean distance (m,)
+        """
+        m, n = x.shape
+
+        return (
+            float(np.abs(x - i).flatten())
+            if n == 1
+            else np.sqrt(np.sum((x - i) ** 2, axis=1))
         )
-        return np.array(
-            DBSCAN(eps=eps, min_samples=int(nn), metric="euclidean").fit_predict(data),
-        )
+
+    @staticmethod
+    def dbscan(x: NDArray[np.double], k: int, eps: float) -> NDArray[np.float64]:
+        """Density-Based Spatial Clustering of Applications with Noise (DBSCAN).
+
+        Parameters:
+        ----------
+        x: NDArray[np.double]
+           data matrix (m, n); m-objects, n-variables
+        k: int
+            minimum number of points to form a cluster
+        eps: float
+            neighborhood radius; if None, it will be estimated using the epsilon
+            function
+
+        Returns:
+        -------
+        class_: NDArray[np.int_]
+            Cluster assignments for each point (-1 for noise)
+        """
+        m, n = x.shape
+        if eps is None:
+            eps = TraceStage.epsilon(x, k)
+        # Augment x with indices
+        x_with_index = np.hstack((np.arange(m).reshape(m, 1), x))
+        type_ = np.zeros(m)  # 1: core, 0: border, -1: noise
+        no = 1  # Cluster label
+        touched = np.zeros(m)  # 0: not processed, 1: processed
+        classes = np.zeros(m)  # Cluster assignment
+        for i in range(m):
+            if touched[i] == 0:
+                ob = x_with_index[i, :]
+                d = TraceStage.dist(ob[1:], x_with_index[:, 1:])
+                ind = np.where(d <= eps)[0]
+                if 1 < len(ind) < k + 1:
+                    type_[i] = 0  # Border point
+                    classes[i] = 0
+                if len(ind) == 1:
+                    type_[i] = -1  # Noise point
+                    classes[i] = -1
+                    touched[i] = 1
+                if len(ind) >= k + 1:
+                    type_[i] = 1  # Core point
+                    classes[ind] = no
+                    ind_list = list(ind)
+                    while len(ind_list) > 0:
+                        current_index = ind_list[0]
+                        ob = x_with_index[current_index, :]
+                        touched[current_index] = 1
+                        ind_list.pop(0)
+                        d = TraceStage.dist(ob[1:], x_with_index[:, 1:])
+                        i1 = np.where(d <= eps)[0]
+                        if len(i1) > 1:
+                            classes[i1] = no
+                            if len(i1) >= k + 1:
+                                type_[int(ob[0])] = 1
+                            else:
+                                type_[int(ob[0])] = 0
+                            for j in i1:
+                                if touched[j] == 0:
+                                    touched[j] = 1
+                                    ind_list.append(j)
+                                    classes[j] = no
+                    no += 1
+        i1 = np.where(classes == 0)[0]
+        classes[i1] = -1
+        type_[i1] = -1
+        return classes
 
     def process_algorithm(self, i: int) -> tuple[int, Footprint, Footprint]:
         """Process an algorithm to calculate its good and best performance footprints.
@@ -894,8 +1002,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Lists of good and best performance footprints for each algorithm.
         """
         # Determine the number of workers available for parallel processing
-        good: list[Footprint] = [self.throw() for _ in range(n_algos)]
-        best: list[Footprint] = [self.throw() for _ in range(n_algos)]
+        good: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0) for _ in range(n_algos)]
+        best: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0) for _ in range(n_algos)]
         worker_count = min(self.parallel_opts.n_cores, multiprocessing.cpu_count())
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = [
