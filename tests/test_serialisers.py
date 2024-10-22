@@ -198,7 +198,7 @@ class _MatlabResults:
             z_ecorr=self.workspace_data["model"]["cloist"]["Zecorr"],
         )
 
-        def matlab_array_to_dataframe(arr: np.ndarray) -> pd.DataFrame:
+        def matlab_array_to_dataframe(arr: NDArray[Any]) -> pd.DataFrame:
             summary = arr.tolist()
             headers = summary[0]
             headers[0] = "Row"
