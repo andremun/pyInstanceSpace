@@ -97,6 +97,7 @@ def test_generate_params_true() -> None:
     assert all(min_value <= param <= max_value for param in params["C"])
     assert all(min_value <= param <= max_value for param in params["gamma"])
 
+
 def test_generate_params_false() -> None:
     """Test that the generated param space for bayesian optimization is expected."""
     min_value = 2**-10
@@ -112,6 +113,7 @@ def test_generate_params_false() -> None:
     assert params["C"].high == max_value
     assert params["gamma"].low == min_value
     assert params["gamma"].high == max_value
+
 
 def test_gridsearch_opts_gaussian() -> None:
     """Test that the performance of model is asexpected when grid search & gaussian."""
@@ -184,6 +186,7 @@ def test_gridsearch_opts_poly() -> None:
         len(algo),
         2.5,
     )
+
 
 def test_bayes_opt_gaussian() -> None:
     """Test that the output of the function is as expected when BO is required."""
@@ -271,6 +274,7 @@ def test_bayes_opt_poly() -> None:
         len(algo),
         2.5,
     )
+
 
 def compare_performance(
     python_output: tuple[

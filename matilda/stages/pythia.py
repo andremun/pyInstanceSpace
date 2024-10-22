@@ -65,6 +65,7 @@ from matilda.stages.stage import Stage
 
 LARGE_NUM_INSTANCE: int = 1000
 
+
 @dataclass(frozen=True)
 class _SvmRes:
     """SVM result class."""
@@ -565,7 +566,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 param_distributions=param_space,
                 cv=skf,
                 verbose=0,
-                random_state=0,# Ensure reproducibility with a fixed seed
+                random_state=0,  # Ensure reproducibility with a fixed seed
                 n_jobs=parallel_options.n_cores,
             )
         else:
@@ -575,7 +576,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 search_spaces=param_space,
                 cv=skf,
                 verbose=0,
-                random_state=0, # Ensure reproducibility with a fixed seed
+                random_state=0,  # Ensure reproducibility with a fixed seed
                 n_jobs=parallel_options.n_cores,
             )
         optimization.fit(z, y_bin, sample_weight=w)
@@ -742,7 +743,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             The random number generator.
         """
         if use_grid_search:
-            maxgrid,mingrid = 4, -10
+            maxgrid, mingrid = 4, -10
             # Number of samples
             nvals = 30
 
