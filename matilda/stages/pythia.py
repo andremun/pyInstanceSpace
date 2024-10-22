@@ -38,7 +38,6 @@ Functions:
 """
 
 from dataclasses import dataclass
-from pathlib import Path
 from time import perf_counter
 from typing import NamedTuple
 
@@ -754,7 +753,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             gamma = 2 ** ((maxgrid - mingrid) * samples[:, 1] + mingrid)
             return {"C": list(c), "gamma": list(gamma)}
         return {
-            # Create parameter space for Bayesian optimization using a log-uniform distribution
+            # Create parameter space for Bayesian optimization
+            # using a log-uniform distribution
             "C": Real(2**-10, 2**4, prior="log-uniform"),
             "gamma": Real(2**-10, 2**4, prior="log-uniform"),
         }
