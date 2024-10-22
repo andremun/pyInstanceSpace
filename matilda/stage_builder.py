@@ -2,7 +2,7 @@
 
 from typing import NamedTuple, Self, get_args
 
-from matilda.stage_runner import StageArgument, StageRunner, StageScheduleElement
+from matilda.stage_runner import StageRunner, StageScheduleElement, _StageArgument
 from matilda.stages.stage import RunAfter, RunBefore, StageClass
 
 
@@ -23,6 +23,31 @@ class StageResolutionError(Exception):
 class StageBuilder:
     """A stage builder to resolve a collection of stages.
 
+    ##Example:##
+    ```python
+    stage_builder = StageBuilder()
+
+    # Stages don't need to be added in order, but are here for demonstration purposes.
+    stage_builder
+        .add(PreprocessingStage)
+        .add(PrelimStage)
+        .add(SiftedStage)
+
+    stage_runner = stage_builder.build()
+
+    ```
+
+    ##Example:##
+    ```python
+
+    # Stages don't need to be added in order, but are here for demonstration purposes.
+    stage_runner = StageBuilder()
+        .add(PreprocessingStage)
+        .add(PrelimStage)
+        .build()
+
+    ```
+
     ## Concepts
 
     ### Mutating Stage
@@ -42,15 +67,18 @@ class StageBuilder:
     This input has no effect on the stage itself, and will not be passed to the stage.
     """
 
-    stages: set[StageClass]
-    stage_inputs: dict[StageClass, set[StageArgument]]
-    stage_outputs: dict[StageClass, set[StageArgument]]
+    _stages: set[StageClass]
+    _stage_inputs: dict[StageClass, set[_StageArgument]]
+    _stage_outputs: dict[StageClass, set[_StageArgument]]
 
     def __init__(self) -> None:
-        """Initialise a StageBuilder."""
-        self.stages = set()
-        self.stage_inputs = {}
-        self.stage_outputs = {}
+        """Initialise a new StageBuilder.
+
+        @private
+        """
+        self._stages = set()
+        self._stage_inputs = {}
+        self._stage_outputs = {}
 
     def add_stage(
         self,
@@ -63,14 +91,14 @@ class StageBuilder:
         Args
         ----
             stage StageClass: A Stage class
-            inputs list[StageArgument]: A list of inputs that the stage takes
-            outputs list[StageArgument]: A list of outputs the stage produces
+            inputs list[_StageArgument]: A list of inputs that the stage takes
+            outputs list[_StageArgument]: A list of outputs the stage produces
 
         Returns
         -------
             Self
         """
-        if stage in self.stages:
+        if stage in self._stages:
             raise ValueError(
                 f"Stage {stage} has already been added, and cannot be added again.",
             )
@@ -87,15 +115,15 @@ class StageBuilder:
                     + f"{output_type}s are only allowed as inputs.",
                 )
 
-        self.stages.add(stage)
-        self.stage_inputs[stage] = self._named_tuple_to_stage_arguments(inputs)
-        self.stage_outputs[stage] = self._named_tuple_to_stage_arguments(outputs)
+        self._stages.add(stage)
+        self._stage_inputs[stage] = self._named_tuple_to_stage_arguments(inputs)
+        self._stage_outputs[stage] = self._named_tuple_to_stage_arguments(outputs)
 
         return self
 
     def build(
         self,
-        initial_input_arguments: type[NamedTuple] | set[StageArgument],
+        initial_input_arguments: type[NamedTuple] | set[_StageArgument],
     ) -> StageRunner:
         """Resolve the stages, and produce a StageRunner to run them.
 
@@ -117,25 +145,25 @@ class StageBuilder:
 
         return StageRunner(
             stage_order,
-            self.stage_inputs,
-            self.stage_outputs,
+            self._stage_inputs,
+            self._stage_outputs,
             initial_input_annotations,
         )
 
     def _resolve_stages(
         self,
-        initial_input_annotations: set[StageArgument],
+        initial_input_annotations: set[_StageArgument],
     ) -> list[StageScheduleElement]:
         resolved_stages: set[StageClass] = set()
 
         stage_order: list[StageScheduleElement] = []
 
-        available_inputs: set[StageArgument] = initial_input_annotations
+        available_inputs: set[_StageArgument] = initial_input_annotations
 
         previous_resolved_stages: set[StageClass] | None = None
 
         # Find mutating stages
-        mutating_stages: dict[StageClass, set[StageArgument]] = (
+        mutating_stages: dict[StageClass, set[_StageArgument]] = (
             self._get_mutating_stages()
         )
 
@@ -149,7 +177,7 @@ class StageBuilder:
             or len(resolved_stages - previous_resolved_stages) > 0
         ):
             # No stages left to resolve, return the ordering
-            if len(self.stages - resolved_stages) == 0:
+            if len(self._stages - resolved_stages) == 0:
                 return stage_order
 
             previous_resolved_stages = resolved_stages.copy()
@@ -157,7 +185,7 @@ class StageBuilder:
             stages_can_run: set[StageClass] = set()
 
             # Find stages to run
-            for stage in self.stages - resolved_stages:
+            for stage in self._stages - resolved_stages:
                 if self._stage_resolves(
                     stage,
                     resolved_stages,
@@ -176,7 +204,7 @@ class StageBuilder:
             for stage in stages_can_run_post_mutating_check:
                 for other_stage in stages_can_run_post_mutating_check - {stage}:
                     shared_outputs = (
-                        self.stage_outputs[stage] & self.stage_outputs[other_stage]
+                        self._stage_outputs[stage] & self._stage_outputs[other_stage]
                     )
                     if len(shared_outputs) > 0:
                         raise StageResolutionError(
@@ -188,18 +216,18 @@ class StageBuilder:
 
             # Add outputs of stages that can run to the list of available inputs
             for stage in stages_can_run_post_mutating_check:
-                for argument in self.stage_outputs[stage]:
+                for argument in self._stage_outputs[stage]:
                     available_inputs.add(argument)
                     resolved_stages.add(stage)
 
             stage_order.append(list(stages_can_run_post_mutating_check))
 
         # If stage resolution failed, raise a detailed error
-        if len(self.stages - resolved_stages) > 0:
+        if len(self._stages - resolved_stages) > 0:
             inputs_message = ""
-            for stage in self.stages - resolved_stages:
+            for stage in self._stages - resolved_stages:
                 required_inputs = self._strip_run_restriction_arguments(
-                    self.stage_inputs[stage],
+                    self._stage_inputs[stage],
                 )
 
                 missing_inputs = required_inputs - available_inputs
@@ -232,8 +260,8 @@ class StageBuilder:
 
     @staticmethod
     def _strip_run_restriction_arguments(
-        arguments: set[StageArgument],
-    ) -> set[StageArgument]:
+        arguments: set[_StageArgument],
+    ) -> set[_StageArgument]:
         return {
             argument
             for argument in arguments
@@ -244,14 +272,14 @@ class StageBuilder:
             )
         }
 
-    def _get_mutating_stages(self) -> dict[StageClass, set[StageArgument]]:
-        mutating_stages: dict[StageClass, set[StageArgument]] = {}
+    def _get_mutating_stages(self) -> dict[StageClass, set[_StageArgument]]:
+        mutating_stages: dict[StageClass, set[_StageArgument]] = {}
 
-        for stage in self.stages:
-            mutating_arguments: set[StageArgument] = set()
+        for stage in self._stages:
+            mutating_arguments: set[_StageArgument] = set()
 
-            for stage_input in self.stage_inputs[stage]:
-                if stage_input in self.stage_outputs[stage]:
+            for stage_input in self._stage_inputs[stage]:
+                if stage_input in self._stage_outputs[stage]:
                     mutating_arguments.add(stage_input)
 
             if len(mutating_arguments) > 0:
@@ -262,8 +290,8 @@ class StageBuilder:
     def _get_ordering_restrictions(self) -> set[_BeforeAfterRestriction]:
         ordering_restrictions: set[_BeforeAfterRestriction] = set()
 
-        for stage in self.stages:
-            for argument in self.stage_inputs[stage]:
+        for stage in self._stages:
+            for argument in self._stage_inputs[stage]:
                 if isinstance(argument.parameter_type, type) and issubclass(
                     argument.parameter_type,
                     RunBefore,
@@ -303,11 +331,11 @@ class StageBuilder:
         self,
         stage: StageClass,
         resolved_stages: set[StageClass],
-        available_inputs: set[StageArgument],
+        available_inputs: set[_StageArgument],
         ordering_restrictions: set[_BeforeAfterRestriction],
     ) -> bool:
         required_inputs = self._strip_run_restriction_arguments(
-            self.stage_inputs[stage],
+            self._stage_inputs[stage],
         )
         _, run_after_stages = self._get_restrictions_for_stage(
             ordering_restrictions,
@@ -322,7 +350,7 @@ class StageBuilder:
     def _mutating_stages_check(
         self,
         stages_can_run: set[StageClass],
-        mutating_stages: dict[StageClass, set[StageArgument]],
+        mutating_stages: dict[StageClass, set[_StageArgument]],
     ) -> set[StageClass]:
         mutating_stages_can_run = set(mutating_stages.keys()) & stages_can_run
 
@@ -354,7 +382,7 @@ class StageBuilder:
         # Remove any stages with an argument being mutated by a mutating stage
         for stage in stages_can_run:
             mutating_arguments_in_stage_input = (
-                mutating_stage_arguments & self.stage_inputs[stage]
+                mutating_stage_arguments & self._stage_inputs[stage]
             )
 
             if stage in mutating_stages:
@@ -368,16 +396,16 @@ class StageBuilder:
     @staticmethod
     def _named_tuple_to_stage_arguments(
         named_tuple: type[NamedTuple],
-    ) -> set[StageArgument]:
-        stage_arguments: set[StageArgument] = set()
+    ) -> set[_StageArgument]:
+        stage_arguments: set[_StageArgument] = set()
 
         for argument_name, argument_type in named_tuple.__annotations__.items():
-            stage_arguments.add(StageArgument(argument_name, argument_type))
+            stage_arguments.add(_StageArgument(argument_name, argument_type))
 
         return stage_arguments
 
 
-def _format_stage_arguments(stage_arguments: set[StageArgument]) -> str:
+def _format_stage_arguments(stage_arguments: set[_StageArgument]) -> str:
     return "".join(
         map(
             lambda x: f"{x.parameter_name}, {x.parameter_type}\n",

@@ -1,4 +1,10 @@
-"""TODO: document instance space module."""
+"""
+Perform instance space analysis on given dataset and configuration.
+
+Construct an instance space from data and configuration files located in a specified
+directory. The instance space is represented as a Model object, which encapsulates the
+analytical results and metadata of the instance space analysis.
+"""
 
 from collections.abc import Generator
 from dataclasses import fields
@@ -98,7 +104,19 @@ class _InstanceSpaceInputs(NamedTuple):
 
 
 class InstanceSpace:
-    """TODO: Describe what an instance space IS."""
+    """
+    The main instance space class.
+
+    ## Basic Example:
+    ```python
+        metadata = Metadata.from_csv_file('./metadata.csv')
+        options = InstanceSpaceOptions.default()
+
+        instance_space = InstanceSpace(metadata, options)
+
+        model = instance_space.build()
+    ```
+    """
 
     _runner: StageRunner
     _stages: list[StageClass]
@@ -126,8 +144,16 @@ class InstanceSpace:
     ) -> None:
         """Initialise the InstanceSpace.
 
-        Args:
-            stages list[StageClass], optional: A list of stages to be ran.
+        Args
+        ----
+            metadata : Metadata
+                TODO THIS
+            options : InstanceSpaceOptions
+                Options to build the instance space.
+            stages : list[StageClass], optional
+                A list of stages to be ran.
+            additional_initial_inputs_type : type[NamedTuple] | None, optional
+                Extra initial inputs used by plugins.
         """
         self._metadata = metadata
         self._options = options
@@ -175,7 +201,7 @@ class InstanceSpace:
 
         Returns
         -------
-            Model: _description_
+            Model: The output of building the instance space.
         """
         if self._model is None:
             if self._final_output is None:
@@ -190,17 +216,11 @@ class InstanceSpace:
 
     def build(
         self,
-        **_arguments: Any,  # noqa: ANN401 # TODO: make this work
     ) -> Model:
         """Build the instance space.
 
         Options will be broken down to sub fields to be passed to stages. You can
         override inputs to stages.
-
-        Args
-        ----
-            metadata Metadata: _description_
-            options InstanceSpaceOptions: _description_
 
         Returns
         -------
@@ -217,23 +237,19 @@ class InstanceSpace:
 
     def run_iter(
         self,
-        metadata: Metadata,
-        options: InstanceSpaceOptions,
-        **_arguments: Any,  # noqa: ANN401 # TODO: make this work
     ) -> Generator[AnnotatedStageOutput, None, None]:
         """Run all stages, yielding between so the data can be examined.
 
-        Args
-        ----
-            metadata Metadata: _description_
-            options InstanceSpaceOptions: _description_
-
         Yields
         ------
-            Generator[None, tuple[Any], None]: _description_
+            Generator[AnnotatedStageOutput, None]: The output of each stage, annotated
+                with what stage was ran, as multiple stages ran in the same schedule can
+                be ran in any order.
         """
-        inputs = _InstanceSpaceInputs.from_metadata_and_options(metadata, options)
-        # TODO: split out metadata and options into component fields
+        inputs = _InstanceSpaceInputs.from_metadata_and_options(
+            self.metadata,
+            self.options,
+        )
         yield from self._runner.run_iter(inputs)
 
     def run_stage(
@@ -249,22 +265,24 @@ class InstanceSpace:
 
         Args
         ----
-            stage StageClass: Any inputs to the stage.
+            stage : StageClass
+                The stage to be ran.
+
+            **arguments : Any
+                Any additional inputs to the stage. Outputs from previous stages will
+                be used if not provided.
 
         Returns
         -------
-            list[Any]: The output of the stage
+            list[Any]: The output of the stage.
         """
-        # Need to type coerce the output of the stage because generics
         return self._runner.run_stage(stage, **arguments)
 
     def run_until_stage(
         self,
         stage: StageClass,
-        metadata: Metadata,
-        options: InstanceSpaceOptions,
         **_arguments: Any,  # noqa: ANN401
-    ) -> None:
+    ) -> dict[str, Any]:
         """Run all stages until the specified stage, as well as the specified stage.
 
         Args
@@ -272,17 +290,18 @@ class InstanceSpace:
             stage StageClass: The stage to stop running stages after.
             metadata Metadata: _description_
             options InstanceSpaceOptions: _description_
-            **arguments dict[str, Any]: if this is the first time stages are ran,
-                initial inputs, and overriding inputs for other stages. TODO: rewrite
-                this
+            **arguments dict[str, Any]: if this is the first time stages are ran the
+                initial inputs, and overriding inputs for other stages.
 
         Returns
         -------
-            list[Any]: _description_
+            dict[str, Any]: The raw output dict of all ran stages.
         """
-        inputs = _InstanceSpaceInputs.from_metadata_and_options(metadata, options)
-        # TODO: split out metadata and options into component fields
-        self._runner.run_until_stage(
+        inputs = _InstanceSpaceInputs.from_metadata_and_options(
+            self.metadata,
+            self.options,
+        )
+        return self._runner.run_until_stage(
             stage,
             inputs,
         )

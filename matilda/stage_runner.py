@@ -9,7 +9,7 @@ from matilda.stages.stage import OUT, Stage, StageClass
 StageScheduleElement = list[StageClass]
 
 
-class StageArgument(NamedTuple):
+class _StageArgument(NamedTuple):
     """An input or output of a stage."""
 
     parameter_name: str
@@ -54,9 +54,9 @@ class StageRunner:
     def __init__(
         self,
         stages: list[StageScheduleElement],
-        input_arguments: dict[StageClass, set[StageArgument]],
-        output_arguments: dict[StageClass, set[StageArgument]],
-        initial_input_annotations: set[StageArgument],
+        input_arguments: dict[StageClass, set[_StageArgument]],
+        output_arguments: dict[StageClass, set[_StageArgument]],
+        initial_input_annotations: set[_StageArgument],
     ) -> None:
         """Create a StageRunner from a preresolved set of stages.
 
@@ -230,9 +230,9 @@ class StageRunner:
     @staticmethod
     def _check_stage_order_is_runnable(
         stages: list[StageScheduleElement],
-        input_arguments: dict[StageClass, set[StageArgument]],
-        output_arguments: dict[StageClass, set[StageArgument]],
-        initial_input_annotations: set[StageArgument],
+        input_arguments: dict[StageClass, set[_StageArgument]],
+        output_arguments: dict[StageClass, set[_StageArgument]],
+        initial_input_annotations: set[_StageArgument],
     ) -> None:
         available_arguments = initial_input_annotations.copy()
 

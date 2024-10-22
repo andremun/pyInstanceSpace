@@ -395,8 +395,8 @@ def save_instance_space_graphs(
 
 
 def _write_array_to_csv(
-    data: NDArray[Any],  # TODO: Try to unify these
-    column_names: pd.Series[str],  # TODO: Try to unify these
+    data: NDArray[Any],
+    column_names: pd.Series[str],
     row_names: pd.Series[str],
     filename: Path,
 ) -> None:
@@ -407,8 +407,8 @@ def _write_array_to_csv(
 
 
 def _write_cell_to_csv(
-    data: pd.Series[Any],  # TODO: Try to unify these
-    column_names: pd.Series[str],  # TODO: Try to unify these
+    data: pd.Series[Any],
+    column_names: pd.Series[str],
     row_names: pd.Series[str],
     filename: Path,
 ) -> None:
@@ -458,7 +458,7 @@ def _draw_sources(
 
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
-    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    ax: Axes = ax2
     ax.set_xlim((-5, 5))
     ax.set_ylim((-5, 5))
     fig.suptitle("Sources")
@@ -496,7 +496,7 @@ def _draw_scatter(
 
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
-    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    ax: Axes = ax2
     fig.suptitle(title_label, size=14)
 
     norm = Normalize(lower_bound, upper_bound)
@@ -540,7 +540,7 @@ def _draw_portfolio_selections(
 
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
-    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    ax: Axes = ax2
     ax.set_xlim((-5, 5))
     ax.set_ylim((-5, 5))
     fig.suptitle(title_label)
@@ -590,7 +590,7 @@ def _draw_portfolio_footprint(
 
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
-    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    ax: Axes = ax2
     ax.set_xlim((-5, 5))
     ax.set_ylim((-5, 5))
     fig.suptitle("Portfolio footprints")
@@ -636,7 +636,7 @@ def _draw_good_bad_footprint(
     # labels = ["GOOD", "BAD"]
 
     fig, ax2 = plt.subplots()
-    ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+    ax: Axes = ax2
     fig.suptitle(title_label)
     ax.set_xlim((-5, 5))
     ax.set_ylim((-5, 5))
@@ -692,7 +692,7 @@ def _draw_binary_performance(
         plt.clf()
 
         fig, ax2 = plt.subplots()
-        ax: Axes = ax2  # TODO: Remove this before PR, just for programming
+        ax: Axes = ax2
         fig.suptitle(title_label)
         ax.set_xlim((-5, 5))
         ax.set_ylim((-5, 5))
