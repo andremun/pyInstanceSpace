@@ -504,7 +504,12 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
                 -------
                     Any: The negative log-likelihood value.
                 """
-                return -float(stats.boxcox_llf(lmbda, data)[0])
+                result = stats.boxcox_llf(lmbda, data)
+                if isinstance(result, list | np.ndarray):
+                    return -float(result[0])
+                return -float(result)
+
+
 
             # Find the lambda that minimizes the negative log-likelihood
             # We minimize the negative log-likelihood because fmin performs minimization
