@@ -566,7 +566,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 param_distributions=param_space,
                 cv=skf,
                 verbose=0,
-                random_state=0,
+                random_state=0,# Ensure reproducibility with a fixed seed
                 n_jobs=parallel_options.n_cores,
             )
         else:
@@ -576,7 +576,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 search_spaces=param_space,
                 cv=skf,
                 verbose=0,
-                random_state=0,
+                random_state=0, # Ensure reproducibility with a fixed seed
                 n_jobs=parallel_options.n_cores,
             )
         optimization.fit(z, y_bin, sample_weight=w)
@@ -747,14 +747,14 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             # Number of samples
             nvals = 30
 
-            # Generate Latin Hypercube Samples
+            # Generate params space through latin hypercube samples for grid search
             lhs = stats.qmc.LatinHypercube(d=2, seed=rng)
             samples = lhs.random(nvals)
             c = 2 ** ((maxgrid - mingrid) * samples[:, 0] + mingrid)
             gamma = 2 ** ((maxgrid - mingrid) * samples[:, 1] + mingrid)
-            # Combine the two sets of samples into the parameter grid
             return {"C": list(c), "gamma": list(gamma)}
         return {
+            # Create parameter space for Bayesian optimization using a log-uniform distribution
             "C": Real(2**-10, 2**4, prior="log-uniform"),
             "gamma": Real(2**-10, 2**4, prior="log-uniform"),
         }
