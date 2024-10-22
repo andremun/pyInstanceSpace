@@ -1,6 +1,8 @@
 """Test module for serialisers."""
 
 import os
+import shutil
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -191,6 +193,18 @@ class _MatlabResults:
             clust=None,  # self.workspace_data["model"]["sifted"]["clust"],
         )
 
+        cloister_out = CloisterOut(
+            z_edge=self.workspace_data["model"]["cloist"]["Zedge"],
+            z_ecorr=self.workspace_data["model"]["cloist"]["Zecorr"],
+        )
+
+        def matlab_array_to_dataframe(arr: np.ndarray) -> pd.DataFrame:
+            summary = arr.tolist()
+            headers = summary[0]
+            headers[0] = "Row"
+            data = summary[1:]
+            return pd.DataFrame(data, columns=headers)
+
         pilot_out = PilotOut(
             X0=self.workspace_data["model"]["pilot"]["X0"],
             alpha=self.workspace_data["model"]["pilot"]["alpha"],
@@ -202,12 +216,9 @@ class _MatlabResults:
             b=self.workspace_data["model"]["pilot"]["B"],
             error=self.workspace_data["model"]["pilot"]["error"],
             r2=self.workspace_data["model"]["pilot"]["R2"],
-            summary=self.workspace_data["model"]["pilot"]["summary"],
-        )
-
-        cloister_out = CloisterOut(
-            z_edge=self.workspace_data["model"]["cloist"]["Zedge"],
-            z_ecorr=self.workspace_data["model"]["cloist"]["Zecorr"],
+            summary=matlab_array_to_dataframe(
+                self.workspace_data["model"]["pilot"]["summary"],
+            ),
         )
 
         def translate_footprint(in_from_matlab: dict[str, Any]) -> Footprint:
@@ -235,7 +246,9 @@ class _MatlabResults:
             best=[translate_footprint(i) for i in self.clean_trace["best"]],
             # TODO: This will need to be translated to our footprint struct
             hard=translate_footprint(self.clean_trace["hard"]),
-            summary=self.workspace_data["model"]["trace"]["summary"],
+            summary=matlab_array_to_dataframe(
+                self.workspace_data["model"]["trace"]["summary"],
+            ),
         )
 
         summary = self.workspace_data["model"]["pythia"]["summary"]
@@ -261,7 +274,7 @@ class _MatlabResults:
             accuracy=self.workspace_data["model"]["pythia"]["accuracy"],
             selection0=self.workspace_data["model"]["pythia"]["selection0"],
             selection1=self.workspace_data["model"]["pythia"]["selection1"],
-            summary=self.workspace_data["model"]["pythia"]["summary"],
+            summary=matlab_array_to_dataframe(summary),
         )
 
         feat_sel = FeatSel(
@@ -299,7 +312,7 @@ def test_save_to_csv() -> None:
         # Expected file isn't a directory, and actual file exists
         assert Path.is_file(expected_file_path)
         assert Path.is_file(actual_file_path)
-
+        print("----------CSV File:", csv_file)
         expected_data = pd.read_csv(expected_file_path)
         actual_data = pd.read_csv(actual_file_path)
 
@@ -363,3 +376,71 @@ def test_save_graphs() -> None:
         assert Path.is_file(actual_file_path)
 
         # We can't test the images, so we must check visually that they are consistant
+
+
+def test_save_mat() -> None:
+    """Test saving a mat file of the output directory."""
+    model = _MatlabResults().get_model()
+    model.save_to_mat(script_dir / "test_data/serialisers/actual_output/mat")
+    actual_output = loadmat(
+        script_dir / "test_data/serialisers/actual_output/mat/model.mat",
+        chars_as_strings=True,
+        simplify_cells=True,
+    )["data"]["algolabels"]
+    print(actual_output)
+    assert np.array_equal(model.data.algo_labels, actual_output)
+
+
+def test_save_zip() -> None:
+    """Test saving a zip file of the output directory."""
+    model = _MatlabResults().get_model()
+    # Clear the output before running the test
+    clean_dir(script_dir / "test_data/serialisers/actual_output/png")
+    clean_dir(script_dir / "test_data/serialisers/actual_output/csv")
+    clean_dir(script_dir / "test_data/serialisers/actual_output/web")
+    clean_dir(script_dir / "test_data/serialisers/actual_output/mat")
+
+    # Save the data to the output directory
+    model.save_graphs(script_dir / "test_data/serialisers/actual_output/png")
+    model.save_to_csv(script_dir / "test_data/serialisers/actual_output/csv")
+    model.save_for_web(script_dir / "test_data/serialisers/actual_output/web")
+    model.save_to_mat(script_dir / "test_data/serialisers/actual_output/mat")
+
+    # Copy metadata and options from input folder into expected output folder
+    shutil.copy(
+        script_dir / "test_data/serialisers/input/metadata.csv",
+        script_dir / "test_data/serialisers/actual_output/csv/metadata.csv",
+    )
+    zip_filename = "output.zip"
+    model.save_zip(zip_filename, script_dir / "test_data/serialisers/actual_output")
+    """Require the following files to be in the zip for dashboard"""
+    required_files = [
+        "coordinates.csv",
+        "metadata.csv",
+        "svm_table.csv",
+        "bounds_prunned.csv",
+        "feature_process.csv",
+        "feature_raw.csv",
+        "algorithm_raw.csv",
+        "algorithm_process.csv",
+        "algorithm_svm.csv",
+        "portfolio_svm.csv",
+        "model.mat",
+    ]
+    with zipfile.ZipFile(
+        script_dir / "test_data/serialisers/actual_output" / zip_filename, "r",
+    ) as zf:
+        file_list = [Path(f).name for f in zf.namelist()]
+        assert all(
+            item in file_list for item in required_files
+        ), f"Missing files: {set(required_files) - set(file_list)}"
+
+
+def clean_dir(path: Path) -> None:
+    """Remove all files in a directory."""
+    ignored_files = [".gitignore"]
+
+    for file in os.listdir(path):
+        if file in ignored_files:
+            continue
+        Path.unlink(path / file)

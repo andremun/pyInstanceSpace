@@ -59,7 +59,7 @@ from shapely.ops import triangulate, unary_union
 from sklearn.cluster import DBSCAN
 
 from matilda.data.model import Footprint
-from matilda.data.options import TraceOptions, ParallelOptions
+from matilda.data.options import ParallelOptions, TraceOptions
 from matilda.stages.stage import Stage
 
 POLYGON_MIN_POINT_REQUIREMENT = 3
@@ -125,7 +125,7 @@ class TraceOutputs(NamedTuple):
     good: list[Footprint]
     best: list[Footprint]
     hard: Footprint
-    summary: pd.DataFrame
+    trace_summary: pd.DataFrame
 
 
 class TraceStage(Stage[TraceInputs, TraceOutputs]):
@@ -210,7 +210,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         beta: NDArray[np.bool_],
         algo_labels: list[str],
         trace_opts: TraceOptions,
-        parallel_opts: ParallelOptions
+        parallel_opts: ParallelOptions,
     ) -> None:
         """Initialise the Trace analysis with provided data and options.
 
@@ -244,6 +244,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
         Args
         ----
+
         Returns
         -------
             list[tuple[str, type]]
@@ -257,6 +258,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
         Args
         ----
+
         Returns
         -------
             list[tuple[str, type]]
@@ -315,7 +317,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         beta: NDArray[np.bool_],
         algo_labels: list[str],
         trace_opts: TraceOptions,
-        parallel_opts: ParallelOptions
+        parallel_opts: ParallelOptions,
     ) -> TraceOutputs:
         """Perform the TRACE footprint analysis.
 
@@ -510,7 +512,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             good=good,
             best=best,
             hard=hard,
-            summary=final_df,
+            trace_summary=final_df,
         )
 
     def build(self, y_bin: NDArray[np.bool_]) -> Footprint:

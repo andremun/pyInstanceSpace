@@ -1,5 +1,7 @@
 """Data about the output of running InstanceSpace."""
 
+import os
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -9,6 +11,7 @@ from typing_extensions import TypeVar
 from matilda._serialisers import (
     save_instance_space_for_web,
     save_instance_space_graphs,
+    save_instance_space_output_mat,
     save_instance_space_to_csv,
 )
 from matilda.data.model import (
@@ -22,6 +25,8 @@ from matilda.data.model import (
     TraceOut,
 )
 from matilda.data.options import InstanceSpaceOptions
+
+DEFAULT_DIRECTARY_NAME = "output"
 
 
 @dataclass(frozen=True)
@@ -119,3 +124,34 @@ class Model:
             self.pilot,
             self.trace,
         )
+
+    def save_to_mat(self, output_directory: Path) -> None:
+        """Save csv outputs used for the web frontend to a directory."""
+        print(
+            "=========================================================================",
+        )
+        print("-> Writing the data for the web interface.")
+
+        save_instance_space_output_mat(
+            output_directory,
+            self.data,
+        )
+
+    def save_zip(self, zip_filename: str, output_directory: Path) -> None:
+        """Save serializer outputs into a zip used for the web frontend."""
+        print(
+            "=========================================================================",
+        )
+        dir_name = DEFAULT_DIRECTARY_NAME
+        ignored_files = [".gitignore", zip_filename]
+        with zipfile.ZipFile(
+            output_directory / zip_filename,
+            "w",
+            zipfile.ZIP_DEFLATED,
+        ) as zf:
+            for root, _, files in os.walk(output_directory):
+                for filename in files:
+                    if filename in ignored_files:
+                        continue
+                    zf.write(Path(root) / filename, arcname=Path(dir_name) / filename)
+        print(f"-> Successfully saved files into {zip_filename}.")
