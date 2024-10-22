@@ -36,19 +36,19 @@ class PreprocessingInput(NamedTuple):
     Attributes
     ----------
     feature_names : list[str]
-        TODO: This.
+        List of feature names in the dataset.
     algorithm_names : list[str]
-        TODO: This.
+        List of algorithm names in the dataset.
     instance_labels : pd.Series
-        TODO: This.
+        Labels for each instance (row) in the dataset.
     instance_sources : pd.Series | None
-        TODO: This.
+        Sources for each instance, optional.
     features : NDArray[np.double]
-        TODO: This.
+        Feature matrix (instances x features) as a 2D numpy array.
     algorithms : NDArray[np.double]
-        TODO: This.
+        Algorithm matrix (instances y algorithms) as a 2D numpy array.
     selvars_options : SelvarsOptions
-        TODO: This.
+        Options for selecting variables (features and algorithms).
     """
 
     feature_names: list[str]
@@ -66,21 +66,21 @@ class PreprocessingOutput(NamedTuple):
     Attributes
     ----------
     inst_labels : pd.Series
-            Series containing labels for each instance.
+        Series containing labels for each instance after preprocessing.
     feat_labels : list[str]
-        List of labels corresponding to the features in 'x'.
+        List of labels corresponding to the selected features.
     algo_labels : list[str]
-        List of labels corresponding to the algorithms in 'y'.
+        List of labels corresponding to the selected algorithms.
     x : NDArray[np.double]
-        2D numpy array representing the feature matrix (instances x features).
+        Preprocessed feature matrix (instances x selected features).
     y : NDArray[np.double]
-        2D numpy array representing the algorithm matrix (instances x algorithms).
+        Preprocessed algorithm matrix (instances y selected algorithms).
     s : pd.Series | None
-        Optional series containing the source of instances.
-    NDArray[np.double]
-        The x variable before any future modifications are made to it.
-    NDArray[np.double]
-        The y variable before any future modifications are made to it.
+        Optional series containing the source of instances after preprocessing.
+    x_raw : NDArray[np.double]
+        Original feature matrix before any modifications.
+    y_raw : NDArray[np.double]
+        Original algorithm matrix before any modifications.
 
     """
 
@@ -205,7 +205,7 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
         x : NDArray[np.double]
             2D numpy array representing the feature matrix (instances x features).
         y : NDArray[np.double]
-            2D numpy array representing the algorithm matrix (instances x algorithms).
+            2D numpy array representing the algorithm matrix (instances y algorithms).
         feat_labels : list[str]
             List of labels corresponding to the features in 'x'.
         algo_labels : list[str]
@@ -302,7 +302,7 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
         x : NDArray[np.double]
             2D numpy array representing the feature matrix (instances x features).
         y : NDArray[np.double]
-            2D numpy array representing the algorithm matrix (instances x algorithms).
+            2D numpy array representing the algorithm matrix (instances y algorithms).
 
         s : pd.Series | None
             Optional series containing the source of instances.
