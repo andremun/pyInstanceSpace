@@ -59,7 +59,10 @@ opt = PythiaOptions(
     params=None,
 )
 
-
+parallel_opts = ParallelOptions(
+    flag=True,
+    n_cores=2,
+)
 def test_compute_znorm() -> None:
     """Test that the output of the compute_znorm."""
     znorm = np.genfromtxt(csv_path_znorm_input, delimiter=",")
@@ -132,7 +135,7 @@ def test_gridsearch_opts_gaussian() -> None:
         y_best,
         algo,
         opts,
-        ParallelOptions.default(),
+        parallel_opts,
     )
     matlab_output = pd.read_csv(output_dir / "GS_gaussian/gridsearch_gaussian.csv")
 
@@ -167,7 +170,7 @@ def test_gridsearch_opts_poly() -> None:
         y_best,
         algo,
         opts,
-        ParallelOptions.default(),
+        parallel_opts,
     )
 
     # read the actual output
@@ -205,7 +208,7 @@ def test_bayes_opt_gaussian() -> None:
         y_best,
         algo,
         opts,
-        ParallelOptions.default(),
+        parallel_opts,
     )
 
     # read the actual output
@@ -255,7 +258,7 @@ def test_bayes_opt_poly() -> None:
         y_best,
         algo,
         opts,
-        ParallelOptions.default(),
+        parallel_opts,
     )
 
     # read the actual output
