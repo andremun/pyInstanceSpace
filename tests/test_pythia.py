@@ -63,6 +63,8 @@ parallel_opts = ParallelOptions(
     flag=True,
     n_cores=2,
 )
+
+
 def test_compute_znorm() -> None:
     """Test that the output of the compute_znorm."""
     znorm = np.genfromtxt(csv_path_znorm_input, delimiter=",")
