@@ -131,9 +131,9 @@ class PythiaOutput(NamedTuple):
     y_hat : NDArray[np.bool_]
         The final predicted labels for each algorithm.
     pr0_sub : NDArray[np.double]
-        The predicted probabilities of the positive class.
+        The predicted cross-validated probabilities of the positive class.
     pr0_hat : NDArray[np.double]
-        The predicted probabilities of the positive class.
+        The predicted probabilities of the positive class on the full data.
     box_consnt : list[float]
         Regularization parameters `C`.
     k_scale : list[float]
