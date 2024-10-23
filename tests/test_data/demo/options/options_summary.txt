@@ -1,0 +1,80 @@
+
+Option 1: 
+- Trace: usesim is True.
+
+Option 2: 
+- Trace: usesim is False.
+
+Option 3: 
+- pythia: uselibsvm is True.
+
+Option 4: 
+- Trace: usesim is False.
+- pythia: uselibsvm is True.
+
+Option 5: 
+- pythia: useweights is True.
+
+Option 6: 
+- pythia: ispolykrnl is True.
+
+Option 7: 
+- Trace: usesim is False.
+- pythia: ispolykrnl is True.
+
+Option 8: 
+- pythia: uselibsvm is True.
+- pythia: ispolykrnl is True.
+
+Option 9: 
+- Trace: usesim is False.
+- pythia: ispolykrnl is True.
+
+Option 10: 
+- pythia: useweights is True.
+- pythia: ispolykrnl is True.
+
+
+Option 11:
+- perf: MaxPerf is True.
+
+Option 12:
+- perf: MaxPerf is True.
+- pythia: uselibsvm is True.
+
+Option 13:
+- perf: MaxPerf is True.
+- pythia: ispolykrnl is True.
+
+Option 14:
+- perf: MaxPerf is True.
+- pythia: ispolykrnl is True.
+- pythia: uselibsvm is True.
+
+Option 15:
+- perf: MaxPerf is True.
+- perf: AbsPerf is False.
+
+Option 16:
+- perf: MaxPerf is True.
+- perf: AbsPerf is False.
+- pythia: uselibsvm is True.
+
+Option 17:
+- perf: MaxPerf is True.
+- perf: AbsPerf is False.
+- pythia: ispolykrnl is True.
+
+Option 18:
+- perf: MaxPerf is True.
+- perf: AbsPerf is False.
+- pythia: ispolykrnl is True.
+- pythia: uselibsvm is True.
+
+Option 19:
+- perf: epsilon is 0.5.
+- perf: MaxPerf is False.
+
+Option 20:
+- perf: epsilon is 0.5.
+- pythia: uselibsvm is True.

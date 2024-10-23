@@ -6,8 +6,6 @@ Examples
 >>> options = create_option(cloister=cloister_opt)
 """
 
-import pandas as pd
-
 from matilda.data.options import (
     AutoOptions,
     BoundOptions,
@@ -39,8 +37,8 @@ default_selvars = SelvarsOptions(
     small_scale=0.5,
     file_idx_flag=False,
     file_idx="",
-    feats=pd.get_dummies(pd.Series(list("abc")), dtype=float),
-    algos=pd.get_dummies(pd.Series(list("abc")), dtype=float),
+    feats=list("abc"),
+    algos=list("abc"),
     selvars_type="Ftr&Good",
     density_flag=False,
     min_distance=0.1,
@@ -52,8 +50,19 @@ default_sifted = SiftedOptions(
     n_trees=50,
     max_iter=1000,
     replicates=100,
+    num_generations=10,
+    num_parents_mating=5,
+    sol_per_pop=50,
+    parent_selection_type="tournament",
+    k_tournament=3,
+    keep_elitism=True,
+    crossover_type="single_point",
+    cross_over_probability=0.8,
+    mutation_type="random",
+    mutation_probability=0.2,
+    stop_criteria="max_generations",
 )
-default_pilot = PilotOptions(
+default_pilot = PilotOptions.default(
     analytic=False,
     n_tries=5,
 )
@@ -61,15 +70,15 @@ default_cloister = CloisterOptions(
     p_val=0.05,
     c_thres=0.7,
 )
-default_pythia = PythiaOptions(
+default_pythia = PythiaOptions.default(
     cv_folds=5,
     is_poly_krnl=False,
     use_weights=False,
-    use_lib_svm=False,
+    # use_lib_svm=False,
 )
 default_trace = TraceOptions(
     use_sim=True,
-    pi=0.55,
+    purity=0.55,
 )
 default_outputs = OutputOptions(
     csv=True,
