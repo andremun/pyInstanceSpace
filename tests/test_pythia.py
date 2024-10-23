@@ -7,8 +7,8 @@ from the MATLAB implementation with diffcult kernel and optimisation.
 
 Tests includes:
     - test_compute_znorm: Test that the output of the compute_znorm.
-    - test_generate_params_true: Test that the generated param space is expected.
-    - test_generate_params_false: Test that the generated param space is expected.
+    - test_generate_params_true: Test that the generated param space is expected for GS
+    - test_generate_params_false: Test that the generated param space is expected for BO
     - test_grid_gaussian: Test that the performance of model is asexpected
         when GS with gaussian kernel.
     - test_grid_poly: Test that the performance of model is asexpected
