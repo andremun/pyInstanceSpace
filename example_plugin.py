@@ -33,6 +33,7 @@ class ExamplePluginOutput(NamedTuple):  # noqa: D101
     # Output can't be empty
     blank: str
 
+
 class ExamplePlugin(Stage[ExamplePluginInput, ExamplePluginOutput]):  # noqa: D101
     @staticmethod
     def _inputs() -> type[NamedTuple]:
@@ -46,33 +47,31 @@ class ExamplePlugin(Stage[ExamplePluginInput, ExamplePluginOutput]):  # noqa: D1
     def _run(inputs: ExamplePluginInput) -> ExamplePluginOutput:
         print("Running example plugin")
 
-        if (inputs.accuracy is not None):
+        if inputs.accuracy is not None:
             print("accuracy:")
             print(inputs.accuracy)
 
-        if (inputs.precision is not None):
+        if inputs.precision is not None:
             print("precision:")
             print(inputs.precision)
 
-        if (inputs.recall is not None):
+        if inputs.recall is not None:
             print("recall:")
             print(inputs.recall)
 
-        if (inputs.selection0 is not None):
+        if inputs.selection0 is not None:
             print("selection0:")
             print(inputs.selection0)
 
-        if (inputs.selection1 is not None):
+        if inputs.selection1 is not None:
             print("selection1:")
             print(inputs.selection1)
 
-        if (inputs.pythia_summary is not None):
+        if inputs.pythia_summary is not None:
             print("pythia_summary:")
             print(inputs.pythia_summary)
 
         return ExamplePluginOutput(blank="")
-
-
 
 
 script_dir = Path(__file__).parent / "tests" / "test_data" / "demo"
@@ -98,7 +97,6 @@ instance_space = InstanceSpace(
         PythiaStage,
         CloisterStage,
         TraceStage,
-
         ExamplePlugin,
     ],
 )
