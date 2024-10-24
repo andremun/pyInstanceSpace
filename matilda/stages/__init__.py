@@ -17,7 +17,6 @@ __all__ = [
     "PythiaStage",
     "CloisterStage",
     "TraceStage",
-
     "stage",
     "preprocessing",
     "prelim",

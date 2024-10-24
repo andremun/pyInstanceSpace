@@ -1,5 +1,4 @@
-"""
-Contains modules for instance space analysis.
+"""Contains modules for instance space analysis.
 
 The module consists of various algorithms to perform instance space analysis.
 - preprocessing: Prepare data to be used by stages.

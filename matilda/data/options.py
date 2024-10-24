@@ -768,7 +768,7 @@ def from_json_file(file_path: Path | str) -> InstanceSpaceOptions | None:
         If the parsed JSON data contains invalid options.
 
     """
-    if (isinstance(file_path, str)):
+    if isinstance(file_path, str):
         file_path = Path(file_path)
 
     try:

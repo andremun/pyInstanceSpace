@@ -3,7 +3,8 @@
 import sys
 from pathlib import Path
 
-from matilda import *
+from matilda import InstanceSpace
+from matilda.data import metadata, options
 
 script_dir = Path(__file__).parent / "tests" / "test_data" / "demo"
 # script_dir / "test_data/serialisers/actual_output" / directory

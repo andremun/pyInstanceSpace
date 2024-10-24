@@ -84,7 +84,7 @@ class Model:
         )
         print("-> Writing the data on CSV files for posterior analysis.")
 
-        if (isinstance(output_directory, str)):
+        if isinstance(output_directory, str):
             output_directory = Path(output_directory)
 
         save_instance_space_to_csv(
@@ -104,7 +104,7 @@ class Model:
         )
         print("-> Writing the data for the web interface.")
 
-        if (isinstance(output_directory, str)):
+        if isinstance(output_directory, str):
             output_directory = Path(output_directory)
 
         save_instance_space_for_web(
@@ -120,7 +120,7 @@ class Model:
         )
         print("-> Producing the plots.")
 
-        if (isinstance(output_directory, str)):
+        if isinstance(output_directory, str):
             output_directory = Path(output_directory)
 
         save_instance_space_graphs(
@@ -139,7 +139,7 @@ class Model:
         )
         print("-> Writing the data for the web interface.")
 
-        if (isinstance(output_directory, str)):
+        if isinstance(output_directory, str):
             output_directory = Path(output_directory)
 
         save_instance_space_output_mat(
@@ -153,7 +153,7 @@ class Model:
             "=========================================================================",
         )
 
-        if (isinstance(output_directory, str)):
+        if isinstance(output_directory, str):
             output_directory = Path(output_directory)
 
         dir_name = DEFAULT_DIRECTARY_NAME

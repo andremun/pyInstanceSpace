@@ -103,7 +103,7 @@ def from_csv_file(file_path: Path | str) -> Metadata | None:
     pandas.errors.ParserError
         If the specified file is not a valid CSV file.
     """
-    if (isinstance(file_path, str)):
+    if isinstance(file_path, str):
         file_path = Path(file_path)
 
     try:

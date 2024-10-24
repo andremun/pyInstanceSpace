@@ -1,5 +1,4 @@
-"""
-A runner to run a list of stages.
+"""A runner to run a list of stages.
 
 Is created by a StageBuilder.
 """
