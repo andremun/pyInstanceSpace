@@ -5,6 +5,13 @@ from pathlib import Path
 
 from matilda import InstanceSpace
 from matilda.data import metadata, options
+from matilda.stages.cloister import CloisterStage
+from matilda.stages.pilot import PilotStage
+from matilda.stages.prelim import PrelimStage
+from matilda.stages.preprocessing import PreprocessingStage
+from matilda.stages.pythia import PythiaStage
+from matilda.stages.sifted import SiftedStage
+from matilda.stages.trace import TraceStage
 
 script_dir = Path(__file__).parent / "tests" / "test_data" / "demo"
 # script_dir / "test_data/serialisers/actual_output" / directory
@@ -22,6 +29,15 @@ if metadata_object is None or options_object is None:
 instance_space = InstanceSpace(
     metadata_object,
     options_object,
+    stages=[
+        PreprocessingStage,
+        PrelimStage,
+        SiftedStage,
+        PilotStage,
+        PythiaStage,
+        CloisterStage,
+        TraceStage,
+    ],
 )
 
 print(instance_space._runner._stage_order)  # noqa: SLF001
