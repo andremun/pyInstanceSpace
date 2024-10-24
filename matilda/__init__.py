@@ -22,11 +22,13 @@ from .data import metadata, options
 from .data.metadata import Metadata
 from .data.options import InstanceSpaceOptions
 from .instance_space import InstanceSpace
+from .model import Model
 
 __all__ = [
     "InstanceSpace",
     "InstanceSpaceOptions",
     "Metadata",
+    "Model",
     "options",
     "metadata",
     "data",

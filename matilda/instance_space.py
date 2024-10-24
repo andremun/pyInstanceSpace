@@ -108,12 +108,19 @@ class InstanceSpace:
 
     ## Basic Example:
     ```python
-        metadata = Metadata.from_csv_file('./metadata.csv')
+
+        from matilda import *
+
+        metadata = metadata.from_csv_file('./metadata.csv')
         options = InstanceSpaceOptions.default()
+        # options = options.from_json_file('./options.json')
 
         instance_space = InstanceSpace(metadata, options)
 
         model = instance_space.build()
+
+        model.save_to_csv('./output/')
+        model.save_graphs('./output/')
     ```
     """
 
