@@ -4,9 +4,7 @@ import os
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-
-from typing_extensions import TypeVar
+from typing import Any, TypeVar
 
 from matilda._serialisers import (
     save_instance_space_for_web,

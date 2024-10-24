@@ -9,12 +9,11 @@ analytical results and metadata of the instance space analysis.
 from collections.abc import Generator
 from dataclasses import fields
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, TypeVar
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from typing_extensions import TypeVar
 
 from matilda.data.metadata import Metadata, from_csv_file
 from matilda.data.options import (
