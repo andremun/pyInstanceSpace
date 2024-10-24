@@ -194,7 +194,6 @@ class StageRunner:
         self._rollback_to_schedule_index(0)
 
         self._available_arguments = additional_arguments._asdict()
-
         for schedule in self._stage_order:
             for stage in schedule:
                 self.run_stage(stage)

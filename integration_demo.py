@@ -43,22 +43,12 @@ instance_space = InstanceSpace(
     ],
 )
 start = perf_counter()
-# instance_space.run_stage(PreprocessingStage,
-#                     feature_names=metadata_object.feature_names,
-#                     algorithm_names=metadata_object.algorithm_names,
-#                     instance_labels=metadata_object.instance_labels,
-#                     instance_sources=metadata_object.instance_sources,
-#                     features=metadata_object.features,
-#                     algorithms=metadata_object.algorithms,
-#                     selvars_options=options_object.selvars)
 print(perf_counter() - start)
 print(instance_space._runner.run_iter)  # noqa: SLF001
 
 summary = list()#pd.DataFrame(columns=['Iteration', 'Time'])
-for i in range(1, 10):
-    start = perf_counter()
-    instance_space.build()
-    elapsed = perf_counter() - start
-    print(f"Elapsed time: {elapsed}")
-    summary.append(elapsed)
+instance_space.build()
+elapsed = perf_counter() - start
+print(f"Elapsed time: {elapsed}")
+summary.append(elapsed)
 print(elapsed)

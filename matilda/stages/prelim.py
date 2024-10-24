@@ -9,9 +9,9 @@ outlier detection and removal, and binary performance classification. These task
 guided by the options specified in the `InstanceSpaceOptions` object.
 """
 
+import time
 from dataclasses import dataclass
 from pathlib import Path
-import time
 from typing import NamedTuple
 
 import numpy as np

@@ -322,20 +322,21 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
 
         # 记录结束时间
         elapsed_time = time.perf_counter() - start
-        csv_file = "STIFED_time.csv"
+        csv_file = "stifed_time.csv"
         file_exists = os.path.isfile(csv_file)
 
         # Open the CSV file in append mode and write the data
-        with open(csv_file, mode='a', newline='') as file:
+        with open(csv_file, mode="a", newline="") as file:
             writer = csv.writer(file)
 
             # Write headers if the file is newly created
             if not file_exists:
-                writer.writerow(['Task', 'Elapsed Time (seconds)'])
+                writer.writerow(["Task", "Elapsed Time (seconds)"])
 
             # Write the elapsed time
             writer.writerow([elapsed_time])
         return output
+
     @staticmethod
     def sifted(
         x: NDArray[np.double],

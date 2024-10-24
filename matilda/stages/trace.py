@@ -42,10 +42,11 @@ from_polygon(polygon, z, y_bin, smoothen=False):
     A function to create a Footprint object from a given polygon and corresponding
     instance data, optionally smoothing the polygon borders.
 """
-import os
+
 import csv
 import math
 import multiprocessing
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import NamedTuple
@@ -299,7 +300,9 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 inputs.trace_options,
                 inputs.parallel_options,
             )
-            print("========================================================================")
+            print(
+                "========================================================================",
+            )
             print(f"TRACE: {time.perf_counter() - start:.4f}s.")
             elapsed_time = time.perf_counter() - start
         # Check if the file exists; if not, write headers
@@ -307,15 +310,15 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         file_exists = os.path.isfile(csv_file)
 
         # Open the CSV file in append mode and write the data
-        with open(csv_file, mode='a', newline='') as file:
+        with open(csv_file, mode="a", newline="") as file:
             writer = csv.writer(file)
-            
+
             # Write headers if the file is newly created
             if not file_exists:
-                writer.writerow(['Task', 'Elapsed Time (seconds)'])
-            
+                writer.writerow(["Task", "Elapsed Time (seconds)"])
+
             # Write the elapsed time
-            writer.writerow(['TRACE', elapsed_time])
+            writer.writerow(["TRACE", elapsed_time])
             return output
         print("  -> TRACE will use experimental data to calculate the footprints.")
         output = TraceStage.trace(
@@ -327,9 +330,13 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             inputs.trace_options,
             inputs.parallel_options,
         )
-        print("========================================================================")
+        print(
+            "========================================================================",
+        )
         print(f"TRACE: {time.perf_counter() - start:.4f}s.")
-        print("========================================================================")
+        print(
+            "========================================================================",
+        )
         return output
 
     @staticmethod

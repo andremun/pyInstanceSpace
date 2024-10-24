@@ -8,6 +8,8 @@ from one edge of the space to the opposite.
 
 """
 
+import csv
+import os
 import time
 from typing import Any, NamedTuple
 
@@ -164,6 +166,20 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             inputs.feat_labels,
             inputs.pilot_options,
         )
+        elapsed_time = time.perf_counter() - start
+        csv_file = "pilot_time.csv"
+        file_exists = os.path.isfile(csv_file)
+
+        # Open the CSV file in append mode and write the data
+        with open(csv_file, mode="a", newline="") as file:
+            writer = csv.writer(file)
+
+            # Write headers if the file is newly created
+            if not file_exists:
+                writer.writerow(["Task", "Elapsed Time (seconds)"])
+
+            # Write the elapsed time
+            writer.writerow([elapsed_time])
         print(f"PILOT took {time.perf_counter() - start} seconds to run.")
         return output
 

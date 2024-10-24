@@ -1,5 +1,7 @@
 """File for preprocessing stage."""
 
+import csv
+import os
 from time import perf_counter
 from typing import NamedTuple
 
@@ -149,6 +151,19 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             inputs.instance_labels,
         )
         total_time = perf_counter() - start
+        csv_file = "preprocessing_time.csv"
+        file_exists = os.path.isfile(csv_file)
+
+        # Open the CSV file in append mode and write the data
+        with open(csv_file, mode="a", newline="") as file:
+            writer = csv.writer(file)
+
+            # Write headers if the file is newly created
+            if not file_exists:
+                writer.writerow(["Task", "Elapsed Time (seconds)"])
+
+            # Write the elapsed time
+            writer.writerow([total_time])
         print(f"PREPROCESSING {total_time:.4f} seconds.")
         return PreprocessingOutput(
             updated_inst_labels,
@@ -246,7 +261,7 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
                     "No algorithms were specified in opts.selvars."
                     "algos or it was an empty list.",
                 )
-        
+
         return new_x, new_y, new_feat_labels, new_algo_labels
 
     @staticmethod

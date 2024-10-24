@@ -39,10 +39,10 @@ Functions:
 """
 
 import csv
-from dataclasses import dataclass
 import os
-from time import perf_counter
 import time
+from dataclasses import dataclass
+from time import perf_counter
 from typing import NamedTuple
 
 import numpy as np
@@ -251,7 +251,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             The output of the Pythia stage.
         """
         y_df = pd.DataFrame(y)
-        avg = np.round(np.mean(y[y>=0], axis=0), 3)
+        avg = np.round(np.mean(y[y >= 0], axis=0), 3)
         print(avg)
         y_df.to_csv("y_input.csv", index=False, header=False)
         print(
@@ -396,13 +396,13 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         file_exists = os.path.isfile(csv_file)
 
         # Open the CSV file in append mode and write the data
-        with open(csv_file, mode='a', newline='') as file:
+        with open(csv_file, mode="a", newline="") as file:
             writer = csv.writer(file)
-            
+
             # Write headers if the file is newly created
             if not file_exists:
-                writer.writerow(['Task', 'Elapsed Time (seconds)'])
-            
+                writer.writerow(["Task", "Elapsed Time (seconds)"])
+
             # Write the elapsed time
             writer.writerow([elapsed_time])
         print(
