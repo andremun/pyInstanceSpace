@@ -1,4 +1,8 @@
-"""A runner to run a list of stages."""
+"""
+A runner to run a list of stages.
+
+Is created by a StageBuilder.
+"""
 
 from collections import defaultdict
 from collections.abc import Generator
@@ -59,6 +63,8 @@ class StageRunner:
         initial_input_annotations: set[_StageArgument],
     ) -> None:
         """Create a StageRunner from a preresolved set of stages.
+
+        @private
 
         All stages inputs and outputs are assumed to already be resolved.
         """

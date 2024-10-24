@@ -18,6 +18,7 @@ analytical results and metadata of the instance space analysis.
 """
 
 from . import data, instance_space, stages
+from .data import metadata, options
 from .data.metadata import Metadata
 from .data.options import InstanceSpaceOptions
 from .instance_space import InstanceSpace
@@ -26,6 +27,8 @@ __all__ = [
     "InstanceSpace",
     "InstanceSpaceOptions",
     "Metadata",
+    "options",
+    "metadata",
     "data",
     "stages",
     "instance_space",
