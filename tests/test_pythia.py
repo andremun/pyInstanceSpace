@@ -92,32 +92,15 @@ def test_compare_output() -> None:
     assert pythia_out[3].get_n_splits() == opt.cv_folds
 
 
-def test_generate_params_true() -> None:
+def test_generate_params() -> None:
     """Test that the generated param space for grid search is expected."""
     min_value = 2**-10
     max_value = 2**4
     rng = np.random.default_rng(seed=0)
 
-    params = PythiaStage._generate_params(True, rng)  # noqa: SLF001
+    params = PythiaStage._generate_params(rng)  # noqa: SLF001
     assert all(min_value <= param <= max_value for param in params["C"])
     assert all(min_value <= param <= max_value for param in params["gamma"])
-
-
-def test_generate_params_false() -> None:
-    """Test that the generated param space for bayesian optimization is expected."""
-    min_value = 2**-10
-    max_value = 2**4
-    rng = np.random.default_rng(seed=0)
-
-    params = PythiaStage._generate_params(False, rng)  # noqa: SLF001
-
-    assert isinstance(params["C"], Real)
-    assert isinstance(params["gamma"], Real)
-
-    assert params["C"].low == min_value
-    assert params["C"].high == max_value
-    assert params["gamma"].low == min_value
-    assert params["gamma"].high == max_value
 
 
 def test_gridsearch_opts_gaussian() -> None:
