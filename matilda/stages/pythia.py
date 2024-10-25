@@ -58,7 +58,6 @@ from sklearn.model_selection import (
 )
 from sklearn.svm import SVC
 from skopt import BayesSearchCV
-from skopt.space import Real
 
 from matilda.data.options import ParallelOptions, PythiaOptions
 from matilda.stages.stage import Stage
@@ -406,7 +405,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         for i in range(nalgos):
             algo_start_time = perf_counter()
             param_space = (
-                PythiaStage._generate_params(opts.use_grid_search, rng)
+                PythiaStage._generate_params(rng)
                 if precalcparams is None
                 else {"C": precalcparams[i][0], "gamma": precalcparams[i][1]}
             )
@@ -730,7 +729,6 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
     @staticmethod
     def _generate_params(
-        use_grid_search: bool,
         rng: np.random.Generator,
     ) -> dict[str, list[float]]:
         """Generate hyperparameters for the SVM models.
@@ -742,23 +740,17 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         rng : np.random.Generator
             The random number generator.
         """
-        if use_grid_search:
-            maxgrid, mingrid = 4, -10
-            # Number of samples
-            nvals = 30
+        # if use_grid_search:
+        maxgrid, mingrid = 4, -10
+        # Number of samples
+        nvals = 30
 
-            # Generate params space through latin hypercube samples for grid search
-            lhs = stats.qmc.LatinHypercube(d=2, seed=rng)
-            samples = lhs.random(nvals)
-            c = 2 ** ((maxgrid - mingrid) * samples[:, 0] + mingrid)
-            gamma = 2 ** ((maxgrid - mingrid) * samples[:, 1] + mingrid)
-            return {"C": list(c), "gamma": list(gamma)}
-        return {
-            # Create parameter space for Bayesian optimization
-            # using a log-uniform distribution
-            "C": Real(2**-10, 2**4, prior="log-uniform"),
-            "gamma": Real(2**-10, 2**4, prior="log-uniform"),
-        }
+        # Generate params space through latin hypercube samples for grid search
+        lhs = stats.qmc.LatinHypercube(d=2, seed=rng)
+        samples = lhs.random(nvals)
+        c = 2 ** ((maxgrid - mingrid) * samples[:, 0] + mingrid)
+        gamma = 2 ** ((maxgrid - mingrid) * samples[:, 1] + mingrid)
+        return {"C": list(c), "gamma": list(gamma)}
 
     @staticmethod
     def _generate_summary(
