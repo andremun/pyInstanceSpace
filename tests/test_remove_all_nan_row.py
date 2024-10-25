@@ -370,6 +370,8 @@ def test_duplicated_data() -> None:
     assert new_s.tolist() == [
         "string" + str(i) for i in range(10)
     ], "s content not right"
+
+
 """
 Contains test cases for the remove_instances_with_many_missing_values function.
 

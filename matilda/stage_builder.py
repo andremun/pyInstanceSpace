@@ -79,12 +79,8 @@ class StageBuilder:
         outputs = stage._outputs()  # noqa: SLF001
 
         for output_name, output_type in self._named_tuple_to_stage_arguments(outputs):
-            if (
-                isinstance(output_type, type)
-                and (
-                    issubclass(output_type, RunBefore)
-                    or issubclass(output_type, RunAfter)
-                )
+            if isinstance(output_type, type) and (
+                issubclass(output_type, RunBefore) or issubclass(output_type, RunAfter)
             ):
                 raise TypeError(
                     f"Argument {output_name} is a {output_type}. "
@@ -208,21 +204,26 @@ class StageBuilder:
 
                 missing_inputs = required_inputs - available_inputs
                 inputs_message += f"    [{stage.__name__}]\n"
-                inputs_message += "".join(map(
-                    lambda x : f"       {x.parameter_name}: {x.parameter_type}\n",
-                    missing_inputs,
-                ))
+                inputs_message += "".join(
+                    map(
+                        lambda x: f"       {x.parameter_name}: {x.parameter_type}\n",
+                        missing_inputs,
+                    ),
+                )
 
             available_inputs_message = ""
-            available_inputs_message += "".join(map(
-                lambda x : f"       {x.parameter_name}: {x.parameter_type}\n",
-                available_inputs,
-            ))
+            available_inputs_message += "".join(
+                map(
+                    lambda x: f"       {x.parameter_name}: {x.parameter_type}\n",
+                    available_inputs,
+                ),
+            )
 
             raise StageResolutionError(
                 "Stages could not be resolved due to missing inputs.\n"
                 + "Missing inputs:\n"
-                + inputs_message + "\n"
+                + inputs_message
+                + "\n"
                 + "Available inputs:\n"
                 + available_inputs_message,
             )
@@ -236,7 +237,8 @@ class StageBuilder:
         return {
             argument
             for argument in arguments
-            if not isinstance(argument.parameter_type, type) or not (
+            if not isinstance(argument.parameter_type, type)
+            or not (
                 issubclass(argument.parameter_type, RunBefore)
                 or issubclass(argument.parameter_type, RunAfter)
             )
@@ -262,18 +264,18 @@ class StageBuilder:
 
         for stage in self.stages:
             for argument in self.stage_inputs[stage]:
-                if (
-                    isinstance(argument.parameter_type, type)
-                    and issubclass(argument.parameter_type, RunBefore)
+                if isinstance(argument.parameter_type, type) and issubclass(
+                    argument.parameter_type,
+                    RunBefore,
                 ):
                     before_stage = get_args(argument.parameter_type)[0]
                     ordering_restrictions.add(
                         _BeforeAfterRestriction(stage, before_stage),
                     )
 
-                if (
-                    isinstance(argument.parameter_type, type)
-                    and issubclass(argument.parameter_type, RunAfter)
+                if isinstance(argument.parameter_type, type) and issubclass(
+                    argument.parameter_type,
+                    RunAfter,
                 ):
                     after_stage = get_args(argument.parameter_type)[0]
                     ordering_restrictions.add(
@@ -374,8 +376,11 @@ class StageBuilder:
 
         return stage_arguments
 
+
 def _format_stage_arguments(stage_arguments: set[StageArgument]) -> str:
-    return "".join(map(
-        lambda x : f"{x.parameter_name}, {x.parameter_type}\n",
-        stage_arguments,
-    ))
+    return "".join(
+        map(
+            lambda x: f"{x.parameter_name}, {x.parameter_type}\n",
+            stage_arguments,
+        ),
+    )

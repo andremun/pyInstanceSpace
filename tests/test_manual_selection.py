@@ -270,6 +270,8 @@ def test_manual_empty_feats_none_algo() -> None:
         expected_y,
         err_msg="Algorithm data content mismatch",
     )
+
+
 """
 Contains test cases for the remove_instances_with_many_missing_values function.
 

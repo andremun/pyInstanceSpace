@@ -343,7 +343,9 @@ def test_prelim_run() -> None:
         inst_labels,
         data_dense,
         s,
-    ) = PrelimStage._run(inputs)  # noqa: SLF001
+    ) = PrelimStage._run(  # noqa: SLF001
+        inputs,
+    )
 
     assert np.allclose(x.shape, x_output_run.shape)
     assert np.allclose(y, y_output_run)

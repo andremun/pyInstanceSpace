@@ -139,6 +139,121 @@ class PrelimOutput(NamedTuple):
     data_dense: DataDense | None
     s: pd.Series | None  # type: ignore[type-arg]
 
+
+class PrelimInput(NamedTuple):
+    """Inputs for the Prelim stage.
+
+    Attributes
+    ----------
+    x : NDArray[np.double]
+        TODO: This.
+    y : NDArray[np.double]
+        TODO: This.
+    x_raw : NDArray[np.double]
+        TODO: This.
+    y_raw : NDArray[np.double]
+        TODO: This.
+    s : pd.Series | None
+        TODO: This.
+    inst_labels : pd.Series
+        TODO: This.
+    prelim_options : PrelimOptions
+        TODO: This.
+    selvars_options : SelvarsOptions
+        TODO: This.
+    """
+
+    x: NDArray[np.double]
+    y: NDArray[np.double]
+    x_raw: NDArray[np.double]
+    y_raw: NDArray[np.double]
+    s: pd.Series | None  # type: ignore[type-arg]
+    inst_labels: pd.Series  # type: ignore[type-arg]
+    prelim_options: PrelimOptions
+    selvars_options: SelvarsOptions
+
+
+# needs to be changes to output including prelim output, and data changed by stage
+class PrelimOutput(NamedTuple):
+    """Outputs for the Prelim stage.
+
+    Attributes
+    ----------
+    med_val : NDArray[np.double]
+        TODO: This.
+    iq_range : NDArray[np.double]
+        TODO: This.
+    hi_bound : NDArray[np.double]
+        TODO: This.
+    lo_bound : NDArray[np.double]
+        TODO: This.
+    min_x : NDArray[np.double]
+        TODO: This.
+    lambda_x : NDArray[np.double]
+        TODO: This.
+    mu_x : NDArray[np.double]
+        TODO: This.
+    sigma_x : NDArray[np.double]
+        TODO: This.
+    min_y : float
+        TODO: This.
+    lambda_y : NDArray[np.double]
+        TODO: This.
+    sigma_y : NDArray[np.double]
+        TODO: This.
+    mu_y : NDArray[np.double]
+        TODO: This.
+    x : NDArray[np.double]
+        TODO: This.
+    y : NDArray[np.double]
+        TODO: This.
+    x_raw : NDArray[np.double]
+        TODO: This.
+    y_raw : NDArray[np.double]
+        TODO: This.
+    y_bin : NDArray[np.bool_]
+        TODO: This.
+    y_best : NDArray[np.double]
+        TODO: This.
+    p : NDArray[np.int_]
+        TODO: This.
+    num_good_algos : NDArray[np.double]
+        TODO: This.
+    beta : NDArray[np.bool_]
+        TODO: This.
+    instlabels : pd.Series | None
+        TODO: This.
+    data_dense : DataDense | None
+        TODO: This.
+    s : pd.Series | None
+        TODO: This.
+    """
+
+    med_val: NDArray[np.double]
+    iq_range: NDArray[np.double]
+    hi_bound: NDArray[np.double]
+    lo_bound: NDArray[np.double]
+    min_x: NDArray[np.double]
+    lambda_x: NDArray[np.double]
+    mu_x: NDArray[np.double]
+    sigma_x: NDArray[np.double]
+    min_y: float
+    lambda_y: NDArray[np.double]
+    sigma_y: NDArray[np.double]
+    mu_y: NDArray[np.double]
+    x: NDArray[np.double]
+    y: NDArray[np.double]
+    x_raw: NDArray[np.double]
+    y_raw: NDArray[np.double]
+    y_bin: NDArray[np.bool_]
+    y_best: NDArray[np.double]
+    p: NDArray[np.int_]
+    num_good_algos: NDArray[np.double]
+    beta: NDArray[np.bool_]
+    instlabels: pd.Series | None  # type: ignore[type-arg]
+    data_dense: DataDense | None
+    s: pd.Series | None  # type: ignore[type-arg]
+
 @dataclass(frozen=True)
 class _BoundOut:
     x: NDArray[np.double]
@@ -298,7 +413,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             s,
         )
 
-     # prelim matlab file implementation, will return only prelim output
+    # prelim matlab file implementation, will return only prelim output
     @staticmethod
     def prelim(
         x: NDArray[np.double],
@@ -561,7 +676,6 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             sigma_y=sigma_y,
             mu_y=mu_y,
         )
-
 
     # prelim matlab file implementation, will return only prelim output
     def _prelim(

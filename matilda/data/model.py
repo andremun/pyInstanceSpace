@@ -70,6 +70,33 @@ class Data:
             # uniformity=stage_runner_output["uniformity"],
         )
 
+        Args
+        ----
+            cls (type[T]): the class
+            stage_runner_output (dict[str, Any]): output of StageRunner for an
+                InstanceSpace
+
+        Returns
+        -------
+            Data: a Data object
+        """
+        return cls(
+            inst_labels=stage_runner_output["inst_labels"],
+            feat_labels=stage_runner_output["feat_labels"],
+            algo_labels=stage_runner_output["algo_labels"],
+            x=stage_runner_output["x"],
+            y=stage_runner_output["y"],
+            x_raw=stage_runner_output["x_raw"],
+            y_raw=stage_runner_output["y_raw"],
+            y_bin=stage_runner_output["y_bin"],
+            y_best=stage_runner_output["y_best"],
+            p=stage_runner_output["p"],
+            num_good_algos=stage_runner_output["num_good_algos"],
+            beta=stage_runner_output["beta"],
+            s=stage_runner_output["s"],
+            # uniformity=stage_runner_output["uniformity"],
+        )
+
 @dataclass(frozen=True)
 class DataDense:
     """TODO: This."""
@@ -246,7 +273,7 @@ class PilotOut:
             b=stage_runner_output["b"],
             error=stage_runner_output["error"],
             r2=stage_runner_output["r2"],
-            summary=stage_runner_output["summary"],
+            summary=stage_runner_output["pilot_summary"],
         )
 
 
@@ -346,7 +373,7 @@ class PythiaOut:
             accuracy=stage_runner_output["accuracy"],
             selection0=stage_runner_output["selection0"],
             selection1=stage_runner_output["selection1"],
-            summary=stage_runner_output["summary"],
+            summary=stage_runner_output["pythia_summary"],
         )
 
 
@@ -462,7 +489,7 @@ class TraceOut:
             good=stage_runner_output["good"],
             best=stage_runner_output["best"],
             hard=stage_runner_output["hard"],
-            summary=stage_runner_output["summary"],
+            summary=stage_runner_output["trace_summary"],
         )
 
 

@@ -64,6 +64,7 @@ class CloisterInput(NamedTuple):
     a: NDArray[np.double]
     cloister_options: CloisterOptions
 
+
 class CloisterOutput(NamedTuple):
     """Outputs from the Cloister stage.
 

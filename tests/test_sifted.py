@@ -24,7 +24,7 @@ import pandas as pd
 from numpy.typing import NDArray
 
 from matilda.data.model import DataDense
-from matilda.data.options import SelvarsOptions, SiftedOptions
+from matilda.data.options import ParallelOptions, SelvarsOptions, SiftedOptions
 from matilda.stages.sifted import SiftedInput, SiftedStage
 
 
@@ -36,55 +36,97 @@ class SiftedMatlabInput:
         script_dir = Path(__file__).parent
 
         # Standard data CSV files
-        self.x = np.genfromtxt(script_dir /
-            "test_data/sifted/input/input_X.csv", delimiter=",")
-        self.y = np.genfromtxt(script_dir /
-            "test_data/sifted/input/input_Y.csv", delimiter=",")
-        self.y_bin = np.genfromtxt(script_dir /
-            "test_data/sifted/input/input_Ybin.csv", delimiter=",")
-        self.x_raw = np.genfromtxt(script_dir /
-            "test_data/sifted/input/input_Xraw.csv", delimiter=",")
-        self.y_raw = np.genfromtxt(script_dir /
-            "test_data/sifted/input/input_Yraw.csv", delimiter=",")
-        self.beta = np.genfromtxt(script_dir /
-            "test_data/sifted/input/input_beta.csv", delimiter=",")
-        self.num_good_algos = np.genfromtxt(script_dir /
-            "test_data/sifted/input/input_numGoodAlgos.csv", delimiter=",")
-        self.y_best = np.genfromtxt(script_dir /
-            "test_data/sifted/input/input_Ybest.csv", delimiter=",")
-        self.p = np.genfromtxt(script_dir /
-            "test_data/sifted/input/input_P.csv", delimiter=",")
-        self.inst_labels = np.genfromtxt(script_dir /
-            "test_data/sifted/input/input_instlabels.csv", delimiter=",",
-            dtype=str).tolist()
-        self.feat_labels = np.genfromtxt(script_dir /
-            "test_data/sifted/input/input_featlabels.csv", delimiter=",",
-            dtype=str).tolist()
+        self.x = np.genfromtxt(
+            script_dir / "test_data/sifted/input/input_X.csv",
+            delimiter=",",
+        )
+        self.y = np.genfromtxt(
+            script_dir / "test_data/sifted/input/input_Y.csv",
+            delimiter=",",
+        )
+        self.y_bin = np.genfromtxt(
+            script_dir / "test_data/sifted/input/input_Ybin.csv",
+            delimiter=",",
+        )
+        self.x_raw = np.genfromtxt(
+            script_dir / "test_data/sifted/input/input_Xraw.csv",
+            delimiter=",",
+        )
+        self.y_raw = np.genfromtxt(
+            script_dir / "test_data/sifted/input/input_Yraw.csv",
+            delimiter=",",
+        )
+        self.beta = np.genfromtxt(
+            script_dir / "test_data/sifted/input/input_beta.csv",
+            delimiter=",",
+        )
+        self.num_good_algos = np.genfromtxt(
+            script_dir / "test_data/sifted/input/input_numGoodAlgos.csv",
+            delimiter=",",
+        )
+        self.y_best = np.genfromtxt(
+            script_dir / "test_data/sifted/input/input_Ybest.csv",
+            delimiter=",",
+        )
+        self.p = np.genfromtxt(
+            script_dir / "test_data/sifted/input/input_P.csv",
+            delimiter=",",
+        )
+        self.inst_labels = np.genfromtxt(
+            script_dir / "test_data/sifted/input/input_instlabels.csv",
+            delimiter=",",
+            dtype=str,
+        ).tolist()
+        self.feat_labels = np.genfromtxt(
+            script_dir / "test_data/sifted/input/input_featlabels.csv",
+            delimiter=",",
+            dtype=str,
+        ).tolist()
         self.s = None
 
         # Create DataDense instance
         self.data_dense = DataDense(
-            x=np.genfromtxt(script_dir /
-                "test_data/sifted/input/input_dense_X.csv", delimiter=","),
-            y=np.genfromtxt(script_dir /
-                "test_data/sifted/input/input_dense_Y.csv", delimiter=","),
-            x_raw=np.genfromtxt(script_dir /
-                "test_data/sifted/input/input_dense_Xraw.csv", delimiter=","),
-            y_raw=np.genfromtxt(script_dir /
-                "test_data/sifted/input/input_dense_Yraw.csv", delimiter=","),
-            y_bin=np.genfromtxt(script_dir /
-                "test_data/sifted/input/input_dense_Ybin.csv", delimiter=","),
-            y_best=np.genfromtxt(script_dir /
-                "test_data/sifted/input/input_dense_Ybest.csv", delimiter=","),
-            p=np.genfromtxt(script_dir /
-                "test_data/sifted/input/input_dense_P.csv", delimiter=","),
-            num_good_algos=np.genfromtxt(script_dir /
-                "test_data/sifted/input/input_dense_numGoodAlgos.csv", delimiter=","),
-            beta=np.genfromtxt(script_dir /
-                "test_data/sifted/input/input_dense_beta.csv", delimiter=","),
-            inst_labels=np.genfromtxt(script_dir /
-                "test_data/sifted/input/input_dense_instlabels.csv", delimiter=",",
-                dtype=str).tolist(),
+            x=np.genfromtxt(
+                script_dir / "test_data/sifted/input/input_dense_X.csv",
+                delimiter=",",
+            ),
+            y=np.genfromtxt(
+                script_dir / "test_data/sifted/input/input_dense_Y.csv",
+                delimiter=",",
+            ),
+            x_raw=np.genfromtxt(
+                script_dir / "test_data/sifted/input/input_dense_Xraw.csv",
+                delimiter=",",
+            ),
+            y_raw=np.genfromtxt(
+                script_dir / "test_data/sifted/input/input_dense_Yraw.csv",
+                delimiter=",",
+            ),
+            y_bin=np.genfromtxt(
+                script_dir / "test_data/sifted/input/input_dense_Ybin.csv",
+                delimiter=",",
+            ),
+            y_best=np.genfromtxt(
+                script_dir / "test_data/sifted/input/input_dense_Ybest.csv",
+                delimiter=",",
+            ),
+            p=np.genfromtxt(
+                script_dir / "test_data/sifted/input/input_dense_P.csv",
+                delimiter=",",
+            ),
+            num_good_algos=np.genfromtxt(
+                script_dir / "test_data/sifted/input/input_dense_numGoodAlgos.csv",
+                delimiter=",",
+            ),
+            beta=np.genfromtxt(
+                script_dir / "test_data/sifted/input/input_dense_beta.csv",
+                delimiter=",",
+            ),
+            inst_labels=np.genfromtxt(
+                script_dir / "test_data/sifted/input/input_dense_instlabels.csv",
+                delimiter=",",
+                dtype=str,
+            ).tolist(),
             s=None,
         )
 
@@ -92,6 +134,7 @@ class SiftedMatlabInput:
         self.opts = SiftedOptions.default()
         self.opts_selvar = SelvarsOptions.default()
         self.opts_selvar_filter = SelvarsOptions.default(density_flag=True)
+
 
 class SiftedMatlabOutput:
     """Class to store MATLAB output data for sifted tests."""
@@ -101,26 +144,18 @@ class SiftedMatlabOutput:
         script_dir = Path(__file__).parent
 
         # Output CSV files
-        self.cluster_matlab = np.genfromtxt(script_dir /
-            "test_data/sifted/output/clusters_matlab.csv", delimiter=",")
-        self.correlation_matlab = np.genfromtxt(script_dir /
-            "test_data/sifted/output/correlation_matlab.csv", delimiter=",")
-        self.x_matlab = np.genfromtxt(script_dir /
-            "test_data/sifted/output/x_matlab.csv", delimiter=",")
-from matilda.data.options import ParallelOptions
-
-# prepare input required for testing
-script_dir = Path(__file__).parent
-csv_path_x = script_dir / "test_data/sifted/input/0-input_X.csv"
-csv_path_y = script_dir / "test_data/sifted/input/0-input_Y.csv"
-csv_path_ybin = script_dir / "test_data/sifted/input/0-input_Ybin.csv"
-csv_path_feat_labels = script_dir / "test_data/sifted/input/0-input_featlabels.csv"
-input_x = np.genfromtxt(csv_path_x, delimiter=",")
-input_y = np.genfromtxt(csv_path_y, delimiter=",")
-input_ybin = np.genfromtxt(csv_path_ybin, delimiter=",")
-feat_labels = np.genfromtxt(csv_path_feat_labels, delimiter=",", dtype=str).tolist()
-opts = SiftedOptions.default()
-par_opts = ParallelOptions.default(n_cores=10)
+        self.cluster_matlab = np.genfromtxt(
+            script_dir / "test_data/sifted/output/clusters_matlab.csv",
+            delimiter=",",
+        )
+        self.correlation_matlab = np.genfromtxt(
+            script_dir / "test_data/sifted/output/correlation_matlab.csv",
+            delimiter=",",
+        )
+        self.x_matlab = np.genfromtxt(
+            script_dir / "test_data/sifted/output/x_matlab.csv",
+            delimiter=",",
+        )
 
 
 def test_select_features_by_performance() -> None:
@@ -131,22 +166,24 @@ def test_select_features_by_performance() -> None:
     """
     inputs = SiftedMatlabInput()
     sifted = SiftedStage(
-       inputs.x,
-       inputs.y,
-       inputs.y_bin,
-       inputs.x_raw,
-       inputs.y_raw,
-       inputs.beta,
-       inputs.num_good_algos,
-       inputs.y_best,
-       inputs.p,
-       inputs.inst_labels,
-       inputs.s,
-       inputs.feat_labels,
-       inputs.opts,
+        inputs.x,
+        inputs.y,
+        inputs.y_bin,
+        inputs.x_raw,
+        inputs.y_raw,
+        inputs.beta,
+        inputs.num_good_algos,
+        inputs.y_best,
+        inputs.p,
+        inputs.inst_labels,
+        inputs.s,
+        inputs.feat_labels,
+        inputs.opts,
+        ParallelOptions.default(),
     )
     xaux_python, _, _, _ = sifted.select_features_by_performance()
     assert np.allclose(SiftedMatlabOutput().correlation_matlab, xaux_python, atol=1e-04)
+
 
 def test_select_features_by_clustering() -> None:
     """Test cluster selection against MATLAB's cluster selection output.
@@ -157,24 +194,26 @@ def test_select_features_by_clustering() -> None:
     rng = np.random.default_rng(seed=0)
     inputs = SiftedMatlabInput()
     sifted = SiftedStage(
-       inputs.x,
-       inputs.y,
-       inputs.y_bin,
-       inputs.x_raw,
-       inputs.y_raw,
-       inputs.beta,
-       inputs.num_good_algos,
-       inputs.y_best,
-       inputs.p,
-       inputs.inst_labels,
-       inputs.s,
-       inputs.feat_labels,
-       inputs.opts,
+        inputs.x,
+        inputs.y,
+        inputs.y_bin,
+        inputs.x_raw,
+        inputs.y_raw,
+        inputs.beta,
+        inputs.num_good_algos,
+        inputs.y_best,
+        inputs.p,
+        inputs.inst_labels,
+        inputs.s,
+        inputs.feat_labels,
+        inputs.opts,
+        ParallelOptions.default(),
     )
     x_aux, _, _, _ = sifted.select_features_by_performance()
     sifted.evaluate_cluster(x_aux, rng)
     _, cluster_python = sifted.select_features_by_clustering(x_aux, rng)
     assert are_same_clusters(SiftedMatlabOutput().cluster_matlab, cluster_python)
+
 
 def are_same_clusters(
     cluster_a: NDArray[np.intc],
@@ -218,6 +257,7 @@ def are_same_clusters(
 
     return bool(match_ratio >= threshold)
 
+
 def test_run() -> None:
     """Test the _run method of Sifted class.
 
@@ -228,21 +268,22 @@ def test_run() -> None:
     inputs = SiftedMatlabInput()
 
     sifted_input = SiftedInput(
-       inputs.x,
-       inputs.y,
-       inputs.y_bin,
-       inputs.x_raw,
-       inputs.y_raw,
-       inputs.beta,
-       inputs.num_good_algos,
-       inputs.y_best,
-       inputs.p,
-       inputs.inst_labels,
-       s=inputs.s,
-       feat_labels=inputs.feat_labels,
-       sifted_options=inputs.opts,
-       selvars_options=inputs.opts_selvar,
-       data_dense=inputs.data_dense,
+        inputs.x,
+        inputs.y,
+        inputs.y_bin,
+        inputs.x_raw,
+        inputs.y_raw,
+        inputs.beta,
+        inputs.num_good_algos,
+        inputs.y_best,
+        inputs.p,
+        inputs.inst_labels,
+        s=inputs.s,
+        feat_labels=inputs.feat_labels,
+        sifted_options=inputs.opts,
+        selvars_options=inputs.opts_selvar,
+        data_dense=inputs.data_dense,
+        parallel_options=ParallelOptions.default(),
     )
 
     sifted_output = SiftedStage._run(sifted_input)  # noqa: SLF001
@@ -255,6 +296,7 @@ def test_run() -> None:
 
     # test case pass if 70%
     assert correlation_matrix_check(correlation_matrix, threshold=0.5)
+
 
 def compute_correlation(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     """Compute correlation matrix and categorise them into high, normal and low.
