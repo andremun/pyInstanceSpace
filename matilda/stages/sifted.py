@@ -751,8 +751,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             save_solutions=True,
             parallel_processing=[
                 "process",
-                self.parallel_options.n_cores if self.parallel_options.flag else 1,
-            ],
+                self.parallel_options.n_cores,
+            ] if self.parallel_options.flag else None,
         )
 
         ga_instance.selfx = self.x
