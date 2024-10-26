@@ -7,8 +7,7 @@ from the MATLAB implementation with diffcult kernel and optimisation.
 
 Tests includes:
     - test_compute_znorm: Test that the output of the compute_znorm.
-    - test_generate_params_true: Test that the generated param space is expected for GS
-    - test_generate_params_false: Test that the generated param space is expected for BO
+    - test_generate_params: Test that the generated param space is expected for GS
     - test_grid_gaussian: Test that the performance of model is asexpected
         when GS with gaussian kernel.
     - test_grid_poly: Test that the performance of model is asexpected
@@ -27,7 +26,6 @@ import pandas as pd
 from numpy.typing import NDArray
 from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
-from skopt.space import Real
 
 from matilda.data.options import ParallelOptions, PythiaOptions
 from matilda.stages.pythia import PythiaStage
@@ -92,32 +90,15 @@ def test_compare_output() -> None:
     assert pythia_out[3].get_n_splits() == opt.cv_folds
 
 
-def test_generate_params_true() -> None:
-    """Test that the generated param space for grid search is expected."""
+def test_generate_params() -> None:
+    """Test that the range of generated param space is expected."""
     min_value = 2**-10
     max_value = 2**4
     rng = np.random.default_rng(seed=0)
 
-    params = PythiaStage._generate_params(True, rng)  # noqa: SLF001
+    params = PythiaStage._generate_params(rng)  # noqa: SLF001
     assert all(min_value <= param <= max_value for param in params["C"])
     assert all(min_value <= param <= max_value for param in params["gamma"])
-
-
-def test_generate_params_false() -> None:
-    """Test that the generated param space for bayesian optimization is expected."""
-    min_value = 2**-10
-    max_value = 2**4
-    rng = np.random.default_rng(seed=0)
-
-    params = PythiaStage._generate_params(False, rng)  # noqa: SLF001
-
-    assert isinstance(params["C"], Real)
-    assert isinstance(params["gamma"], Real)
-
-    assert params["C"].low == min_value
-    assert params["C"].high == max_value
-    assert params["gamma"].low == min_value
-    assert params["gamma"].high == max_value
 
 
 def test_gridsearch_opts_gaussian() -> None:
