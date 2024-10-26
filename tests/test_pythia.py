@@ -7,8 +7,7 @@ from the MATLAB implementation with diffcult kernel and optimisation.
 
 Tests includes:
     - test_compute_znorm: Test that the output of the compute_znorm.
-    - test_generate_params_true: Test that the generated param space is expected for GS
-    - test_generate_params_false: Test that the generated param space is expected for BO
+    - test_generate_params: Test that the generated param space is expected for GS
     - test_grid_gaussian: Test that the performance of model is asexpected
         when GS with gaussian kernel.
     - test_grid_poly: Test that the performance of model is asexpected
@@ -92,7 +91,7 @@ def test_compare_output() -> None:
 
 
 def test_generate_params() -> None:
-    """Test that the generated param space for grid search is expected."""
+    """Test that the range of generated param space is expected."""
     min_value = 2**-10
     max_value = 2**4
     rng = np.random.default_rng(seed=0)
