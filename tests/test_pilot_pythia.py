@@ -497,7 +497,7 @@ def test_pilot_analytic_pythia_grid_poly() -> None:
     )
 
 
-def test_pilot_analytic_pythia_BO_gaussian() -> None:
+def test_pilot_analytic_pythia_bo_gaussian() -> None:
     """Test the integration of the Pilot and Pythia stages.
 
     The test will check the output of the Pythia stage with the expected output from the
@@ -553,7 +553,7 @@ def test_pilot_analytic_pythia_BO_gaussian() -> None:
     )
 
 
-def test_pilot_analytic_pythia_BO_poly() -> None:
+def test_pilot_analytic_pythia_bo_poly() -> None:
     """Test the integration of the Pilot and Pythia stages.
 
     The test will check the output of the Pythia stage with the expected output from the
