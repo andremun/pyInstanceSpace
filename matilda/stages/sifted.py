@@ -749,7 +749,10 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             init_range_low=1,
             init_range_high=x_aux.shape[1],
             save_solutions=True,
-            parallel_processing=["process", self.parallel_options.n_cores],
+            parallel_processing=[
+                "process",
+                self.parallel_options.n_cores if self.parallel_options.flag else 1,
+            ],
         )
 
         ga_instance.selfx = self.x
