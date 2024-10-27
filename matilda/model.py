@@ -4,9 +4,7 @@ import os
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-
-from typing_extensions import TypeVar
+from typing import Any, TypeVar
 
 from matilda._serialisers import (
     save_instance_space_for_web,
@@ -79,12 +77,15 @@ class Model:
             opts=options,
         )
 
-    def save_to_csv(self, output_directory: Path) -> None:
+    def save_to_csv(self, output_directory: Path | str) -> None:
         """Save csv outputs to a directory."""
         print(
             "=========================================================================",
         )
         print("-> Writing the data on CSV files for posterior analysis.")
+
+        if isinstance(output_directory, str):
+            output_directory = Path(output_directory)
 
         save_instance_space_to_csv(
             output_directory,
@@ -96,12 +97,15 @@ class Model:
             self.pythia,
         )
 
-    def save_for_web(self, output_directory: Path) -> None:
+    def save_for_web(self, output_directory: Path | str) -> None:
         """Save csv outputs used for the web frontend to a directory."""
         print(
             "=========================================================================",
         )
         print("-> Writing the data for the web interface.")
+
+        if isinstance(output_directory, str):
+            output_directory = Path(output_directory)
 
         save_instance_space_for_web(
             output_directory,
@@ -109,12 +113,15 @@ class Model:
             self.feat_sel,
         )
 
-    def save_graphs(self, output_directory: Path) -> None:
+    def save_graphs(self, output_directory: Path | str) -> None:
         """Save csv outputs used for the web frontend to a directory."""
         print(
             "=========================================================================",
         )
         print("-> Producing the plots.")
+
+        if isinstance(output_directory, str):
+            output_directory = Path(output_directory)
 
         save_instance_space_graphs(
             output_directory,
@@ -125,23 +132,30 @@ class Model:
             self.trace,
         )
 
-    def save_to_mat(self, output_directory: Path) -> None:
+    def save_to_mat(self, output_directory: Path | str) -> None:
         """Save csv outputs used for the web frontend to a directory."""
         print(
             "=========================================================================",
         )
         print("-> Writing the data for the web interface.")
 
+        if isinstance(output_directory, str):
+            output_directory = Path(output_directory)
+
         save_instance_space_output_mat(
             output_directory,
             self.data,
         )
 
-    def save_zip(self, zip_filename: str, output_directory: Path) -> None:
+    def save_zip(self, zip_filename: str, output_directory: Path | str) -> None:
         """Save serializer outputs into a zip used for the web frontend."""
         print(
             "=========================================================================",
         )
+
+        if isinstance(output_directory, str):
+            output_directory = Path(output_directory)
+
         dir_name = DEFAULT_DIRECTARY_NAME
         ignored_files = [".gitignore", zip_filename]
         with zipfile.ZipFile(

@@ -742,12 +742,12 @@ class PrelimOptions:
         )
 
 
-def from_json_file(file_path: Path) -> InstanceSpaceOptions | None:
+def from_json_file(file_path: Path | str) -> InstanceSpaceOptions | None:
     """Parse options from a JSON file and construct an InstanceSpaceOptions object.
 
     Args:
     ----
-    file_path : Path
+    file_path : Path | str
         The path to the JSON file containing the options.
 
     Returns:
@@ -768,6 +768,9 @@ def from_json_file(file_path: Path) -> InstanceSpaceOptions | None:
         If the parsed JSON data contains invalid options.
 
     """
+    if isinstance(file_path, str):
+        file_path = Path(file_path)
+
     try:
         with file_path.open() as o:
             options_contents = o.read()
