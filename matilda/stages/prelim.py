@@ -586,11 +586,11 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
     ) -> tuple[
         NDArray[np.double],  # PrelimDataChanged.x
         NDArray[np.double],  # PrelimDataChanged.y
-        NDArray[np.bool_],   # PrelimDataChanged.y_bin
+        NDArray[np.bool_],  # PrelimDataChanged.y_bin
         NDArray[np.double],  # PrelimDataChanged.y_best
-        NDArray[np.int_],    # PrelimDataChanged.p
+        NDArray[np.int_],  # PrelimDataChanged.p
         NDArray[np.double],  # PrelimDataChanged.num_good_algos
-        NDArray[np.bool_],   # PrelimDataChanged.beta
+        NDArray[np.bool_],  # PrelimDataChanged.beta
         NDArray[np.double],  # PrelimOut.med_val
         NDArray[np.double],  # PrelimOut.iq_range
         NDArray[np.double],  # PrelimOut.hi_bound
@@ -599,7 +599,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         NDArray[np.double],  # PrelimOut.lambda_x
         NDArray[np.double],  # PrelimOut.mu_x
         NDArray[np.double],  # PrelimOut.sigma_x
-        float,               # PrelimOut.min_y
+        float,  # PrelimOut.min_y
         NDArray[np.double],  # PrelimOut.lambda_y
         NDArray[np.double],  # PrelimOut.sigma_y
         NDArray[np.double],  # PrelimOut.mu_y
@@ -727,22 +727,22 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         p: NDArray[np.int_],
         num_good_algos: NDArray[np.double],
         beta: NDArray[np.bool_],
-        s: pd.Series | None,    # type: ignore[type-arg]
+        s: pd.Series | None,  # type: ignore[type-arg]
         selvars_opts: SelvarsOptions,
-    ) -> tuple[                 # type: ignore[type-arg]
-        NDArray[np.bool_],      # subset_index
-        NDArray[np.double],     # x
-        NDArray[np.double],     # y
-        NDArray[np.double],     # x_raw
-        NDArray[np.double],     # y_raw
-        NDArray[np.bool_],      # y_bin
-        NDArray[np.bool_],      # beta
-        NDArray[np.double],     # num_good_algos
-        NDArray[np.double],     # y_best
-        NDArray[np.int_],       # p
-        pd.Series,              # inst_labels
-        pd.Series | None,       # s
-        DataDense | None,       # data_dense
+    ) -> tuple[  # type: ignore[type-arg]
+        NDArray[np.bool_],  # subset_index
+        NDArray[np.double],  # x
+        NDArray[np.double],  # y
+        NDArray[np.double],  # x_raw
+        NDArray[np.double],  # y_raw
+        NDArray[np.bool_],  # y_bin
+        NDArray[np.bool_],  # beta
+        NDArray[np.double],  # num_good_algos
+        NDArray[np.double],  # y_best
+        NDArray[np.int_],  # p
+        pd.Series,  # inst_labels
+        pd.Series | None,  # s
+        DataDense | None,  # data_dense
     ]:
         data_dense = None
         # If we are only meant to take some observations
