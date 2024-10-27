@@ -586,8 +586,7 @@ class InstanceSpaceOptions:
         data: dict[str, Any],
         field_mapping: dict[str, str] | None = None,
     ) -> None:
-        """
-        Validate all keys in the provided dictionary are valid fields in dataclass.
+        """Validate all keys in the provided dictionary are valid fields in dataclass.
 
         Args:
         ----

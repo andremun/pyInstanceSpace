@@ -131,8 +131,7 @@ class PrelimOut:
         cls: type[T],
         stage_runner_output: dict[str, Any],
     ) -> T:
-        """
-        Initialise a PrelimOut object from the output of an InstanceSpace StageRunner.
+        """Initialise a PrelimOut object from the output of InstanceSpace StageRunner.
 
         Args
         ----
@@ -178,8 +177,7 @@ class SiftedOut:
         cls: type[T],
         stage_runner_output: dict[str, Any],
     ) -> T:
-        """
-        Initialise a SiftedOut object from the output of an InstanceSpace StageRunner.
+        """Initialise a SiftedOut object from the output of InstanceSpace StageRunner.
 
         Args
         ----
@@ -269,8 +267,7 @@ class CloisterOut:
         cls: type[T],
         stage_runner_output: dict[str, Any],
     ) -> T:
-        """
-        Initialise a CloisterOut object from the output of an InstanceSpace StageRunner.
+        """Initialise CloisterOut object from the output of InstanceSpace StageRunner.
 
         Args
         ----
@@ -317,8 +314,7 @@ class PythiaOut:
         cls: type[T],
         stage_runner_output: dict[str, Any],
     ) -> T:
-        """
-        Initialise a PythiaOut object from the output of an InstanceSpace StageRunner.
+        """Initialise a PythiaOut object from the output of InstanceSpace StageRunner.
 
         Args
         ----
