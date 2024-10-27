@@ -509,8 +509,6 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
                     return -float(result[0])
                 return -float(result)
 
-
-
             # Find the lambda that minimizes the negative log-likelihood
             # We minimize the negative log-likelihood because fmin performs minimization
             optimal_lambda = optimize.fmin(neg_log_likelihood, lmbda_init, disp=False)
