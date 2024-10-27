@@ -127,9 +127,9 @@ class SiftedInput(NamedTuple):
     num_good_algos: NDArray[np.double]
     y_best: NDArray[np.double]
     p: NDArray[np.int_]
-    inst_labels: pd.Series
+    inst_labels: pd.Series[str]
     feat_labels: list[str]
-    s: pd.Series | None
+    s: pd.Series[str] | None
     sifted_options: SiftedOptions
     selvars_options: SelvarsOptions
     data_dense: DataDense | None
@@ -189,8 +189,8 @@ class SiftedOutput(NamedTuple):
     num_good_algos: NDArray[np.double]
     y_best: NDArray[np.double]
     p: NDArray[np.int_]
-    inst_labels: pd.Series
-    s: pd.Series | None
+    inst_labels: pd.Series[str]
+    s: pd.Series[str] | None
     feat_labels: list[str]
     selvars: NDArray[np.intc]
     idx: NDArray[np.intc]
