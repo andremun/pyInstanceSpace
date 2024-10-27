@@ -4,17 +4,17 @@ This module implements the SIFTED stage, which focuses on feature selection,
 clustering, and optimization to enhance data analysis outcomes. The SIFTED
 algorithm performs several key steps:
 
-1. Conduct feature correlation analysis to identify the most relevant features 
+1. Conduct feature correlation analysis to identify the most relevant features
    based on their correlation with performance metrics.
-2. Cluster features to group similar ones, further reducing dimensionality 
+2. Cluster features to group similar ones, further reducing dimensionality
    and improving selection efficiency.
-3. Optimize feature combinations using genetic algorithms (GA) or brute-force 
+3. Optimize feature combinations using genetic algorithms (GA) or brute-force
    search, aiming to maximize a model's performance.
 4. Filter instances using a filtering method if the corresponding flag is raised
 
-The SIFTED stage is encapsulated in the `SiftedStage` class, which manages 
-the entire feature selection process. It includes utility methods for 
-calculating correlations, evaluating clusters, and selecting optimal feature 
+The SIFTED stage is encapsulated in the `SiftedStage` class, which manages
+the entire feature selection process. It includes utility methods for
+calculating correlations, evaluating clusters, and selecting optimal feature
 combinations based on performance metrics.
 
 Dependencies:
@@ -27,15 +27,15 @@ Dependencies:
 Classes
 -------
 SiftedStage :
-    The primary class that implements the SIFTED stage, providing methods for 
+    The primary class that implements the SIFTED stage, providing methods for
     feature selection, clustering, and optimization through various algorithms.
 
 Functions
 ---------
-sifted(x, y, y_bin, x_raw, y_raw, beta, num_good_algos, y_best, p, 
-       inst_labels, s, feat_labels, opts, opts_selvars, 
+sifted(x, y, y_bin, x_raw, y_raw, beta, num_good_algos, y_best, p,
+       inst_labels, s, feat_labels, opts, opts_selvars,
        data_dense, parallel_options):
-    The main function to execute the SIFTED stage for processing feature selection 
+    The main function to execute the SIFTED stage for processing feature selection
     and performance optimization using provided datasets and configuration options.
 """
 
@@ -127,9 +127,9 @@ class SiftedInput(NamedTuple):
     num_good_algos: NDArray[np.double]
     y_best: NDArray[np.double]
     p: NDArray[np.int_]
-    inst_labels: pd.Series  
+    inst_labels: pd.Series
     feat_labels: list[str]
-    s: pd.Series | None  
+    s: pd.Series | None
     sifted_options: SiftedOptions
     selvars_options: SelvarsOptions
     data_dense: DataDense | None
@@ -177,9 +177,8 @@ class SiftedOutput(NamedTuple):
         List of silhouette scores for the sifted features.
     clust : NDArray[np.bool_], optional
         Boolean array indicating selected features (True if selected, False otherwise).
-    
-    """
 
+    """
 
     x: NDArray[np.double]
     y: NDArray[np.double]
@@ -190,8 +189,8 @@ class SiftedOutput(NamedTuple):
     num_good_algos: NDArray[np.double]
     y_best: NDArray[np.double]
     p: NDArray[np.int_]
-    inst_labels: pd.Series  
-    s: pd.Series | None  
+    inst_labels: pd.Series
+    s: pd.Series | None
     feat_labels: list[str]
     selvars: NDArray[np.intc]
     idx: NDArray[np.intc]
@@ -202,87 +201,82 @@ class SiftedOutput(NamedTuple):
 
 
 class SiftedStage(Stage[SiftedInput, SiftedOutput]):
-    class SiftedStage(Stage[SiftedInput, SiftedOutput]):
-        """A stage in the processing pipeline for feature selection and instance 
-        filtering.
+    """Stage in the processing pipeline for feature selection and instance filtering.
 
-        This class is responsible for executing the SIFTED stage, which involves 
-        selecting relevant features based on correlation with performance metrics and 
-        applying clustering techniques for further refinement. If the filtering flag is 
-        enabled, the stage also filters instances based on specific criteria.
+    Attributes
+    ----------
+    MIN_FEAT_REQUIRED : int
+        Minimum number of features required for selection (default is 3).
+    PVAL_THRESHOLD : float
+        P-value threshold for feature selection (default is 0.05).
+    KFOLDS : int
+        Number of folds for cross-validation (default is 5).
+    K_NEIGHBORS : int
+        Number of neighbors for k-NN classification (default is 3).
+    parallel_options : ParallelOptions
+        Options for parallel processing.
 
-        Attributes
-        ----------
-        MIN_FEAT_REQUIRED : int
-            Minimum number of features required for selection (default is 3).
-        PVAL_THRESHOLD : float
-            P-value threshold for feature selection (default is 0.05).
-        KFOLDS : int
-            Number of folds for cross-validation (default is 5).
-        K_NEIGHBORS : int
-            Number of neighbors for k-NN classification (default is 3).
-        parallel_options : ParallelOptions
-            Options for parallel processing.
+    Methods
+    -------
+    __init__(x: NDArray[np.double], y: NDArray[np.double], y_bin: NDArray[np.bool_],
+        x_raw: NDArray[np.double], y_raw: NDArray[np.double],
+        beta: NDArray[np.bool_], num_good_algos: NDArray[np.double],
+        y_best: NDArray[np.double], p: NDArray[np.int_], inst_labels: pd.Series,
+        s: pd.Series | None, feat_labels: list[str], opts: SiftedOptions,
+        parallel_options: ParallelOptions) -> None:
+        Initializes the SiftedStage with provided parameters.
 
-        Methods
-        -------
-        __init__(x: NDArray[np.double], y: NDArray[np.double], y_bin: NDArray[np.bool_], 
-            x_raw: NDArray[np.double], y_raw: NDArray[np.double], 
-            beta: NDArray[np.bool_], num_good_algos: NDArray[np.double], 
-            y_best: NDArray[np.double], p: NDArray[np.int_], inst_labels: pd.Series, 
-            s: pd.Series | None, feat_labels: list[str], opts: SiftedOptions, 
-            parallel_options: ParallelOptions) -> None:
-            Initializes the SiftedStage with provided parameters.
-        
-        _inputs() -> type[SiftedInput]:
-            Returns the input type for the SIFTED stage.
-        
-        _outputs() -> type[SiftedOutput]:
-            Returns the output type for the SIFTED stage.
-        
-        _compute_correlation(x: NDArray[np.double], y: NDArray[np.double]) -> 
-            tuple[NDArray[np.double], NDArray[np.double]]:
-            Calculates the Pearson correlation coefficients between features and performance metrics.
-        
-        evaluate_cluster(x_aux: NDArray[np.double], rng: np.random.Generator) -> 
-            tuple[list[float], NDArray[np.intc]]:
-            Evaluates clusters based on silhouette scores for different cluster configurations.
-        
-        _find_best_combination(x_aux: NDArray[np.double], clust: NDArray[np.bool_], 
-            selvars: NDArray[np.intc], rng: np.random.Generator) 
-            -> tuple[NDArray[np.double], NDArray[np.intc]]:
-            Finds the best combination of features using a genetic algorithm.
-        
-        cost_fcn(instance: pygad.GA, solutions: NDArray[np.intc], _solution_idx: int) 
-            -> float:
-            Fitness function to evaluate the quality of a solution in the genetic algorithm.
-        
-        select_features_by_clustering(x_aux: NDArray[np.double], 
-            rng: np.random.Generator) -> tuple[NDArray[np.bool_], NDArray[np.intc]]:
-            Selects features based on clustering results.
-        
-        select_features_by_performance() -> tuple[NDArray[np.double], NDArray[np.double]
-            , NDArray[np.double], NDArray[np.intc]]:
-            Selects features based on correlation with performance metrics.
-        
-        _sifted(opts_selvars: SelvarsOptions, data_dense: DataDense | None) 
-            -> SiftedOutput:
-            Executes feature selection and optional instance filtering based on 
-            provided options.
-        
-        sifted(x: NDArray[np.double], y: NDArray[np.double], y_bin: NDArray[np.bool_], 
-            x_raw: NDArray[np.double], y_raw: NDArray[np.double], 
-            beta: NDArray[np.bool_], num_good_algos: NDArray[np.double], 
-            y_best: NDArray[np.double], p: NDArray[np.int_], inst_labels: pd.Series, 
-            s: pd.Series | None, feat_labels: list[str], opts: SiftedOptions, 
-            opts_selvars: SelvarsOptions, data_dense: DataDense | None, 
-            parallel_options: ParallelOptions) -> SiftedOutput:
-            Executes the core functionality of the Sifted stage for processing feature 
-            selection.
-        
-        _run(inputs: SiftedInput) -> SiftedOutput:
-            Executes the SIFTED stage of the pipeline using the provided inputs.
-        """
+    _inputs() -> type[SiftedInput]:
+        Returns the input type for the SIFTED stage.
+
+    _outputs() -> type[SiftedOutput]:
+        Returns the output type for the SIFTED stage.
+
+    _compute_correlation(x: NDArray[np.double], y: NDArray[np.double]) ->
+        tuple[NDArray[np.double], NDArray[np.double]]:
+        Calculate the Pearson correlation coefficients between features and performance
+        metrics.
+
+    evaluate_cluster(x_aux: NDArray[np.double], rng: np.random.Generator) ->
+        tuple[list[float], NDArray[np.intc]]:
+        Evaluates clusters based on silhouette scores for different cluster
+        configurations.
+
+    _find_best_combination(x_aux: NDArray[np.double], clust: NDArray[np.bool_],
+        selvars: NDArray[np.intc], rng: np.random.Generator)
+        -> tuple[NDArray[np.double], NDArray[np.intc]]:
+        Finds the best combination of features using a genetic algorithm.
+
+    cost_fcn(instance: pygad.GA, solutions: NDArray[np.intc], _solution_idx: int)
+        -> float:
+        Fitness function to evaluate the quality of a solution in the genetic algorithm
+
+    select_features_by_clustering(x_aux: NDArray[np.double],
+        rng: np.random.Generator) -> tuple[NDArray[np.bool_], NDArray[np.intc]]:
+        Selects features based on clustering results.
+
+    select_features_by_performance() -> tuple[NDArray[np.double], NDArray[np.double]
+        , NDArray[np.double], NDArray[np.intc]]:
+        Selects features based on correlation with performance metrics.
+
+    _sifted(opts_selvars: SelvarsOptions, data_dense: DataDense | None)
+        -> SiftedOutput:
+        Executes feature selection and optional instance filtering based on
+        provided options.
+
+    sifted(x: NDArray[np.double], y: NDArray[np.double], y_bin: NDArray[np.bool_],
+        x_raw: NDArray[np.double], y_raw: NDArray[np.double],
+        beta: NDArray[np.bool_], num_good_algos: NDArray[np.double],
+        y_best: NDArray[np.double], p: NDArray[np.int_], inst_labels: pd.Series,
+        s: pd.Series | None, feat_labels: list[str], opts: SiftedOptions,
+        opts_selvars: SelvarsOptions, data_dense: DataDense | None,
+        parallel_options: ParallelOptions) -> SiftedOutput:
+        Executes the core functionality of the Sifted stage for processing feature
+        selection.
+
+    _run(inputs: SiftedInput) -> SiftedOutput:
+        Executes the SIFTED stage of the pipeline using the provided inputs.
+    """
 
     MIN_FEAT_REQUIRED: int = 3
     PVAL_THRESHOLD: float = 0.05
@@ -392,6 +386,14 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             parallel_options=inputs.parallel_options,
         )
 
+    def sift(
+        self,
+        opts_selvars: SelvarsOptions,
+        data_dense: DataDense | None,
+    ) -> SiftedOutput:
+        """Public method to access the private _sifted method."""
+        return self._sifted(opts_selvars, data_dense)
+
     @staticmethod
     def sifted(
         x: NDArray[np.double],
@@ -411,7 +413,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         data_dense: DataDense | None,
         parallel_options: ParallelOptions,
     ) -> SiftedOutput:
-        """Execute the core Sifted stage functionality to process feature selection and performance.
+        """Core Sifted stage to process feature selection and performance.
 
         Parameters
         ----------
@@ -451,14 +453,14 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         Returns
         -------
         SiftedOutput
-            Output of the Sifted stage, including selected feature and algorithm indices, 
-            correlation coefficients, performance metrics, silhouette scores, and feature 
-            selection flags.
+            Output of the Sifted stage, including selected feature and algorithm
+            indices,correlation coefficients, performance metrics, silhouette scores,
+            and feature selection flags.
 
         Notes
         -----
-        This static method initialises a `SiftedStage` instance and calls its `_sifted` 
-        method, which uses the provided options and data to execute the Sifted stage 
+        This static method initialises a `SiftedStage` instance and calls its `_sifted`
+        method, which uses the provided options and data to execute the Sifted stage
         pipeline and generate results.
         """
         sifted = SiftedStage(
@@ -478,7 +480,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             parallel_options,
         )
 
-        return sifted._sifted( 
+        return sifted.sift(
             opts_selvars=opts_selvars,
             data_dense=data_dense,
         )
@@ -488,42 +490,41 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         opts_selvars: SelvarsOptions,
         data_dense: DataDense | None,
     ) -> SiftedOutput:
-        """Executes feature selection and optional filtering for instance selection.
+        """Execute feature selection and optional filtering for instance selection.
 
         This method first selects features based on correlation with performance metrics
-        , then applies clustering for further feature selection. If the selected 
-        features exceed the minimum required, a genetic algorithm is run for optimal 
-        selection. When specific flags are enabled in `opts_selvars`, the method also 
+        , then applies clustering for further feature selection. If the selected
+        features exceed the minimum required, a genetic algorithm is run for optimal
+        selection. When specific flags are enabled in `opts_selvars`, the method also
         filters instances based on density criteria.
 
         Parameters
         ----------
         opts_selvars : SelvarsOptions
-            Configuration options for selecting variables, including density flag and 
+            Configuration options for selecting variables, including density flag and
             type.
         data_dense : DataDense | None
-            Dense data representation used for instance selection if filtering is 
+            Dense data representation used for instance selection if filtering is
             enabled.
 
         Returns
         -------
         SiftedOutput
-            Results of the Sifted stage, including selected features, correlation 
+            Results of the Sifted stage, including selected features, correlation
             coefficients,performance metrics, and optionally filtered instances.
 
         Notes
         -----
-        - Raises `NotEnoughFeatureError` if the number of features is insufficient for 
+        - Raises `NotEnoughFeatureError` if the number of features is insufficient for
             selection.
-        - Performs initial feature selection based on correlation with algorithm 
+        - Performs initial feature selection based on correlation with algorithm
             performance.
-        - Executes additional clustering for further selection if the number of features 
+        - Executes additional clustering for further selection if the number of features
             meets minimum requirements.
-        - When the `density_flag` is active in `opts_selvars` and `data_dense` is 
-            provided, filters instances based on density and minimum distance 
+        - When the `density_flag` is active in `opts_selvars` and `data_dense` is
+            provided, filters instances based on density and minimum distance
             constraints before generating the output.
         """
-
         x = self.x
         y = self.y
         y_bin = self.y_bin
