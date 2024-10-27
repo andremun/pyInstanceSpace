@@ -25,9 +25,25 @@ To convert the job management system to independent VM, following industry best 
 Implement better user and data management systems, including password recovery, two-factor authentication and other industry best practices.
 Better integration with existing platforms, such as FigShare and GitHub.
 
+# Installation Instructions
+
+run `pip install ./matilda-0.1.0.tar.gz`
+
+An example of running can be found in integration_demo.py
+
+An example of a plugin can be found in example_plugin.py
+
+# Documentation Instructions
+
+run `pdoc matilda`
+
+See the pdoc documentation for instructions on exporting static html files for hosting in github pages.
+
 # Development Environment Setup Guide
 
-REQUIREMENTS: Python 3.12 installed
+REQUIREMENTS:
+- Python 3.12 installed
+- Be inside the repository directory
 
 ### Step 1: Install poetry
 
