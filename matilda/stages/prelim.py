@@ -31,21 +31,25 @@ class PrelimInput(NamedTuple):
     Attributes
     ----------
     x : NDArray[np.double]
-        TODO: This.
+        Feature matrix where each row represents an instance, and each column represents
+        a feature.
     y : NDArray[np.double]
-        TODO: This.
+        Performance matrix of algorithms, with rows as instances and columns as
+        algorithms.
     x_raw : NDArray[np.double]
-        TODO: This.
+        Unprocessed feature matrix, containing raw values of each instance-feature pair.
     y_raw : NDArray[np.double]
-        TODO: This.
+        Unprocessed performance matrix, containing raw performance values for
+        each instance-algorithm pair.
     s : pd.Series | None
-        TODO: This.
+        Optional series for additional selection during processing, if available.
     inst_labels : pd.Series
-        TODO: This.
+        Labels for each instance in the dataset, used for identification.
     prelim_options : PrelimOptions
-        TODO: This.
+        Configuration options specific to the Prelim stage.
     selvars_options : SelvarsOptions
-        TODO: This.
+        Options for selecting variables within the Prelim stage, affecting criteria
+        and file indices.
     """
 
     x: NDArray[np.double]
@@ -65,53 +69,63 @@ class PrelimOutput(NamedTuple):
     Attributes
     ----------
     med_val : NDArray[np.double]
-        TODO: This.
+        Median values of each feature across instances in the processed data.
     iq_range : NDArray[np.double]
-        TODO: This.
+        Interquartile range of each feature, representing the spread of data between
+         the 25th and 75th percentiles.
     hi_bound : NDArray[np.double]
-        TODO: This.
+        Upper bound values for each feature based on specified statistical measures.
     lo_bound : NDArray[np.double]
-        TODO: This.
+        Lower bound values for each feature based on specified statistical measures.
     min_x : NDArray[np.double]
-        TODO: This.
+        Minimum values for each feature in the raw feature matrix.
     lambda_x : NDArray[np.double]
-        TODO: This.
+        Box-Cox transformation parameters for each feature, if applicable.
     mu_x : NDArray[np.double]
-        TODO: This.
+        Mean values of each feature across instances in the processed data.
     sigma_x : NDArray[np.double]
-        TODO: This.
+        Standard deviation of each feature across instances in the processed data.
     min_y : float
-        TODO: This.
+        Minimum value observed in the raw performance data.
     lambda_y : NDArray[np.double]
-        TODO: This.
+        Box-Cox transformation parameters for the performance matrix, if applicable.
     sigma_y : NDArray[np.double]
-        TODO: This.
+        Standard deviation of performance values across instances.
     mu_y : NDArray[np.double]
-        TODO: This.
+        Mean values of performance across instances for each algorithm.
     x : NDArray[np.double]
-        TODO: This.
+        Processed feature matrix, where each row represents an instance and each column
+         represents a feature.
     y : NDArray[np.double]
-        TODO: This.
+        Processed performance matrix, containing performance values for each
+         instance-algorithm pair.
     x_raw : NDArray[np.double]
-        TODO: This.
+        Original, unprocessed feature matrix containing raw values of each
+         instance-feature pair.
     y_raw : NDArray[np.double]
-        TODO: This.
+        Original, unprocessed performance matrix containing raw values for each
+          instance-algorithm pair.
     y_bin : NDArray[np.bool_]
-        TODO: This.
+        Binary matrix indicating instances with good algorithm performance
+          (True if performance is good).
     y_best : NDArray[np.double]
-        TODO: This.
+        Best observed performance value for each instance across all algorithms.
     p : NDArray[np.int_]
-        TODO: This.
+        Array of p-values for features based on statistical tests for feature
+          selection or ranking.
     num_good_algos : NDArray[np.double]
-        TODO: This.
+        Number of algorithms per feature that meet a certain performance threshold.
     beta : NDArray[np.bool_]
-        TODO: This.
+        Binary array indicating selected features based on certain criteria
+          (True if selected).
     instlabels : pd.Series | None
-        TODO: This.
+        Labels for each instance in the dataset, if provided.
     data_dense : DataDense | None
-        TODO: This.
+        Dense data representation, if available, containing compressed or alternative
+          feature representations.
     s : pd.Series | None
-        TODO: This.
+        Optional series used for additional selection or processing criteria,
+          if available.
     """
 
     med_val: NDArray[np.double]
@@ -572,11 +586,11 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
     ) -> tuple[
         NDArray[np.double],  # PrelimDataChanged.x
         NDArray[np.double],  # PrelimDataChanged.y
-        NDArray[np.bool_],  # PrelimDataChanged.y_bin
+        NDArray[np.bool_],   # PrelimDataChanged.y_bin
         NDArray[np.double],  # PrelimDataChanged.y_best
-        NDArray[np.int_],  # PrelimDataChanged.p
+        NDArray[np.int_],    # PrelimDataChanged.p
         NDArray[np.double],  # PrelimDataChanged.num_good_algos
-        NDArray[np.bool_],  # PrelimDataChanged.beta
+        NDArray[np.bool_],   # PrelimDataChanged.beta
         NDArray[np.double],  # PrelimOut.med_val
         NDArray[np.double],  # PrelimOut.iq_range
         NDArray[np.double],  # PrelimOut.hi_bound
@@ -585,7 +599,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         NDArray[np.double],  # PrelimOut.lambda_x
         NDArray[np.double],  # PrelimOut.mu_x
         NDArray[np.double],  # PrelimOut.sigma_x
-        float,  # PrelimOut.min_y
+        float,               # PrelimOut.min_y
         NDArray[np.double],  # PrelimOut.lambda_y
         NDArray[np.double],  # PrelimOut.sigma_y
         NDArray[np.double],  # PrelimOut.mu_y
@@ -713,22 +727,22 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         p: NDArray[np.int_],
         num_good_algos: NDArray[np.double],
         beta: NDArray[np.bool_],
-        s: pd.Series | None,  # type: ignore[type-arg]
+        s: pd.Series | None,    # type: ignore[type-arg]
         selvars_opts: SelvarsOptions,
-    ) -> tuple[  # type: ignore[type-arg]
-        NDArray[np.bool_],  # subset_index
-        NDArray[np.double],  # x
-        NDArray[np.double],  # y
-        NDArray[np.double],  # x_raw
-        NDArray[np.double],  # y_raw
-        NDArray[np.bool_],  # y_bin
-        NDArray[np.bool_],  # beta
-        NDArray[np.double],  # num_good_algos
-        NDArray[np.double],  # y_best
-        NDArray[np.int_],  # p
-        pd.Series,  # inst_labels
-        pd.Series | None,  # s
-        DataDense | None,  # data_dense
+    ) -> tuple[                 # type: ignore[type-arg]
+        NDArray[np.bool_],      # subset_index
+        NDArray[np.double],     # x
+        NDArray[np.double],     # y
+        NDArray[np.double],     # x_raw
+        NDArray[np.double],     # y_raw
+        NDArray[np.bool_],      # y_bin
+        NDArray[np.bool_],      # beta
+        NDArray[np.double],     # num_good_algos
+        NDArray[np.double],     # y_best
+        NDArray[np.int_],       # p
+        pd.Series,              # inst_labels
+        pd.Series | None,       # s
+        DataDense | None,       # data_dense
     ]:
         data_dense = None
         # If we are only meant to take some observations
@@ -772,7 +786,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             aux = np.genfromtxt(selvars_opts.file_idx, delimiter=",", dtype=int)
             print("aux:", aux)
             aux = aux[aux < ninst]
-            # for some reason, this makes the indices perform correctly.
+
             for i in range(len(aux)):
                 aux[i] = aux[i] - 1
             subset_index[aux] = True
