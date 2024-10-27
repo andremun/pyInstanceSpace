@@ -39,7 +39,6 @@ sifted(x, y, y_bin, x_raw, y_raw, beta, num_good_algos, y_best, p,
     and performance optimization using provided datasets and configuration options.
 """
 
-
 from typing import NamedTuple
 
 import numpy as np
