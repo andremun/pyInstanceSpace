@@ -810,7 +810,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         stdperf = np.round(np.nanstd(y, axis=0), 3)
 
         """This variable stores the full performance of the algorithms,
-        but filtered based on selection1"""
+        but filtered based on selection1
+        """
         y_full = y.copy()
 
         # This variable stores the performance of the selected algorithms
