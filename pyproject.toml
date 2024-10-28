@@ -1,9 +1,8 @@
 [tool.poetry]
 name = "matilda"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 authors = [
-    "Your Name <you@example.com>",
     "Kushagra Khare <kharek@student.unimelb.edu.au>",
     "Nathan Harvey <nhharvey@student.unimelb.edu.au>",
     "Kian Dsouza < kiandsouza01@gmail.com>",
