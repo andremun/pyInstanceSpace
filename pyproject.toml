@@ -1,14 +1,17 @@
 [tool.poetry]
 name = "matilda"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 authors = [
-    "Your Name <you@example.com>",
     "Kushagra Khare <kharek@student.unimelb.edu.au>",
     "Nathan Harvey <nhharvey@student.unimelb.edu.au>",
-    "Kian Dsouza < kiandsouza01@gmail.com>",
+    "Kian Dsouza <kiandsouza01@gmail.com>",
     "Yusuf Berdan Güzel <yguzel@student.unimelb.edu.au>",
-
+    "Junheng Chen <junhengc3382@gmail.com>",
+    "Dong Hyeog Jang <djang9303@gmail.com>",
+    "Cheng Ze Lam <chengzel@student.unimelb.edu.au>",
+    "Hazel Yi <yijiaying233@gmail.com>",
+    "Tao Yu <ty2@student.unimelb.edu.au>",
 ]
 readme = "README.md"
 

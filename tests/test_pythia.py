@@ -7,17 +7,16 @@ from the MATLAB implementation with diffcult kernel and optimisation.
 
 Tests includes:
     - test_compute_znorm: Test that the output of the compute_znorm.
+    - test_generate_params: Test that the generated param space is expected for GS
+    - test_grid_gaussian: Test that the performance of model is asexpected
+        when GS with gaussian kernel.
+    - test_grid_poly: Test that the performance of model is asexpected
+        when GS with poly kernel.
+    - test_bayes_opt_gaussian: Test that the output of the function is as expected
+        when BO is required.
+    - test_bayes_opt_poly: Test that the output of the function is as expected
+        when BO and polykernal is required.
     - test_compare_output: Test that the output of the compute_znorm is as expected.
-    - test_generate_params_true: Test that the output of the compute_znorm is as
-        expected.
-    - test_bayes_opt: Test that the output of the function is as expected when BO is
-        required.
-    - test_bayes_opt_poly: Test that the output of the function is as expected when BO
-        and polykernal is required.
-    - test_grid_gaussian: Test that the performance of model is asexpected when grid
-        search & gaussian.
-    - test_grid_poly: Test that the performance of model is asexpected when grid search
-        & poly.
 """
 
 from pathlib import Path
@@ -58,6 +57,11 @@ opt = PythiaOptions(
     params=None,
 )
 
+parallel_opts = ParallelOptions(
+    flag=True,
+    n_cores=2,
+)
+
 
 def test_compute_znorm() -> None:
     """Test that the output of the compute_znorm."""
@@ -86,18 +90,91 @@ def test_compare_output() -> None:
     assert pythia_out[3].get_n_splits() == opt.cv_folds
 
 
-def test_generate_params_true() -> None:
-    """Test that the output of the compute_znorm is as expected."""
+def test_generate_params() -> None:
+    """Test that the range of generated param space is expected."""
     min_value = 2**-10
     max_value = 2**4
     rng = np.random.default_rng(seed=0)
 
-    params = PythiaStage._generate_params(opt.use_grid_search, rng)  # noqa: SLF001
+    params = PythiaStage._generate_params(rng)  # noqa: SLF001
     assert all(min_value <= param <= max_value for param in params["C"])
     assert all(min_value <= param <= max_value for param in params["gamma"])
 
 
-def test_bayes_opt() -> None:
+def test_gridsearch_opts_gaussian() -> None:
+    """Test that the performance of model is asexpected when grid search & gaussian."""
+    opts = PythiaOptions(
+        cv_folds=5,
+        is_poly_krnl=False,
+        use_weights=False,
+        use_grid_search=True,
+        params=None,
+    )
+    pythia = PythiaStage(z, y, y_bin, y_best, algo)
+    pythia_out = pythia.pythia(
+        z,
+        y,
+        y_bin,
+        y_best,
+        algo,
+        opts,
+        parallel_opts,
+    )
+    matlab_output = pd.read_csv(output_dir / "GS_gaussian/gridsearch_gaussian.csv")
+
+    # get the accuracy, precision, recall
+    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
+    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
+    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
+    compare_performance(
+        pythia_out,
+        matlab_accuracy,
+        matlab_precision,
+        matlab_recall,
+        len(algo),
+        2.5,
+    )
+
+
+def test_gridsearch_opts_poly() -> None:
+    """Test that the performance of model is asexpected when grid search & poly ."""
+    opts = PythiaOptions(
+        cv_folds=5,
+        is_poly_krnl=True,
+        use_weights=False,
+        use_grid_search=True,
+        params=None,
+    )
+    pythia = PythiaStage(z, y, y_bin, y_best, algo)
+    pythia_out = pythia.pythia(
+        z,
+        y,
+        y_bin,
+        y_best,
+        algo,
+        opts,
+        parallel_opts,
+    )
+
+    # read the actual output
+    matlab_output = pd.read_csv(output_dir / "GS_poly/gridsearch_poly.csv")
+
+    # get the accuracy, precision, recall
+    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
+    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
+    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
+
+    compare_performance(
+        pythia_out,
+        matlab_accuracy,
+        matlab_precision,
+        matlab_recall,
+        len(algo),
+        2.5,
+    )
+
+
+def test_bayes_opt_gaussian() -> None:
     """Test that the output of the function is as expected when BO is required."""
     opts = PythiaOptions(
         cv_folds=5,
@@ -114,7 +191,7 @@ def test_bayes_opt() -> None:
         y_best,
         algo,
         opts,
-        ParallelOptions.default(),
+        parallel_opts,
     )
 
     # read the actual output
@@ -164,7 +241,7 @@ def test_bayes_opt_poly() -> None:
         y_best,
         algo,
         opts,
-        ParallelOptions.default(),
+        parallel_opts,
     )
 
     # read the actual output
@@ -174,92 +251,6 @@ def test_bayes_opt_poly() -> None:
     matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
     matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
     matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
-
-    compare_performance(
-        pythia_out,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
-
-
-def test_grid_gaussian() -> None:
-    """Test that the performance of model is asexpected when grid search & gaussian."""
-    opts = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=False,
-        use_weights=False,
-        use_grid_search=True,
-        params=None,
-    )
-    pythia = PythiaStage(z, y, y_bin, y_best, algo)
-    pythia_out = pythia.pythia(
-        z,
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-        ParallelOptions.default(),
-    )
-    # read the actual output
-    matlab_accuracy = pd.read_csv(
-        output_dir / "gridsearch_gaussian/accuracy.csv",
-        header=None,
-    ).values
-    matlab_precision = pd.read_csv(
-        output_dir / "gridsearch_gaussian/precision.csv",
-        header=None,
-    ).values
-    matlab_recall = pd.read_csv(
-        output_dir / "gridsearch_gaussian/recall.csv",
-        header=None,
-    ).values
-    compare_performance(
-        pythia_out,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
-
-
-def test_grid_poly() -> None:
-    """Test that the performance of model is asexpected when grid search & poly ."""
-    opts = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=True,
-        use_weights=False,
-        use_grid_search=True,
-        params=None,
-    )
-    pythia = PythiaStage(z, y, y_bin, y_best, algo)
-    pythia_out = pythia.pythia(
-        z,
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-        ParallelOptions.default(),
-    )
-
-    # read the actual output
-    matlab_accuracy = pd.read_csv(
-        output_dir / "gridsearch_polynomial/accuracy.csv",
-        header=None,
-    ).values
-    matlab_precision = pd.read_csv(
-        output_dir / "gridsearch_polynomial/precision.csv",
-        header=None,
-    ).values
-    matlab_recall = pd.read_csv(
-        output_dir / "gridsearch_polynomial/recall.csv",
-        header=None,
-    ).values
 
     compare_performance(
         pythia_out,

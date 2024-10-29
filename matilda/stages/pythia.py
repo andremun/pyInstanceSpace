@@ -35,7 +35,6 @@ Functions:
 - _determine_selections: Determine the selections based on the precision metrics.
 - _generate_params: Generate hyperparameters for the SVM models.
 - _generate_summary: Generate a summary of the results.
-
 """
 
 from dataclasses import dataclass
@@ -53,19 +52,17 @@ from sklearn.metrics import (
     recall_score,
 )
 from sklearn.model_selection import (
-    GridSearchCV,
+    RandomizedSearchCV,
     StratifiedKFold,
     cross_val_predict,
 )
 from sklearn.svm import SVC
 from skopt import BayesSearchCV
-from skopt.space import Real
 
 from matilda.data.options import ParallelOptions, PythiaOptions
 from matilda.stages.stage import Stage
 
 LARGE_NUM_INSTANCE: int = 1000
-IF_PARAMS_FILE: int = 2
 
 
 @dataclass(frozen=True)
@@ -99,7 +96,7 @@ class PythiaInput(NamedTuple):
     pythia_options : PythiaOptions
         The options for the Pythia stage.
     parallel_options: ParallelOptions
-        TODO: This.
+        The parallel options, specifiy whether run in parallel and number of cores.
     """
 
     z: NDArray[np.double]
@@ -117,41 +114,41 @@ class PythiaOutput(NamedTuple):
     Attributes
     ----------
     mu : list[float]
-    TODO: This.
+        The mean values of the normalized features.
     sigma : list[float]
-    TODO: This.
+        The standard deviations of the normalized features.
     w : NDArray[np.double]
-    TODO: This.
+        The weight matrix used for cost-sensitive classification.
     cp : StratifiedKFold
-    TODO: This.
+        The Stratified K-Fold cross-validator.
     svm : list[SVC]
-    TODO: This.
+        A list of trained Support Vector Classifier (SVC) models.
     cvcmat : NDArray[np.double]
-    TODO: This.
+        Confusion matrix for each algorithm
     y_sub : NDArray[np.bool_]
-    TODO: This.
+        The binary predicted labels for each algorithm.
     y_hat : NDArray[np.bool_]
-    TODO: This.
+        The final predicted labels for each algorithm.
     pr0_sub : NDArray[np.double]
-    TODO: This.
+        The predicted cross-validated probabilities of the positive class.
     pr0_hat : NDArray[np.double]
-    TODO: This.
+        The predicted probabilities of the positive class on the full data.
     box_consnt : list[float]
-    TODO: This.
+        Regularization parameters `C`.
     k_scale : list[float]
-    TODO: This.
+        The kernel scale (parameters `gamma`) values.
     accuracy : list[float]
-    TODO: This.
+        Accuracy scores of each SVM model.
     precision : list[float]
-    TODO: This.
+        Precision scores for each SVM model.
     recall : list[float]
-    TODO: This.
+        Recall scores for each algorithm
     selection0 : NDArray[np.int_]
-    TODO: This.
+        The selected algorithm indices for each instance.
     selection1 : NDArray[np.int_]
-    TODO: This.
+        The backup selected algorithm indices for each instance.
     summary : pd.DataFrame
-    TODO: This.
+        A summary table for performance statistics of all algorithms.
     """
 
     mu: list[float]
@@ -175,7 +172,63 @@ class PythiaOutput(NamedTuple):
 
 
 class PythiaStage(Stage[PythiaInput, PythiaOutput]):
-    """See file docstring."""
+    """Pythia stage for automated algorithm selection.
+
+    The `PythiaStage` class is the main class for the Pythia stage. It
+    contains the main function `pythia` that runs the Pythia stage.
+
+    Methods
+    -------
+    _inputs() -> type[PythiaInput]
+        Return the input type for the Pythia stage.
+
+    _outputs() -> type[PythiaOutput]
+        Return the output type for the Pythia stage.
+
+    _run(inputs: PythiaInput) -> PythiaOutput
+        Run the Pythia stage.
+
+    pythia(z: NDArray[np.double], y: NDArray[np.double], y_bin: NDArray[np.bool_],
+              y_best: NDArray[np.double], algo_labels: list[str], opts: PythiaOptions,
+                parallel_options: ParallelOptions) -> PythiaOutput
+        Main method that perform automated algorithm selection.
+
+    _fitmatsvm(z: NDArray[np.double], y_bin: NDArray[np.bool_], w: NDArray[np.double],
+                skf: StratifiedKFold, is_poly_kernel: bool,
+                param_space: dict[str, list[float]],use_grid_search: bool,
+                parallel_options: ParallelOptions) -> _SvmRes
+        Train the SVM model with configurable options.
+
+    _display_overall_perf(precision: list[float], accuracy: list[float]) -> None
+        Output overall performance metrics.
+
+    _compute_znorm(z: NDArray[np.double]) -> tuple[list[float], list[float],
+                NDArray[np.double]]
+        Compute normalized feature matrix.
+
+    _check_precalcparams(params: NDArray[np.double] | None, nalgos: int) ->
+                NDArray[np.double] | None
+        Check pre-calculated hyper-parameters.
+
+    _determine_selections(nalgos: int, precision: list[float], y_hat: NDArray[np.bool_],
+                            y_bin: NDArray[np.bool_]) -> tuple[NDArray[np.int_],
+                            NDArray[np.int_]]
+        Determine the selections based on the precision metrics.
+
+    _generate_params(use_grid_search: bool, rng: np.random.Generator) ->
+                            dict[str, list[float]]
+        Generate hyperparameters for the SVM models.
+
+    _generate_summary(nalgos: int, algo_labels: list[str], y: NDArray[np.double],
+                        y_hat: NDArray[np.bool_], y_bin: NDArray[np.bool_],
+                        y_best: NDArray[np.double],
+                        selection0: NDArray[np.int_], selection1: NDArray[np.int_],
+                        precision: list[float],
+                        accuracy: list[float], recall: list[float],
+                        box_consnt: list[float],
+                        k_scale: list[float]) -> pd.DataFrames
+        Generate a summary of the results.
+    """
 
     def __init__(
         self,
@@ -185,7 +238,21 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         y_best: NDArray[np.double],
         algo_labels: list[str],
     ) -> None:
-        """See file docstring."""
+        """Define the input for the Pythia stage.
+
+        Parameters
+        ----------
+        z : NDArray[np.double]
+            The feature matrix.
+        y_raw : NDArray[np.double]
+            The performance metrics.
+        y_bin : NDArray[np.bool_]
+            The binary labels.
+        y_best : NDArray[np.double]
+            The best performance metrics.
+        algo_labels : list[str]
+            The algorithm labels.
+        """
         super().__init__()
         self.z = z
         self.y = y_raw
@@ -240,7 +307,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         opts : PythiaOptions
             The options for the Pythia stage.
         parallel_options : ParallelOptions
-            TODO: This.
+            The parallel options, specifiy whether run in parallel and number of cores.
 
         Returns
         -------
@@ -255,6 +322,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             "=========================================================================",
         )
         print("  -> Initializing PYTHIA.")
+
+        # Initialize variables
         ninst, nalgos = y_bin.shape
 
         y_sub = np.zeros(y_bin.shape, dtype=bool)
@@ -274,6 +343,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         w = np.ones((z.shape[0], nalgos), dtype=np.double)
         rng = np.random.default_rng(seed=0)
+        # Section 1: Normalize the feature matrix
         (mu, sigma, z) = PythiaStage._compute_znorm(z)
 
         if ninst > LARGE_NUM_INSTANCE and not opts.is_poly_krnl:
@@ -331,23 +401,23 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         # Section 3: Train SVM model for each algorithm & Evaluate performance.
         overall_start_time = perf_counter()
+
         for i in range(nalgos):
             algo_start_time = perf_counter()
             param_space = (
-                PythiaStage._generate_params(opts.use_grid_search, rng)
+                PythiaStage._generate_params(rng)
                 if precalcparams is None
                 else {"C": precalcparams[i][0], "gamma": precalcparams[i][1]}
             )
-
             res = PythiaStage._fitmatsvm(
-                z,
-                y_bin[:, i],
-                w[:, i].flatten(),
-                cp,
-                opts.is_poly_krnl,
-                param_space,
-                opts.use_grid_search,
-                parallel_options,
+                z=z,
+                y_bin=y_bin[:, i],
+                w=w[:, i].flatten(),
+                skf=cp,
+                is_poly_kernel=opts.is_poly_krnl,
+                param_space=param_space,
+                use_grid_search=opts.use_grid_search,
+                parallel_options=parallel_options,
             )
 
             # Record performance metrics
@@ -470,7 +540,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         use_grid_search : bool
             Whether to use grid search for hyperparameter optimization.
         parallel_options : ParallelOptions
-            TODO: This.
+            The parallel options, specifiy whether run in parallel and number of cores.
 
         Returns
         -------
@@ -486,11 +556,17 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             coef0=1,
         )
         if use_grid_search:
-            optimization = GridSearchCV(
+            # Perform grid search for hyperparameter optimization
+            # The randomizedsearchCV is used to reduce the computational cost
+            # by considering a limited number combination of hyperparameters
+            optimization = RandomizedSearchCV(
                 estimator=svm_model,
+                n_iter=30,
+                param_distributions=param_space,
                 cv=skf,
-                param_grid=param_space,
-                n_jobs=-1,
+                verbose=0,
+                random_state=0,  # Ensure reproducibility with a fixed seed
+                n_jobs=(parallel_options.n_cores if parallel_options.flag else 1),
             )
         else:
             optimization = BayesSearchCV(
@@ -499,8 +575,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 search_spaces=param_space,
                 cv=skf,
                 verbose=0,
-                random_state=0,
-                n_jobs=parallel_options.n_cores,
+                random_state=0,  # Ensure reproducibility with a fixed seed
+                n_jobs=(parallel_options.n_cores if parallel_options.flag else 1),
             )
         optimization.fit(z, y_bin, sample_weight=w)
         best_svm = optimization.best_estimator_
@@ -653,7 +729,6 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
     @staticmethod
     def _generate_params(
-        use_grid_search: bool,
         rng: np.random.Generator,
     ) -> dict[str, list[float]]:
         """Generate hyperparameters for the SVM models.
@@ -665,24 +740,17 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         rng : np.random.Generator
             The random number generator.
         """
-        if use_grid_search:
-            maxgrid = 4
-            mingrid = -10
-            # Number of samples
-            nvals = 30
+        # if use_grid_search:
+        maxgrid, mingrid = 4, -10
+        # Number of samples
+        nvals = 30
 
-            # Generate Latin Hypercube Samples
-            lhs = stats.qmc.LatinHypercube(d=2, seed=rng)
-            samples = lhs.random(nvals)
-            c = 2 ** ((maxgrid - mingrid) * samples[:, 0] + mingrid)
-            gamma = 2 ** ((maxgrid - mingrid) * samples[:, 1] + mingrid)
-
-            # Combine the two sets of samples into the parameter grid
-            return {"C": list(c), "gamma": list(gamma)}
-        return {
-            "C": Real(2**-10, 2**4, prior="log-uniform"),
-            "gamma": Real(2**-10, 2**4, prior="log-uniform"),
-        }
+        # Generate params space through latin hypercube samples for grid search
+        lhs = stats.qmc.LatinHypercube(d=2, seed=rng)
+        samples = lhs.random(nvals)
+        c = 2 ** ((maxgrid - mingrid) * samples[:, 0] + mingrid)
+        gamma = 2 ** ((maxgrid - mingrid) * samples[:, 1] + mingrid)
+        return {"C": list(c), "gamma": list(gamma)}
 
     @staticmethod
     def _generate_summary(
@@ -742,7 +810,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         stdperf = np.round(np.nanstd(y, axis=0), 3)
 
         """This variable stores the full performance of the algorithms,
-        but filtered based on selection1"""
+        but filtered based on selection1
+        """
         y_full = y.copy()
 
         # This variable stores the performance of the selected algorithms
