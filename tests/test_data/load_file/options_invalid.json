@@ -1,0 +1,35 @@
+{
+    "parallel": { "flag": false, "ncores": 89898},
+    "perf": {
+      "MaxPerf_invalid": true,
+      "AbsPerf": true,
+      "epsilon": 0.2,
+      "betaThreshold": 8765435678976546789
+    },
+    "auto": { "preproc": true },
+    "bound": { "flag": true },
+    "norm": { "flag": true },
+    "selvars": {
+      "smallscaleflag": false,
+      "fileidx": "aaaaaaa",
+      "densityflag": false,
+      "mindistance": 0.10007,
+      "type": "Ftr&Good and so on",
+      "algos": ["algo_NB", "algo_CART", "algo_KNN", "algo_RBF_SVM", "algo_RandF"]
+    },
+    "sifted": {
+      "flag": true,
+      "rho": 0.1,
+      "K": 89899,
+      "NTREES": 10000000000,
+      "MaxIter": 77787878,
+      "Replicates": 100
+    },
+    "trace": { "usesim": true, "PI": 0.59999 },
+    "pilot": { "analytic": false, "ntries": 8989 },
+    "cloister": { "cthres": 0.79, "pval": 0.0599 },
+    "pythia": {
+      "uselibsvm": true
+    },
+    "outputs": { "csv": true, "png": true, "web": false }
+  }
