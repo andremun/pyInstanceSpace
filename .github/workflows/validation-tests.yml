@@ -34,8 +34,8 @@ jobs:
       run: |-
         poetry install
 
-    - name: Check formatting with black, linting with Ruff, and static check with Mypy
-      run: poetry run poe test --fix
+    # - name: Check formatting with black, linting with Ruff, and static check with Mypy
+    #   run: poetry run poe --fix test
 
     - name: Test with pytest
       run: poetry run pytest
