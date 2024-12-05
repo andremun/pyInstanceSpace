@@ -2,7 +2,7 @@
 
 Is created by a StageBuilder.
 """
-
+from copy import deepcopy
 from collections import defaultdict
 from collections.abc import Generator
 from typing import Any, NamedTuple
@@ -152,7 +152,7 @@ class StageRunner:
         # TODO: See if this actually works
         inputs: NamedTuple = input_arguments.__new__(input_arguments, **raw_inputs)
 
-        outputs = stage._run(inputs)  # noqa: SLF001
+        outputs = stage._run(deepcopy(inputs))  # noqa: SLF001
 
         for output_name, output_value in outputs._asdict().items():
             self._available_arguments[output_name] = output_value
