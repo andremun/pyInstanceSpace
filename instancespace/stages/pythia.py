@@ -59,8 +59,8 @@ from sklearn.model_selection import (
 from sklearn.svm import SVC
 from skopt import BayesSearchCV
 
-from matilda.data.options import ParallelOptions, PythiaOptions
-from matilda.stages.stage import Stage
+from pyInstanceSpace.data.options import ParallelOptions, PythiaOptions
+from pyInstanceSpace.stages.stage import Stage
 
 LARGE_NUM_INSTANCE: int = 1000
 

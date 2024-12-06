@@ -24,10 +24,10 @@ import numpy as np
 import pandas as pd
 from numpy._typing import NDArray
 
-from matilda.data.options import (
+from pyInstanceSpace.data.options import (
     SelvarsOptions,
 )
-from matilda.stages.stage import Stage
+from pyInstanceSpace.stages.stage import Stage
 
 
 class PreprocessingInput(NamedTuple):

@@ -51,16 +51,16 @@ from sklearn.metrics import silhouette_score
 from sklearn.model_selection import KFold, cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
 
-from matilda.data.model import DataDense
-from matilda.data.options import (
+from pyInstanceSpace.data.model import DataDense
+from pyInstanceSpace.data.options import (
     ParallelOptions,
     PilotOptions,
     SelvarsOptions,
     SiftedOptions,
 )
-from matilda.stages.pilot import PilotStage
-from matilda.stages.stage import Stage
-from matilda.utils.filter import do_filter
+from pyInstanceSpace.stages.pilot import PilotStage
+from pyInstanceSpace.stages.stage import Stage
+from pyInstanceSpace.utils.filter import do_filter
 
 
 class NotEnoughFeatureError(Exception):

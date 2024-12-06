@@ -14,8 +14,8 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from matilda.data.metadata import Metadata, from_csv_file
-from matilda.data.options import (
+from pyInstanceSpace.data.metadata import Metadata, from_csv_file
+from pyInstanceSpace.data.options import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,
@@ -32,21 +32,21 @@ from matilda.data.options import (
     TraceOptions,
     from_json_file,
 )
-from matilda.model import Model
-from matilda.stage_builder import StageBuilder
-from matilda.stage_runner import (
+from pyInstanceSpace.model import Model
+from pyInstanceSpace.stage_builder import StageBuilder
+from pyInstanceSpace.stage_runner import (
     AnnotatedStageOutput,
     StageRunner,
     StageRunningError,
 )
-from matilda.stages.cloister import CloisterStage
-from matilda.stages.pilot import PilotStage
-from matilda.stages.prelim import PrelimStage
-from matilda.stages.preprocessing import PreprocessingStage
-from matilda.stages.pythia import PythiaStage
-from matilda.stages.sifted import SiftedStage
-from matilda.stages.stage import IN, OUT, Stage, StageClass
-from matilda.stages.trace import TraceStage
+from pyInstanceSpace.stages.cloister import CloisterStage
+from pyInstanceSpace.stages.pilot import PilotStage
+from pyInstanceSpace.stages.prelim import PrelimStage
+from pyInstanceSpace.stages.preprocessing import PreprocessingStage
+from pyInstanceSpace.stages.pythia import PythiaStage
+from pyInstanceSpace.stages.sifted import SiftedStage
+from pyInstanceSpace.stages.stage import IN, OUT, Stage, StageClass
+from pyInstanceSpace.stages.trace import TraceStage
 
 T = TypeVar("T", bound="_InstanceSpaceInputs")
 
@@ -107,7 +107,7 @@ class InstanceSpace:
     ## Basic Example:
     ```python
 
-        from matilda import *
+        from pyInstanceSpace import *
 
         metadata = metadata.from_csv_file('./metadata.csv')
         options = InstanceSpaceOptions.default()

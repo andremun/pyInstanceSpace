@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 from scipy.io import savemat
 from shapely import MultiPolygon, Polygon
 
-from matilda.data.model import (
+from pyInstanceSpace.data.model import (
     CloisterOut,
     Data,
     FeatSel,
@@ -23,7 +23,7 @@ from matilda.data.model import (
     SiftedOut,
     TraceOut,
 )
-from matilda.data.options import InstanceSpaceOptions
+from pyInstanceSpace.data.options import InstanceSpaceOptions
 
 
 def save_instance_space_to_csv(
