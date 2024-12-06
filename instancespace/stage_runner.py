@@ -7,7 +7,7 @@ from collections import defaultdict
 from collections.abc import Generator
 from typing import Any, NamedTuple
 
-from matilda.stages.stage import OUT, Stage, StageClass
+from pyInstanceSpace.stages.stage import OUT, Stage, StageClass
 
 StageScheduleElement = list[StageClass]
 

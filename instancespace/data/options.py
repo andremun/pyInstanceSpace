@@ -14,7 +14,7 @@ from typing import Any, Self, TypeVar
 import numpy as np
 from numpy.typing import NDArray
 
-from matilda.data.default_options import (
+from pyInstanceSpace.data.default_options import (
     DEFAULT_AUTO_PREPROC,
     DEFAULT_BOUND_FLAG,
     DEFAULT_CLOISTER_C_THRES,

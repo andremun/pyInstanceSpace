@@ -43,8 +43,8 @@ from numpy.typing import NDArray
 from scipy.spatial import ConvexHull, QhullError
 from scipy.stats import pearsonr
 
-from matilda.data.options import CloisterOptions
-from matilda.stages.stage import Stage
+from pyInstanceSpace.data.options import CloisterOptions
+from pyInstanceSpace.stages.stage import Stage
 
 
 class CloisterInput(NamedTuple):

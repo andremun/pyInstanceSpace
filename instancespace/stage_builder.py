@@ -2,8 +2,8 @@
 
 from typing import NamedTuple, Self, get_args
 
-from matilda.stage_runner import StageRunner, StageScheduleElement, _StageArgument
-from matilda.stages.stage import RunAfter, RunBefore, StageClass
+from pyInstanceSpace.stage_runner import StageRunner, StageScheduleElement, _StageArgument
+from pyInstanceSpace.stages.stage import RunAfter, RunBefore, StageClass
 
 
 class _BeforeAfterRestriction(NamedTuple):
