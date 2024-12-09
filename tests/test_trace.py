@@ -13,8 +13,8 @@ import numpy as np
 import pandas as pd
 from pandas.testing import assert_frame_equal
 
-from matilda.data.options import ParallelOptions, TraceOptions
-from matilda.stages.trace import TraceInputs, TraceOutputs, TraceStage
+from instancespace.data.options import ParallelOptions, TraceOptions
+from instancespace.stages.trace import TraceInputs, TraceOutputs, TraceStage
 
 
 def test_trace_pythia() -> None:

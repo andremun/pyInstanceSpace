@@ -27,8 +27,8 @@ from numpy.typing import NDArray
 from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
 
-from matilda.data.options import ParallelOptions, PythiaOptions
-from matilda.stages.pythia import PythiaStage
+from instancespace.data.options import ParallelOptions, PythiaOptions
+from instancespace.stages.pythia import PythiaStage
 
 script_dir = Path(__file__).parent
 output_dir = script_dir / "test_data/pythia/output"

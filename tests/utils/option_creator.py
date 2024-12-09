@@ -6,7 +6,7 @@ Examples
 >>> options = create_option(cloister=cloister_opt)
 """
 
-from matilda.data.options import (
+from instancespace.data.options import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,

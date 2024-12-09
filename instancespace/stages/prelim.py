@@ -19,10 +19,10 @@ from numpy.typing import NDArray
 from scipy import optimize, stats
 from sklearn.model_selection import train_test_split
 
-from pyInstanceSpace.data.model import DataDense
-from pyInstanceSpace.data.options import PrelimOptions, SelvarsOptions
-from pyInstanceSpace.stages.stage import Stage
-from pyInstanceSpace.utils.filter import do_filter
+from instancespace.data.model import DataDense
+from instancespace.data.options import PrelimOptions, SelvarsOptions
+from instancespace.stages.stage import Stage
+from instancespace.utils.filter import do_filter
 
 
 class PrelimInput(NamedTuple):

@@ -19,8 +19,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from matilda.data.options import CloisterOptions
-from matilda.stages.cloister import CloisterInput, CloisterStage
+from instancespace.data.options import CloisterOptions
+from instancespace.stages.cloister import CloisterInput, CloisterStage
 
 script_dir = Path(__file__).parent
 

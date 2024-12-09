@@ -2,8 +2,8 @@
 
 from typing import NamedTuple
 
-from matilda.stage_builder import StageBuilder
-from matilda.stages.stage import Stage
+from instancespace.stage_builder import StageBuilder
+from instancespace.stages.stage import Stage
 
 
 class InitialArguments(NamedTuple):

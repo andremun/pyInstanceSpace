@@ -10,7 +10,7 @@ from typing import Self
 
 import pytest
 
-from matilda.data.default_options import (
+from instancespace.data.default_options import (
     DEFAULT_AUTO_PREPROC,
     DEFAULT_BOUND_FLAG,
     DEFAULT_CLOISTER_C_THRES,
@@ -46,9 +46,9 @@ from matilda.data.default_options import (
     DEFAULT_TRACE_PURITY,
     DEFAULT_TRACE_USE_SIM,
 )
-from matilda.data.metadata import Metadata
-from matilda.data.options import InstanceSpaceOptions
-from matilda.instance_space import (
+from instancespace.data.metadata import Metadata
+from instancespace.data.options import InstanceSpaceOptions
+from instancespace.instance_space import (
     instance_space_from_directory,
     instance_space_from_files,
 )

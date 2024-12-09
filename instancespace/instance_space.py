@@ -14,8 +14,8 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from pyInstanceSpace.data.metadata import Metadata, from_csv_file
-from pyInstanceSpace.data.options import (
+from instancespace.data.metadata import Metadata, from_csv_file
+from instancespace.data.options import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,
@@ -32,21 +32,21 @@ from pyInstanceSpace.data.options import (
     TraceOptions,
     from_json_file,
 )
-from pyInstanceSpace.model import Model
-from pyInstanceSpace.stage_builder import StageBuilder
-from pyInstanceSpace.stage_runner import (
+from instancespace.model import Model
+from instancespace.stage_builder import StageBuilder
+from instancespace.stage_runner import (
     AnnotatedStageOutput,
     StageRunner,
     StageRunningError,
 )
-from pyInstanceSpace.stages.cloister import CloisterStage
-from pyInstanceSpace.stages.pilot import PilotStage
-from pyInstanceSpace.stages.prelim import PrelimStage
-from pyInstanceSpace.stages.preprocessing import PreprocessingStage
-from pyInstanceSpace.stages.pythia import PythiaStage
-from pyInstanceSpace.stages.sifted import SiftedStage
-from pyInstanceSpace.stages.stage import IN, OUT, Stage, StageClass
-from pyInstanceSpace.stages.trace import TraceStage
+from instancespace.stages.cloister import CloisterStage
+from instancespace.stages.pilot import PilotStage
+from instancespace.stages.prelim import PrelimStage
+from instancespace.stages.preprocessing import PreprocessingStage
+from instancespace.stages.pythia import PythiaStage
+from instancespace.stages.sifted import SiftedStage
+from instancespace.stages.stage import IN, OUT, Stage, StageClass
+from instancespace.stages.trace import TraceStage
 
 T = TypeVar("T", bound="_InstanceSpaceInputs")
 
@@ -107,7 +107,7 @@ class InstanceSpace:
     ## Basic Example:
     ```python
 
-        from pyInstanceSpace import *
+        from instancespace import *
 
         metadata = metadata.from_csv_file('./metadata.csv')
         options = InstanceSpaceOptions.default()

@@ -17,8 +17,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from matilda.data.options import SelvarsOptions
-from matilda.utils.filter import compute_uniformity, do_filter, filter_instance
+from instancespace.data.options import SelvarsOptions
+from instancespace.utils.filter import compute_uniformity, do_filter, filter_instance
 
 script_dir = Path(__file__).parent
 
