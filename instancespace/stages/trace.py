@@ -56,9 +56,9 @@ from scipy.special import gamma
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
 from shapely.ops import triangulate, unary_union
 
-from pyInstanceSpace.data.model import Footprint
-from pyInstanceSpace.data.options import ParallelOptions, TraceOptions
-from pyInstanceSpace.stages.stage import Stage
+from instancespace.data.model import Footprint
+from instancespace.data.options import ParallelOptions, TraceOptions
+from instancespace.stages.stage import Stage
 
 POLYGON_MIN_POINT_REQUIREMENT = 3
 

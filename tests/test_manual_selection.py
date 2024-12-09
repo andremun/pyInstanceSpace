@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-from matilda.data.options import (
+from instancespace.data.options import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,
@@ -27,7 +27,7 @@ from matilda.data.options import (
     SiftedOptions,
     TraceOptions,
 )
-from matilda.stages.preprocessing import PreprocessingStage
+from instancespace.stages.preprocessing import PreprocessingStage
 
 path_root = Path(__file__).parent
 sys.path.append(str(path_root))

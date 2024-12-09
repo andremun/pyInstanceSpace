@@ -10,10 +10,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from matilda.data.options import PrelimOptions
-from matilda.instance_space import instance_space_from_files
-from matilda.stages.prelim import PrelimInput, PrelimStage
-from matilda.stages.preprocessing import PreprocessingInput, PreprocessingStage
+from instancespace.data.options import PrelimOptions
+from instancespace.instance_space import instance_space_from_files
+from instancespace.stages.prelim import PrelimInput, PrelimStage
+from instancespace.stages.preprocessing import PreprocessingInput, PreprocessingStage
 
 
 def test_integrated_prepro_n_prelim() -> None:

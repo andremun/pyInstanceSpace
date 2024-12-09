@@ -15,9 +15,9 @@ from scipy.io import loadmat
 from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
 
-from matilda.data.options import ParallelOptions, PilotOptions, PythiaOptions
-from matilda.stages.pilot import PilotStage
-from matilda.stages.pythia import PythiaStage
+from instancespace.data.options import ParallelOptions, PilotOptions, PythiaOptions
+from instancespace.stages.pilot import PilotStage
+from instancespace.stages.pythia import PythiaStage
 
 parallel_opts = ParallelOptions(
     flag=True,

@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 from scipy.io import loadmat
 from shapely.geometry import Polygon
 
-from matilda.data.model import (
+from instancespace.data.model import (
     CloisterOut,
     Data,
     FeatSel,
@@ -24,7 +24,7 @@ from matilda.data.model import (
     SiftedOut,
     TraceOut,
 )
-from matilda.data.options import (
+from instancespace.data.options import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,
@@ -39,7 +39,7 @@ from matilda.data.options import (
     SiftedOptions,
     TraceOptions,
 )
-from matilda.model import Model
+from instancespace.model import Model
 
 script_dir = Path(__file__).parent
 

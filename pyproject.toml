@@ -1,6 +1,6 @@
 [tool.poetry]
-name = "matilda"
-version = "0.2.0"
+name = "instancespace"
+version = "0.2.1"
 description = ""
 authors = [
     "Kushagra Khare <kharek@student.unimelb.edu.au>",

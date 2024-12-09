@@ -8,16 +8,16 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from matilda import InstanceSpace
-from matilda.data import metadata, options
-from matilda.stages.cloister import CloisterStage
-from matilda.stages.pilot import PilotStage
-from matilda.stages.prelim import PrelimStage
-from matilda.stages.preprocessing import PreprocessingStage
-from matilda.stages.pythia import PythiaStage
-from matilda.stages.sifted import SiftedStage
-from matilda.stages.stage import Stage
-from matilda.stages.trace import TraceStage
+from instancespace import InstanceSpace
+from instancespace.data import metadata, options
+from instancespace.stages.cloister import CloisterStage
+from instancespace.stages.pilot import PilotStage
+from instancespace.stages.prelim import PrelimStage
+from instancespace.stages.preprocessing import PreprocessingStage
+from instancespace.stages.pythia import PythiaStage
+from instancespace.stages.sifted import SiftedStage
+from instancespace.stages.stage import Stage
+from instancespace.stages.trace import TraceStage
 
 
 class ExamplePluginInput(NamedTuple):  # noqa: D101

@@ -2,8 +2,8 @@
 
 from typing import NamedTuple, Self, get_args
 
-from pyInstanceSpace.stage_runner import StageRunner, StageScheduleElement, _StageArgument
-from pyInstanceSpace.stages.stage import RunAfter, RunBefore, StageClass
+from instancespace.stage_runner import StageRunner, StageScheduleElement, _StageArgument
+from instancespace.stages.stage import RunAfter, RunBefore, StageClass
 
 
 class _BeforeAfterRestriction(NamedTuple):

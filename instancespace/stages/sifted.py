@@ -51,16 +51,16 @@ from sklearn.metrics import silhouette_score
 from sklearn.model_selection import KFold, cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
 
-from pyInstanceSpace.data.model import DataDense
-from pyInstanceSpace.data.options import (
+from instancespace.data.model import DataDense
+from instancespace.data.options import (
     ParallelOptions,
     PilotOptions,
     SelvarsOptions,
     SiftedOptions,
 )
-from pyInstanceSpace.stages.pilot import PilotStage
-from pyInstanceSpace.stages.stage import Stage
-from pyInstanceSpace.utils.filter import do_filter
+from instancespace.stages.pilot import PilotStage
+from instancespace.stages.stage import Stage
+from instancespace.utils.filter import do_filter
 
 
 class NotEnoughFeatureError(Exception):

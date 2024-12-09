@@ -23,9 +23,9 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from matilda.data.model import DataDense
-from matilda.data.options import ParallelOptions, SelvarsOptions, SiftedOptions
-from matilda.stages.sifted import SiftedInput, SiftedStage
+from instancespace.data.model import DataDense
+from instancespace.data.options import ParallelOptions, SelvarsOptions, SiftedOptions
+from instancespace.stages.sifted import SiftedInput, SiftedStage
 
 
 class SiftedMatlabInput:

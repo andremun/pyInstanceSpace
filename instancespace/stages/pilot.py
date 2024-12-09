@@ -18,8 +18,8 @@ from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
 from scipy.stats import pearsonr
 
-from pyInstanceSpace.data.options import PilotOptions
-from pyInstanceSpace.stages.stage import Stage
+from instancespace.data.options import PilotOptions
+from instancespace.stages.stage import Stage
 
 
 class PilotInput(NamedTuple):

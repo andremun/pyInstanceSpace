@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from matilda.stages.preprocessing import PreprocessingStage
+from instancespace.stages.preprocessing import PreprocessingStage
 
 path_root = Path(__file__).parents[1]
 sys.path.append(str(path_root))

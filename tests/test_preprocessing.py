@@ -10,8 +10,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from matilda.instance_space import instance_space_from_files
-from matilda.stages.preprocessing import PreprocessingInput, PreprocessingStage
+from instancespace.instance_space import instance_space_from_files
+from instancespace.stages.preprocessing import PreprocessingInput, PreprocessingStage
 
 
 def test_run_method() -> None:

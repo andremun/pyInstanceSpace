@@ -24,10 +24,10 @@ import numpy as np
 import pandas as pd
 from numpy._typing import NDArray
 
-from pyInstanceSpace.data.options import (
+from instancespace.data.options import (
     SelvarsOptions,
 )
-from pyInstanceSpace.stages.stage import Stage
+from instancespace.stages.stage import Stage
 
 
 class PreprocessingInput(NamedTuple):

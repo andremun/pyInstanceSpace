@@ -3,15 +3,15 @@
 import sys
 from pathlib import Path
 
-from matilda import InstanceSpace
-from matilda.data import metadata, options
-from matilda.stages.cloister import CloisterStage
-from matilda.stages.pilot import PilotStage
-from matilda.stages.prelim import PrelimStage
-from matilda.stages.preprocessing import PreprocessingStage
-from matilda.stages.pythia import PythiaStage
-from matilda.stages.sifted import SiftedStage
-from matilda.stages.trace import TraceStage
+from instancespace import InstanceSpace
+from instancespace.data import metadata, options
+from instancespace.stages.cloister import CloisterStage
+from instancespace.stages.pilot import PilotStage
+from instancespace.stages.prelim import PrelimStage
+from instancespace.stages.preprocessing import PreprocessingStage
+from instancespace.stages.pythia import PythiaStage
+from instancespace.stages.sifted import SiftedStage
+from instancespace.stages.trace import TraceStage
 
 script_dir = Path(__file__).parent / "tests" / "test_data" / "demo"
 # script_dir / "test_data/serialisers/actual_output" / directory
