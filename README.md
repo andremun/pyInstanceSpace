@@ -3,7 +3,7 @@
 ![Tests](https://github.com/andremun/pyInstanceSpace/actions/workflows/validation-tests.yml/badge.svg)
 [![Static Badge](https://img.shields.io/badge/docs-passing-4c1)](https://docs.matilda.neatht.com)
 
-Instance Space Analysis is a methodology for the assessment of the strengths and weaknesses of an algorithm, and an approach to objectively compare algorithmic power without bias introduced by a restricted choice of test instances. At its core is modelling the relationship between an instance's structural properties and the performance of a group of algorithms. Instance Space Analysis allows the construction of **footprints** for each algorithm, defined as regions in the instance space where we statistically infer good performance. Other insights that can be gathered from Instance Space Analysis include:
+Instance Space Analysis is a methodology for assessing the strengths and weaknesses of an algorithm, and an approach to objectively compare algorithmic power without bias introduced by a restricted choice of test instances. At its core is modelling the relationship between an instance's structural properties and the performance of a group of algorithms. Instance Space Analysis allows the construction of **footprints** for each algorithm, defined as regions in the instance space where we statistically infer good performance. Other insights that can be gathered from Instance Space Analysis include:
 
 -	Objective metrics of each algorithm’s footprint across the instance space as a measure of algorithmic power;
 -	Explanation through visualisation of how instance features correlate with algorithm performance in various regions of the instance space;
@@ -12,9 +12,9 @@ Instance Space Analysis is a methodology for the assessment of the strengths and
 -	Partitioning of the instance space into recommended regions for automated algorithm selection;
 -	Distinguishing areas of the instance space where it may be useful to generate additional instances to gain further insights.
 
-The unique advantage of visualizing algorithm performance in the instance space, rather than as a small set of summary statistics averaged across a selected collection of instances, is the nuanced analysis that becomes possible to explain strengths and weaknesses and examine interesting variations in performance that may be hidden by tables of summary statistics.
+The unique advantage of visualizing algorithm performance in the instance space, rather than as a small set of summary statistics averaged across a selected collection of instances, is the nuanced analysis that becomes possible to explain strengths and weaknesses and examine interesting variations in performance that tables of summary statistics may hide.
 
-This repository provides a set of Python tools to carry out a complete Instance Space Analysis in an automated pipeline. We expect it to become the computational engine that powers the Melbourne Algorithm Test Instance Library with Data Analytics ([MATILDA](http://matilda.unimelb.edu.au/matilda/)) web tools for online analysis. For further information on the Instance Space Analysis methodology can be found [here](http://matilda.unimelb.edu.au/matilda/our-methodology).
+This repository provides a set of Python tools to conduct a comprehensive Instance Space Analysis in an automated pipeline. We expect it to become the computational engine that powers the Melbourne Algorithm Test Instance Library with Data Analytics ([MATILDA](http://matilda.unimelb.edu.au/matilda/)) web tools for online analysis. If you would like more information on the Instance Space Analysis methodology, you can refer to [here](http://matilda.unimelb.edu.au/matilda/our-methodology).
 
 If you follow the Instance Space Analysis methodology, please cite as follows:
 
@@ -24,13 +24,11 @@ Also, if you specifically use this code, please cite as follows:
 
 > TBD
 
-**DISCLAIMER: This repository contains research code. In occassions new features will be added or changes are made that may result in crashes. Although we have have made every effort to reduce bugs, this code has NO GUARANTIES. If you find issues, let us know ASAP through the contact methods described at the end of this document.**
+**DISCLAIMER: This repository contains research code. On occasion, new features will be added or changes made that may result in crashes. Although we have made every effort to minimise bugs, this code comes with NO GUARANTEES. If you encounter any issues, please let us know as soon as possible through the contact methods outlined at the end of this document.**
 
 ## Installation Instructions
 
-** To be expanded **
-
-run `pip install ./pyInstanceSpace-0.1.0.tar.gz`
+run `pip install instancespace`
 
 An example of running can be found in integration_demo.py
 
@@ -38,9 +36,9 @@ An example of a plugin can be found in example_plugin.py
 
 ## Documentation Instructions
 
-run `pdoc pyInstanceSpace`
+run `pdoc instancespace`
 
-See the pdoc documentation for instructions on exporting static html files for hosting in github pages.
+Please take a look at the pdoc documentation for instructions on exporting static HTML files for hosting on GitHub Pages.
 
 ## Development Environment Setup Guide
 
@@ -61,29 +59,23 @@ REQUIREMENTS:
 ### Step 2: Setup virtual environment
 `poetry shell`
 
-### Step 3: Install python dependencies into virtual environment
+### Step 3: Install Python dependencies into a virtual environment
 `poetry install`
-
-
-
-## Working with the code
-
-We will update this explanation in the next few months. Here is a copy of the description of the several inputs passed as a json file.
 
 ## The metadata file
 
 The ```metadata.csv``` file should contain a table where each row corresponds to a problem instance, and each column must strictly follow the naming convention mentioned below:
 
--	**instances** instance identifier - We expect instance identifier to be of type "String". This column is mandatory.
+-	**instances** instance identifier - We expect the instance identifier to be of type "String". This column is mandatory.
 -	**source** instance source - This column is optional
--	**feature_name** The keyword "feature_" concatenated with feature name. For instance, if feature name is "density", header name should be mentioned as "feature_density". If name consists of more than one word, each word should be separated by "_" (spaces are not allowed). There must be more than two features for the software to work. We expect the features to be of the type "Double".
--	**algo_name** The keyword "algo_" concatenated with algorithm name. For instance, if algorithm name is "Greedy", column header should be "algo_greedy". If name consists of more than one word, each word should be separated by "_" (spaces are not allowed). You can add the performance of more than one algorithm in the same ```.csv```. We expect the algorithm performance to be of the type "Double".
+-	**feature_name** The keyword "feature_" concatenated with feature name. For instance, if the feature name is "density", the header name should be mentioned as "feature_density". If the name consists of more than one word, each word should be separated by "_" (spaces are not allowed). There must be more than two features for the software to work. We expect the features to be of the type "Double".
+-	**algo_name** The keyword "algo_" concatenated with algorithm name. For instance, if the algorithm name is "Greedy", the column header should be "algo_greedy". If the name consists of more than one word, each word should be separated by "_" (spaces are not allowed). You can add the performance of more than one algorithm in the same ```.csv```. We expect the algorithm performance to be of the type "Double".
 
-Moreover, empty cells, NaN or null values are allowed but **not recommended**. We expect you to handle missing values in your data before processing. You may use [this file](https://matilda.unimelb.edu.au/matilda/matildadata/graph_coloring_problem/metadata/metadata.csv) as reference.
+Moreover, empty cells, NaN or null values are allowed but **not recommended**. We'd like for you to handle missing values in your data before processing. You may use [this file](https://matilda.unimelb.edu.au/matilda/matildadata/graph_coloring_problem/metadata/metadata.csv) as a reference.
 
 ## Options
 
-The script ```example.m``` constructs a structure that contains all the settings used by the code. Broadly, there are settings required for the analysis itself, settings for the pre-processing of the data, and output settings. For the first these are divided into general, dimensionality reduction, bound estimation, algorithm selection and footprint construction settings. For the second, the toolkit has routines for bounding outliers, scale the data and select features.
+The ```options.json``` contains a structure that contains all the settings used by the code. Broadly, there are settings required for the analysis itself, settings for data pre-processing, and output settings. These are divided into general, dimensionality reduction, bound estimation, algorithm selection and footprint construction settings. Additionally, the toolkit includes routines for bounding outliers, scaling the data, and selecting features.
 
 ### General settings
 
@@ -140,12 +132,12 @@ The toolkit implements simple routines to bound outliers and scale the data. **T
 
 The toolkit implements SIFTED, a routine to select features, given their cross-correlation and correlation to performance. Ideally, we want the smallest number of orthogonal and predictive features. **This routine are by no means perfect, and users should pre-process their data independently if preferred**.  In general, we recommend **using no more than 10 features** as input to PILOT's optimal projection algorithm, due to the numerical nature of its solution and issues in identifying meaningful linear trends.
 
-- ```opts.sifted.flag``` turns on (set as ```TRUE```) the automatic feature selection. SIFTED is composed of two sub-processes. On the first one, SIFTED calculates the [Pearson correlation coefficient](https://en.wikipedia.org/wiki/Pearson_correlation_coefficient) between the features and the performance. Then it takes its absolute value, and sorts them from largest to lowest. Then, it takes all features that have a correlation above the threshold. It automatically bounds itself to a minimum of 3 features. Then, SIFTED uses the [Pearson correlation coefficient](https://en.wikipedia.org/wiki/Pearson_correlation_coefficient) as a dissimilarity metric between features. Then, [k-means clustering](https://en.wikipedia.org/wiki/K-means_clustering) is used to identify groups of similar features. To select one feature per group, the algorithm first projects the subset of selected featurs into two dimensions using Principal Components Analysis ([PCA](https://en.wikipedia.org/wiki/Principal_component_analysis)) and then [Random Forests](https://en.wikipedia.org/wiki/Random_forest) to predict whether an instance is easy or not for a given algorithm. Then, the subset of features that gives the most accurate models is selected. This section of the routine is **potentially very expensive computationally** due to the multiple layer training process. However, it is our current recommended approach to select the most relevant features. This routine tests all possible combinations if they are less than 1000, or uses the combination of a [Genetic Algorithm](https://en.wikipedia.org/wiki/Genetic_algorithm) and a Look-up table otherwise.
+- ```opts.sifted.flag``` turns on (set as ```TRUE```) the automatic feature selection. SIFTED is composed of two sub-processes. On the first one, SIFTED calculates the [Pearson correlation coefficient](https://en.wikipedia.org/wiki/Pearson_correlation_coefficient) between the features and the performance. Then it takes its absolute value, and sorts them from largest to smallest. Then, it takes all features that have a correlation above the threshold. It automatically bounds itself to a minimum of 3 features. Then, SIFTED uses the [Pearson correlation coefficient](https://en.wikipedia.org/wiki/Pearson_correlation_coefficient) as a dissimilarity metric between features. Then, [k-means clustering](https://en.wikipedia.org/wiki/K-means_clustering) is used to identify groups of similar features. To select one feature per group, the algorithm first projects the subset of selected featurs into two dimensions using Principal Components Analysis ([PCA](https://en.wikipedia.org/wiki/Principal_component_analysis)) and then [Random Forests](https://en.wikipedia.org/wiki/Random_forest) to predict whether an instance is easy or not for a given algorithm. Then, the subset of features that gives the most accurate models is selected. This section of the routine is **potentially computationally very expensive** due to the multiple-layer training process. However, it is our current recommended approach to select the most relevant features. This routine tests all possible combinations if they are less than 1000, or uses the combination of a [Genetic Algorithm](https://en.wikipedia.org/wiki/Genetic_algorithm) and a Look-up table otherwise.
 - ```opts.sifted.rho``` correlation threshold indicating the lowest acceptable absolute correlation between a feature and performance. It should be a value between 0 and 1.
-- ```opts.sifted.K``` number of clusters which corresponds to the final number of features returned. The routine assumes at least 3 clusters and no more than the number of features. Ideally it **should not** be a value larger than 10.
-- ```opts.sifted.NTREES``` number of threes used by the Random Forest models. Usually, this setting does not need tuning.
-- ```opts.sifted.MaxIter``` number of iterations used to converge the k-means algorithm. Usually, this setting does not need tuning.
-- ```opts.sifted.Replicates``` number of repeats carried out of the k-means algorithm. Usually, this setting does not need tuning.
+- ```opts.sifted.K``` number of clusters which corresponds to the final number of features returned. The routine assumes at least 3 clusters and no more than the number of features. Ideally, it **should not** be a value larger than 10.
+- ```opts.sifted.NTREES``` number of threes used by the Random Forest models. Typically, this setting does not require adjustment.
+- ```opts.sifted.MaxIter``` number of iterations used to converge the k-means algorithm. Typically, this setting does not require adjustment.
+- ```opts.sifted.Replicates``` number of repeats carried out of the k-means algorithm. Typically, this setting does not require adjustment.
 
 ### Output settings
 
@@ -161,6 +153,6 @@ If you have any suggestions or ideas (e.g. for new features), or if you encounte
 
 ## Acknowledgements
 
-Partial funding for the development of this code was provided by the Australian Research Council through the Industrial Transformation Training Centre grant IC200100009.
+The Australian Research Council provided partial funding for the development of this code through the Industrial Transformation Training Centre grant IC200100009.
 
-This code was developed as part of the subject SWEN90017-18, by students Junheng Chen, Yusuf Berdan Guzel, Kushagra Khare, Dong Hyeog Jang, Kian Dsouza, Nathan Harvey, Tao Yu, Xin Xiang, Jiaying Yi, and Cheng Ze Lam. The team was mentored by Ben Golding, and the subject was coordinated by Mansooreh Zahedi.
+This code was developed as part of the subject SWEN90017-18 by students Junheng Chen, Yusuf Berdan Guzel, Kushagra Khare, Dong Hyeog Jang, Kian Dsouza, Nathan Harvey, Tao Yu, Xin Xiang, Jiaying Yi, and Cheng Ze Lam. Ben Golding mentored the team, and Mansooreh Zahedi coordinated the subject.
