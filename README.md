@@ -2,6 +2,7 @@
 
 ![Tests](https://github.com/andremun/pyInstanceSpace/actions/workflows/validation-tests.yml/badge.svg)
 [![Static Badge](https://img.shields.io/badge/docs-passing-4c1)](https://docs.matilda.neatht.com)
+[![DOI](https://zenodo.org/badge/770130753.svg)](https://doi.org/10.5281/zenodo.15562567)
 
 Instance Space Analysis is a methodology for assessing the strengths and weaknesses of an algorithm, and an approach to objectively compare algorithmic power without bias introduced by a restricted choice of test instances. At its core is modelling the relationship between an instance's structural properties and the performance of a group of algorithms. Instance Space Analysis allows the construction of **footprints** for each algorithm, defined as regions in the instance space where we statistically infer good performance. Other insights that can be gathered from Instance Space Analysis include:
 
