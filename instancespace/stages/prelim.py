@@ -617,7 +617,6 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
 
         msg = "An algorithm is good if its performance is "
         if prelim_opts.max_perf:
-            print("-> Maximizing performance.")
             y_aux = y.copy()
             y_aux[np.isnan(y_aux)] = -np.inf
 
@@ -675,6 +674,11 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             p,
         )
 
+        med_val = np.median(x, axis=0)
+        iq_range = stats.iqr(x, axis=0, interpolation="midpoint")
+        hi_bound = med_val + 5 * iq_range
+        lo_bound = med_val - 5 * iq_range
+
         if prelim_opts.bound:
             bound_out = self._bound()
             x = bound_out.x
@@ -682,6 +686,17 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             iq_range = bound_out.iq_range
             hi_bound = bound_out.hi_bound
             lo_bound = bound_out.lo_bound
+
+        nfeats = x.shape[1]
+        nalgos = y.shape[1]
+        min_x = np.min(x, axis=0)
+        lambda_x = np.zeros(nfeats)
+        mu_x = np.zeros(nfeats)
+        sigma_x = np.zeros(nfeats)
+        min_y = float(np.min(y))
+        lambda_y = np.zeros(nalgos)
+        mu_y = np.zeros(nalgos)
+        sigma_y = np.zeros(nalgos)
 
         if prelim_opts.norm:
             normalise_out = self._normalise()
