@@ -1,0 +1,7 @@
+filename,n_rows,n_cols
+step1_after_prelim.csv,235,10
+step2_after_sifted.csv,235,10
+step3_after_pilot.csv,235,2
+step4_pythia_predictions.csv,235,10
+step4_pythia_probabilities.csv,235,10
+step5_trace_membership.csv,235,21
