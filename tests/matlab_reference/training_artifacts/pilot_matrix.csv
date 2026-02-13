@@ -1,0 +1,11 @@
+feature_name,z1_coef,z2_coef
+Max_Normalized_Entropy_attributes,-0.198157241826686,0.0641669311868446
+Normalized_Entropy_Class_Attribute,-0.80157319667639,0.135749129916202
+Mean_Mutual_Information_Attribute_Class,-0.126300485048893,-0.407919896169453
+ErrorRate_Decision_Node,-0.169747233383938,0.12169585714269
+WeightedDist_StdDev,0.203252510869904,0.0541274430001036
+Max_Feature_Efficiency_F3,-0.298201754739619,-0.267357657334878
+Collective_Feature_Efficiency_F4,-0.210758723002596,-0.115043349430602
+Training_Error_Linear_Classifier_L2,0.0791619352871541,0.348596143119021
+Fraction_Points_Class_Boundary_N1,-0.00541556230181783,0.901594802342675
+Nonlinearity_Nearest_Neighbor_Classifier_N4,0.291444870096702,0.277918950893881
