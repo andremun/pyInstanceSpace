@@ -115,8 +115,11 @@ def save_instance_space_to_csv(
             output_directory / "bounds_prunned.csv",
         )
 
+    # data.feat_labels is already reduced to selected features after sifting
+    # data.x uses the same selected features, matching data.feat_labels
+    # sifted_out.selvars contains the selected feature indices (not .idx which has all)
     _write_array_to_csv(
-        data.x_raw[:, sifted_out.idx],
+        data.x_raw[:, sifted_out.selvars],
         pd.Series(data.feat_labels),
         data.inst_labels,
         output_directory / "feature_raw.csv",

@@ -16,12 +16,19 @@ directory. The instance space is represented as a Model object, which encapsulat
 analytical results and metadata of the instance space analysis.
 """
 
-from . import data, instance_space, stages
+from . import data, instance_space, stages, progress_reporter
 from .data import metadata, options
 from .data.metadata import Metadata
 from .data.options import InstanceSpaceOptions
 from .instance_space import InstanceSpace
 from .model import Model
+from .progress_reporter import (
+    ProgressReporter,
+    HttpProgressReporter,
+    FileProgressReporter,
+    CompositeProgressReporter,
+    NullProgressReporter,
+)
 
 __all__ = [
     "InstanceSpace",
@@ -35,4 +42,10 @@ __all__ = [
     "instance_space",
     "stage_builder",
     "stage_runner",
+    "progress_reporter",
+    "ProgressReporter",
+    "HttpProgressReporter",
+    "FileProgressReporter",
+    "CompositeProgressReporter",
+    "NullProgressReporter",
 ]

@@ -7,8 +7,9 @@ analytical results and metadata of the instance space analysis.
 
 from collections.abc import Generator
 from dataclasses import fields
+from datetime import datetime
 from pathlib import Path
-from typing import Any, NamedTuple, TypeVar
+from typing import Any, NamedTuple, Optional, TypeVar
 
 import numpy as np
 import pandas as pd
@@ -33,6 +34,13 @@ from instancespace.data.options import (
     from_json_file,
 )
 from instancespace.model import Model
+from instancespace.progress_reporter import (
+    ProgressReporter,
+    NullProgressReporter,
+    HttpProgressReporter,
+    FileProgressReporter,
+    CompositeProgressReporter,
+)
 from instancespace.stage_builder import StageBuilder
 from instancespace.stage_runner import (
     AnnotatedStageOutput,
@@ -120,6 +128,19 @@ class InstanceSpace:
         model.save_to_csv('./output/')
         model.save_graphs('./output/')
     ```
+
+    ## With Progress Reporting:
+    ```python
+        from instancespace import InstanceSpace
+        from instancespace.progress_reporter import HttpProgressReporter
+
+        reporter = HttpProgressReporter(
+            callback_url="http://backend:8081/internal/jobs/123/stage-callback",
+            job_id=123,
+        )
+        instance_space = InstanceSpace(metadata, options, progress_reporter=reporter)
+        model = instance_space.build()
+    ```
     """
 
     _runner: StageRunner
@@ -127,6 +148,7 @@ class InstanceSpace:
 
     _metadata: Metadata
     _options: InstanceSpaceOptions
+    _progress_reporter: ProgressReporter
 
     _model: Model | None
     _final_output: dict[str, Any] | None
@@ -145,6 +167,7 @@ class InstanceSpace:
             TraceStage,
         ],
         additional_initial_inputs_type: type[NamedTuple] | None = None,
+        progress_reporter: Optional[ProgressReporter] = None,
     ) -> None:
         """Initialise the InstanceSpace.
 
@@ -158,10 +181,15 @@ class InstanceSpace:
                 A list of stages to be ran.
             additional_initial_inputs_type : type[NamedTuple] | None, optional
                 Extra initial inputs used by plugins.
+            progress_reporter : ProgressReporter | None, optional
+                Reporter for tracking stage progress. Can be HttpProgressReporter
+                for real-time callbacks, FileProgressReporter for file-based
+                progress, or CompositeProgressReporter for both.
         """
         self._metadata = metadata
         self._options = options
         self._stages = stages
+        self._progress_reporter = progress_reporter or NullProgressReporter()
 
         self._model = None
         self._final_output = None
@@ -224,25 +252,55 @@ class InstanceSpace:
         """Build the instance space.
 
         Options will be broken down to sub fields to be passed to stages. You can
-        override inputs to stages.
+        override inputs to stages. Progress is reported via the configured
+        progress_reporter (if any).
 
         Returns
         -------
             tuple[Any]: The output of all stages
 
         """
-        inputs = _InstanceSpaceInputs.from_metadata_and_options(
-            self.metadata,
-            self.options,
-        )
-        self._final_output = self._runner.run_all(inputs)
+        try:
+            inputs = _InstanceSpaceInputs.from_metadata_and_options(
+                self.metadata,
+                self.options,
+            )
 
-        return self.model
+            # Run stages with progress reporting
+            for stage_output in self._runner.run_iter(inputs):
+                stage_class = stage_output.stage
+                stage_name = stage_class.__name__.replace("Stage", "").lower()
+
+                # Report completion
+                self._progress_reporter.report_stage_completed(
+                    stage_name,
+                    instance_space=self,
+                )
+
+            # Store final output
+            self._final_output = self._runner._available_arguments  # noqa: SLF001
+
+            # Report job completed (with final instance_space for output data)
+            self._progress_reporter.report_job_completed(instance_space=self)
+
+            return self.model
+
+        except Exception as e:
+            # Report failure
+            self._progress_reporter.report_job_failed(str(e))
+            raise
 
     def run_iter(
         self,
+        report_progress: bool = True,
     ) -> Generator[AnnotatedStageOutput, None, None]:
         """Run all stages, yielding between so the data can be examined.
+
+        Args
+        ----
+            report_progress : bool, optional
+                Whether to report progress via the configured progress_reporter.
+                Default is True.
 
         Yields
         ------
@@ -254,7 +312,19 @@ class InstanceSpace:
             self.metadata,
             self.options,
         )
-        yield from self._runner.run_iter(inputs)
+
+        for stage_output in self._runner.run_iter(inputs):
+            stage_class = stage_output.stage
+            stage_name = stage_class.__name__.replace("Stage", "").lower()
+
+            # Report completion if enabled
+            if report_progress:
+                self._progress_reporter.report_stage_completed(
+                    stage_name,
+                    instance_space=self,
+                )
+
+            yield stage_output
 
     def run_stage(
         self,

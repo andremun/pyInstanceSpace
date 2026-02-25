@@ -467,6 +467,7 @@ class TraceOut:
 class FeatSel:
     """Holds indices for feature selection."""
 
+    # Note: idx contains the selected feature indices from sifting (selvars)
     idx: NDArray[np.intc]
 
     T = TypeVar("T", bound="FeatSel")
@@ -488,6 +489,7 @@ class FeatSel:
         -------
             FeatSel: a FeatSel object
         """
+        # Use selvars (selected feature indices) not idx (all original indices)
         return cls(
-            idx=stage_runner_output["idx"],
+            idx=stage_runner_output["selvars"],
         )
