@@ -9,6 +9,11 @@ from typing import Any, NamedTuple
 
 from instancespace.stages.stage import OUT, Stage, StageClass
 
+
+def _default_false() -> bool:
+    """Return False. Used as defaultdict factory to allow pickling."""
+    return False
+
 StageScheduleElement = list[StageClass]
 
 
@@ -74,7 +79,7 @@ class StageRunner:
 
         self._available_arguments = {}
         self._stage_to_schedule_index = {}
-        self._stages_ran = defaultdict(lambda: False)
+        self._stages_ran = defaultdict(_default_false)
 
         for i, schedule in enumerate(self._stage_order):
             for stage in schedule:
