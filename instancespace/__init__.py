@@ -19,11 +19,13 @@ analytical results and metadata of the instance space analysis.
 from . import data, instance_space, stages
 from .data import metadata, options
 from .data.metadata import Metadata
+from .data.model import ExploreResult
 from .data.options import InstanceSpaceOptions
 from .instance_space import InstanceSpace
 from .model import Model
 
 __all__ = [
+    "ExploreResult",
     "InstanceSpace",
     "InstanceSpaceOptions",
     "Metadata",
