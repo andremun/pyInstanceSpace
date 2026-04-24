@@ -43,7 +43,7 @@ def print_pass_banner():
 
 def load_sifted_indices():
     """Load SIFTED indices from MATLAB training artifacts."""
-    df = pd.read_csv("tests/matlab_reference/training_artifacts/sifted_indices.csv")
+    df = pd.read_csv("tests/matlab_reference/training_artifacts/sifted/sifted_indices.csv")
     indices_0based = df["original_index"].values - 1  # Convert from 1-based to 0-based
 
     return SiftedOut(
@@ -80,7 +80,7 @@ def test_sifted_validation():
     print(f"  SELECTION PARAMETERS:")
     print(f"    - Selected indices: {list(sifted_params.selvars)}")
     print(f"    - Selected features: {len(sifted_params.selvars)}")
-    print(f"    - Source: tests/matlab_reference/training_artifacts/sifted_indices.csv")
+    print(f"    - Source: tests/matlab_reference/training_artifacts/sifted/sifted_indices.csv")
 
     # Step 2: Run Python implementation
     print("\n[Step 2/4] Running Python SIFTED Implementation...")

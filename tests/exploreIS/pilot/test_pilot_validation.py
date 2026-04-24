@@ -20,7 +20,7 @@ OUTPUTS_DIR = REFERENCE_DIR / "explore_outputs"
 
 def build_mock_model() -> Mock:
     """Construct mock model with PILOT projection matrix from MATLAB training artifacts."""
-    df = pd.read_csv(ARTIFACTS_DIR / "pilot_matrix.csv")
+    df = pd.read_csv(ARTIFACTS_DIR / "pilot" / "pilot_matrix.csv")
     # a has shape (2, n_features): row 0 = z1 coefficients, row 1 = z2 coefficients
     a = df[["z1_coef", "z2_coef"]].values.T
 

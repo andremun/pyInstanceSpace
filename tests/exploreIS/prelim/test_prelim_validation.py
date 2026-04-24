@@ -43,7 +43,7 @@ def print_pass_banner():
 
 def load_prelim_params():
     """Load PRELIM parameters from MATLAB training artifacts."""
-    df = pd.read_csv("tests/matlab_reference/training_artifacts/prelim_params.csv")
+    df = pd.read_csv("tests/matlab_reference/training_artifacts/prelim/prelim_params.csv")
 
     return PrelimOut(
         med_val=np.zeros(len(df)),
@@ -90,7 +90,7 @@ def test_prelim_validation():
     print()
     print(f"  PARAMETERS:")
     print(f"    - Transformation: Bounding -> Box-Cox -> Z-score")
-    print(f"    - Source: tests/matlab_reference/training_artifacts/prelim_params.csv")
+    print(f"    - Source: tests/matlab_reference/training_artifacts/prelim/prelim_params.csv")
 
     # Step 2: Run Python implementation
     print("\n[Step 2/4] Running Python PRELIM Implementation...")
