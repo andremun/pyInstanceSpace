@@ -561,13 +561,9 @@ class InstanceSpace:
         -------
             NDArray[np.double]
                 2D coordinates with shape (n_instances, 2).
-
-        Note
-        ----
-            PLACEHOLDER - Currently returns zeros.
         """
-        # TODO: Implement projection using self._model.pilot.a
-        return np.zeros((x.shape[0], 2), dtype=np.double)
+        a = self._model.pilot.a  # type: ignore[union-attr]
+        return x @ a.T
 
     def _explore_pythia(
         self,
