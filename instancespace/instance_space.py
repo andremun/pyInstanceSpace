@@ -568,8 +568,13 @@ class InstanceSpace:
     def _explore_pythia(
         self,
         z: NDArray[np.double],
-    ) -> tuple[NDArray[np.bool_], NDArray[np.double], NDArray[np.int_]] | None:
+    ) -> tuple[NDArray[np.bool_], NDArray[np.double], NDArray[np.int_]]:
         """Get algorithm predictions using PYTHIA SVMs.
+
+        Ports MATLAB PYTHIAtest.m: z-score normalises the 2D coordinates,
+        applies each per-algorithm SVM (Gaussian / polynomial / linear kernel,
+        plus Platt posterior transform), and picks the algorithm with the
+        highest precision-weighted positive prediction per instance.
 
         Args
         ----
@@ -578,18 +583,58 @@ class InstanceSpace:
 
         Returns
         -------
-            tuple[NDArray[np.bool_], NDArray[np.double], NDArray[np.int_]] | None
-                Tuple of (y_hat, pr0_hat, selection0) or None.
-                - y_hat: Binary predictions (n_instances, n_algorithms)
-                - pr0_hat: Probability predictions (n_instances, n_algorithms)
-                - selection0: Recommended algorithm indices (n_instances,)
-
-        Note
-        ----
-            PLACEHOLDER - Currently returns None.
+            tuple[NDArray[np.bool_], NDArray[np.double], NDArray[np.int_]]
+                - y_hat: binary good/bad predictions, shape (n_instances, n_algorithms)
+                - pr0_hat: posterior probability of the "bad" class, shape
+                  (n_instances, n_algorithms)
+                - selection0: recommended algorithm index (0-based) per instance,
+                  or -1 when no algorithm was predicted good. Shape (n_instances,)
         """
-        # TODO: Implement SVM predictions using self._model.pythia
-        return None
+        pythia = self._model.pythia  # type: ignore[union-attr]
+        mu = np.asarray(pythia.mu, dtype=np.double)
+        sigma = np.asarray(pythia.sigma, dtype=np.double)
+        precision = np.asarray(pythia.precision, dtype=np.double)
+        svms = pythia.svm
+
+        z_norm = (z - mu) / sigma
+        n_inst = z_norm.shape[0]
+        n_algos = len(svms)
+
+        y_hat = np.zeros((n_inst, n_algos), dtype=np.bool_)
+        pr0_hat = np.zeros((n_inst, n_algos), dtype=np.double)
+
+        for i, svm in enumerate(svms):
+            svs = np.asarray(svm.support_vectors, dtype=np.double)
+            alphas = np.asarray(svm.alphas, dtype=np.double)
+            bias = float(svm.bias)
+            kernel_fn = svm.kernel_fn.lower()
+
+            if kernel_fn in ("gaussian", "rbf"):
+                scale = float(svm.kernel_param)
+                dist_sq = (
+                    np.sum(z_norm**2, axis=1, keepdims=True)
+                    + np.sum(svs**2, axis=1)
+                    - 2.0 * (z_norm @ svs.T)
+                )
+                k = np.exp(-dist_sq / scale**2)
+            elif kernel_fn == "polynomial":
+                order = float(svm.kernel_param)
+                k = (z_norm @ svs.T + 1.0) ** order
+            else:
+                k = z_norm @ svs.T
+
+            decision = k @ alphas + bias
+
+            post_good = 1.0 / (1.0 + np.exp(svm.platt_A * decision + svm.platt_B))
+            pr0_hat[:, i] = 1.0 - post_good
+            y_hat[:, i] = post_good >= 0.5
+
+        weighted = y_hat.astype(np.double) * precision
+        best = weighted.max(axis=1)
+        selection0 = weighted.argmax(axis=1).astype(np.int_)
+        selection0[best <= 0] = -1
+
+        return y_hat, pr0_hat, selection0
 
     def _explore_trace(
         self,
