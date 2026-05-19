@@ -498,9 +498,6 @@ class ExploreResult:
     in_best : NDArray[np.bool_] | None
         Whether each instance falls in "best" footprint for each algorithm.
         Shape: (n_instances, n_algorithms). None if TRACE not applied.
-    in_space : NDArray[np.bool_] | None
-        Whether each instance falls within the overall instance space boundary.
-        Shape: (n_instances,). None if TRACE not applied.
     inst_labels : pd.Series
         Instance labels/identifiers from the test metadata.
     """
@@ -514,7 +511,6 @@ class ExploreResult:
     selection0: NDArray[np.int_] | None
     in_good: NDArray[np.bool_] | None
     in_best: NDArray[np.bool_] | None
-    in_space: NDArray[np.bool_] | None
     inst_labels: pd.Series  # type: ignore[type-arg]
 
 

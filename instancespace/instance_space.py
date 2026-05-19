@@ -14,6 +14,7 @@ from typing import Any, NamedTuple, TypeVar
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from shapely.geometry import Point
 
 from instancespace.data.metadata import Metadata, from_csv_file
 from instancespace.data.model import ExploreResult
@@ -391,7 +392,6 @@ class InstanceSpace:
             selection0=pythia_result[2] if pythia_result else None,
             in_good=trace_result[0] if trace_result else None,
             in_best=trace_result[1] if trace_result else None,
-            in_space=trace_result[2] if trace_result else None,
             inst_labels=inst_labels,
         )
 
@@ -639,8 +639,18 @@ class InstanceSpace:
     def _explore_trace(
         self,
         z: NDArray[np.double],
-    ) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]] | None:
+    ) -> tuple[NDArray[np.bool_], NDArray[np.bool_]] | None:
         """Check footprint membership using TRACE polygons.
+
+        Ports the per-instance equivalent of MATLAB TRACEtest: for each test
+        point and each algorithm, check whether the point lies inside the
+        algorithm's good and best footprints. MATLAB's ``inpolygon`` treats
+        boundary points as inside; ``polygon.covers`` matches that semantics
+        (closed set), whereas ``polygon.contains`` would exclude the boundary.
+
+        ``in_space`` is intentionally omitted: ``exploreIS.m`` does not compute
+        it, and the value in ``step5_trace_membership.csv`` is sourced from
+        CLOISTER (a build-time stage outside this port's scope).
 
         Args
         ----
@@ -649,18 +659,27 @@ class InstanceSpace:
 
         Returns
         -------
-            tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]] | None
-                Tuple of (in_good, in_best, in_space) or None.
-                - in_good: Inside "good" footprint (n_instances, n_algorithms)
-                - in_best: Inside "best" footprint (n_instances, n_algorithms)
-                - in_space: Inside overall space boundary (n_instances,)
-
-        Note
-        ----
-            PLACEHOLDER - Currently returns None.
+            tuple[NDArray[np.bool_], NDArray[np.bool_]]
+                - in_good: (n_instances, n_algorithms) bool array
+                - in_best: (n_instances, n_algorithms) bool array
         """
-        # TODO: Implement footprint containment using self._model.trace
-        return None
+        trace = self._model.trace  # type: ignore[union-attr]
+        n = z.shape[0]
+        n_algos = len(trace.good)
+        points = [Point(z[i, 0], z[i, 1]) for i in range(n)]
+
+        in_good = np.zeros((n, n_algos), dtype=np.bool_)
+        in_best = np.zeros((n, n_algos), dtype=np.bool_)
+
+        for j in range(n_algos):
+            good_poly = trace.good[j].polygon
+            best_poly = trace.best[j].polygon
+            if good_poly is not None:
+                in_good[:, j] = [good_poly.covers(p) for p in points]
+            if best_poly is not None:
+                in_best[:, j] = [best_poly.covers(p) for p in points]
+
+        return in_good, in_best
 
 
 def instance_space_from_files(
