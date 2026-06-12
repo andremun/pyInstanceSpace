@@ -11,7 +11,6 @@ trained artifacts and the reference outputs are mutually consistent.
 ```
 tests/matlab_reference/
 ├── README.md
-├── validation_summary.csv      # row/column inventory of the explore_outputs files
 ├── input/
 │   ├── metadata.csv            # training data (212 instances)
 │   └── metadata_test.csv       # test data (235 instances)
@@ -88,10 +87,6 @@ MATLAB's stage-by-stage outputs on the 235-instance test set. Every file carries
   `in_good_<algo>` × 10 and `in_best_<algo>` × 10. The `in_space` column comes from
   CLOISTER, a build-time stage outside the inference port's scope, and is not
   validated.
-
-### validation_summary.csv
-
-Row/column inventory of the six `explore_outputs` files.
 
 ## Validation Criteria
 
