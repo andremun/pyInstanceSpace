@@ -63,6 +63,14 @@ REQUIREMENTS:
 ### Step 3: Install Python dependencies into a virtual environment
 `poetry install`
 
+## The explore() inference pipeline
+
+`InstanceSpace.explore()` applies a previously trained model to unseen instances, mirroring the MATLAB toolkit's `exploreIS.m`: the test metadata is bounded and scaled with the stored PRELIM parameters, reduced to the selected SIFTED features, projected with the trained PILOT matrix, and evaluated by the trained PYTHIA selectors and TRACE footprints. No stage is re-fitted.
+
+A stage-by-stage demonstration — the Python counterpart of the MATLAB live demo (`liveDemoIS.mlx`) — can be found in `liveDemoExploreIS.ipynb`, to be run from the repository root.
+
+The port is validated stage by stage against the MATLAB implementation: `tests/matlab_reference/` holds the MATLAB-trained artifacts and reference outputs, and `tests/exploreIS/` holds the validation and unit tests (run `pytest tests/exploreIS/`). Both folders document their contents in their own README files.
+
 ## The metadata file
 
 The ```metadata.csv``` file should contain a table where each row corresponds to a problem instance, and each column must strictly follow the naming convention mentioned below:
