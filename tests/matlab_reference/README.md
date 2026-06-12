@@ -1,108 +1,113 @@
-# MATLAB Reference Data for exploreIS Pipeline
+# MATLAB Reference Data for the exploreIS Pipeline
 
-## Purpose
-
-This dataset provides ground truth outputs from the MATLAB implementation of the exploreIS pipeline.
-Use these files to validate the Python implementation of Instance Space Analysis.
+Ground-truth inputs, trained-model artifacts and stage outputs from the MATLAB
+implementation of the exploreIS pipeline, consumed by the validation tests in
+`tests/exploreIS/`. All files were exported from a single MATLAB run of the reference
+toolkit (https://github.com/andremun/InstanceSpace) on the trial dataset, so the
+trained artifacts and the reference outputs are mutually consistent.
 
 ## Directory Structure
 
 ```
-matlab-reference-data/
+tests/matlab_reference/
 ├── README.md
-├── validation_summary.csv              # Quick overview of all files
+├── validation_summary.csv      # row/column inventory of the explore_outputs files
 ├── input/
-│   ├── metadata_train.csv             # Training data (212 instances)
-│   └── metadata_test.csv              # Test data (235 instances)
+│   ├── metadata.csv            # training data (212 instances)
+│   └── metadata_test.csv       # test data (235 instances)
 ├── training_artifacts/
-│   ├── prelim_params.csv              # Normalization & bounding params
-│   ├── sifted_indices.csv             # Selected feature indices
-│   ├── pilot_matrix.csv               # 2D projection matrix A
-│   └── pythia_params.csv              # Z-coordinate normalization
+│   ├── prelim/
+│   │   └── prelim_params.csv   # outlier bounds, Box-Cox lambda, z-score mu/sigma
+│   ├── sifted/
+│   │   └── sifted_indices.csv  # selected feature indices (1-based, MATLAB convention)
+│   ├── pilot/
+│   │   └── pilot_matrix.csv    # 2D projection matrix A
+│   ├── pythia/
+│   │   ├── zscore.csv          # mu/sigma normalising the 2D coordinates
+│   │   ├── precision.csv       # per-algorithm selection weights; defines algorithm order
+│   │   └── svm_<algo>.csv      # one per algorithm: support vectors and SVM scalars
+│   └── trace/
+│       ├── good_<algo>.csv     # good-footprint polygon vertices, one per algorithm
+│       └── best_CART.csv       # best-footprint vertices (only CART's is non-empty)
 └── explore_outputs/
-    ├── step1_after_prelim.csv         # After bounding + normalization
-    ├── step2_after_sifted.csv         # After feature selection
-    ├── step3_after_pilot.csv          # After 2D projection
-    ├── step4_pythia_predictions.csv   # Binary predictions (0/1)
-    ├── step4_pythia_probabilities.csv # Probability estimates [0,1]
-    └── step5_trace_membership.csv     # Footprint membership flags
+    ├── step1_after_prelim.csv          # test data after bounding + Box-Cox + z-score
+    ├── step2_after_sifted.csv          # after feature selection
+    ├── step3_after_pilot.csv           # 2D coordinates (z1, z2)
+    ├── step4_pythia_predictions.csv    # binary good/bad predictions
+    ├── step4_pythia_probabilities.csv  # posterior probability of the bad class
+    └── step5_trace_membership.csv      # footprint membership flags
 ```
 
 ## File Descriptions
 
-### Training Artifacts
+### input/
 
-#### prelim_params.csv
-- **Columns:** `feature_name, min_x, lambda_x, mu_x, sigma_x, lo_bound, hi_bound`
-- **Purpose:** Parameters for Box-Cox + Z-score normalization and outlier bounding
-- **Use in Python:** Apply same transformation to test data
+Both metadata files follow the repository's metadata format: an `Instances` identifier
+column, ten `feature_` columns and ten `algo_` columns. The test set re-uses all 212
+training instances and adds 23 new ones.
 
-#### sifted_indices.csv
-- **Columns:** `original_index, feature_name`
-- **Purpose:** Which features were selected from the original set
-- **Use in Python:** Index test data to keep only these features
+### training_artifacts/
 
-#### pilot_matrix.csv
-- **Columns:** `feature_name, z1_coef, z2_coef`
-- **Purpose:** Projection matrix A where Z = X × A^T
-- **Use in Python:** Project test features to 2D coordinates
+One subdirectory per pipeline stage, holding the parameters that MATLAB's `buildIS`
+learned at training time.
 
-#### pythia_params.csv
-- **Columns:** `coordinate, mu, sigma`
-- **Purpose:** Normalization of Z coordinates before SVM prediction
-- **Use in Python:** Normalize Z before feeding to SVM models
+- **prelim/prelim_params.csv** — columns `feature_name, min_x, lambda_x, mu_x,
+  sigma_x, lo_bound, hi_bound`. Per-feature parameters for outlier bounding and
+  Box-Cox + z-score normalisation, re-applied unchanged to test data.
+- **sifted/sifted_indices.csv** — columns `original_index, feature_name`. Indices of
+  the features selected at build time; 1-based (MATLAB), so subtract 1 in Python.
+- **pilot/pilot_matrix.csv** — columns `feature_name, z1_coef, z2_coef`. The
+  projection matrix A stored row-per-feature; coordinates are Z = X × Aᵀ.
+- **pythia/zscore.csv** — columns `mu_z1, mu_z2, sigma_z1, sigma_z2`. Normalisation of
+  the 2D coordinates before SVM evaluation.
+- **pythia/precision.csv** — columns `algo, precision`. Per-algorithm cross-validated
+  precision used to weight PYTHIA's algorithm selection. Its row order defines the
+  algorithm order for all per-algorithm files and reference columns.
+- **pythia/svm_<algo>.csv** — one row per support vector (`sv_z1, sv_z2, alpha`); the
+  first row additionally carries the per-SVM scalars `kernel_fn, kernel_param, bias,
+  platt_A, platt_B`. Alphas are exported pre-signed (`Alpha .* SupportVectorLabels`).
+- **trace/good_<algo>.csv, trace/best_CART.csv** — footprint polygon vertices
+  (`x, y`). MATLAB polyshapes with several regions are exported as one vertex list
+  with NaN rows delimiting the regions. A missing file is an empty footprint; only
+  CART has a non-empty best footprint in this trained model.
 
-### Explore Outputs
+### explore_outputs/
 
-#### step1_after_prelim.csv
-- **Shape:** 235 instances × 10 features
-- **Purpose:** Test data after bounding and Box-Cox + Z-score transformation
-- **Validate:** `explore()` method PRELIM stage
+MATLAB's stage-by-stage outputs on the 235-instance test set. Every file carries an
+`instance_id` column.
 
-#### step2_after_sifted.csv
-- **Shape:** 235 instances × 10 selected features
-- **Purpose:** Test data with only selected features retained
-- **Validate:** `explore()` method SIFTED stage
+- **step1_after_prelim.csv** — 235 × 10 features after bounding and Box-Cox + z-score.
+- **step2_after_sifted.csv** — 235 × 10 selected features (all ten survive selection
+  on this dataset).
+- **step3_after_pilot.csv** — 235 × 2 projected coordinates (`z1, z2`).
+- **step4_pythia_predictions.csv** — 235 × 10 binary values; 1 = good performance
+  predicted.
+- **step4_pythia_probabilities.csv** — 235 × 10 posterior probabilities of the bad
+  class.
+- **step5_trace_membership.csv** — 235 × 21 boolean flags: `in_space`,
+  `in_good_<algo>` × 10 and `in_best_<algo>` × 10. The `in_space` column comes from
+  CLOISTER, a build-time stage outside the inference port's scope, and is not
+  validated.
 
-#### step3_after_pilot.csv
-- **Shape:** 235 instances × 2 (z1, z2)
-- **Purpose:** Test data projected to 2D instance space
-- **Formula:** Z = X_selected × A^T
-- **Validate:** `explore()` method PILOT stage
+### validation_summary.csv
 
-#### step4_pythia_predictions.csv
-- **Shape:** 235 instances × 10 algorithms
-- **Values:** 0 = bad performance, 1 = good performance
-- **Validate:** `explore()` method PYTHIA predictions
+Row/column inventory of the six `explore_outputs` files.
 
-#### step4_pythia_probabilities.csv
-- **Shape:** 235 instances × 10 algorithms
-- **Values:** Probability estimates in [0, 1]
-- **Validate:** `explore()` method PYTHIA probability outputs
+## Validation Criteria
 
-#### step5_trace_membership.csv
-- **Shape:** 235 instances × 21 columns
-- **Columns:** `in_space, in_good_*, in_best_*` (boolean flags)
-- **Purpose:** Which footprints each test instance belongs to
-- **Validate:** `explore()` method TRACE stage
-
-## Validation Guidelines
-
-1. **Numerical Tolerance:** Allow floating-point differences ≤ 1e-6
-2. **Shape Matching:** All arrays must have identical dimensions
-3. **Column Names:** Must match exactly (order can differ)
-4. **NaN Handling:** NaN values must appear in identical positions
+Per-stage thresholds and their rationale are documented in the validation tests under
+`tests/exploreIS/` — see that suite's README.
 
 ## Dataset Statistics
 
-- **Training instances:** 212
-- **Test instances:** 235
-- **Original features:** 10
-- **Selected features:** 10
-- **Algorithms:** 10
+- Training instances: 212
+- Test instances: 235 (212 re-used training instances + 23 new)
+- Features: 10 (all selected by SIFTED)
+- Algorithms: 10 (NB, LDA, QDA, CART, J48, KNN, L_SVM, poly_SVM, RBF_SVM, RandF)
 
 ## References
 
-- Smith-Miles, K., & Muñoz, M. A. (2023). Instance Space Analysis for Algorithm Testing.
-  *ACM Computing Surveys*, 55(12), 1-31. DOI: 10.1145/3572895
-- MATLAB Toolkit: https://github.com/andremun/InstanceSpace
+- Smith-Miles, K., & Muñoz, M. A. (2023). Instance Space Analysis for Algorithm
+  Testing: Methodology and Software Tools. *ACM Computing Surveys*, 55(12), 1-31.
+  DOI: 10.1145/3572895
+- MATLAB toolkit: https://github.com/andremun/InstanceSpace
