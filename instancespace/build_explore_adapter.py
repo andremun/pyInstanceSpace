@@ -19,7 +19,9 @@ PYTHIA is translated:
   which would turn the explore-time normalisation into a no-op.
 
 ``explore()`` itself is left untouched, so its validated 1:1 fidelity to MATLAB is
-preserved; the adapter is a separate layer on top.
+preserved; the adapter is a separate layer on top. ``InstanceSpace.explore()``
+identifies the model's shape and calls the adapter automatically, so no manual
+conversion is required.
 """
 
 from __future__ import annotations
@@ -76,11 +78,14 @@ def adapt_for_explore(model: Any, feature_names: Sequence[str]) -> SimpleNamespa
 
     Notes
     -----
-    Assign the result to the instance space before exploring::
+    ``InstanceSpace.explore()`` detects a Python-built model and calls this
+    function itself, so the normal flow needs no manual step::
 
         space.build()
-        space._model = adapt_for_explore(space.model, train_metadata.feature_names)
         result = space.explore(test_metadata)
+
+    Call it directly only to inspect the flattened structure outside of
+    ``explore()``.
     """
     z = np.asarray(model.pilot.z, dtype=np.double)
     pythia = SimpleNamespace(
