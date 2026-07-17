@@ -13,9 +13,11 @@ from typing import Any, NamedTuple, TypeVar
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
 from shapely.geometry import Point
 
+from instancespace.build_explore_adapter import adapt_for_explore
 from instancespace.data.metadata import Metadata, from_csv_file
 from instancespace.data.model import ExploreResult
 from instancespace.data.options import (
@@ -132,6 +134,7 @@ class InstanceSpace:
     _options: InstanceSpaceOptions
 
     _model: Model | None
+    _explore_model: Any
     _final_output: dict[str, Any] | None
 
     def __init__(
@@ -167,6 +170,7 @@ class InstanceSpace:
         self._stages = stages
 
         self._model: Model | None = None
+        self._explore_model: Any = None
         self._final_output: dict[str, Any] | None = None
         self._explore_results: list[ExploreResult] = []
 
@@ -361,7 +365,8 @@ class InstanceSpace:
             ValueError
                 If test_metadata features don't match training features.
         """
-        # Validate that training has been completed
+        # Resolve which model representation to consume, then validate it
+        self._ensure_explore_model()
         self._validate_for_explore(test_metadata)
 
         # Generate dataset_id if not provided
@@ -398,6 +403,39 @@ class InstanceSpace:
         self._explore_results.append(result)
         return result
 
+    def _ensure_explore_model(self) -> None:
+        """Resolve the model representation explore() consumes, converting once.
+
+        explore() reads the flattened structure MATLAB exports (per-SVM support
+        vectors, signed coefficients, bias, kernel scale, Platt A/B). A model
+        trained by the Python build() instead stores fitted scikit-learn ``SVC``
+        objects, so its shape is identified here and it is converted through
+        ``adapt_for_explore`` on first use. The scikit-learn model itself is not
+        modified and remains available via the ``model`` property; the flattened
+        structure is stored separately in ``_explore_model``.
+        """
+        if self._explore_model is not None or self._model is None:
+            return
+
+        svms = self._model.pythia.svm
+        if svms and not hasattr(svms[0], "alphas"):
+            logger.info(
+                "explore(): detected a Python-built model (scikit-learn SVMs); "
+                "converting it to the flattened structure explore() consumes. "
+                "The unconverted scikit-learn model remains available via the "
+                "'model' property.",
+            )
+            self._explore_model = adapt_for_explore(
+                self._model,
+                self._metadata.feature_names,
+            )
+        else:
+            logger.info(
+                "explore(): detected a flattened (MATLAB-artifact) model; "
+                "consuming it as-is.",
+            )
+            self._explore_model = self._model
+
     def _validate_for_explore(self, metadata: Metadata) -> None:
         """Validate that the instance space is ready for explore and metadata is valid.
 
@@ -413,14 +451,14 @@ class InstanceSpace:
             ValueError
                 If test metadata features don't match training features.
         """
-        if self._model is None:
+        if self._explore_model is None:
             raise RuntimeError(
                 "Must call build() before explore(). "
                 "The instance space model must be trained first."
             )
 
         # Get training feature names from the model's data
-        training_features = set(self._model.data.feat_labels)
+        training_features = set(self._explore_model.data.feat_labels)
         test_features = set(metadata.feature_names)
 
         # Check that test data has all required features
@@ -456,7 +494,7 @@ class InstanceSpace:
                 Feature matrix with shape (n_instances, n_features).
         """
         # Get the feature order from training
-        training_feature_names = self._model.data.feat_labels  # type: ignore[union-attr]
+        training_feature_names = self._explore_model.data.feat_labels
 
         # Build feature matrix in training order
         test_feature_dict = dict(zip(metadata.feature_names, range(len(metadata.feature_names))))
@@ -500,7 +538,7 @@ class InstanceSpace:
         """
         from scipy import stats
 
-        prelim = self._model.prelim  # type: ignore[union-attr]
+        prelim = self._explore_model.prelim
 
         # Create a copy to avoid modifying input
         x_transformed = x.copy()
@@ -543,7 +581,7 @@ class InstanceSpace:
                 Feature matrix with selected features only.
                 Shape: (n_instances, n_selected_features).
         """
-        sifted = self._model.sifted  # type: ignore[union-attr]
+        sifted = self._explore_model.sifted
         selected_indices = sifted.selvars
         x_selected = x[:, selected_indices]
 
@@ -562,7 +600,7 @@ class InstanceSpace:
             NDArray[np.double]
                 2D coordinates with shape (n_instances, 2).
         """
-        a = self._model.pilot.a  # type: ignore[union-attr]
+        a = self._explore_model.pilot.a
         return x @ a.T
 
     def _explore_pythia(
@@ -590,7 +628,7 @@ class InstanceSpace:
                 - selection0: recommended algorithm index (0-based) per instance,
                   or -1 when no algorithm was predicted good. Shape (n_instances,)
         """
-        pythia = self._model.pythia  # type: ignore[union-attr]
+        pythia = self._explore_model.pythia
         mu = np.asarray(pythia.mu, dtype=np.double)
         sigma = np.asarray(pythia.sigma, dtype=np.double)
         precision = np.asarray(pythia.precision, dtype=np.double)
@@ -663,7 +701,7 @@ class InstanceSpace:
                 - in_good: (n_instances, n_algorithms) bool array
                 - in_best: (n_instances, n_algorithms) bool array
         """
-        trace = self._model.trace  # type: ignore[union-attr]
+        trace = self._explore_model.trace
         n = z.shape[0]
         n_algos = len(trace.good)
         points = [Point(z[i, 0], z[i, 1]) for i in range(n)]
