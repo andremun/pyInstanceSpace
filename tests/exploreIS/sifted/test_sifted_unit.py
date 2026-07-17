@@ -53,8 +53,8 @@ def mock_sifted_params_subset():
 def mock_instance_space_all(mock_sifted_params_all):
     """Create mock InstanceSpace selecting all features."""
     mock_is = Mock(spec=InstanceSpace)
-    mock_is._model = Mock()
-    mock_is._model.sifted = mock_sifted_params_all
+    mock_is._explore_model = Mock()
+    mock_is._explore_model.sifted = mock_sifted_params_all
     return mock_is
 
 
@@ -62,8 +62,8 @@ def mock_instance_space_all(mock_sifted_params_all):
 def mock_instance_space_subset(mock_sifted_params_subset):
     """Create mock InstanceSpace selecting subset of features."""
     mock_is = Mock(spec=InstanceSpace)
-    mock_is._model = Mock()
-    mock_is._model.sifted = mock_sifted_params_subset
+    mock_is._explore_model = Mock()
+    mock_is._explore_model.sifted = mock_sifted_params_subset
     return mock_is
 
 
@@ -135,8 +135,8 @@ def test_sifted_single_feature():
     )
 
     mock_is = Mock(spec=InstanceSpace)
-    mock_is._model = Mock()
-    mock_is._model.sifted = params
+    mock_is._explore_model = Mock()
+    mock_is._explore_model.sifted = params
 
     x_prelim = np.array([
         [1.0, 2.0, 3.0, 4.0, 5.0],
@@ -225,8 +225,8 @@ def test_sifted_reverse_order():
     )
 
     mock_is = Mock(spec=InstanceSpace)
-    mock_is._model = Mock()
-    mock_is._model.sifted = params
+    mock_is._explore_model = Mock()
+    mock_is._explore_model.sifted = params
 
     x_prelim = np.array([[1.0, 2.0, 3.0, 4.0, 5.0]])
 

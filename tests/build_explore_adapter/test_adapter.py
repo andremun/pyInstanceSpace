@@ -52,7 +52,7 @@ def test_explore_pythia_reproduces_sklearn_posterior():
 
     model = SimpleNamespace(pythia=SimpleNamespace(
         mu=mu, sigma=sigma, precision=np.array([1.0]), svm=[art]))
-    holder = SimpleNamespace(_model=model)
+    holder = SimpleNamespace(_explore_model=model)
     _y_hat, pr0_hat, _sel = InstanceSpace._explore_pythia(holder, z)
 
     post_good = 1.0 - pr0_hat[:, 0]
@@ -89,3 +89,48 @@ def test_adapt_for_explore_passes_through_and_translates():
     # ...the SVC is translated, and the original feature labels are restored.
     assert hasattr(adapted.pythia.svm[0], "alphas")
     assert adapted.data.feat_labels == ["a", "b", "c"]
+
+
+def _built_model_holder():
+    from types import SimpleNamespace
+
+    svc, *_ = _toy_svc()
+    built = SimpleNamespace(
+        prelim=object(), sifted=object(), trace=object(),
+        pilot=SimpleNamespace(z=np.zeros((5, 2)), a=np.zeros((2, 3))),
+        pythia=SimpleNamespace(precision=[0.5], svm=[svc]),
+    )
+    return SimpleNamespace(
+        _model=built,
+        _explore_model=None,
+        _metadata=SimpleNamespace(feature_names=["a", "b", "c"]),
+    )
+
+
+def test_ensure_explore_model_detects_and_converts_built_model():
+    holder = _built_model_holder()
+    built = holder._model
+    InstanceSpace._ensure_explore_model(holder)
+    # The built model is detected by shape and converted...
+    assert hasattr(holder._explore_model.pythia.svm[0], "alphas")
+    # ...while the unconverted scikit-learn model stays in place, untouched.
+    assert holder._model is built
+    assert holder._model.pythia.svm[0].kernel == "rbf"
+
+
+def test_ensure_explore_model_converts_only_once():
+    holder = _built_model_holder()
+    InstanceSpace._ensure_explore_model(holder)
+    converted = holder._explore_model
+    InstanceSpace._ensure_explore_model(holder)
+    assert holder._explore_model is converted
+
+
+def test_ensure_explore_model_uses_artifact_model_directly():
+    from types import SimpleNamespace
+
+    svc, *_ = _toy_svc()
+    artifact = SimpleNamespace(pythia=SimpleNamespace(svm=[_svc_to_artifact(svc)]))
+    holder = SimpleNamespace(_model=artifact, _explore_model=None, _metadata=None)
+    InstanceSpace._ensure_explore_model(holder)
+    assert holder._explore_model is artifact

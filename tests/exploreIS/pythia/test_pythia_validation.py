@@ -69,8 +69,8 @@ def test_pythia_matches_matlab():
     z = pd.read_csv(OUTPUTS_DIR / "step3_after_pilot.csv", index_col=0)
 
     instance_space = Mock(spec=InstanceSpace)
-    instance_space._model = Mock()
-    instance_space._model.pythia = pythia
+    instance_space._explore_model = Mock()
+    instance_space._explore_model.pythia = pythia
 
     y_hat, pr0_hat, _ = InstanceSpace._explore_pythia(instance_space, z.to_numpy())
 

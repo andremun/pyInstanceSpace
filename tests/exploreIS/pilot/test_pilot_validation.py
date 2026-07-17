@@ -40,7 +40,7 @@ def test_pilot_matches_matlab():
     ).to_numpy(dtype=np.double)
 
     instance_space = Mock(spec=InstanceSpace)
-    instance_space._model = load_pilot_matrix()
+    instance_space._explore_model = load_pilot_matrix()
 
     result = InstanceSpace._explore_pilot(instance_space, x_input)
 

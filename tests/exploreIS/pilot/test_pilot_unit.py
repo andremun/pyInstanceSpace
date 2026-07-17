@@ -15,7 +15,7 @@ def make_instance_space(a: np.ndarray) -> InstanceSpace:
     model = Mock()
     model.pilot = pilot
     instance_space = Mock(spec=InstanceSpace)
-    instance_space._model = model
+    instance_space._explore_model = model
     return instance_space
 
 

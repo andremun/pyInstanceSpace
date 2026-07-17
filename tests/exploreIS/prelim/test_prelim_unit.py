@@ -43,8 +43,8 @@ def mock_prelim_params():
 def mock_instance_space(mock_prelim_params):
     """Create mock InstanceSpace with PRELIM parameters."""
     mock_is = Mock(spec=InstanceSpace)
-    mock_is._model = Mock()
-    mock_is._model.prelim = mock_prelim_params
+    mock_is._explore_model = Mock()
+    mock_is._explore_model.prelim = mock_prelim_params
     return mock_is
 
 
