@@ -365,33 +365,21 @@ class InstanceSpace:
             ValueError
                 If test_metadata features don't match training features.
         """
-        # Resolve which model representation to consume, then validate it
-        self._ensure_explore_model()
-        self._validate_for_explore(test_metadata)
+        # Run every inference stage, then assemble the result from each stage's output
+        stages = dict(self.explore_iter(test_metadata))
 
-        # Generate dataset_id if not provided
         if dataset_id is None:
             dataset_id = f"explore_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-        # Extract raw features and instance labels from test metadata
-        x_raw = self._extract_features(test_metadata)
         inst_labels = self._extract_instance_labels(test_metadata)
+        pythia_result = stages["pythia"]
+        trace_result = stages["trace"]
 
-        # Apply stages in order
-        x = self._explore_prelim(x_raw)
-        x = self._explore_sifted(x)
-        z = self._explore_pilot(x)
-
-        # Get algorithm predictions and footprint membership
-        pythia_result = self._explore_pythia(z)
-        trace_result = self._explore_trace(z)
-
-        # Build result
         result = ExploreResult(
             dataset_id=dataset_id,
             timestamp=datetime.now(),
-            x=x,
-            z=z,
+            x=stages["sifted"],
+            z=stages["pilot"],
             y_hat=pythia_result[0] if pythia_result else None,
             pr0_hat=pythia_result[1] if pythia_result else None,
             selection0=pythia_result[2] if pythia_result else None,
@@ -402,6 +390,51 @@ class InstanceSpace:
 
         self._explore_results.append(result)
         return result
+
+    def explore_iter(
+        self,
+        test_metadata: Metadata,
+    ) -> Generator[tuple[str, Any], None, None]:
+        """Run explore() one stage at a time, yielding each stage's output.
+
+        Same computation and trained model as ``explore()``, but instead of
+        returning a single ``ExploreResult`` it yields a ``(stage_name, output)``
+        pair after each inference stage, so the intermediate result of every stage
+        can be inspected or plotted before the next one runs. The stages, in order,
+        are ``"prelim"``, ``"sifted"``, ``"pilot"``, ``"pythia"`` and ``"trace"``:
+        ``prelim``/``sifted``/``pilot`` yield the transformed feature or coordinate
+        array, ``pythia`` yields ``(y_hat, pr0_hat, selection0)`` and ``trace``
+        yields ``(in_good, in_best)``.
+
+        Args
+        ----
+            test_metadata : Metadata
+                New instances with the same feature columns as training data.
+
+        Yields
+        ------
+            tuple[str, Any]
+                The name of the stage that just ran and its output.
+
+        Raises
+        ------
+            RuntimeError
+                If build() has not been called before explore().
+            ValueError
+                If test_metadata features don't match training features.
+        """
+        # Resolve which model representation to consume, then validate it
+        self._ensure_explore_model()
+        self._validate_for_explore(test_metadata)
+
+        x = self._explore_prelim(self._extract_features(test_metadata))
+        yield "prelim", x
+        x = self._explore_sifted(x)
+        yield "sifted", x
+        z = self._explore_pilot(x)
+        yield "pilot", z
+        yield "pythia", self._explore_pythia(z)
+        yield "trace", self._explore_trace(z)
 
     def _ensure_explore_model(self) -> None:
         """Resolve the model representation explore() consumes, converting once.

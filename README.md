@@ -77,9 +77,9 @@ space.build()
 result = space.explore(test_metadata)
 ```
 
-A stage-by-stage demonstration — the Python counterpart of the MATLAB live demo (`liveDemoIS.mlx`) — can be found in `liveDemoExploreIS.ipynb`, to be run from the repository root.
+`explore()` returns the full result in one call; `explore_iter()` runs the same stages but yields each one's output in turn (`prelim`, `sifted`, `pilot`, `pythia`, `trace`), for inspecting the pipeline one stage at a time. The operation manual `liveDemoExploreIS.ipynb` — the Python counterpart of the MATLAB live demo (`liveDemoIS.mlx`) — walks through both and is meant to be read as a usage guide; run it from the repository root.
 
-The port is validated stage by stage against the MATLAB implementation: `tests/matlab_reference/` holds the MATLAB-trained artifacts and reference outputs, and `tests/exploreIS/` holds the validation and unit tests (run `pytest tests/exploreIS/`). Both folders document their contents in their own README files.
+The port is validated stage by stage against the MATLAB implementation: `tests/matlab_reference/` holds the MATLAB-trained artifacts and reference outputs, `tests/exploreIS/` holds the validation and unit tests (run `pytest tests/exploreIS/`), and `docs/explore_validation.ipynb` documents how the validation numbers were obtained and how a from-scratch Python build behaves. The test folders document their contents in their own README files.
 
 ## The metadata file
 
