@@ -53,6 +53,7 @@ from sklearn.neighbors import KNeighborsClassifier
 
 from instancespace.data.model import DataDense
 from instancespace.data.options import (
+    GeneralOptions,
     ParallelOptions,
     PilotOptions,
     SelvarsOptions,
@@ -114,6 +115,8 @@ class SiftedInput(NamedTuple):
         Dense data representation, if applicable.
     parallel_options : ParallelOptions
         Configuration options for parallel processing.
+    general_options : GeneralOptions
+        General options (e.g. the RNG seed), not specific to any one stage.
 
     """
 
@@ -133,6 +136,7 @@ class SiftedInput(NamedTuple):
     selvars_options: SelvarsOptions
     data_dense: DataDense | None
     parallel_options: ParallelOptions
+    general_options: GeneralOptions
 
 
 class SiftedOutput(NamedTuple):
@@ -296,6 +300,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         feat_labels: list[str],
         opts: SiftedOptions,
         parallel_options: ParallelOptions,
+        general_opts: GeneralOptions,
     ) -> None:
         """Define the input variables for the stage.
 
@@ -325,6 +330,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             Instance labels for the dataset.
         parallel_options : ParallelOptions
             An instance of ParallelOptions containing parallel processing parameters.
+        general_opts : GeneralOptions
+            General options (e.g. the RNG seed), not specific to any one stage.
         """
         self.x = x
         self.y = y
@@ -340,6 +347,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         self.s = s
         self.opts = opts
         self.parallel_options = parallel_options
+        self.general_opts = general_opts
 
     @staticmethod
     def _inputs() -> type[SiftedInput]:
@@ -380,6 +388,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             inst_labels=inputs.inst_labels,
             s=inputs.s,
             parallel_options=inputs.parallel_options,
+            general_options=inputs.general_options,
         )
 
     def sift(
@@ -408,6 +417,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         opts_selvars: SelvarsOptions,
         data_dense: DataDense | None,
         parallel_options: ParallelOptions,
+        general_options: GeneralOptions,
     ) -> SiftedOutput:
         """Core Sifted stage to process feature selection and performance.
 
@@ -445,6 +455,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             Dense data representation, if available.
         parallel_options : ParallelOptions
             Options for parallel processing.
+        general_options : GeneralOptions
+            General options (e.g. the RNG seed), not specific to any one stage.
 
         Returns
         -------
@@ -474,6 +486,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             feat_labels,
             opts,
             parallel_options,
+            general_options,
         )
 
         return sifted.sift(
@@ -536,7 +549,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         opts = self.opts
 
         nfeats = x.shape[1]
-        rng = np.random.default_rng(seed=0)
+        rng = np.random.default_rng(seed=self.general_opts.seed)
 
         # Prepare for Filter
         bydensity = (
@@ -828,7 +841,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             instance.selfy,
             instance.selffeat_labels[idx].tolist(),
             PilotOptions.default(),
-            False,
+            instance.general_options,
+            _do_output=False,
         )
 
         z = out.z
@@ -916,6 +930,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         ga_instance.cv_partition = cv_partition
         ga_instance.clust = clust
         ga_instance.selffeat_labels = self.feat_labels
+        ga_instance.general_options = self.general_opts
 
         ga_instance.run()
 

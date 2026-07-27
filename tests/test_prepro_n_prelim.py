@@ -81,6 +81,7 @@ def test_integrated_prepro_n_prelim() -> None:
         inst_labels=pre_output.inst_labels,
         prelim_options=prelim_opts,
         selvars_options=instance_space.options.selvars,
+        general_options=instance_space.options.general,
     )
 
     # Execute prelim stage's private run method

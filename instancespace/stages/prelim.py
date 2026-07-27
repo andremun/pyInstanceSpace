@@ -20,7 +20,7 @@ from scipy import optimize, stats
 from sklearn.model_selection import train_test_split
 
 from instancespace.data.model import DataDense
-from instancespace.data.options import PrelimOptions, SelvarsOptions
+from instancespace.data.options import GeneralOptions, PrelimOptions, SelvarsOptions
 from instancespace.stages.stage import Stage
 from instancespace.utils.filter import do_filter
 
@@ -50,6 +50,8 @@ class PrelimInput(NamedTuple):
     selvars_options : SelvarsOptions
         Options for selecting variables within the Prelim stage, affecting criteria
         and file indices.
+    general_options : GeneralOptions
+        General options (e.g. the RNG seed), not specific to any one stage.
     """
 
     x: NDArray[np.double]
@@ -60,6 +62,7 @@ class PrelimInput(NamedTuple):
     inst_labels: pd.Series  # type: ignore[type-arg]
     prelim_options: PrelimOptions
     selvars_options: SelvarsOptions
+    general_options: GeneralOptions
 
 
 # needs to be changes to output including prelim output, and data changed by stage
@@ -191,12 +194,14 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         inst_labels: pd.Series,  # type: ignore[type-arg]
         prelim_opts: PrelimOptions,
         selvars_opts: SelvarsOptions,
+        general_opts: GeneralOptions,
     ) -> None:
         """See file docstring."""
         self.x = x
         self.y = y
         self.prelim_opts = prelim_opts
         self.selvars_opts = selvars_opts
+        self.general_opts = general_opts
         self.x_raw = x_raw
         self.y_raw = y_raw
         self.s = s
@@ -244,6 +249,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             inputs.inst_labels,
             inputs.prelim_options,
             inputs.selvars_options,
+            inputs.general_options,
         )
 
         prelim = PrelimStage(
@@ -255,6 +261,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             inputs.inst_labels,
             inputs.prelim_options,
             inputs.selvars_options,
+            inputs.general_options,
         )
 
         (
@@ -324,6 +331,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         inst_labels: pd.Series,  # type: ignore[type-arg]
         prelim_opts: PrelimOptions,
         selvars_opts: SelvarsOptions,
+        general_opts: GeneralOptions,
     ) -> tuple[
         NDArray[np.double],  # PrelimDataChanged.x
         NDArray[np.double],  # PrelimDataChanged.y
@@ -368,6 +376,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             inst_labels,
             prelim_opts,
             selvars_opts,
+            general_opts,
         )
 
         return prelim_stage._prelim(  # noqa: SLF001
@@ -793,7 +802,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             _, subset_idx = train_test_split(
                 np.arange(ninst),
                 test_size=selvars_opts.small_scale,
-                random_state=0,
+                random_state=self.general_opts.seed,
             )
             subset_index = np.zeros(ninst, dtype=bool)
             subset_index[subset_idx] = True

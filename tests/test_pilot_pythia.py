@@ -15,7 +15,12 @@ from scipy.io import loadmat
 from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
 
-from instancespace.data.options import ParallelOptions, PilotOptions, PythiaOptions
+from instancespace.data.options import (
+    GeneralOptions,
+    ParallelOptions,
+    PilotOptions,
+    PythiaOptions,
+)
 from instancespace.stages.pilot import PilotStage
 from instancespace.stages.pythia import PythiaStage
 
@@ -185,7 +190,13 @@ def test_pilot_num_pythia_bayes_gaussian() -> None:
     opts_sample = sample_data.opts_sample
     pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
     pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(x_sample, y_sample, feat_labels_sample, pilot_opts)
+    pilot_result = pilot.pilot(
+        x_sample,
+        y_sample,
+        feat_labels_sample,
+        pilot_opts,
+        GeneralOptions.default(),
+    )
 
     pythia_options = PythiaOptions(
         cv_folds=5,
@@ -203,6 +214,7 @@ def test_pilot_num_pythia_bayes_gaussian() -> None:
         algo,
         pythia_options,
         parallel_opts,
+        GeneralOptions.default(),
     )
 
     # read the actual output
@@ -239,7 +251,13 @@ def test_pilot_num_pythia_bayes_poly() -> None:
     opts_sample = sample_data.opts_sample
     pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
     pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(x_sample, y_sample, feat_labels_sample, pilot_opts)
+    pilot_result = pilot.pilot(
+        x_sample,
+        y_sample,
+        feat_labels_sample,
+        pilot_opts,
+        GeneralOptions.default(),
+    )
 
     opts = PythiaOptions(
         cv_folds=5,
@@ -257,6 +275,7 @@ def test_pilot_num_pythia_bayes_poly() -> None:
         algo,
         opts,
         parallel_opts,
+        GeneralOptions.default(),
     )
 
     # read the actual output
@@ -293,7 +312,13 @@ def test_pilot_num_pythia_grid_gaussian() -> None:
     opts_sample = sample_data.opts_sample
     pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
     pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(x_sample, y_sample, feat_labels_sample, pilot_opts)
+    pilot_result = pilot.pilot(
+        x_sample,
+        y_sample,
+        feat_labels_sample,
+        pilot_opts,
+        GeneralOptions.default(),
+    )
 
     opts = PythiaOptions(
         cv_folds=5,
@@ -311,6 +336,7 @@ def test_pilot_num_pythia_grid_gaussian() -> None:
         algo,
         opts,
         parallel_opts,
+        GeneralOptions.default(),
     )
 
     # read the actual output
@@ -347,7 +373,13 @@ def test_pilot_num_pythia_grid_poly() -> None:
     opts_sample = sample_data.opts_sample
     pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
     pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(x_sample, y_sample, feat_labels_sample, pilot_opts)
+    pilot_result = pilot.pilot(
+        x_sample,
+        y_sample,
+        feat_labels_sample,
+        pilot_opts,
+        GeneralOptions.default(),
+    )
 
     opts = PythiaOptions(
         cv_folds=5,
@@ -365,6 +397,7 @@ def test_pilot_num_pythia_grid_poly() -> None:
         algo,
         opts,
         parallel_opts,
+        GeneralOptions.default(),
     )
 
     # read the actual output
@@ -401,7 +434,13 @@ def test_pilot_analytic_pythia_grid_gaussian() -> None:
     opts_sample = PilotOptions(None, None, True, 5)
     pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
     pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(x_sample, y_sample, feat_labels_sample, pilot_opts)
+    pilot_result = pilot.pilot(
+        x_sample,
+        y_sample,
+        feat_labels_sample,
+        pilot_opts,
+        GeneralOptions.default(),
+    )
 
     opts = PythiaOptions(
         cv_folds=5,
@@ -420,6 +459,7 @@ def test_pilot_analytic_pythia_grid_gaussian() -> None:
         algo,
         opts,
         parallel_opts,
+        GeneralOptions.default(),
     )
 
     output_dir = script_dir / "pilot_pythia"
@@ -457,7 +497,13 @@ def test_pilot_analytic_pythia_grid_poly() -> None:
     opts_sample = PilotOptions(None, None, True, 5)
     pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
     pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(x_sample, y_sample, feat_labels_sample, pilot_opts)
+    pilot_result = pilot.pilot(
+        x_sample,
+        y_sample,
+        feat_labels_sample,
+        pilot_opts,
+        GeneralOptions.default(),
+    )
 
     opts = PythiaOptions(
         cv_folds=5,
@@ -476,6 +522,7 @@ def test_pilot_analytic_pythia_grid_poly() -> None:
         algo,
         opts,
         parallel_opts,
+        GeneralOptions.default(),
     )
 
     output_dir = script_dir / "pilot_pythia"
@@ -513,7 +560,13 @@ def test_pilot_analytic_pythia_bo_gaussian() -> None:
     opts_sample = PilotOptions(None, None, True, 5)
     pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
     pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(x_sample, y_sample, feat_labels_sample, pilot_opts)
+    pilot_result = pilot.pilot(
+        x_sample,
+        y_sample,
+        feat_labels_sample,
+        pilot_opts,
+        GeneralOptions.default(),
+    )
 
     opts = PythiaOptions(
         cv_folds=5,
@@ -532,6 +585,7 @@ def test_pilot_analytic_pythia_bo_gaussian() -> None:
         algo,
         opts,
         parallel_opts,
+        GeneralOptions.default(),
     )
 
     output_dir = script_dir / "pilot_pythia"
@@ -569,7 +623,13 @@ def test_pilot_analytic_pythia_bo_poly() -> None:
     opts_sample = PilotOptions(None, None, True, 5)
     pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
     pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(x_sample, y_sample, feat_labels_sample, pilot_opts)
+    pilot_result = pilot.pilot(
+        x_sample,
+        y_sample,
+        feat_labels_sample,
+        pilot_opts,
+        GeneralOptions.default(),
+    )
 
     opts = PythiaOptions(
         cv_folds=5,
@@ -588,6 +648,7 @@ def test_pilot_analytic_pythia_bo_poly() -> None:
         algo,
         opts,
         parallel_opts,
+        GeneralOptions.default(),
     )
 
     output_dir = script_dir / "pilot_pythia"

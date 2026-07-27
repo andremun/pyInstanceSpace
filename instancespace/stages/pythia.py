@@ -59,7 +59,7 @@ from sklearn.model_selection import (
 from sklearn.svm import SVC
 from skopt import BayesSearchCV
 
-from instancespace.data.options import ParallelOptions, PythiaOptions
+from instancespace.data.options import GeneralOptions, ParallelOptions, PythiaOptions
 from instancespace.stages.stage import Stage
 
 LARGE_NUM_INSTANCE: int = 1000
@@ -97,6 +97,8 @@ class PythiaInput(NamedTuple):
         The options for the Pythia stage.
     parallel_options: ParallelOptions
         The parallel options, specifiy whether run in parallel and number of cores.
+    general_options : GeneralOptions
+        General options (e.g. the RNG seed), not specific to any one stage.
     """
 
     z: NDArray[np.double]
@@ -106,6 +108,7 @@ class PythiaInput(NamedTuple):
     algo_labels: list[str]
     pythia_options: PythiaOptions
     parallel_options: ParallelOptions
+    general_options: GeneralOptions
 
 
 class PythiaOutput(NamedTuple):
@@ -278,6 +281,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             inputs.algo_labels,
             inputs.pythia_options,
             inputs.parallel_options,
+            general_options=inputs.general_options,
         )
 
     @staticmethod
@@ -289,6 +293,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         algo_labels: list[str],
         opts: PythiaOptions,
         parallel_options: ParallelOptions,
+        general_options: GeneralOptions,
     ) -> PythiaOutput:
         """Run the Pythia stage.
 
@@ -308,6 +313,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             The options for the Pythia stage.
         parallel_options : ParallelOptions
             The parallel options, specifiy whether run in parallel and number of cores.
+        general_options : GeneralOptions
+            General options (e.g. the RNG seed), not specific to any one stage.
 
         Returns
         -------
@@ -332,7 +339,11 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         pr0hat = np.zeros(y_bin.shape, dtype=np.double)
 
         precalcparams = PythiaStage._check_precalcparams(opts.params, nalgos)
-        cp = StratifiedKFold(n_splits=opts.cv_folds, shuffle=True, random_state=0)
+        cp = StratifiedKFold(
+            n_splits=opts.cv_folds,
+            shuffle=True,
+            random_state=general_options.seed,
+        )
         svm = []
         cvcmat = np.zeros((nalgos, 4), dtype=int)
         box_consnt = []
@@ -342,7 +353,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         recall_record = []
 
         w = np.ones((z.shape[0], nalgos), dtype=np.double)
-        rng = np.random.default_rng(seed=0)
+        rng = np.random.default_rng(seed=general_options.seed)
         # Section 1: Normalize the feature matrix
         (mu, sigma, z) = PythiaStage._compute_znorm(z)
 
@@ -418,6 +429,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 param_space=param_space,
                 use_grid_search=opts.use_grid_search,
                 parallel_options=parallel_options,
+                general_options=general_options,
             )
 
             # Record performance metrics
@@ -520,6 +532,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         param_space: dict[str, list[float]] | None,
         use_grid_search: bool,
         parallel_options: ParallelOptions,
+        general_options: GeneralOptions,
     ) -> _SvmRes:
         """Train a SVM model based on configuration.
 
@@ -541,6 +554,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             Whether to use grid search for hyperparameter optimization.
         parallel_options : ParallelOptions
             The parallel options, specifiy whether run in parallel and number of cores.
+        general_options : GeneralOptions
+            General options (e.g. the RNG seed), not specific to any one stage.
 
         Returns
         -------
@@ -550,7 +565,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         kernel = "poly" if is_poly_kernel else "rbf"
         svm_model = SVC(
             kernel=kernel,
-            random_state=0,
+            random_state=general_options.seed,
             probability=True,
             degree=2,
             coef0=1,
@@ -565,7 +580,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 param_distributions=param_space,
                 cv=skf,
                 verbose=0,
-                random_state=0,  # Ensure reproducibility with a fixed seed
+                random_state=general_options.seed,
                 n_jobs=(parallel_options.n_cores if parallel_options.flag else 1),
             )
         else:
@@ -575,7 +590,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 search_spaces=param_space,
                 cv=skf,
                 verbose=0,
-                random_state=0,  # Ensure reproducibility with a fixed seed
+                random_state=general_options.seed,
                 n_jobs=(parallel_options.n_cores if parallel_options.flag else 1),
             )
         optimization.fit(z, y_bin, sample_weight=w)

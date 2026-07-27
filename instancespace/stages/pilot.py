@@ -18,7 +18,7 @@ from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
 from scipy.stats import pearsonr
 
-from instancespace.data.options import PilotOptions
+from instancespace.data.options import GeneralOptions, PilotOptions
 from instancespace.stages.stage import Stage
 
 
@@ -35,12 +35,15 @@ class PilotInput(NamedTuple):
         List feature names.
     options: PilotOptions
         The options enabled for the Pilot Class
+    general_options : GeneralOptions
+        General options (e.g. the RNG seed), not specific to any one stage.
     """
 
     x: NDArray[np.double]
     y: NDArray[np.double]
     feat_labels: list[str]
     pilot_options: PilotOptions
+    general_options: GeneralOptions
 
 
 class PilotOutput(NamedTuple):
@@ -161,6 +164,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             inputs.y,
             inputs.feat_labels,
             inputs.pilot_options,
+            general_options=inputs.general_options,
         )
 
     @staticmethod
@@ -177,6 +181,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         y: NDArray[np.double],
         feat_labels: list[str],
         options: PilotOptions,
+        general_options: GeneralOptions,
         _do_output: bool = True,
     ) -> PilotOutput:
         """Run the PILOT dimensionality reduction algorithm.
@@ -240,7 +245,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                         "  -> PILOT is using random starting points for BFGS.",
                         _do_output,
                     )
-                    rng = np.random.default_rng(seed=0)
+                    rng = np.random.default_rng(seed=general_options.seed)
                     x0 = 2 * rng.random((2 * m + 2 * n, options.n_tries)) - 1
 
                 alpha = np.zeros((2 * m + 2 * n, options.n_tries))

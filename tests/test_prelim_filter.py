@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from instancespace.data.options import PrelimOptions, SelvarsOptions
+from instancespace.data.options import GeneralOptions, PrelimOptions, SelvarsOptions
 from instancespace.stages.prelim import PrelimStage
 
 script_dir = Path(__file__).parent
@@ -98,6 +98,7 @@ def test_split_data() -> None:
         inst_labels_before,
         prelim_opts,
         selvars_opts,
+        GeneralOptions.default(),
     )
 
     (
@@ -262,6 +263,7 @@ def test_split_fractional() -> None:
         inst_labels_before,
         prelim_opts,
         selvars_opts,
+        GeneralOptions.default(),
     )
 
     (
@@ -424,6 +426,7 @@ def test_split_fileindexed() -> None:
         inst_labels_before,
         prelim_opts,
         selvars_opts,
+        GeneralOptions.default(),
     )
 
     (
