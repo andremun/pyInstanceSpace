@@ -26,8 +26,9 @@ conversion is required.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from types import SimpleNamespace
-from typing import Any, Sequence
+from typing import Any
 
 import numpy as np
 
@@ -39,20 +40,39 @@ def _svc_to_artifact(svc: Any) -> SimpleNamespace:
     ``exp(-||x-y||^2 / s^2)`` equals scikit-learn's ``exp(-gamma ||x-y||^2)``, i.e.
     ``s = gamma**-0.5``. ``dual_coef_`` already carries the signed Lagrange
     multipliers, and ``intercept_`` is the bias, so both transfer directly.
+
+    The polynomial kernel is handled differently: ``_explore_pythia``'s polynomial
+    branch evaluates ``(z . sv + 1)**degree``, i.e. it hardcodes ``gamma=1`` and
+    ``coef0=1`` (matching PYTHIA's own hardcoded ``coef0=1``; there is no MATLAB
+    reference behaviour to match here since MATLAB's poly kernel isn't
+    parameterised by degree either). PYTHIA's ``gamma`` is tuned per algorithm, not
+    fixed at 1, so the support vectors are pre-scaled by ``gamma`` here instead:
+    ``(gamma * z . sv + 1)**degree`` is exactly ``((z . (gamma * sv)) + 1)**degree``,
+    which reproduces scikit-learn's actual trained decision function without
+    needing ``_explore_pythia`` to carry a separate scale parameter (verified
+    numerically to match ``SVC.decision_function`` to float precision).
     """
+    support_vectors = np.asarray(svc.support_vectors_, dtype=np.double)
     if svc.kernel == "rbf":
         kernel_fn = "gaussian"
         kernel_param = 1.0 / np.sqrt(svc._gamma)
+    elif svc.kernel == "poly":
+        kernel_fn = "polynomial"
+        kernel_param = float(svc.degree)
+        support_vectors = support_vectors * svc._gamma
     elif svc.kernel == "linear":
+        # Unreachable today: stages/pythia.py only ever trains "poly" or "rbf"
+        # (`kernel = "poly" if is_poly_kernel else "rbf"`), never "linear". Kept as
+        # defensive/future-proofing rather than a currently-exercised path.
         kernel_fn = "linear"
         kernel_param = 0.0
     else:
         raise NotImplementedError(
             f"the build->explore adapter does not support the {svc.kernel!r} kernel; "
-            "only the Gaussian and linear PYTHIA kernels are handled"
+            "only the Gaussian, polynomial and linear PYTHIA kernels are handled",
         )
     return SimpleNamespace(
-        support_vectors=np.asarray(svc.support_vectors_, dtype=np.double),
+        support_vectors=support_vectors,
         alphas=np.asarray(svc.dual_coef_, dtype=np.double).ravel(),
         bias=float(svc.intercept_[0]),
         kernel_fn=kernel_fn,
