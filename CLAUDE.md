@@ -57,6 +57,40 @@ and reporting back, even if the fix seems obvious.
 - Any MATLAB-side change — that's a different repo (`andremun/InstanceSpace`), tracked in its
   own issue batches, not this one.
 
+## Before considering any bug fix complete
+
+A fix that makes the reported symptom go away is not automatically a correct or complete fix.
+Run every fix through this before moving on — don't skip it because the change looks small:
+
+- **Root cause, not alias.** If the fix works by aliasing one value to another, adding a
+  special-case branch, or a null/bounds check around something that shouldn't have been
+  null/out-of-bounds — ask directly: would fixing *why* that value was wrong eliminate the
+  need for this patch entirely? Real example from this exact repo's history: a stale `idx`
+  field causing a shape-mismatch crash was fixed by aliasing `idx = selvars` everywhere. The
+  values became correct. But it left two fields permanently identical with no distinct
+  purpose, because nobody asked why the redundant field existed in the first place. Don't
+  repeat that shape of fix.
+- **Redundancy check.** After the fix, are there now two or more variables/fields/outputs
+  that are always identical or overlapping in purpose? That's a concrete signal the fix
+  addressed the symptom, not the structure.
+- **Consumer-completeness.** Grep the *whole repo* for every consumer of the changed value,
+  not just the one that happened to crash.
+- **Fresh-reader test.** Would someone with no memory of this bug's history immediately ask
+  "why are there two of these?" reading the result? If yes, fix that in the code (ideally by
+  removing the redundancy), not just in your own head.
+- **Verified, not just plausible.** See the rule below — don't let "this should work" stand
+  in for actually checking it.
+
+## Never leave verification as a promise
+
+A commit message saying "verification pending" or "will confirm in a follow-up" is not
+allowed to be the final state of a session — this has happened before on this exact repo
+(two consecutive commits, neither ever followed up) and cost real time to untangle later.
+Either verify before committing — run it in the background and wait if it's slow, don't skip
+it because it's inconvenient — or, if it genuinely can't be verified this session, open a
+GitHub issue stating exactly what's unverified and reference it in the commit. An open issue
+is tracked; commit-message prose is not.
+
 ## Testing
 
 `poetry run pytest`. `poe test` should include pytest (Q11/T4 in the roadmap) — if it still

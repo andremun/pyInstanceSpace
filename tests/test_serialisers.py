@@ -184,8 +184,7 @@ class _MatlabResults:
         sifted_out = SiftedOut(
             rho=self.workspace_data["model"]["sifted"]["rho"],
             # MATLAB indexes by 1
-            idx=self.workspace_data["model"]["featsel"]["idx"] - 1,
-            selvars=self.workspace_data["model"]["sifted"]["selvars"],
+            selvars=self.workspace_data["model"]["sifted"]["selvars"] - 1,
             pval=None,  # self.workspace_data["model"]["sifted"]["pval"],
             silhouette_scores=None,  # self.workspace_data["model"]["sifted"][
             #    "silhouette_scores"

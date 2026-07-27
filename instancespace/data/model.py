@@ -165,7 +165,6 @@ class SiftedOut:
     """Results of the sifting process in the data analysis pipeline."""
 
     selvars: NDArray[np.intc]
-    idx: NDArray[np.intc]
     rho: NDArray[np.double] | None
     pval: NDArray[np.double] | None
     silhouette_scores: list[float] | None
@@ -192,7 +191,6 @@ class SiftedOut:
         """
         return cls(
             selvars=stage_runner_output["selvars"],
-            idx=stage_runner_output["idx"],
             rho=stage_runner_output["rho"],
             pval=stage_runner_output["pval"],
             silhouette_scores=stage_runner_output["silhouette_scores"],
@@ -540,5 +538,5 @@ class FeatSel:
             FeatSel: a FeatSel object
         """
         return cls(
-            idx=stage_runner_output["idx"],
+            idx=stage_runner_output["selvars"],
         )
