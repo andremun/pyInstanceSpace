@@ -25,3 +25,28 @@ authors:
     given-names: Hazel
   - family-names: Yu
     given-names: Tao
+references:
+  - type: article
+    title: "instancespace: A Python package for insightful algorithm testing through Instance Space Analysis"
+    doi: 10.1016/j.softx.2025.102246
+    journal: SoftwareX
+    volume: 31
+    number: "102246"
+    year: 2025
+    authors:
+      - family-names: Güzel
+        given-names: "Yusuf Berdan"
+      - family-names: Khare
+        given-names: Kushagra
+      - family-names: Harvey
+        given-names: Nathan
+      - family-names: Dsouza
+        given-names: Kian
+      - family-names: Jang
+        given-names: "Dong Hyeog"
+      - family-names: Chen
+        given-names: Junheng
+      - family-names: Lam
+        given-names: "Cheng Ze"
+      - family-names: Muñoz
+        given-names: "Mario Andrés"

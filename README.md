@@ -24,7 +24,9 @@ If you follow the Instance Space Analysis methodology, please cite as follows:
 
 Also, if you specifically use this code, please cite as follows (see `CITATION.cff` for the full, machine-readable record):
 
-> pyInstanceSpace (Python Instance Space Analysis toolkit), [DOI:10.5281/zenodo.15562567](https://doi.org/10.5281/zenodo.15562567).
+> M.A. Muñoz and K. Smith-Miles. *Instance Space Analysis: A Python toolkit for the assessment of algorithmic power*. andremun/pyInstanceSpace on GitHub. Zenodo, [DOI:10.5281/zenodo.15562567](https://doi.org/10.5281/zenodo.15562567), 2025.
+
+> Y.B. Güzel, K. Khare, N. Harvey, K. Dsouza, D.H. Jang, J. Chen, C.Z. Lam, and M.A. Muñoz. *instancespace: A Python package for insightful algorithm testing through Instance Space Analysis*. SoftwareX, 31:102246, [DOI:10.1016/j.softx.2025.102246](https://doi.org/10.1016/j.softx.2025.102246), 2025.
 
 **DISCLAIMER: This repository contains research code. On occasion, new features will be added or changes made that may result in crashes. Although we have made every effort to minimise bugs, this code comes with NO GUARANTEES. If you encounter any issues, please let us know as soon as possible through the contact methods outlined at the end of this document.**
 
@@ -133,7 +135,7 @@ The ```options.json``` contains a structure that contains all the settings used 
 -	```opts.perf.AbsPerf``` determines whether good performance is defined absolutely, e.g., misclassification error is lower than a 20%, (set as ```TRUE```), or if it is defined relatively to the best performing algorithm, e.g., misclassification error is within at least 5% of the best algorithm, (set as ```FALSE```).
 -	```opts.perf.epsilon``` corresponds to the threshold used to calculate good performance. It must be of the type "Double".
 -	```opts.general.betaThreshold``` corresponds to the fraction of algorithms in the portfolio that must have good performance in the instance, for it to be considered an **easy** instance. It must be a value between 0 and 1.
-- ```opts.parallel.flag``` determines whether parallel processing will be available (set as ```TRUE```), or not (set as ```FALSE```). The toolkit makes use of MATLAB's [```parpool```](https://au.mathworks.com/help/parallel-computing/parpool.html) functionality to create a multisession environment in the local machine.
+- ```opts.parallel.flag``` determines whether parallel processing will be available (set as ```TRUE```), or not (set as ```FALSE```). The toolkit uses Python's ```multiprocessing``` (in TRACE) and scikit-learn's ```n_jobs``` (in PYTHIA) to distribute work across local cores.
 - ```opts.parallel.ncores``` number of available cores for parallel procesing.
 -	```opts.selvars.smallscaleflag``` by setting this flag as ```TRUE```, you can carry out a small scale experiment using a randomly selected fraction of the original data. This is useful if you have a large dataset with more than 1000 instances, and you want to explore the parameters of the model.
 -	```opts.selvars.smallscale``` fraction taken from the original data on the small scale experiment.
@@ -156,7 +158,7 @@ The toolkit uses CLOISTER, an algorithm based on correlation to detect the empir
 
 ###  Algorithm selection settings
 
-The Python toolkit trains one [scikit-learn](https://scikit-learn.org/) `SVC` per algorithm as the algorithm selection model — this replaces MATLAB's dependency on its Statistics and Machine Learning Toolbox or [LIBSVM](https://www.csie.ntu.edu.tw/~cjlin/libsvm/), neither of which this implementation uses.
+The toolkit trains one [scikit-learn](https://scikit-learn.org/) `SVC` per algorithm as the algorithm selection model.
 
 - ```opts.pythia.cv_folds``` number of folds of the stratified cross-validation (CV) experiment used during hyper-parameter tuning.
 - ```opts.pythia.is_poly_krnl``` determines whether to use a polynomial (set as ```TRUE```) or Gaussian/RBF (set as ```FALSE```, the default) kernel. The RBF kernel is usually significantly faster to calculate and more accurate; however, it also has the disadvantage of producing discontinuous areas of good performance which may look overfitted. We tend to recommend a polynomial kernel if the dataset is higher than 1000 instances.
@@ -166,7 +168,7 @@ The Python toolkit trains one [scikit-learn](https://scikit-learn.org/) `SVC` pe
 
 ### Footprint construction settings
 
-The toolkit uses TRACE, an algorithm based on MATLAB's [```polyshapes```](https://au.mathworks.com/help/matlab/ref/polyshape.html) to define the regions in the space where we statistically infer good algorithm performance. The polyshapes are then pruned to remove those sections for which the evidence, as defined by a minimum purity value, is poor or non-existing.
+The toolkit uses TRACE, an algorithm based on [```shapely```](https://shapely.readthedocs.io/) polygons to define the regions in the space where we statistically infer good algorithm performance. The polygons are then pruned to remove those sections for which the evidence, as defined by a minimum purity value, is poor or non-existing.
 
 -	```opts.trace.usesim``` makes use of the actual (set as ```FALSE```) or simulated data from the SVM results (set as ```TRUE```) to produce the footprints.
 -	```opts.trace.PI``` minimum purity required for a section of a footprint.
@@ -209,4 +211,4 @@ Funding for the development of this code was provided by:
 - The University of Melbourne, through grant 2025DYA013.
 - The Australian Research Council, through the ARC Industrial Transformation Training Centre in Optimisation Technologies, Integrated Methodologies, and Applications (OPTIMA; grant No. IC200100009).
 
-This code was developed as part of the subject SWEN90017-18 by students Junheng Chen, Yusuf Berdan Guzel, Kushagra Khare, Dong Hyeog Jang, Kian Dsouza, Nathan Harvey, Tao Yu, Xin Xiang, Jiaying Yi, and Cheng Ze Lam. Ben Golding mentored the team, and Mansooreh Zahedi coordinated the subject.
+This code was partly developed as part of the subject SWEN90017-18 by students Junheng Chen, Yusuf Berdan Guzel, Kushagra Khare, Dong Hyeog Jang, Kian Dsouza, Nathan Harvey, Tao Yu, Xin Xiang, Jiaying Yi, and Cheng Ze Lam. Ben Golding mentored the team, and Mansooreh Zahedi coordinated the subject.
