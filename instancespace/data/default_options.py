@@ -1,5 +1,8 @@
 """Contains default values for options as constants."""
 
+DEFAULT_GENERAL_VERBOSE = True
+DEFAULT_GENERAL_SEED = 0
+
 DEFAULT_PARALLEL_FLAG = False
 DEFAULT_PARALLEL_N_CORES = 2
 

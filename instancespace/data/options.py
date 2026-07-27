@@ -7,7 +7,7 @@ aspects of the model's execution and behaviour.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any, Self, TypeVar
 
@@ -19,6 +19,8 @@ from instancespace.data.default_options import (
     DEFAULT_BOUND_FLAG,
     DEFAULT_CLOISTER_C_THRES,
     DEFAULT_CLOISTER_P_VAL,
+    DEFAULT_GENERAL_SEED,
+    DEFAULT_GENERAL_VERBOSE,
     DEFAULT_NORM_FLAG,
     DEFAULT_OUTPUTS_CSV,
     DEFAULT_OUTPUTS_PNG,
@@ -72,6 +74,42 @@ class MissingOptionsError(Exception):
     """
 
     pass
+
+
+@dataclass(frozen=True)
+class GeneralOptions:
+    """General options not specific to any one stage.
+
+    Mirrors MATLAB's ``opts.general.*`` namespace.
+
+    Attributes
+    ----------
+    verbose : bool
+        Whether stages log per-trial/per-iteration detail (e.g. PYTHIA's
+        per-classifier tuning progress), or only their top-level `[STAGE] message`
+        lines.
+    seed : int | None
+        Seed threaded through every stage's random-number generation (both
+        `np.random.default_rng(seed=...)` and scikit-learn's `random_state=...`),
+        replacing the hardcoded `0` previously scattered across `pilot.py`,
+        `sifted.py`, `prelim.py`, and `pythia.py`. `None` requests a
+        non-deterministic run; the default `0` exactly matches that previously
+        hardcoded value, so leaving this unset changes nothing for existing callers.
+    """
+
+    verbose: bool
+    seed: int | None
+
+    @staticmethod
+    def default(
+        verbose: bool = DEFAULT_GENERAL_VERBOSE,
+        seed: int | None = DEFAULT_GENERAL_SEED,
+    ) -> GeneralOptions:
+        """Instantiate with default values."""
+        return GeneralOptions(
+            verbose=verbose,
+            seed=seed,
+        )
 
 
 @dataclass(frozen=True)
@@ -393,6 +431,10 @@ class InstanceSpaceOptions:
     pythia: PythiaOptions
     trace: TraceOptions
     outputs: OutputOptions
+    # Defaulted (rather than required like the groups above) so existing direct
+    # `InstanceSpaceOptions(...)` construction that predates this field keeps working
+    # unchanged - this field must stay last for that reason.
+    general: GeneralOptions = field(default_factory=GeneralOptions.default)
 
     @staticmethod
     def from_dict(file_contents: dict[str, Any]) -> InstanceSpaceOptions:
@@ -521,6 +563,10 @@ class InstanceSpaceOptions:
                 OutputOptions,
                 file_contents.get("outputs", {}),
             ),
+            general=InstanceSpaceOptions._load_dataclass(
+                GeneralOptions,
+                file_contents.get("general", {}),
+            ),
         )
 
     def to_file(self: Self, filepath: Path) -> None:
@@ -547,6 +593,7 @@ class InstanceSpaceOptions:
         pythia: PythiaOptions | None,
         trace: TraceOptions | None,
         outputs: OutputOptions | None,
+        general: GeneralOptions | None = None,
     ) -> InstanceSpaceOptions:
         """Instantiate with default values."""
         return InstanceSpaceOptions(
@@ -562,6 +609,7 @@ class InstanceSpaceOptions:
             pythia=pythia or PythiaOptions.default(),
             trace=trace or TraceOptions.default(),
             outputs=outputs or OutputOptions.default(),
+            general=general or GeneralOptions.default(),
         )
 
     T = TypeVar(
@@ -578,6 +626,7 @@ class InstanceSpaceOptions:
         PythiaOptions,
         TraceOptions,
         OutputOptions,
+        GeneralOptions,
     )
 
     @staticmethod
