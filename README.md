@@ -70,7 +70,25 @@ instance_space.model.save_to_csv("output/")
 instance_space.model.save_graphs("output/")
 ```
 
-See `integration_demo.py` for a complete, runnable version of this (including the explicit stage list), and `example_plugin.py` for how to add a custom `Stage` to the pipeline. For applying an already-trained model to new, unseen instances rather than training from scratch, see the `explore()` pipeline documented immediately below.
+See `integration_demo.py` for a complete, runnable version of this (including the explicit stage list), and `example_plugin.py` for how to add a custom `Stage` to the pipeline.
+
+### Applying a trained model to new data: `explore()`
+
+`InstanceSpace.explore()` applies a previously trained model to unseen instances, mirroring the MATLAB toolkit's `exploreIS.m`: the test metadata is bounded and scaled with the stored PRELIM parameters, reduced to the selected SIFTED features, projected with the trained PILOT matrix, and evaluated by the trained PYTHIA selectors and TRACE footprints. No stage is re-fitted.
+
+`explore()` identifies the shape of the trained model itself and logs what it detected. A model trained by the Python `build()` — which stores the PYTHIA SVMs as fitted scikit-learn `SVC` objects — is converted internally, once, into the flattened structure `explore()` consumes; the scikit-learn model is not modified and remains available via the `model` property for anyone who prefers to keep working with scikit-learn objects. A model already in the flattened form (assembled from MATLAB-exported artifacts) is consumed as-is.
+
+The conversion lives in `instancespace/build_explore_adapter.py` and only rewrites the PYTHIA SVMs into the flattened form; PRELIM, SIFTED, PILOT and TRACE pass through unchanged. Its module docstring explains each choice. The normal flow is therefore direct:
+
+```python
+space = InstanceSpace(train_metadata, options)
+space.build()
+result = space.explore(test_metadata)
+```
+
+`explore()` returns the full result in one call; `explore_iter()` runs the same stages but yields each one's output in turn (`prelim`, `sifted`, `pilot`, `pythia`, `trace`), for inspecting the pipeline one stage at a time. The operation manual `liveDemoExploreIS.ipynb` — the Python counterpart of the MATLAB live demo (`liveDemoIS.m`) — walks through both `build()` and `explore()`/`explore_iter()` stage by stage and is meant to be read as a usage guide; run it from the repository root.
+
+The port is validated stage by stage against the MATLAB implementation: `tests/matlab_reference/` holds the MATLAB-trained artifacts and reference outputs, `tests/exploreIS/` holds the validation and unit tests (run `pytest tests/exploreIS/`), and `docs/explore_validation.ipynb` documents how the validation numbers were obtained and how a from-scratch Python build behaves. The test folders document their contents in their own README files.
 
 ## Development Environment Setup Guide
 
@@ -93,24 +111,6 @@ REQUIREMENTS:
 
 ### Step 3: Install Python dependencies into a virtual environment
 `poetry install`
-
-## The explore() inference pipeline
-
-`InstanceSpace.explore()` applies a previously trained model to unseen instances, mirroring the MATLAB toolkit's `exploreIS.m`: the test metadata is bounded and scaled with the stored PRELIM parameters, reduced to the selected SIFTED features, projected with the trained PILOT matrix, and evaluated by the trained PYTHIA selectors and TRACE footprints. No stage is re-fitted.
-
-`explore()` identifies the shape of the trained model itself and logs what it detected. A model trained by the Python `build()` — which stores the PYTHIA SVMs as fitted scikit-learn `SVC` objects — is converted internally, once, into the flattened structure `explore()` consumes; the scikit-learn model is not modified and remains available via the `model` property for anyone who prefers to keep working with scikit-learn objects. A model already in the flattened form (assembled from MATLAB-exported artifacts) is consumed as-is.
-
-The conversion lives in `instancespace/build_explore_adapter.py` and only rewrites the PYTHIA SVMs into the flattened form; PRELIM, SIFTED, PILOT and TRACE pass through unchanged. Its module docstring explains each choice. The normal flow is therefore direct:
-
-```python
-space = InstanceSpace(train_metadata, options)
-space.build()
-result = space.explore(test_metadata)
-```
-
-`explore()` returns the full result in one call; `explore_iter()` runs the same stages but yields each one's output in turn (`prelim`, `sifted`, `pilot`, `pythia`, `trace`), for inspecting the pipeline one stage at a time. The operation manual `liveDemoExploreIS.ipynb` — the Python counterpart of the MATLAB live demo (`liveDemoIS.mlx`) — walks through both and is meant to be read as a usage guide; run it from the repository root.
-
-The port is validated stage by stage against the MATLAB implementation: `tests/matlab_reference/` holds the MATLAB-trained artifacts and reference outputs, `tests/exploreIS/` holds the validation and unit tests (run `pytest tests/exploreIS/`), and `docs/explore_validation.ipynb` documents how the validation numbers were obtained and how a from-scratch Python build behaves. The test folders document their contents in their own README files.
 
 ## The metadata file
 
@@ -204,6 +204,9 @@ If you have any suggestions or ideas (e.g. for new features), or if you encounte
 
 ## Acknowledgements
 
-The Australian Research Council provided partial funding for the development of this code through the Industrial Transformation Training Centre grant IC200100009.
+Funding for the development of this code was provided by:
+
+- The University of Melbourne, through grant 2025DYA013.
+- The Australian Research Council, through the ARC Industrial Transformation Training Centre in Optimisation Technologies, Integrated Methodologies, and Applications (OPTIMA; grant No. IC200100009).
 
 This code was developed as part of the subject SWEN90017-18 by students Junheng Chen, Yusuf Berdan Guzel, Kushagra Khare, Dong Hyeog Jang, Kian Dsouza, Nathan Harvey, Tao Yu, Xin Xiang, Jiaying Yi, and Cheng Ze Lam. Ben Golding mentored the team, and Mansooreh Zahedi coordinated the subject.
