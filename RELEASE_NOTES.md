@@ -42,6 +42,15 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
 
 ## Unreleased
 
+### New functionality
+
+- `explore()` now logs a warning when more than 5% of test instances have a feature
+  outside the training PRELIM bounds and get clipped to them, matching MATLAB's
+  equivalent out-of-distribution check (#250).
+- Added `InstanceSpace.plot_sources()`/`plot_portfolio()`/`plot_good()`/
+  `plot_footprint()` convenience methods (`instancespace/plotting.py`), thin
+  matplotlib wrappers mirroring MATLAB's `InstanceSpace.plot()` (#255).
+
 ### Bug fixes
 
 - Graph labels, exported CSV headers, and filenames no longer leak the metadata.csv
@@ -52,10 +61,17 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   its summary table; it now copies before mutating, matching the pattern already used
   for the same array's other derived copies (#229).
 - `SiftedStage` no longer returns a stale, un-narrowed `idx` (computed once from the
-  pre-selection feature count) alongside the correctly-narrowed `selvars`; `idx` now
-  tracks the actual selected feature indices. Previously this caused
-  `Model.save_to_csv`/`save_instance_space_for_web` to crash or misalign columns
-  whenever SIFTED reduced the feature set.
+  pre-selection feature count) alongside the correctly-narrowed `selvars`. Previously
+  this caused `Model.save_to_csv`/`save_instance_space_for_web` to crash or misalign
+  columns whenever SIFTED reduced the feature set; the redundant `idx` field has since
+  been removed from `SiftedOutput`/`SiftedOut` entirely (`FeatSel.idx` is unaffected and
+  now reads `selvars` directly).
+- `build_explore_adapter._svc_to_artifact` no longer raises `NotImplementedError` for
+  polynomial-kernel PYTHIA SVMs — `explore()` after a `build()` trained with
+  `opts.pythia.is_poly_krnl = True` now works. The support vectors are pre-scaled by the
+  trained `gamma` so `_explore_pythia`'s existing polynomial-kernel formula (which
+  assumes `gamma=1`, matching its hardcoded `coef0=1`) reproduces the actual trained
+  decision function.
 
 ### Better engineering
 
@@ -70,3 +86,12 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   the MATLAB repository's; PYTHIA options section rewritten to describe the actual
   scikit-learn-backed implementation instead of MATLAB's Statistics and Machine Learning
   Toolbox/LIBSVM; added *Repository layout* and *Working with the code* sections.
+- `instance_space_from_files`' options listing now recurses into nested option
+  dataclasses (`instancespace/utils/print_options.py`), printing one line per leaf
+  field instead of one line per top-level group with a raw nested-dataclass repr (#252).
+- Documented and added a regression test for the already-decided permissive
+  feature-order behaviour in `explore()`: test metadata's feature columns are matched
+  by name, not position (#253).
+- Added `SECURITY.md` and `CONTRIBUTING.md` (#258).
+- Removed a dead, commented-out CI lint/format-check step from `validation-tests.yml`
+  rather than leaving it neither enabled nor deleted (#259).
