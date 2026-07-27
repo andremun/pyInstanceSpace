@@ -1,8 +1,9 @@
 # Instance Space Analysis: A toolkit for the assessment of algorithmic power
 
 ![Tests](https://github.com/andremun/pyInstanceSpace/actions/workflows/validation-tests.yml/badge.svg)
-[![Static Badge](https://img.shields.io/badge/docs-passing-4c1)](https://docs.matilda.neatht.com)
 [![DOI](https://zenodo.org/badge/770130753.svg)](https://doi.org/10.5281/zenodo.15562567)
+
+API docs aren't built or hosted by CI yet — run `pdoc instancespace` locally (see *Documentation Instructions* below).
 
 Instance Space Analysis is a methodology for assessing the strengths and weaknesses of an algorithm, and an approach to objectively compare algorithmic power without bias introduced by a restricted choice of test instances. At its core is modelling the relationship between an instance's structural properties and the performance of a group of algorithms. Instance Space Analysis allows the construction of **footprints** for each algorithm, defined as regions in the instance space where we statistically infer good performance. Other insights that can be gathered from Instance Space Analysis include:
 
@@ -21,9 +22,9 @@ If you follow the Instance Space Analysis methodology, please cite as follows:
 
 > K. Smith-Miles and M.A. Muñoz. *Instance Space Analysis for Algorithm Testing: Methodology and Software Tools*. ACM Comput. Surv. 55(12:255),1-31 [DOI:10.1145/3572895](https://doi.org/10.1145/3572895), 2023.
 
-Also, if you specifically use this code, please cite as follows:
+Also, if you specifically use this code, please cite as follows (see `CITATION.cff` for the full, machine-readable record):
 
-> TBD
+> pyInstanceSpace (Python Instance Space Analysis toolkit), [DOI:10.5281/zenodo.15562567](https://doi.org/10.5281/zenodo.15562567).
 
 **DISCLAIMER: This repository contains research code. On occasion, new features will be added or changes made that may result in crashes. Although we have made every effort to minimise bugs, this code comes with NO GUARANTEES. If you encounter any issues, please let us know as soon as possible through the contact methods outlined at the end of this document.**
 
@@ -40,6 +41,36 @@ An example of a plugin can be found in example_plugin.py
 run `pdoc instancespace`
 
 Please take a look at the pdoc documentation for instructions on exporting static HTML files for hosting on GitHub Pages.
+
+## Repository layout
+
+- `instancespace/` — the package itself: `instance_space.py` (the `InstanceSpace` class — `build()`/`explore()`/`explore_iter()`), `stage_builder.py`/`stage_runner.py` (the DAG scheduler that infers stage order from each stage's declared inputs/outputs), `stages/` (one module per pipeline stage — `preprocessing`, `prelim`, `sifted`, `pilot`, `pythia`, `cloister`, `trace`), `data/` (option and metadata dataclasses), `model.py` (the trained `Model` and its `save_to_csv`/`save_for_web`/`save_graphs`/`save_to_mat`/`save_zip` methods), `build_explore_adapter.py` (converts a `build()`-trained model into the form `explore()` consumes), and `scripting/` (CSV/plot output helpers).
+- `tests/` — the test suite; `tests/matlab_reference/` holds MATLAB-trained golden-reference artifacts used to validate the Python port stage by stage, and `tests/exploreIS/` holds `explore()`/`explore_iter()`-specific validation and unit tests. Most other test files are named `test_<stage>.py` per stage.
+- `integration_demo.py` — the minimal runnable example: load metadata + options from `tests/test_data/demo/`, construct an `InstanceSpace` with the full stage list, and `build()` it.
+- `example_plugin.py` — demonstrates writing a custom `Stage` and slotting it into the pipeline alongside the built-in stages.
+- `liveDemoExploreIS.ipynb` — the operation manual: a stage-by-stage walkthrough of `build()` and `explore()`/`explore_iter()`, meant to be read as a usage guide.
+- `docs/` — `explore_validation.ipynb` (how the MATLAB-reference validation numbers were obtained) and the project roadmap/implementation-pathway documents used to plan ongoing work.
+- `CLIDocs.txt` — notes on the (not yet built) command-line interface.
+
+## Working with the code
+
+The basic flow is: construct an `InstanceSpace` from metadata and options, `build()` it, then save the results.
+
+```python
+from instancespace import InstanceSpace
+from instancespace.data import metadata, options
+
+metadata_object = metadata.from_csv_file("metadata.csv")
+options_object = options.from_json_file("options.json")
+
+instance_space = InstanceSpace(metadata_object, options_object)
+instance_space.build()
+
+instance_space.model.save_to_csv("output/")
+instance_space.model.save_graphs("output/")
+```
+
+See `integration_demo.py` for a complete, runnable version of this (including the explicit stage list), and `example_plugin.py` for how to add a custom `Stage` to the pipeline. For applying an already-trained model to new, unseen instances rather than training from scratch, see the `explore()` pipeline documented immediately below.
 
 ## Development Environment Setup Guide
 
@@ -125,12 +156,13 @@ The toolkit uses CLOISTER, an algorithm based on correlation to detect the empir
 
 ###  Algorithm selection settings
 
-The toolkit uses SVMs with radial basis kernels as algorithm selection models, through MATLAB's Statistics and Machine Learning Toolbox or [LIBSVM](https://www.csie.ntu.edu.tw/~cjlin/libsvm/).
+The Python toolkit trains one [scikit-learn](https://scikit-learn.org/) `SVC` per algorithm as the algorithm selection model — this replaces MATLAB's dependency on its Statistics and Machine Learning Toolbox or [LIBSVM](https://www.csie.ntu.edu.tw/~cjlin/libsvm/), neither of which this implementation uses.
 
-- ```opts.pythia.uselibsvm``` determines whether to use LIBSVM (set as ```TRUE```) or MATLAB's implementation of an SVM, depending on which a different method is used to fine tune the parameters. For the former, tuning is achieved using 30 iterations of the random search algorithm, usinga Latin Hyper-cube design bounded between <img src="https://render.githubusercontent.com/render/math?math=\left[2^{-10},\ 2^{4}\right]"> as sample points, withk-fold stratified cross-validation (CV), and using model error as the loss function. On the other hand, for the latter, tuning is achieved using 30 iterations of the Bayesian Optimization algorithm bounded between <img src="https://render.githubusercontent.com/render/math?math=\left[2^{-10},\ 2^{4}\right]">, with k-fold stratified CV.
--	```opts.pythia.cvfolds``` number of folds of the CV experiment.
--	```opts.pythia.ispolykrnl``` determines whether to use a polynomial (set as ```TRUE```) or Gaussian (set as ```FALSE```) kernel. Usually, the latter one is significantly faster to calculate and more accurate; however, it also has the disadvantage of producing discontinuous areas of good performance which may look overfitted. We tend to recommend a polynomial kernel if the dataset is higher than 1000 instances.
-- ```opts.pythia.useweights``` determines whether weighted (set as ```TRUE```) or unweighted (set as ```FALSE```) classification is performed. The weights are calculated as <img src="https://render.githubusercontent.com/render/math?math=\left|y_{\text{best}}-y\right|">.
+- ```opts.pythia.cv_folds``` number of folds of the stratified cross-validation (CV) experiment used during hyper-parameter tuning.
+- ```opts.pythia.is_poly_krnl``` determines whether to use a polynomial (set as ```TRUE```) or Gaussian/RBF (set as ```FALSE```, the default) kernel. The RBF kernel is usually significantly faster to calculate and more accurate; however, it also has the disadvantage of producing discontinuous areas of good performance which may look overfitted. We tend to recommend a polynomial kernel if the dataset is higher than 1000 instances.
+- ```opts.pythia.use_grid_search``` selects the hyper-parameter tuning strategy: a Sobol-sampled grid search (set as ```TRUE```) or Bayesian optimization via [scikit-optimize](https://scikit-optimize.github.io/)'s `BayesSearchCV` (set as ```FALSE```, the default), both tuning the SVM's box constraint and kernel scale with stratified CV.
+- ```opts.pythia.use_weights``` determines whether weighted (set as ```TRUE```) or unweighted (set as ```FALSE```, the default) classification is performed. The weights are calculated as <img src="https://render.githubusercontent.com/render/math?math=\left|y-\bar{y}\right|">, i.e. each instance's absolute deviation from the algorithm's mean performance.
+- ```opts.pythia.uselibsvm``` **(legacy)** accepted for backward compatibility with option files from the MATLAB toolkit; treated as an alias for ```opts.pythia.use_grid_search``` and does not select LIBSVM, which this implementation does not use.
 
 ### Footprint construction settings
 
@@ -168,7 +200,7 @@ These settings result in more information being stored in files or presented in 
 
 ## Contact
 
-If you have any suggestions or ideas (e.g. for new features), or if you encounter any problems while running the code, please use the [issue tracker](https://github.com/andremun/InstanceSpace/issues) or contact us through the MATILDA's [Queries and Feedback](http://matilda.unimelb.edu.au/matilda/contact-us) page.
+If you have any suggestions or ideas (e.g. for new features), or if you encounter any problems while running the code, please use this repository's own [issue tracker](https://github.com/andremun/pyInstanceSpace/issues) or contact us through the MATILDA's [Queries and Feedback](http://matilda.unimelb.edu.au/matilda/contact-us) page.
 
 ## Acknowledgements
 
