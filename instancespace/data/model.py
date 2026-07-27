@@ -7,6 +7,7 @@ to data analysis and model building.
 
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, TypeVar
 
 import numpy as np
@@ -461,6 +462,56 @@ class TraceOut:
             hard=stage_runner_output["hard"],
             summary=stage_runner_output["trace_summary"],
         )
+
+
+@dataclass(frozen=True)
+class ExploreResult:
+    """Results of applying trained model to test data.
+
+    This class encapsulates all outputs from the explore() pipeline, which applies
+    a trained instance space model to new test data.
+
+    Attributes
+    ----------
+    dataset_id : str
+        Identifier for this test dataset.
+    timestamp : datetime
+        When the explore operation was performed.
+    x : NDArray[np.double]
+        Processed features after PRELIM/SIFTED transformations.
+        Shape: (n_instances, n_selected_features).
+    z : NDArray[np.double]
+        Projected coordinates in 2D instance space from PILOT.
+        Shape: (n_instances, 2).
+    y_hat : NDArray[np.bool_] | None
+        Binary algorithm predictions from PYTHIA SVMs.
+        Shape: (n_instances, n_algorithms). None if PYTHIA not applied.
+    pr0_hat : NDArray[np.double] | None
+        Probability predictions from PYTHIA SVMs.
+        Shape: (n_instances, n_algorithms). None if PYTHIA not applied.
+    selection0 : NDArray[np.int_] | None
+        Recommended algorithm index for each instance.
+        Shape: (n_instances,). None if PYTHIA not applied.
+    in_good : NDArray[np.bool_] | None
+        Whether each instance falls in "good" footprint for each algorithm.
+        Shape: (n_instances, n_algorithms). None if TRACE not applied.
+    in_best : NDArray[np.bool_] | None
+        Whether each instance falls in "best" footprint for each algorithm.
+        Shape: (n_instances, n_algorithms). None if TRACE not applied.
+    inst_labels : pd.Series
+        Instance labels/identifiers from the test metadata.
+    """
+
+    dataset_id: str
+    timestamp: datetime
+    x: NDArray[np.double]
+    z: NDArray[np.double]
+    y_hat: NDArray[np.bool_] | None
+    pr0_hat: NDArray[np.double] | None
+    selection0: NDArray[np.int_] | None
+    in_good: NDArray[np.bool_] | None
+    in_best: NDArray[np.bool_] | None
+    inst_labels: pd.Series  # type: ignore[type-arg]
 
 
 @dataclass(frozen=True)
