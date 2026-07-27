@@ -27,6 +27,21 @@ def _toy_svc():
     return svc, z, z_norm, mu, sigma
 
 
+def _toy_svc_poly():
+    rng = np.random.default_rng(0)
+    z = np.vstack([rng.normal(-1.0, 0.8, size=(40, 2)),
+                   rng.normal(1.0, 0.8, size=(40, 2))])
+    y = np.array([False] * 40 + [True] * 40)
+    mu, sigma = z.mean(axis=0), z.std(axis=0, ddof=1)
+    z_norm = (z - mu) / sigma
+    # Matches stages/pythia.py's poly-kernel training: degree=2, coef0=1, tuned gamma.
+    svc = SVC(
+        kernel="poly", degree=2, coef0=1, gamma=0.7, probability=True, random_state=0,
+    )
+    svc.fit(z_norm, y)
+    return svc, z, z_norm, mu, sigma
+
+
 def test_decision_function_transfers_exactly():
     svc, _z, z_norm, _mu, _sigma = _toy_svc()
     art = _svc_to_artifact(svc)
@@ -62,11 +77,45 @@ def test_explore_pythia_reproduces_sklearn_posterior():
     assert abs(np.corrcoef(post_good, sklearn_post)[0, 1]) > 0.99
 
 
+def test_poly_decision_function_transfers_exactly():
+    svc, _z, z_norm, _mu, _sigma = _toy_svc_poly()
+    art = _svc_to_artifact(svc)
+    # art.support_vectors is pre-scaled by gamma, so (z . sv + 1)**degree reproduces
+    # scikit-learn's actual (gamma * z . sv + coef0)**degree.
+    k = (z_norm @ art.support_vectors.T + 1.0) ** art.kernel_param
+    decision = k @ art.alphas + art.bias
+    np.testing.assert_allclose(decision, svc.decision_function(z_norm), atol=1e-9)
+
+
+def test_poly_kernel_param_matches_degree():
+    svc, *_ = _toy_svc_poly()
+    art = _svc_to_artifact(svc)
+    assert art.kernel_fn == "polynomial"
+    assert art.kernel_param == svc.degree
+
+
+def test_explore_pythia_reproduces_sklearn_posterior_poly():
+    svc, z, z_norm, mu, sigma = _toy_svc_poly()
+    art = _svc_to_artifact(svc)
+    from types import SimpleNamespace
+
+    model = SimpleNamespace(pythia=SimpleNamespace(
+        mu=mu, sigma=sigma, precision=np.array([1.0]), svm=[art]))
+    holder = SimpleNamespace(_explore_model=model)
+    y_hat, pr0_hat, _sel = InstanceSpace._explore_pythia(holder, z)
+
+    assert np.all(np.isfinite(pr0_hat))
+    post_good = 1.0 - pr0_hat[:, 0]
+    sklearn_post = svc.predict_proba(z_norm)[:, 1]
+    assert abs(np.corrcoef(post_good, sklearn_post)[0, 1]) > 0.99
+    assert y_hat.dtype == np.bool_
+
+
 def test_unsupported_kernel_raises():
     rng = np.random.default_rng(1)
     z = rng.normal(size=(20, 2))
     y = np.array([False] * 10 + [True] * 10)
-    svc = SVC(kernel="poly", degree=3, probability=True, random_state=0).fit(z, y)
+    svc = SVC(kernel="sigmoid", probability=True, random_state=0).fit(z, y)
     with pytest.raises(NotImplementedError):
         _svc_to_artifact(svc)
 
