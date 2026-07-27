@@ -173,6 +173,42 @@ def test_prelim_numerical_stability(mock_instance_space):
     assert np.all(np.isfinite(x_transformed))
 
 
+def _collect_warnings(fn, *args):
+    """Run fn(*args) and return the loguru WARNING-level messages it emitted."""
+    from loguru import logger
+
+    messages = []
+    sink_id = logger.add(lambda msg: messages.append(msg.record["message"]), level="WARNING")
+    try:
+        fn(*args)
+    finally:
+        logger.remove(sink_id)
+    return messages
+
+
+def test_prelim_ood_warning_fires_above_threshold(mock_instance_space):
+    """Regression test for #250: explore() warns when >5% of instances are clipped."""
+    # Bounds are [0, 10] on all 3 features (mock_prelim_params). 2 of 10 instances
+    # (20%) have a feature outside bounds -> above the 5% threshold.
+    x_raw = np.vstack([
+        np.full((8, 3), 5.0),
+        np.array([[-5.0, 5.0, 5.0], [5.0, 15.0, 5.0]]),
+    ])
+
+    messages = _collect_warnings(InstanceSpace._explore_prelim, mock_instance_space, x_raw)
+
+    assert any("clipped" in m for m in messages)
+
+
+def test_prelim_ood_warning_silent_below_threshold(mock_instance_space):
+    """No warning when no instance needs clipping."""
+    x_raw = np.full((10, 3), 5.0)  # well within [0, 10] on all features
+
+    messages = _collect_warnings(InstanceSpace._explore_prelim, mock_instance_space, x_raw)
+
+    assert messages == []
+
+
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v"])

@@ -6,7 +6,6 @@ analytical results and metadata of the instance space analysis.
 """
 
 from collections.abc import Generator
-from dataclasses import fields
 from datetime import datetime
 from pathlib import Path
 from typing import Any, NamedTuple, TypeVar
@@ -14,6 +13,7 @@ from typing import Any, NamedTuple, TypeVar
 import numpy as np
 import pandas as pd
 from loguru import logger
+from matplotlib.axes import Axes
 from numpy.typing import NDArray
 from shapely.geometry import Point
 
@@ -38,6 +38,12 @@ from instancespace.data.options import (
     from_json_file,
 )
 from instancespace.model import Model
+from instancespace.plotting import (
+    plot_footprint,
+    plot_good,
+    plot_portfolio,
+    plot_sources,
+)
 from instancespace.stage_builder import StageBuilder
 from instancespace.stage_runner import (
     AnnotatedStageOutput,
@@ -52,6 +58,11 @@ from instancespace.stages.pythia import PythiaStage
 from instancespace.stages.sifted import SiftedStage
 from instancespace.stages.stage import IN, OUT, Stage, StageClass
 from instancespace.stages.trace import TraceStage
+from instancespace.utils.print_options import format_options
+
+# Fraction of explore()-time instances clipped to the training PRELIM bounds above
+# which an out-of-distribution warning fires (matches MATLAB's exploreIS.m).
+_OOD_CLIPPED_FRACTION_THRESHOLD = 0.05
 
 T = TypeVar("T", bound="_InstanceSpaceInputs")
 
@@ -226,6 +237,39 @@ class InstanceSpace:
 
         return self._model
 
+    def plot_sources(self, ax: Axes | None = None) -> Axes:
+        """Scatter training instances in the 2D instance space, coloured by source.
+
+        See ``instancespace.plotting.plot_sources``.
+        """
+        return plot_sources(self.model, ax=ax)
+
+    def plot_portfolio(self, ax: Axes | None = None) -> Axes:
+        """Scatter instances coloured by their best-performing algorithm.
+
+        See ``instancespace.plotting.plot_portfolio``.
+        """
+        return plot_portfolio(self.model, ax=ax)
+
+    def plot_good(self, algo: str | int, ax: Axes | None = None) -> Axes:
+        """Scatter instances coloured by PYTHIA's good/bad prediction for one algorithm.
+
+        See ``instancespace.plotting.plot_good``.
+        """
+        return plot_good(self.model, algo, ax=ax)
+
+    def plot_footprint(
+        self,
+        algo: str | int,
+        kind: str = "good",
+        ax: Axes | None = None,
+    ) -> Axes:
+        """Draw one algorithm's trained footprint polygon(s) over training instances.
+
+        See ``instancespace.plotting.plot_footprint``.
+        """
+        return plot_footprint(self.model, algo, kind=kind, ax=ax)
+
     def build(
         self,
     ) -> Model:
@@ -347,7 +391,10 @@ class InstanceSpace:
         Args
         ----
             test_metadata : Metadata
-                New instances with the same feature columns as training data.
+                New instances with the same feature columns as training data. Feature
+                columns are matched by name, not position, so they may be supplied in
+                any order (this is deliberate, permanent behaviour, not a stricter
+                order check like MATLAB's `featureOrderMismatch`).
             dataset_id : str | None, optional
                 Identifier for this test dataset. If not provided, a timestamp-based
                 ID will be generated.
@@ -487,7 +534,7 @@ class InstanceSpace:
         if self._explore_model is None:
             raise RuntimeError(
                 "Must call build() before explore(). "
-                "The instance space model must be trained first."
+                "The instance space model must be trained first.",
             )
 
         # Get training feature names from the model's data
@@ -499,7 +546,7 @@ class InstanceSpace:
         if missing_features:
             raise ValueError(
                 f"Test metadata is missing features required by training: "
-                f"{sorted(missing_features)}"
+                f"{sorted(missing_features)}",
             )
 
         # Warn about extra features (they will be ignored)
@@ -507,7 +554,7 @@ class InstanceSpace:
         if extra_features:
             print(
                 f"Warning: Test metadata has extra features that will be ignored: "
-                f"{sorted(extra_features)}"
+                f"{sorted(extra_features)}",
             )
 
     def _extract_features(self, metadata: Metadata) -> NDArray[np.double]:
@@ -573,6 +620,19 @@ class InstanceSpace:
 
         prelim = self._explore_model.prelim
 
+        clipped = np.any(
+            (x < prelim.lo_bound) | (x > prelim.hi_bound),
+            axis=1,
+        )
+        frac_clipped = np.mean(clipped)
+        if frac_clipped > _OOD_CLIPPED_FRACTION_THRESHOLD:
+            logger.warning(
+                f"explore(): {frac_clipped:.1%} of test instances have at least one "
+                "feature outside the training bounds and were clipped to them. This "
+                "suggests the test set may not be well represented by the trained "
+                "instance space; consider retraining with a combined dataset.",
+            )
+
         # Create a copy to avoid modifying input
         x_transformed = x.copy()
         n_features = x.shape[1]
@@ -581,7 +641,7 @@ class InstanceSpace:
             x_transformed[:, i] = np.clip(
                 x_transformed[:, i],
                 prelim.lo_bound[i],
-                prelim.hi_bound[i]
+                prelim.hi_bound[i],
             )
 
             x_transformed[:, i] = x_transformed[:, i] - prelim.min_x[i] + 1
@@ -590,7 +650,7 @@ class InstanceSpace:
             if np.any(idx_valid):
                 x_transformed[idx_valid, i] = stats.boxcox(
                     x_transformed[idx_valid, i],
-                    prelim.lambda_x[i]
+                    prelim.lambda_x[i],
                 )
 
             if np.any(idx_valid):
@@ -793,9 +853,8 @@ def instance_space_from_files(
     print("-> Successfully loaded the options.")
 
     print("-> Listing options to be used:")
-    for field_name in fields(InstanceSpaceOptions):
-        field_value = getattr(options, field_name.name)
-        print(f"{field_name.name}: {field_value}")
+    for line in format_options(options):
+        print(line)
 
     return InstanceSpace(metadata, options)
 
