@@ -817,6 +817,9 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         # This variable stores the performance of the selected algorithms
         y_svms = y.copy()
 
+        # y is the caller's y_raw array; copy it before mutating so the
+        # caller's data isn't silently changed by generating this summary.
+        y = y.copy()
         y[~sel0] = np.nan
         y_full[~sel1] = np.nan
         y_svms[~y_hat] = np.nan
