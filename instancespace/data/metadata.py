@@ -58,8 +58,15 @@ class Metadata:
         features_raw = data.loc[:, is_feat]
         algo_raw = data.loc[:, is_algo]
 
-        feature_names = features_raw.columns.tolist()
-        algorithm_names = algo_raw.columns.tolist()
+        # Strip the "feature_"/"algo_" column-naming convention so labels,
+        # graphs, and exported CSVs show the actual feature/algorithm name
+        # (matching MATLAB), not the raw CSV column name.
+        feature_names = [
+            name[len("feature_"):] for name in features_raw.columns.tolist()
+        ]
+        algorithm_names = [
+            name[len("algo_"):] for name in algo_raw.columns.tolist()
+        ]
 
         return Metadata(
             feature_names=feature_names,

@@ -476,8 +476,8 @@ def _draw_sources(
             label=source_labels[i],
         )
 
-    ax.set_xlabel("z_{1}")
-    ax.set_ylabel("z_{2}")
+    ax.set_xlabel(r"$z_{1}$")
+    ax.set_ylabel(r"$z_{2}$")
     ax.legend()
 
     fig.savefig(output)
@@ -504,8 +504,8 @@ def _draw_scatter(
     ax.scatter(z[:, 0], z[:, 1], s=8, c=x, norm=norm, cmap=cmap)
     ax.set_xlim((-5, 5))
     ax.set_ylim((-5, 5))
-    ax.set_xlabel("z_{1}")
-    ax.set_ylabel("z_{2}")
+    ax.set_xlabel(r"$z_{1}$")
+    ax.set_ylabel(r"$z_{2}$")
     fig.colorbar(
         plt.cm.ScalarMappable(
             norm=norm,
@@ -561,8 +561,8 @@ def _draw_portfolio_selections(
             label="None" if i == 0 else algorithm_labels[i - 1].replace("_", " "),
         )
 
-    ax.set_xlabel("z_{1}")
-    ax.set_ylabel("z_{2}")
+    ax.set_xlabel(r"$z_{1}$")
+    ax.set_ylabel(r"$z_{2}$")
     ax.legend()
 
     fig.savefig(output)
@@ -613,8 +613,8 @@ def _draw_portfolio_footprint(
 
         _draw_footprint(ax, best[i], cmap(norm(i)), 0.3)
 
-    ax.set_xlabel("z_{1}")
-    ax.set_ylabel("z_{2}")
+    ax.set_xlabel(r"$z_{1}$")
+    ax.set_ylabel(r"$z_{2}$")
     ax.legend()
 
     fig.savefig(output)
@@ -650,8 +650,8 @@ def _draw_good_bad_footprint(
         ax.scatter(z[good_y_bin, 0], z[good_y_bin, 1], s=8, c=[blue], label="GOOD")
         _draw_footprint(ax, good, blue, 0.3)
 
-    ax.set_xlabel("z_{1}")
-    ax.set_ylabel("z_{2}")
+    ax.set_xlabel(r"$z_{1}$")
+    ax.set_ylabel(r"$z_{2}$")
     ax.legend()
 
     fig.savefig(output)
@@ -705,8 +705,8 @@ def _draw_binary_performance(
         if np.any(good_y_bin):
             ax.scatter(z[good_y_bin, 0], z[good_y_bin, 1], s=8, c=[blue], label="GOOD")
 
-        ax.set_xlabel("z_{1}")
-        ax.set_ylabel("z_{2}")
+        ax.set_xlabel(r"$z_{1}$")
+        ax.set_ylabel(r"$z_{2}$")
         ax.legend()
 
         fig.savefig(output)

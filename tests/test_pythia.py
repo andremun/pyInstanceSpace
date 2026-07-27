@@ -90,6 +90,20 @@ def test_compare_output() -> None:
     assert pythia_out[3].get_n_splits() == opt.cv_folds
 
 
+def test_pythia_does_not_mutate_y_raw() -> None:
+    """Regression test for #229: PYTHIA must not mutate the caller's y array.
+
+    _generate_summary previously mutated its `y` argument in place
+    (`y[~sel0] = np.nan`) without copying it first, unlike the y_full/y_svms
+    variables derived from it. Since `y` is the same array object as the
+    caller's y_raw, this silently corrupted the caller's data.
+    """
+    y_input = y.copy()
+    y_before = y_input.copy()
+    PythiaStage.pythia(z, y_input, y_bin, y_best, algo, opt, ParallelOptions.default())
+    assert np.array_equal(y_input, y_before)
+
+
 def test_generate_params() -> None:
     """Test that the range of generated param space is expected."""
     min_value = 2**-10
