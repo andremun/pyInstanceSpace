@@ -43,6 +43,7 @@ from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
 from scipy import stats
 from sklearn.metrics import (
@@ -321,14 +322,16 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         PythiaOutput
             The output of the Pythia stage.
         """
-        print(
-            "=========================================================================",
+        logger.info(
+            "[PYTHIA] ================================================================"
+            "=========",
         )
-        print("-> Summoning PYTHIA to train the prediction models.")
-        print(
-            "=========================================================================",
+        logger.info("[PYTHIA] -> Summoning PYTHIA to train the prediction models.")
+        logger.info(
+            "[PYTHIA] ================================================================"
+            "=========",
         )
-        print("  -> Initializing PYTHIA.")
+        logger.info("[PYTHIA]   -> Initializing PYTHIA.")
 
         # Initialize variables
         ninst, nalgos = y_bin.shape
@@ -358,57 +361,70 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         (mu, sigma, z) = PythiaStage._compute_znorm(z)
 
         if ninst > LARGE_NUM_INSTANCE and not opts.is_poly_krnl:
-            print(
-                "  -> For datasets larger than 1K Instances, "
-                + "PYTHIA works better with a Polynomial kernel.",
+            logger.info(
+                "[PYTHIA]   -> For datasets larger than 1K Instances, "
+                "PYTHIA works better with a Polynomial kernel.",
             )
-            print(
-                "  -> Consider changing the kernel if the results are unsatisfactory.",
+            logger.info(
+                "[PYTHIA]   -> Consider changing the kernel if the results are"
+                " unsatisfactory.",
             )
-            print(
-                "-------------------------------------------------------------------------",
+            logger.info(
+                "[PYTHIA] ---------------------------------------------------"
+                "----------------",
             )
 
         if opts.is_poly_krnl:
-            print(" => PYTHIA is using polynomial kernel")
+            logger.info("[PYTHIA]  => PYTHIA is using polynomial kernel")
         else:
-            print(" => PYTHIA is using gaussian kernel")
+            logger.info("[PYTHIA]  => PYTHIA is using gaussian kernel")
 
-        print(
-            "-------------------------------------------------------------------------",
+        logger.info(
+            "[PYTHIA] -------------------------------------------------------"
+            "------------------",
         )
 
         # Section 2: Configure hyperparameter optimization
         if opts.use_grid_search:
-            print(" -> PYTHIA is using grid search for hyper-parameter optimization.")
+            logger.info(
+                "[PYTHIA]  -> PYTHIA is using grid search for hyper-parameter"
+                " optimization.",
+            )
         else:
-            print(
-                " -> PYTHIA is using Bayesian optimization"
-                + " for hyper-parameter optimization.",
+            logger.info(
+                "[PYTHIA]  -> PYTHIA is using Bayesian optimization"
+                " for hyper-parameter optimization.",
             )
 
         # Cost-sensitive classification
         if opts.use_weights:
-            print(" -> PYTHIA is using cost-sensitive classification.")
+            logger.info("[PYTHIA]  -> PYTHIA is using cost-sensitive classification.")
             w = np.abs(y - np.nanmean(y))
             w[w == 0] = np.min(w[w != 0])
             w[np.isnan(w)] = np.max(w[~np.isnan(w)])
         else:
-            print(" -> PYTHIA is not using cost-sensitive classification.")
+            logger.info(
+                "[PYTHIA]  -> PYTHIA is not using cost-sensitive classification.",
+            )
             w = np.ones((ninst, nalgos), dtype=int)
-        print(
-            "-------------------------------------------------------------------------",
+        logger.info(
+            "[PYTHIA] -------------------------------------------------------"
+            "------------------",
         )
 
-        print(
-            "  -> Using a "
+        logger.info(
+            "[PYTHIA]   -> Using a "
             + str(opts.cv_folds)
             + "-fold stratified cross-validation experiment to evaluate the SVMs.",
         )
-        print(
-            "-------------------------------------------------------------------------",
+        logger.info(
+            "[PYTHIA] -------------------------------------------------------"
+            "------------------",
         )
-        print("  -> Training has started. PYTHIA may take a while to complete...")
+        logger.info(
+            "[PYTHIA]   -> Training has started. PYTHIA may take a while to"
+            " complete...",
+        )
 
         # Section 3: Train SVM model for each algorithm & Evaluate performance.
         overall_start_time = perf_counter()
@@ -454,22 +470,28 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             recall_record.append(recall)
 
             if i == nalgos - 1:
-                print(
-                    f"    -> PYTHIA has trained a model for '{algo_labels[i]}',"
-                    + " there are no models left to train.",
+                logger.info(
+                    "[PYTHIA]     -> PYTHIA has trained a model for"
+                    f" '{algo_labels[i]}', there are no models left to train.",
                 )
             else:
-                print(
-                    f"    -> PYTHIA has trained a model for '{algo_labels[i]}'"
-                    + f",there are {nalgos - i - 1} models left to train.",
+                logger.info(
+                    f"[PYTHIA]     -> PYTHIA has trained a model for '{algo_labels[i]}'"
+                    f",there are {nalgos - i - 1} models left to train.",
                 )
-            print(f"      -> Elapsed time: {perf_counter() - algo_start_time:.2f}s")
+            logger.info(
+                f"[PYTHIA]       -> Elapsed time:"
+                f" {perf_counter() - algo_start_time:.2f}s",
+            )
 
-        print(f"Total elapsed time:  {perf_counter() - overall_start_time:.2f}s")
-        print(
-            "-------------------------------------------------------------------------",
+        logger.info(
+            f"[PYTHIA] Total elapsed time:  {perf_counter() - overall_start_time:.2f}s",
         )
-        print(" -> PYTHIA has completed training the models.")
+        logger.info(
+            "[PYTHIA] -------------------------------------------------------"
+            "------------------",
+        )
+        logger.info("[PYTHIA]  -> PYTHIA has completed training the models.")
         PythiaStage._display_overall_perf(precision_record, accuracy_record)
 
         # Select the algorithm with the highest precision
@@ -480,8 +502,9 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             y_bin,
         )
 
-        print(
-            "-------------------------------------------------------------------------",
+        logger.info(
+            "[PYTHIA] -------------------------------------------------------"
+            "------------------",
         )
 
         # Section4: Generate summary of the results
@@ -633,14 +656,14 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         -------
         None
         """
-        print(
-            " -> The average cross validated precision is: "
+        logger.info(
+            "[PYTHIA]  -> The average cross validated precision is: "
             + str(np.round(100 * np.mean(precision), 1))
             + "%",
         )
 
-        print(
-            " -> The average cross validated accuracy is: "
+        logger.info(
+            "[PYTHIA]  -> The average cross validated accuracy is: "
             + str(np.round(100 * np.mean(accuracy), 1))
             + "%",
         )
@@ -691,10 +714,12 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             return None
         # Check if the shape of hyper-parameters is correct
         if params.shape != (nalgos, 2):
-            print("-> Error: Incorrect number of hyper-parameters.")
-            print("Hyper-parameters will be auto-generated.")
+            logger.warning(
+                "[PYTHIA] -> Incorrect number of hyper-parameters. "
+                "Hyper-parameters will be auto-generated.",
+            )
             return None
-        print("-> Using pre-calculated hyper-parameters for the SVM.")
+        logger.info("[PYTHIA] -> Using pre-calculated hyper-parameters for the SVM.")
         return params
 
     @staticmethod
@@ -814,7 +839,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         k_scale : list[float]
             The kernel scales.
         """
-        print("  -> PYTHIA is preparing the summary table.")
+        logger.info("[PYTHIA]   -> PYTHIA is preparing the summary table.")
 
         # Obtain the corresponding selection matrix for the two selections.
         sel0 = selection0[:, np.newaxis] == np.arange(1, nalgos + 1)
@@ -897,6 +922,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         }
 
         df = pd.DataFrame(data).replace({np.nan: ""})
-        print("  -> PYTHIA has completed! Performance of the models:")
-        print(df)
+        logger.info(
+            f"[PYTHIA]   -> PYTHIA has completed! Performance of the models:\n{df}",
+        )
         return df

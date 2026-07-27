@@ -44,6 +44,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 import pygad
+from loguru import logger
 from numpy.typing import NDArray
 from scipy.stats import pearsonr
 from sklearn.cluster import KMeans
@@ -349,6 +350,15 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         self.parallel_options = parallel_options
         self.general_opts = general_opts
 
+    def _log(self, msg: str) -> None:
+        """Log a top-level, always-shown stage message."""
+        logger.info(f"[SIFTED] {msg}")
+
+    def _log_detail(self, msg: str) -> None:
+        """Log per-trial/per-iteration detail, only shown when general.verbose."""
+        if self.general_opts.verbose:
+            logger.debug(f"[SIFTED] {msg}")
+
     @staticmethod
     def _inputs() -> type[SiftedInput]:
         return SiftedInput
@@ -568,8 +578,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             )
 
         if nfeats <= SiftedStage.MIN_FEAT_REQUIRED:
-            print(
-                "-> There are 3 or less features to do selection.",
+            self._log(
+                "-> There are 3 or less features to do selection. "
                 "Skipping feature selection.",
             )
             selvars = np.arange(nfeats)
@@ -593,7 +603,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 None,
             )
 
-        print("-> Selecting features based on correlation with performance.")
+        self._log("-> Selecting features based on correlation with performance.")
 
         x_aux, rho, pval, selvars = self.select_features_by_performance()
 
@@ -605,8 +615,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             )
 
         if nfeats <= SiftedStage.MIN_FEAT_REQUIRED:
-            print(
-                "-> There are 3 or less features to do selection.",
+            self._log(
+                "-> There are 3 or less features to do selection. "
                 "Skipping correlation clustering selection.",
             )
             return SiftedOutput(
@@ -630,8 +640,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             )
 
         if nfeats <= opts.k:
-            print(
-                "-> There are less features than clusters.",
+            self._log(
+                "-> There are less features than clusters. "
                 "Skipping correlation clustering selection.",
             )
             return SiftedOutput(
@@ -654,7 +664,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 None,
             )
 
-        print("-> Selecting features based on correlation clustering.")
+        self._log("-> Selecting features based on correlation clustering.")
 
         silhouette_scores, _ = self.evaluate_cluster(x_aux, rng)
 
@@ -662,7 +672,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
 
         x_aux, selvars = self._find_best_combination(x_aux, clust, selvars, rng)
 
-        print(f"Bydensity value is : {bydensity}")
+        self._log_detail(f"Bydensity value is : {bydensity}")
         # Run filter for small experiment
         if bydensity and data_dense is not None:
             subset_index, _, _, _ = do_filter(
@@ -936,7 +946,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
 
         best_solution, best_solution_fitness, _ = ga_instance.best_solution()
 
-        print(f"Cost value of the GA algorithm is:  {best_solution_fitness}")
+        self._log(f"Cost value of the GA algorithm is:  {best_solution_fitness}")
 
         # Decode the chromosome
         decoder = np.zeros(x_aux.shape[1], dtype=bool)
@@ -948,9 +958,9 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         decoded_selvars = np.array(selvars)[decoder]
         selected_x = self.x[:, decoded_selvars]
 
-        print(
-            f"-> Keeping {selected_x.shape[1]} out of {x_aux.shape[1]}",
-            "features (clustering).",
+        self._log(
+            f"-> Keeping {selected_x.shape[1]} out of {x_aux.shape[1]}"
+            " features (clustering).",
         )
 
         return selected_x, decoded_selvars
@@ -1004,9 +1014,9 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         max_k_silhoulette = min_clusters + max_k_silhoulette_index
 
         if max_k_silhoulette not in (self.opts.k, max_clusters):
-            print(
-                f"    Suggested k value {max_k_silhoulette} with silhoulette score of",
-                f"{silhouette_scores[max_k_silhoulette]:.4f}",
+            self._log_detail(
+                f"    Suggested k value {max_k_silhoulette} with silhoulette score of"
+                f" {silhouette_scores[max_k_silhoulette]:.4f}",
             )
 
         # matlab returning numOfObservation, inspected K value, criterion values,

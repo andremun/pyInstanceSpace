@@ -179,7 +179,8 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
         The output of the Cloister stage.
         """
         logger.info(
-            "  -> CLOISTER is using correlation to estimate a boundary for the space.",
+            "[CLOISTER]   -> CLOISTER is using correlation to estimate a boundary"
+            " for the space.",
         )
 
         rho = CloisterStage._compute_correlation(x, options)
@@ -188,13 +189,15 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
         z_ecorr = CloisterStage._compute_convex_hull(np.dot(x_edge[~remove, :], a.T))
 
         if z_ecorr.size == 0:
-            logger.info("  -> The acceptable correlation threshold was too strict.")
-            logger.info("  -> The features are weakely correlated.")
-            logger.info("  -> Please consider increasing it.")
+            logger.info(
+                "[CLOISTER]   -> The acceptable correlation threshold was too strict.",
+            )
+            logger.info("[CLOISTER]   -> The features are weakely correlated.")
+            logger.info("[CLOISTER]   -> Please consider increasing it.")
             z_ecorr = z_edge
 
-        logger.info("-----------------------------------------------------------------")
-        logger.info("  -> CLOISTER has completed.")
+        logger.info("[CLOISTER] " + "-" * 65)
+        logger.info("[CLOISTER]   -> CLOISTER has completed.")
 
         return CloisterOutput(z_edge, z_ecorr)
 
@@ -279,10 +282,14 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
             hull = ConvexHull(points)
             return points[hull.vertices, :]
         except QhullError as qe:
-            logger.info("QhullError: Encountered geometrical degeneracy:", str(qe))
+            logger.warning(
+                f"[CLOISTER] QhullError: Encountered geometrical degeneracy: {qe}",
+            )
             return np.array([])
         except ValueError as ve:
-            logger.info("ValueError: Imcompatible value encountered:", str(ve))
+            logger.warning(
+                f"[CLOISTER] ValueError: Incompatible value encountered: {ve}",
+            )
             return np.array([])
 
     @staticmethod

@@ -555,8 +555,8 @@ class InstanceSpace:
         # Warn about extra features (they will be ignored)
         extra_features = test_features - training_features
         if extra_features:
-            print(
-                f"Warning: Test metadata has extra features that will be ignored: "
+            logger.warning(
+                f"Test metadata has extra features that will be ignored: "
                 f"{sorted(extra_features)}",
             )
 
@@ -580,7 +580,9 @@ class InstanceSpace:
         training_feature_names = self._explore_model.data.feat_labels
 
         # Build feature matrix in training order
-        test_feature_dict = dict(zip(metadata.feature_names, range(len(metadata.feature_names))))
+        test_feature_dict = dict(
+            zip(metadata.feature_names, range(len(metadata.feature_names))),
+        )
 
         # Reorder test features to match training order
         feature_indices = [test_feature_dict[name] for name in training_feature_names]
@@ -834,30 +836,35 @@ def instance_space_from_files(
         if the initialization fails.
 
     """
-    print("-------------------------------------------------------------------------")
-    print("-> Loading the data.")
+    logger.info(
+        "-------------------------------------------------------------------------",
+    )
+    logger.info("-> Loading the data.")
 
     metadata = from_csv_file(metadata_filepath)
 
     if metadata is None:
-        print("Failed to initialize metadata")
+        logger.error("Failed to initialize metadata")
         return None
 
-    print("-> Successfully loaded the data.")
-    print("-------------------------------------------------------------------------")
-    print("-> Loading the options.")
+    logger.info("-> Successfully loaded the data.")
+    logger.info(
+        "-------------------------------------------------------------------------",
+    )
+    logger.info("-> Loading the options.")
 
     options = from_json_file(options_filepath)
 
     if options is None:
-        print("Failed to initialize options")
+        logger.error("Failed to initialize options")
         return None
 
-    print("-> Successfully loaded the options.")
+    logger.info("-> Successfully loaded the options.")
 
-    print("-> Listing options to be used:")
-    for line in format_options(options):
-        print(line)
+    if options.general.verbose:
+        logger.debug("-> Listing options to be used:")
+        for line in format_options(options):
+            logger.debug(line)
 
     return InstanceSpace(metadata, options)
 
