@@ -37,6 +37,14 @@ jobs:
     # - name: Check formatting with black, linting with Ruff, and static check with Mypy
     #   run: poetry run poe --fix test
 
+    - name: Audit dependencies for known vulnerabilities
+      # Non-blocking for now: a regression here should be visible without
+      # failing the build until we've built confidence it isn't noisy.
+      continue-on-error: true
+      run: |-
+        poetry run pip install pip-audit
+        poetry run pip-audit
+
     - name: Test with pytest
       run: poetry run pytest
 
