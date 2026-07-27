@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 from scipy.io import loadmat
 
-from instancespace.data.options import PilotOptions
+from instancespace.data.options import GeneralOptions, PilotOptions
 from instancespace.stages.pilot import PilotStage
 
 script_dir = Path(__file__).parent
@@ -96,7 +96,13 @@ def test_run_analytic() -> None:
     feat_labels_sample = sd.feat_labels_sample
     opts = PilotOptions(None, None, True, 5)
     pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    result = pilot.pilot(x_sample, y_sample, feat_labels_sample, opts)
+    result = pilot.pilot(
+        x_sample,
+        y_sample,
+        feat_labels_sample,
+        opts,
+        GeneralOptions.default(),
+    )
 
     a = result[4]
     b = result[7]
@@ -122,10 +128,58 @@ def test_run_numerical() -> None:
     opts_sample = sd.opts_sample
     opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
     pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    result = pilot.pilot(x_sample, y_sample, feat_labels_sample, opts)
+    result = pilot.pilot(
+        x_sample,
+        y_sample,
+        feat_labels_sample,
+        opts,
+        GeneralOptions.default(),
+    )
     eoptim = result[2]
     perf = result[3]
 
     if eoptim is not None and perf is not None:
         np.testing.assert_almost_equal(eoptim, mtr.data["eoptim"][0], decimal=6)
         np.testing.assert_almost_equal(perf, mtr.data["perf"][0], decimal=1)
+
+
+def test_pilot_seed_reproducibility() -> None:
+    """Same seed gives identical output; a different seed gives different output.
+
+    Regression test for Q9 (general.seed threading): the numerical solve branch
+    picks its BFGS starting points via `general_options.seed`, so this is the
+    one place PILOT's output actually depends on the seed.
+    """
+    rng = np.random.default_rng(42)
+    x = rng.random((30, 4))
+    y = rng.random((30, 2))
+    feat_labels = ["f0", "f1", "f2", "f3"]
+    opts = PilotOptions(None, None, False, 3)
+
+    result_a = PilotStage.pilot(
+        x,
+        y,
+        feat_labels,
+        opts,
+        GeneralOptions(verbose=False, seed=0),
+        _do_output=False,
+    )
+    result_b = PilotStage.pilot(
+        x,
+        y,
+        feat_labels,
+        opts,
+        GeneralOptions(verbose=False, seed=0),
+        _do_output=False,
+    )
+    result_c = PilotStage.pilot(
+        x,
+        y,
+        feat_labels,
+        opts,
+        GeneralOptions(verbose=False, seed=1),
+        _do_output=False,
+    )
+
+    np.testing.assert_array_equal(result_a.z, result_b.z)
+    assert not np.array_equal(result_a.z, result_c.z)

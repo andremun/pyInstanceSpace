@@ -24,6 +24,7 @@ from instancespace.data.options import (
     AutoOptions,
     BoundOptions,
     CloisterOptions,
+    GeneralOptions,
     InstanceSpaceOptions,
     NormOptions,
     OutputOptions,
@@ -87,6 +88,7 @@ class _InstanceSpaceInputs(NamedTuple):
     trace_options: TraceOptions
     outputs_options: OutputOptions
     prelim_options: PrelimOptions
+    general_options: GeneralOptions
 
     @classmethod
     def from_metadata_and_options(
@@ -114,6 +116,7 @@ class _InstanceSpaceInputs(NamedTuple):
             trace_options=options.trace,
             outputs_options=options.outputs,
             prelim_options=PrelimOptions.from_options(options),
+            general_options=options.general,
         )
 
 

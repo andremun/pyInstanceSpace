@@ -17,6 +17,7 @@ Tests includes:
 
 """
 
+import dataclasses
 from pathlib import Path
 
 import numpy as np
@@ -24,7 +25,12 @@ import pandas as pd
 from numpy.typing import NDArray
 
 from instancespace.data.model import DataDense
-from instancespace.data.options import ParallelOptions, SelvarsOptions, SiftedOptions
+from instancespace.data.options import (
+    GeneralOptions,
+    ParallelOptions,
+    SelvarsOptions,
+    SiftedOptions,
+)
 from instancespace.stages.sifted import SiftedInput, SiftedStage
 
 
@@ -180,6 +186,7 @@ def test_select_features_by_performance() -> None:
         inputs.feat_labels,
         inputs.opts,
         ParallelOptions.default(),
+        GeneralOptions.default(),
     )
     xaux_python, _, _, _ = sifted.select_features_by_performance()
     assert np.allclose(SiftedMatlabOutput().correlation_matlab, xaux_python, atol=1e-04)
@@ -208,6 +215,7 @@ def test_select_features_by_clustering() -> None:
         inputs.feat_labels,
         inputs.opts,
         ParallelOptions.default(),
+        GeneralOptions.default(),
     )
     x_aux, _, _, _ = sifted.select_features_by_performance()
     sifted.evaluate_cluster(x_aux, rng)
@@ -284,6 +292,7 @@ def test_run() -> None:
         selvars_options=inputs.opts_selvar,
         data_dense=inputs.data_dense,
         parallel_options=ParallelOptions.default(),
+        general_options=GeneralOptions.default(),
     )
 
     sifted_output = SiftedStage._run(sifted_input)  # noqa: SLF001
@@ -296,6 +305,52 @@ def test_run() -> None:
 
     # test case pass if 70%
     assert correlation_matrix_check(correlation_matrix, threshold=0.5)
+
+
+def test_sifted_seed_reproducibility() -> None:
+    """Same seed gives identical selvars; a different seed gives different selvars.
+
+    Regression test for Q9 (general.seed threading): a cheap GA configuration
+    (few generations/population) keeps this test fast while still exercising
+    the clustering and GA code paths that consume the seeded rng.
+    """
+    inputs = SiftedMatlabInput()
+    fast_opts = dataclasses.replace(
+        inputs.opts,
+        k=3,
+        num_generations=2,
+        sol_per_pop=4,
+        keep_elitism=1,
+    )
+
+    def run(seed: int) -> NDArray[np.intc]:
+        out = SiftedStage.sifted(
+            inputs.x,
+            inputs.y,
+            inputs.y_bin,
+            inputs.x_raw,
+            inputs.y_raw,
+            inputs.beta,
+            inputs.num_good_algos,
+            inputs.y_best,
+            inputs.p,
+            inputs.inst_labels,
+            inputs.s,
+            inputs.feat_labels,
+            fast_opts,
+            inputs.opts_selvar,
+            None,
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=seed),
+        )
+        return out.selvars
+
+    selvars_a = run(0)
+    selvars_b = run(0)
+    selvars_c = run(1)
+
+    np.testing.assert_array_equal(selvars_a, selvars_b)
+    assert not np.array_equal(selvars_a, selvars_c)
 
 
 def compute_correlation(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:

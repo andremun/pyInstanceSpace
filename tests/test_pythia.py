@@ -27,7 +27,7 @@ from numpy.typing import NDArray
 from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
 
-from instancespace.data.options import ParallelOptions, PythiaOptions
+from instancespace.data.options import GeneralOptions, ParallelOptions, PythiaOptions
 from instancespace.stages.pythia import PythiaStage
 
 script_dir = Path(__file__).parent
@@ -83,6 +83,7 @@ def test_compare_output() -> None:
         algo,
         opt,
         ParallelOptions.default(),
+        GeneralOptions.default(),
     )
     mu = np.genfromtxt(csv_path_mu_input, delimiter=",")
 
@@ -100,8 +101,62 @@ def test_pythia_does_not_mutate_y_raw() -> None:
     """
     y_input = y.copy()
     y_before = y_input.copy()
-    PythiaStage.pythia(z, y_input, y_bin, y_best, algo, opt, ParallelOptions.default())
+    PythiaStage.pythia(
+        z,
+        y_input,
+        y_bin,
+        y_best,
+        algo,
+        opt,
+        ParallelOptions.default(),
+        GeneralOptions.default(),
+    )
     assert np.array_equal(y_input, y_before)
+
+
+def test_pythia_seed_reproducibility() -> None:
+    """Same seed gives identical output; a different seed gives different output.
+
+    Regression test for Q9 (general.seed threading): a tiny synthetic dataset
+    keeps this test fast while still exercising the SVM/cross-validation code
+    paths that consume `general_options.seed`.
+    """
+    rng = np.random.default_rng(0)
+    ninst = 20
+    nalgos = 2
+    coin_flip_threshold = 0.5
+    z_small = rng.random((ninst, 2))
+    y_small = rng.random((ninst, nalgos))
+    y_bin_small = rng.random((ninst, nalgos)) > coin_flip_threshold
+    y_best_small = rng.random(ninst)
+    algo_small = ["a0", "a1"]
+    small_opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        use_grid_search=True,
+        params=None,
+    )
+
+    def run(seed: int) -> NDArray[np.double]:
+        out = PythiaStage.pythia(
+            z_small,
+            y_small,
+            y_bin_small,
+            y_best_small,
+            algo_small,
+            small_opts,
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=seed),
+        )
+        return out.pr0_hat
+
+    pr0_hat_a = run(0)
+    pr0_hat_b = run(0)
+    pr0_hat_c = run(1)
+
+    np.testing.assert_array_equal(pr0_hat_a, pr0_hat_b)
+    assert not np.array_equal(pr0_hat_a, pr0_hat_c)
 
 
 def test_generate_params() -> None:
@@ -133,6 +188,7 @@ def test_gridsearch_opts_gaussian() -> None:
         algo,
         opts,
         parallel_opts,
+        GeneralOptions.default(),
     )
     matlab_output = pd.read_csv(output_dir / "GS_gaussian/gridsearch_gaussian.csv")
 
@@ -168,6 +224,7 @@ def test_gridsearch_opts_poly() -> None:
         algo,
         opts,
         parallel_opts,
+        GeneralOptions.default(),
     )
 
     # read the actual output
@@ -206,6 +263,7 @@ def test_bayes_opt_gaussian() -> None:
         algo,
         opts,
         parallel_opts,
+        GeneralOptions.default(),
     )
 
     # read the actual output
@@ -256,6 +314,7 @@ def test_bayes_opt_poly() -> None:
         algo,
         opts,
         parallel_opts,
+        GeneralOptions.default(),
     )
 
     # read the actual output

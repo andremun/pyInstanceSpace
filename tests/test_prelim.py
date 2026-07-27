@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from instancespace.data.options import PrelimOptions, SelvarsOptions
+from instancespace.data.options import GeneralOptions, PrelimOptions, SelvarsOptions
 from instancespace.stages.prelim import PrelimInput, PrelimStage
 
 script_dir = Path(__file__).parent
@@ -124,6 +124,7 @@ def test_bound() -> None:
         pd.Series(inst_labels),
         prelim_opts,
         selvars_opts,
+        GeneralOptions.default(),
     )
     prelim_bound = prelim._bound()  # noqa: SLF001
     x = prelim_bound.x
@@ -179,6 +180,7 @@ def test_normalise() -> None:
         pd.Series(inst_labels),
         prelim_opts,
         selvars_opts,
+        GeneralOptions.default(),
     )
 
     assert np.allclose(lambda_x, prelim_lambda_x)
@@ -230,6 +232,7 @@ def test_prelim() -> None:
         pd.Series(inst_labels),
         prelim_opts,
         selvars_opts,
+        GeneralOptions.default(),
     )
 
     assert np.allclose(x, x_output)
@@ -316,6 +319,7 @@ def test_prelim_run() -> None:
         inst_labels=pd.Series(inst_labels_input_run),
         prelim_options=prelim_opts,
         selvars_options=selvars_opts,
+        general_options=GeneralOptions.default(),
     )
 
     (
