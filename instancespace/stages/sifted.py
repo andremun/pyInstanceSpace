@@ -167,7 +167,10 @@ class SiftedOutput(NamedTuple):
     selvars : NDArray[np.intc]
         Array of indices for selected features after the sifted stage.
     idx : NDArray[np.intc]
-        Array of indices for selected algorithms after the sifted stage.
+        Array of indices for selected features after the sifted stage, indexing
+        into the original (pre-selection) feature columns. Kept alongside
+        `selvars` because downstream consumers (e.g. `FeatSel`) read this field
+        by name.
     rho : NDArray[np.double], optional
         Array of coefficients or weights for features after the sifted stage.
     pval : NDArray[np.double], optional
@@ -539,7 +542,6 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         opts = self.opts
 
         nfeats = x.shape[1]
-        idx = np.arange(nfeats)
         rng = np.random.default_rng(seed=0)
 
         # Prepare for Filter
@@ -578,7 +580,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 s,
                 list(feat_labels),
                 selvars,
-                idx,
+                selvars,
                 None,
                 None,
                 None,
@@ -615,7 +617,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 s,
                 [feat_labels[i] for i in selvars],
                 selvars,
-                idx,
+                selvars,
                 rho,
                 pval,
                 None,
@@ -641,7 +643,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 s,
                 [feat_labels[i] for i in selvars],
                 selvars,
-                idx,
+                selvars,
                 rho,
                 pval,
                 None,
@@ -683,7 +685,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 s,
                 [feat_labels[i] for i in selvars],
                 selvars,
-                idx,
+                selvars,
                 rho,
                 pval,
                 silhouette_scores,
@@ -703,7 +705,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             s,
             [feat_labels[i] for i in selvars],
             selvars,
-            idx,
+            selvars,
             rho,
             pval,
             silhouette_scores,
