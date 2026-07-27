@@ -15,6 +15,7 @@ from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
 from scipy import optimize, stats
 from sklearn.model_selection import train_test_split
@@ -206,6 +207,15 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         self.y_raw = y_raw
         self.s = s
         self.inst_labels = inst_labels
+
+    def _log(self, msg: str) -> None:
+        """Log a top-level, always-shown stage message."""
+        logger.info(f"[PRELIM] {msg}")
+
+    def _log_detail(self, msg: str) -> None:
+        """Log per-trial/per-iteration detail, only shown when general.verbose."""
+        if self.general_opts.verbose:
+            logger.debug(f"[PRELIM] {msg}")
 
     @staticmethod
     def _inputs() -> type[PrelimInput]:
@@ -426,17 +436,16 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
                 # will need to change it back to random after testing complete
                 p[i] = aux[0]
 
-        print(
-            "-> For",
-            round(100 * np.mean(multiple_best_algos)),
-            "% of the instances there is more than one best algorithm.",
+        self._log(
+            f"-> For {round(100 * np.mean(multiple_best_algos))}% of the instances "
+            "there is more than one best algorithm.",
         )
-        print("Random selection is used to break ties.")
+        self._log("Random selection is used to break ties.")
 
         num_good_algos = np.sum(y_bin, axis=1)
-        print("beta_threshold:", beta_threshold)
-        print("nalgos:", nalgos)
-        print("num_good_algos:", num_good_algos)
+        self._log_detail(f"beta_threshold: {beta_threshold}")
+        self._log_detail(f"nalgos: {nalgos}")
+        self._log_detail(f"num_good_algos: {num_good_algos}")
 
         beta = num_good_algos > (beta_threshold * nalgos)
 
@@ -453,7 +462,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             hi_bound: The upper bound for the feature values.
             lo_bound: The lower bound for the feature values.
         """
-        print("-> Removing extreme outliers from the feature values.")
+        self._log("-> Removing extreme outliers from the feature values.")
         med_val = np.median(self.x, axis=0)
 
         iq_range = stats.iqr(self.x, axis=0, interpolation="midpoint")
@@ -494,7 +503,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             sigma_y: The standard deviation of the performance matrix.
             mu_y: The mean of the performance matrix.
         """
-        print("-> Auto-normalizing the data using Box-Cox and Z transformations.")
+        self._log("-> Auto-normalizing the data using Box-Cox and Z transformations.")
 
         def boxcox_fmin(
             data: NDArray[np.double],
@@ -619,10 +628,10 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         y_raw = y.copy()
         nalgos = y.shape[1]
 
-        print(
+        self._log(
             "-------------------------------------------------------------------------",
         )
-        print("-> Calculating the binary measure of performance")
+        self._log("-> Calculating the binary measure of performance")
 
         msg = "An algorithm is good if its performance is "
         if prelim_opts.max_perf:
@@ -649,7 +658,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
                 )
 
         else:
-            print("-> Minimizing performance.")
+            self._log("-> Minimizing performance.")
             y_aux = y.copy()
             y_aux[np.isnan(y_aux)] = np.inf
 
@@ -672,7 +681,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
                     + "% of the worst."
                 )
 
-        print(msg)
+        self._log(msg)
 
         num_good_algos, p, beta = self._select_best_algorithms(
             y_raw,
@@ -773,7 +782,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
     ]:
         data_dense = None
         # If we are only meant to take some observations
-        print("-------------------------------------------------------------------")
+        self._log("-------------------------------------------------------------------")
         ninst = x.shape[0]
         fractional = selvars_opts.small_scale_flag and isinstance(
             selvars_opts.small_scale,
@@ -781,8 +790,8 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         )
 
         path = Path(selvars_opts.file_idx)
-        print("path:", path)
-        print("path.is_file(file_idx):", path.is_file())
+        self._log_detail(f"path: {path}")
+        self._log_detail(f"path.is_file(file_idx): {path.is_file()}")
         fileindexed = (
             selvars_opts.file_idx_flag and Path(selvars_opts.file_idx).is_file()
         )
@@ -794,7 +803,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         )
 
         if fractional:
-            print(
+            self._log(
                 f"-> Creating a small scale experiment for validation. \
                 Percentage of subset: \
                 {round(100 * selvars_opts.small_scale, 2)}%",
@@ -808,10 +817,10 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             subset_index[subset_idx] = True
 
         elif fileindexed:
-            print("-> Using a subset of instances.")
+            self._log("-> Using a subset of instances.")
             subset_index = np.zeros(ninst, dtype=bool)
             aux = np.genfromtxt(selvars_opts.file_idx, delimiter=",", dtype=int)
-            print("aux:", aux)
+            self._log_detail(f"aux: {aux}")
             aux = aux[aux < ninst]
 
             for i in range(len(aux)):
@@ -819,7 +828,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             subset_index[aux] = True
 
         elif bydensity:
-            print(
+            self._log(
                 "-> Creating a small scale experiment for validation based on density.",
             )
             subset_index, _, _, _ = do_filter(
@@ -830,12 +839,12 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
                 selvars_opts.min_distance,
             )
             subset_index = ~subset_index
-            print(
+            self._log(
                 f"-> Percentage of instances retained: \
                 {round(100 * np.mean(subset_index), 2)}%",
             )
         else:
-            print("-> Using the complete set of the instances.")
+            self._log("-> Using the complete set of the instances.")
             subset_index = np.ones(ninst, dtype=bool)
 
         if fileindexed or fractional or bydensity:

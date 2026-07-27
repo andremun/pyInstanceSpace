@@ -51,13 +51,14 @@ from typing import NamedTuple
 import alphashape
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
 from scipy.special import gamma
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
 from shapely.ops import triangulate, unary_union
 
 from instancespace.data.model import Footprint
-from instancespace.data.options import ParallelOptions, TraceOptions
+from instancespace.data.options import GeneralOptions, ParallelOptions, TraceOptions
 from instancespace.stages.stage import Stage
 
 POLYGON_MIN_POINT_REQUIREMENT = 3
@@ -87,6 +88,8 @@ class TraceInputs(NamedTuple):
     trace_options : TraceOptions
         Configuration options for the TRACE analysis, determining specific behaviour
         for footprint construction and evaluation.
+    general_options : GeneralOptions
+        General options (e.g. verbosity), not specific to any one stage.
     """
 
     z: NDArray[np.double]
@@ -98,6 +101,7 @@ class TraceInputs(NamedTuple):
     y_bin: NDArray[np.bool_]
     trace_options: TraceOptions
     parallel_options: ParallelOptions
+    general_options: GeneralOptions
 
 
 class TraceOutputs(NamedTuple):
@@ -209,6 +213,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         algo_labels: list[str],
         trace_opts: TraceOptions,
         parallel_opts: ParallelOptions,
+        general_opts: GeneralOptions,
     ) -> None:
         """Initialise the Trace analysis with provided data and options.
 
@@ -229,6 +234,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Configuration options for TRACE and its subroutines.
         parallel_opts : ParallelOptions
             Configuration options for parallel processing in Matilda.
+        general_opts : GeneralOptions
+            General options (e.g. verbosity), not specific to any one stage.
         """
         self.z = z
         self.y_bin = y_bin
@@ -237,6 +244,16 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         self.algo_labels = algo_labels
         self.opts = trace_opts
         self.parallel_opts = parallel_opts
+        self.general_opts = general_opts
+
+    def _log(self, msg: str) -> None:
+        """Log a top-level, always-shown stage message."""
+        logger.info(f"[TRACE] {msg}")
+
+    def _log_detail(self, msg: str) -> None:
+        """Log per-trial/per-iteration detail, only shown when general.verbose."""
+        if self.general_opts.verbose:
+            logger.debug(f"[TRACE] {msg}")
 
     @staticmethod
     def _inputs() -> type[TraceInputs]:
@@ -279,16 +296,21 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             tuple[Footprint, list[Footprint], list[Footprint], Footprint, pd.DataFrame]
                 The results of the trace stage
         """
-        print(
-            "========================================================================",
+        logger.info(
+            "[TRACE] ========================================================"
+            "================",
         )
-        print("-> Calling TRACE to perform the footprint analysis.")
-        print(
-            "========================================================================",
+        logger.info("[TRACE] -> Calling TRACE to perform the footprint analysis.")
+        logger.info(
+            "[TRACE] ========================================================"
+            "================",
         )
 
         if inputs.trace_options.use_sim:
-            print("  -> TRACE will use PYTHIA's results to calculate the footprints.")
+            logger.info(
+                "[TRACE]   -> TRACE will use PYTHIA's results to calculate the"
+                " footprints.",
+            )
             return TraceStage.trace(
                 inputs.z,
                 inputs.y_hat,
@@ -297,8 +319,12 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 inputs.algo_labels,
                 inputs.trace_options,
                 inputs.parallel_options,
+                inputs.general_options,
             )
-        print("  -> TRACE will use experimental data to calculate the footprints.")
+        logger.info(
+            "[TRACE]   -> TRACE will use experimental data to calculate the"
+            " footprints.",
+        )
         return TraceStage.trace(
             inputs.z,
             inputs.y_bin,
@@ -307,6 +333,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             inputs.algo_labels,
             inputs.trace_options,
             inputs.parallel_options,
+            inputs.general_options,
         )
 
     @staticmethod
@@ -318,6 +345,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         algo_labels: list[str],
         trace_opts: TraceOptions,
         parallel_opts: ParallelOptions,
+        general_opts: GeneralOptions,
     ) -> TraceOutputs:
         """Perform the TRACE footprint analysis.
 
@@ -337,6 +365,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Configuration options for TRACE and its subroutines.
         parallel_opts : ParallelOptions
             Configuration options for parallel processing in Matilda.
+        general_opts : GeneralOptions
+            General options (e.g. verbosity), not specific to any one stage.
 
         Returns:
         -------
@@ -346,7 +376,16 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             An instance of TraceOut containing the analysis results, including
             the calculated footprints and summary statistics.
         """
-        trace = TraceStage(z, y_bin, p, beta, algo_labels, trace_opts, parallel_opts)
+        trace = TraceStage(
+            z,
+            y_bin,
+            p,
+            beta,
+            algo_labels,
+            trace_opts,
+            parallel_opts,
+            general_opts,
+        )
         return trace._trace()  # noqa: SLF001
 
     def _trace(self) -> TraceOutputs:
@@ -383,16 +422,16 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         )
 
         # Calculate the space footprint (area and density)
-        print("  -> TRACE is calculating the space area and density.")
+        self._log("  -> TRACE is calculating the space area and density.")
         space = self.build(true_array)  # Build the footprint for the entire space
-        print(f"    -> Space area: {space.area} | Space density: {space.density}")
+        self._log(f"    -> Space area: {space.area} | Space density: {space.density}")
 
         # Prepare to calculate footprints for each algorithm's
         # good and best performance
-        print(
+        self._log(
             "------------------------------------------------------------------------",
         )
-        print("  -> TRACE is calculating the algorithm footprints.")
+        self._log("  -> TRACE is calculating the algorithm footprints.")
 
         # Calculate the good and best performance footprints for all algorithms
         # Determine the number of algorithms being analyzed
@@ -400,15 +439,15 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         good, best = self.compute_algorithm_qualities(n_algos)
 
         # Detect and resolve contradictions between the best performance footprints
-        print(
+        self._log(
             "------------------------------------------------------------------------",
         )
-        print(
+        self._log(
             "  -> TRACE is detecting and removing contradictory"
             " sections of the footprints.",
         )
         for i in range(n_algos):
-            print(f"  -> Base algorithm '{self.algo_labels[i]}'")
+            self._log(f"  -> Base algorithm '{self.algo_labels[i]}'")
             start_base = (
                 time.time()
             )  # Track the start time for processing this base algorithm
@@ -419,7 +458,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             )
 
             for j in range(i + 1, n_algos):
-                print(
+                self._log_detail(
                     f"      -> TRACE is comparing '"
                     f"{self.algo_labels[i]}' with '{self.algo_labels[j]}'",
                 )
@@ -438,34 +477,34 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
                 # Print the elapsed time for the comparison
                 elapsed_test = time.time() - start_test
-                print(
+                self._log_detail(
                     f"      -> Test algorithm '{self.algo_labels[j]}' completed. "
                     f"Elapsed time: {elapsed_test:.2f}s",
                 )
 
             # Print the elapsed time for processing this base algorithm
             elapsed_base = time.time() - start_base
-            print(
+            self._log(
                 f"  -> Base algorithm '{self.algo_labels[i]}' completed. Elapsed time:"
                 f" {elapsed_base:.2f}s",
             )
 
         # Calculate the footprint for the beta threshold,
         # which is a stricter performance threshold
-        print(
+        self._log(
             "------------------------------------------------------------------------",
         )
-        print("  -> TRACE is calculating the beta-footprint.")
+        self._log("  -> TRACE is calculating the beta-footprint.")
         hard = self.build(
             ~self.beta,
         )  # Build the footprint for instances not meeting the beta threshold
 
         # Prepare the summary table for all algorithms,
         # which includes various performance metrics
-        print(
+        self._log(
             "------------------------------------------------------------------------",
         )
-        print("  -> TRACE is preparing the summary table.")
+        self._log("  -> TRACE is preparing the summary table.")
 
         # Create a pandas DataFrame and name the column "Algorithms"
         algorithm_names_df = pd.DataFrame(self.algo_labels, columns=["Algorithm"])
@@ -504,9 +543,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         summary_df = pd.DataFrame(summary_data, columns=data_labels)
         final_df = pd.concat([algorithm_names_df, summary_df], axis=1)
         # Print the completed summary of the TRACE analysis
-        print("  -> TRACE has completed. Footprint analysis results:")
-        print(" ")
-        print(final_df)
+        self._log("  -> TRACE has completed. Footprint analysis results:")
+        self._log(f"\n{final_df}")
 
         # Return the results as a TraceOut dataclass instance
         return TraceOutputs(
@@ -618,7 +656,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
             if purity_base > purity_test:
                 c_area = contradiction.area / test_polygon.area
-                print(
+                self._log_detail(
                     f"        -> {round(100 * c_area, 1)}% of the test footprint "
                     "is contradictory.",
                 )
@@ -627,7 +665,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                     test_polygon = self.tight(test_polygon, y_test)
             elif purity_test > purity_base:
                 c_area = contradiction.area / base_polygon.area
-                print(
+                self._log_detail(
                     f"        -> {round(100 * c_area, 1)}% of the base footprint "
                     "is contradictory.",
                 )
@@ -635,11 +673,11 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 if num_tries < max_tries:
                     base_polygon = self.tight(base_polygon, y_base)
             else:
-                print(
+                self._log_detail(
                     "        -> Purity of the contradicting areas is equal for both "
                     "footprints.",
                 )
-                print("        -> Ignoring the contradicting area.")
+                self._log_detail("        -> Ignoring the contradicting area.")
                 break
 
             if base_polygon.is_empty or test_polygon.is_empty:
@@ -796,8 +834,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             for element in out
         ]
 
-    @staticmethod
-    def throw() -> Footprint:
+    def throw(self) -> Footprint:
         """Generate a footprint with default values, indicating insufficient data.
 
         Returns:
@@ -805,8 +842,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         Footprint:
             An instance of Footprint with default values.
         """
-        print("        -> There are not enough instances to calculate a footprint.")
-        print("        -> The subset of instances used is too small.")
+        self._log_detail(
+            "        -> There are not enough instances to calculate a footprint.",
+        )
+        self._log_detail("        -> The subset of instances used is too small.")
         return Footprint(None, 0, 0, 0, 0, 0)
 
     @staticmethod
@@ -965,10 +1004,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             The index of the algorithm, and its good and best performance footprints.
         """
         start_time = time.time()
-        print(f"    -> Good performance footprint for '{self.algo_labels[i]}'")
+        self._log(f"    -> Good performance footprint for '{self.algo_labels[i]}'")
         good_performance = self.build(self.y_bin[:, i])
 
-        print(f"    -> Best performance footprint for '{self.algo_labels[i]}'")
+        self._log(f"    -> Best performance footprint for '{self.algo_labels[i]}'")
         bool_array: NDArray[np.bool_] = np.array(
             [int(v) == i for v in self.p],
             dtype=np.bool_,
@@ -976,7 +1015,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         best_performance = self.build(bool_array)
 
         elapsed_time = time.time() - start_time
-        print(
+        self._log(
             f"    -> Algorithm '{self.algo_labels[i]}' completed. "
             f"Elapsed time: {elapsed_time:.2f}s",
         )

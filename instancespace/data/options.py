@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Self, TypeVar
 
 import numpy as np
+from loguru import logger
 from numpy.typing import NDArray
 
 from instancespace.data.default_options import (
@@ -826,9 +827,9 @@ def from_json_file(file_path: Path | str) -> InstanceSpaceOptions | None:
 
         return InstanceSpaceOptions.from_dict(opts_dict)
     except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
-        print(f"{file_path}: {e!s}")
+        logger.error(f"{file_path}: {e!s}")
         return None
     except ValueError as e:
-        print(f"Error: Invalid options data in the file '{file_path}'.")
-        print(f"Error details: {e!s}")
+        logger.error(f"Error: Invalid options data in the file '{file_path}'.")
+        logger.error(f"Error details: {e!s}")
         return None

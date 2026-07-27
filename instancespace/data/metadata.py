@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
 from pandas import DataFrame
 
@@ -116,11 +117,11 @@ def from_csv_file(file_path: Path | str) -> Metadata | None:
     try:
         csv_df = pd.read_csv(file_path)
     except (FileNotFoundError, OSError, pd.errors.ParserError) as e:
-        print(f"{file_path}: {e!s}")
+        logger.error(f"{file_path}: {e!s}")
         return None
     except pd.errors.EmptyDataError as err:
-        print(f"{file_path}: {err!s}")
-        print(f"The file '{file_path}' is empty.")
+        logger.error(f"{file_path}: {err!s}")
+        logger.error(f"The file '{file_path}' is empty.")
         return None
 
     return Metadata.from_data_frame(csv_df)

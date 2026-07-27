@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import scipy.linalg as la
 import scipy.optimize as optim
+from loguru import logger
 from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
 from scipy.stats import pearsonr
@@ -173,7 +174,16 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         _do_output: bool,
     ) -> None:
         if _do_output:
-            print(a)
+            logger.info(f"[PILOT] {a}")
+
+    @staticmethod
+    def _pilot_print_detail(
+        a: Any,  # noqa: ANN401
+        _do_output: bool,
+        general_options: GeneralOptions,
+    ) -> None:
+        if _do_output and general_options.verbose:
+            logger.debug(f"[PILOT] {a}")
 
     @staticmethod
     def pilot(
@@ -263,6 +273,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                     eoptim,
                     perf,
                     options,
+                    general_options,
                     _do_output,
                 )
 
@@ -447,6 +458,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         eoptim: NDArray[np.double],
         perf: NDArray[np.double],
         opts: PilotOptions,
+        general_options: GeneralOptions,
         _do_output: bool = True,
     ) -> tuple[int, NDArray[np.double], NDArray[np.double], NDArray[np.double]]:
         """Solve the projection problem numerically.
@@ -523,7 +535,11 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
 
             perf[i], _ = pearsonr(hd, pdist(z))
             idx = np.argmax(perf).astype(int)
-            PilotStage._pilot_print(f"Pilot has completed trial {i + 1}", _do_output)
+            PilotStage._pilot_print_detail(
+                f"Pilot has completed trial {i + 1}",
+                _do_output,
+                general_options,
+            )
 
             al: NDArray[np.float16] = alpha.astype(np.float16)
             ept: NDArray[np.double] = eoptim
