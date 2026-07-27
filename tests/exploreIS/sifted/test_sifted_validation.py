@@ -26,7 +26,6 @@ def load_sifted_indices() -> SiftedOut:
     selvars = (df["original_index"].to_numpy(dtype=np.intc) - 1).astype(np.intc)
     return SiftedOut(
         selvars=selvars,
-        idx=selvars,
         rho=None,
         pval=None,
         silhouette_scores=None,

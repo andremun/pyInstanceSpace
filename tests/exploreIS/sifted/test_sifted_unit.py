@@ -26,7 +26,6 @@ def mock_sifted_params_all():
     indices = np.array([0, 1, 2, 3, 4], dtype=np.intc)
     return SiftedOut(
         selvars=indices,
-        idx=indices,
         rho=None,
         pval=None,
         silhouette_scores=None,
@@ -41,7 +40,6 @@ def mock_sifted_params_subset():
     indices = np.array([0, 2, 4], dtype=np.intc)
     return SiftedOut(
         selvars=indices,
-        idx=indices,
         rho=None,
         pval=None,
         silhouette_scores=None,
@@ -127,7 +125,6 @@ def test_sifted_single_feature():
     indices = np.array([2], dtype=np.intc)
     params = SiftedOut(
         selvars=indices,
-        idx=indices,
         rho=None,
         pval=None,
         silhouette_scores=None,
@@ -217,7 +214,6 @@ def test_sifted_reverse_order():
     indices = np.array([4, 3, 2, 1, 0], dtype=np.intc)
     params = SiftedOut(
         selvars=indices,
-        idx=indices,
         rho=None,
         pval=None,
         silhouette_scores=None,

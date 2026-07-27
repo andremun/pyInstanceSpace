@@ -116,7 +116,7 @@ def save_instance_space_to_csv(
         )
 
     _write_array_to_csv(
-        data.x_raw[:, sifted_out.idx],
+        data.x_raw[:, sifted_out.selvars],
         pd.Series(data.feat_labels),
         data.inst_labels,
         output_directory / "feature_raw.csv",
