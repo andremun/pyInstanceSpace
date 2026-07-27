@@ -51,6 +51,11 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
 - `PythiaStage` no longer mutates the caller's `y_raw` array in place while generating
   its summary table; it now copies before mutating, matching the pattern already used
   for the same array's other derived copies (#229).
+- `SiftedStage` no longer returns a stale, un-narrowed `idx` (computed once from the
+  pre-selection feature count) alongside the correctly-narrowed `selvars`; `idx` now
+  tracks the actual selected feature indices. Previously this caused
+  `Model.save_to_csv`/`save_instance_space_for_web` to crash or misalign columns
+  whenever SIFTED reduced the feature set.
 
 ### Better engineering
 
