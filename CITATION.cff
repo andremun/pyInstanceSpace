@@ -7,24 +7,8 @@ doi: 10.5281/zenodo.15562567
 license: LicenseRef-PolyForm-Noncommercial-1.0.0
 repository-code: "https://github.com/andremun/pyInstanceSpace"
 authors:
-  - family-names: Khare
-    given-names: Kushagra
-  - family-names: Harvey
-    given-names: Nathan
-  - family-names: Dsouza
-    given-names: Kian
-  - family-names: Güzel
-    given-names: "Yusuf Berdan"
-  - family-names: Chen
-    given-names: Junheng
-  - family-names: Jang
-    given-names: "Dong Hyeog"
-  - family-names: Lam
-    given-names: "Cheng Ze"
-  - family-names: Yi
-    given-names: Hazel
-  - family-names: Yu
-    given-names: Tao
+  - family-names: Muñoz
+    given-names: "Mario Andrés"
 preferred-citation:
   type: software
   title: "Instance Space Analysis: A Python toolkit for the assessment of algorithmic power"
