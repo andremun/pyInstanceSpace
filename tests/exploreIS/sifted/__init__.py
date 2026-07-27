@@ -1,0 +1,1 @@
+"""SIFTED stage tests."""

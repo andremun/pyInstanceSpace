@@ -1,0 +1,11 @@
+original_index,feature_name
+1,Max_Normalized_Entropy_attributes
+2,Normalized_Entropy_Class_Attribute
+3,Mean_Mutual_Information_Attribute_Class
+4,ErrorRate_Decision_Node
+5,WeightedDist_StdDev
+6,Max_Feature_Efficiency_F3
+7,Collective_Feature_Efficiency_F4
+8,Training_Error_Linear_Classifier_L2
+9,Fraction_Points_Class_Boundary_N1
+10,Nonlinearity_Nearest_Neighbor_Classifier_N4

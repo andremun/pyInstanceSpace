@@ -7,14 +7,19 @@ analytical results and metadata of the instance space analysis.
 
 from collections.abc import Generator
 from dataclasses import fields
+from datetime import datetime
 from pathlib import Path
 from typing import Any, NamedTuple, TypeVar
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
+from shapely.geometry import Point
 
+from instancespace.build_explore_adapter import adapt_for_explore
 from instancespace.data.metadata import Metadata, from_csv_file
+from instancespace.data.model import ExploreResult
 from instancespace.data.options import (
     AutoOptions,
     BoundOptions,
@@ -129,6 +134,7 @@ class InstanceSpace:
     _options: InstanceSpaceOptions
 
     _model: Model | None
+    _explore_model: Any
     _final_output: dict[str, Any] | None
 
     def __init__(
@@ -163,8 +169,10 @@ class InstanceSpace:
         self._options = options
         self._stages = stages
 
-        self._model = None
-        self._final_output = None
+        self._model: Model | None = None
+        self._explore_model: Any = None
+        self._final_output: dict[str, Any] | None = None
+        self._explore_results: list[ExploreResult] = []
 
         stage_builder = StageBuilder()
 
@@ -309,6 +317,440 @@ class InstanceSpace:
             stage,
             inputs,
         )
+
+    @property
+    def explore_results(self) -> list[ExploreResult]:
+        """Get list of explore results from previous explore() calls.
+
+        Returns
+        -------
+            list[ExploreResult]: List of explore results, in order of execution.
+        """
+        return self._explore_results
+
+    def explore(
+        self,
+        test_metadata: Metadata,
+        *,
+        dataset_id: str | None = None,
+    ) -> ExploreResult:
+        """Apply trained instance space model to new test data.
+
+        This method applies the transformations and models learned during build()
+        to new test instances. It performs:
+        1. Feature preprocessing (PRELIM normalization)
+        2. Feature selection (SIFTED)
+        3. Dimensionality reduction to 2D (PILOT projection)
+        4. Algorithm performance prediction (PYTHIA SVMs)
+        5. Footprint membership analysis (TRACE)
+
+        Args
+        ----
+            test_metadata : Metadata
+                New instances with the same feature columns as training data.
+            dataset_id : str | None, optional
+                Identifier for this test dataset. If not provided, a timestamp-based
+                ID will be generated.
+
+        Returns
+        -------
+            ExploreResult
+                Contains projected coordinates, algorithm predictions, and
+                footprint membership for the test instances.
+
+        Raises
+        ------
+            RuntimeError
+                If build() has not been called before explore().
+            ValueError
+                If test_metadata features don't match training features.
+        """
+        # Run every inference stage, then assemble the result from each stage's output
+        stages = dict(self.explore_iter(test_metadata))
+
+        if dataset_id is None:
+            dataset_id = f"explore_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        inst_labels = self._extract_instance_labels(test_metadata)
+        pythia_result = stages["pythia"]
+        trace_result = stages["trace"]
+
+        result = ExploreResult(
+            dataset_id=dataset_id,
+            timestamp=datetime.now(),
+            x=stages["sifted"],
+            z=stages["pilot"],
+            y_hat=pythia_result[0] if pythia_result else None,
+            pr0_hat=pythia_result[1] if pythia_result else None,
+            selection0=pythia_result[2] if pythia_result else None,
+            in_good=trace_result[0] if trace_result else None,
+            in_best=trace_result[1] if trace_result else None,
+            inst_labels=inst_labels,
+        )
+
+        self._explore_results.append(result)
+        return result
+
+    def explore_iter(
+        self,
+        test_metadata: Metadata,
+    ) -> Generator[tuple[str, Any], None, None]:
+        """Run explore() one stage at a time, yielding each stage's output.
+
+        Same computation and trained model as ``explore()``, but instead of
+        returning a single ``ExploreResult`` it yields a ``(stage_name, output)``
+        pair after each inference stage, so the intermediate result of every stage
+        can be inspected or plotted before the next one runs. The stages, in order,
+        are ``"prelim"``, ``"sifted"``, ``"pilot"``, ``"pythia"`` and ``"trace"``:
+        ``prelim``/``sifted``/``pilot`` yield the transformed feature or coordinate
+        array, ``pythia`` yields ``(y_hat, pr0_hat, selection0)`` and ``trace``
+        yields ``(in_good, in_best)``.
+
+        Args
+        ----
+            test_metadata : Metadata
+                New instances with the same feature columns as training data.
+
+        Yields
+        ------
+            tuple[str, Any]
+                The name of the stage that just ran and its output.
+
+        Raises
+        ------
+            RuntimeError
+                If build() has not been called before explore().
+            ValueError
+                If test_metadata features don't match training features.
+        """
+        # Resolve which model representation to consume, then validate it
+        self._ensure_explore_model()
+        self._validate_for_explore(test_metadata)
+
+        x = self._explore_prelim(self._extract_features(test_metadata))
+        yield "prelim", x
+        x = self._explore_sifted(x)
+        yield "sifted", x
+        z = self._explore_pilot(x)
+        yield "pilot", z
+        yield "pythia", self._explore_pythia(z)
+        yield "trace", self._explore_trace(z)
+
+    def _ensure_explore_model(self) -> None:
+        """Resolve the model representation explore() consumes, converting once.
+
+        explore() reads the flattened structure MATLAB exports (per-SVM support
+        vectors, signed coefficients, bias, kernel scale, Platt A/B). A model
+        trained by the Python build() instead stores fitted scikit-learn ``SVC``
+        objects, so its shape is identified here and it is converted through
+        ``adapt_for_explore`` on first use. The scikit-learn model itself is not
+        modified and remains available via the ``model`` property; the flattened
+        structure is stored separately in ``_explore_model``.
+        """
+        if self._explore_model is not None or self._model is None:
+            return
+
+        svms = self._model.pythia.svm
+        if svms and not hasattr(svms[0], "alphas"):
+            logger.info(
+                "explore(): detected a Python-built model (scikit-learn SVMs); "
+                "converting it to the flattened structure explore() consumes. "
+                "The unconverted scikit-learn model remains available via the "
+                "'model' property.",
+            )
+            self._explore_model = adapt_for_explore(
+                self._model,
+                self._metadata.feature_names,
+            )
+        else:
+            logger.info(
+                "explore(): detected a flattened (MATLAB-artifact) model; "
+                "consuming it as-is.",
+            )
+            self._explore_model = self._model
+
+    def _validate_for_explore(self, metadata: Metadata) -> None:
+        """Validate that the instance space is ready for explore and metadata is valid.
+
+        Args
+        ----
+            metadata : Metadata
+                Test metadata to validate.
+
+        Raises
+        ------
+            RuntimeError
+                If build() has not been called.
+            ValueError
+                If test metadata features don't match training features.
+        """
+        if self._explore_model is None:
+            raise RuntimeError(
+                "Must call build() before explore(). "
+                "The instance space model must be trained first."
+            )
+
+        # Get training feature names from the model's data
+        training_features = set(self._explore_model.data.feat_labels)
+        test_features = set(metadata.feature_names)
+
+        # Check that test data has all required features
+        missing_features = training_features - test_features
+        if missing_features:
+            raise ValueError(
+                f"Test metadata is missing features required by training: "
+                f"{sorted(missing_features)}"
+            )
+
+        # Warn about extra features (they will be ignored)
+        extra_features = test_features - training_features
+        if extra_features:
+            print(
+                f"Warning: Test metadata has extra features that will be ignored: "
+                f"{sorted(extra_features)}"
+            )
+
+    def _extract_features(self, metadata: Metadata) -> NDArray[np.double]:
+        """Extract feature matrix from metadata, matching training format.
+
+        Extracts features in the same order as training data and handles
+        any reordering needed.
+
+        Args
+        ----
+            metadata : Metadata
+                Metadata containing features to extract.
+
+        Returns
+        -------
+            NDArray[np.double]
+                Feature matrix with shape (n_instances, n_features).
+        """
+        # Get the feature order from training
+        training_feature_names = self._explore_model.data.feat_labels
+
+        # Build feature matrix in training order
+        test_feature_dict = dict(zip(metadata.feature_names, range(len(metadata.feature_names))))
+
+        # Reorder test features to match training order
+        feature_indices = [test_feature_dict[name] for name in training_feature_names]
+        x = metadata.features[:, feature_indices]
+
+        return x.astype(np.double)
+
+    def _extract_instance_labels(self, metadata: Metadata) -> pd.Series:  # type: ignore[type-arg]
+        """Extract instance labels from metadata.
+
+        Args
+        ----
+            metadata : Metadata
+                Metadata containing instance labels.
+
+        Returns
+        -------
+            pd.Series
+                Series of instance labels.
+        """
+        return metadata.instance_labels
+
+    def _explore_prelim(self, x: NDArray[np.double]) -> NDArray[np.double]:
+        """Apply PRELIM transformations to features.
+
+        Applies bounding, Box-Cox transformation, and z-score normalization
+        using parameters learned during training.
+
+        Args
+        ----
+            x : NDArray[np.double]
+                Raw feature matrix with shape (n_instances, n_features).
+
+        Returns
+        -------
+            NDArray[np.double]
+                Transformed feature matrix with shape (n_instances, n_features).
+        """
+        from scipy import stats
+
+        prelim = self._explore_model.prelim
+
+        # Create a copy to avoid modifying input
+        x_transformed = x.copy()
+        n_features = x.shape[1]
+
+        for i in range(n_features):
+            x_transformed[:, i] = np.clip(
+                x_transformed[:, i],
+                prelim.lo_bound[i],
+                prelim.hi_bound[i]
+            )
+
+            x_transformed[:, i] = x_transformed[:, i] - prelim.min_x[i] + 1
+
+            idx_valid = ~np.isnan(x_transformed[:, i])
+            if np.any(idx_valid):
+                x_transformed[idx_valid, i] = stats.boxcox(
+                    x_transformed[idx_valid, i],
+                    prelim.lambda_x[i]
+                )
+
+            if np.any(idx_valid):
+                x_transformed[idx_valid, i] = (
+                    x_transformed[idx_valid, i] - prelim.mu_x[i]
+                ) / prelim.sigma_x[i]
+
+        return x_transformed
+
+    def _explore_sifted(self, x: NDArray[np.double]) -> NDArray[np.double]:
+        """Apply feature selection from SIFTED stage.
+
+        Args
+        ----
+            x : NDArray[np.double]
+                Feature matrix with shape (n_instances, n_features).
+
+        Returns
+        -------
+            NDArray[np.double]
+                Feature matrix with selected features only.
+                Shape: (n_instances, n_selected_features).
+        """
+        sifted = self._explore_model.sifted
+        selected_indices = sifted.selvars
+        x_selected = x[:, selected_indices]
+
+        return x_selected
+
+    def _explore_pilot(self, x: NDArray[np.double]) -> NDArray[np.double]:
+        """Project features to 2D instance space using PILOT.
+
+        Args
+        ----
+            x : NDArray[np.double]
+                Feature matrix with shape (n_instances, n_selected_features).
+
+        Returns
+        -------
+            NDArray[np.double]
+                2D coordinates with shape (n_instances, 2).
+        """
+        a = self._explore_model.pilot.a
+        return x @ a.T
+
+    def _explore_pythia(
+        self,
+        z: NDArray[np.double],
+    ) -> tuple[NDArray[np.bool_], NDArray[np.double], NDArray[np.int_]]:
+        """Get algorithm predictions using PYTHIA SVMs.
+
+        Ports MATLAB PYTHIAtest.m: z-score normalises the 2D coordinates,
+        applies each per-algorithm SVM (Gaussian / polynomial / linear kernel,
+        plus Platt posterior transform), and picks the algorithm with the
+        highest precision-weighted positive prediction per instance.
+
+        Args
+        ----
+            z : NDArray[np.double]
+                2D coordinates with shape (n_instances, 2).
+
+        Returns
+        -------
+            tuple[NDArray[np.bool_], NDArray[np.double], NDArray[np.int_]]
+                - y_hat: binary good/bad predictions, shape (n_instances, n_algorithms)
+                - pr0_hat: posterior probability of the "bad" class, shape
+                  (n_instances, n_algorithms)
+                - selection0: recommended algorithm index (0-based) per instance,
+                  or -1 when no algorithm was predicted good. Shape (n_instances,)
+        """
+        pythia = self._explore_model.pythia
+        mu = np.asarray(pythia.mu, dtype=np.double)
+        sigma = np.asarray(pythia.sigma, dtype=np.double)
+        precision = np.asarray(pythia.precision, dtype=np.double)
+        svms = pythia.svm
+
+        z_norm = (z - mu) / sigma
+        n_inst = z_norm.shape[0]
+        n_algos = len(svms)
+
+        y_hat = np.zeros((n_inst, n_algos), dtype=np.bool_)
+        pr0_hat = np.zeros((n_inst, n_algos), dtype=np.double)
+
+        for i, svm in enumerate(svms):
+            svs = np.asarray(svm.support_vectors, dtype=np.double)
+            alphas = np.asarray(svm.alphas, dtype=np.double)
+            bias = float(svm.bias)
+            kernel_fn = svm.kernel_fn.lower()
+
+            if kernel_fn in ("gaussian", "rbf"):
+                scale = float(svm.kernel_param)
+                dist_sq = (
+                    np.sum(z_norm**2, axis=1, keepdims=True)
+                    + np.sum(svs**2, axis=1)
+                    - 2.0 * (z_norm @ svs.T)
+                )
+                k = np.exp(-dist_sq / scale**2)
+            elif kernel_fn == "polynomial":
+                order = float(svm.kernel_param)
+                k = (z_norm @ svs.T + 1.0) ** order
+            else:
+                k = z_norm @ svs.T
+
+            decision = k @ alphas + bias
+
+            post_good = 1.0 / (1.0 + np.exp(svm.platt_A * decision + svm.platt_B))
+            pr0_hat[:, i] = 1.0 - post_good
+            y_hat[:, i] = post_good >= 0.5
+
+        weighted = y_hat.astype(np.double) * precision
+        best = weighted.max(axis=1)
+        selection0 = weighted.argmax(axis=1).astype(np.int_)
+        selection0[best <= 0] = -1
+
+        return y_hat, pr0_hat, selection0
+
+    def _explore_trace(
+        self,
+        z: NDArray[np.double],
+    ) -> tuple[NDArray[np.bool_], NDArray[np.bool_]] | None:
+        """Check footprint membership using TRACE polygons.
+
+        Ports the per-instance equivalent of MATLAB TRACEtest: for each test
+        point and each algorithm, check whether the point lies inside the
+        algorithm's good and best footprints. MATLAB's ``inpolygon`` treats
+        boundary points as inside; ``polygon.covers`` matches that semantics
+        (closed set), whereas ``polygon.contains`` would exclude the boundary.
+
+        ``in_space`` is intentionally omitted: ``exploreIS.m`` does not compute
+        it, and the value in ``step5_trace_membership.csv`` is sourced from
+        CLOISTER (a build-time stage outside this port's scope).
+
+        Args
+        ----
+            z : NDArray[np.double]
+                2D coordinates with shape (n_instances, 2).
+
+        Returns
+        -------
+            tuple[NDArray[np.bool_], NDArray[np.bool_]]
+                - in_good: (n_instances, n_algorithms) bool array
+                - in_best: (n_instances, n_algorithms) bool array
+        """
+        trace = self._explore_model.trace
+        n = z.shape[0]
+        n_algos = len(trace.good)
+        points = [Point(z[i, 0], z[i, 1]) for i in range(n)]
+
+        in_good = np.zeros((n, n_algos), dtype=np.bool_)
+        in_best = np.zeros((n, n_algos), dtype=np.bool_)
+
+        for j in range(n_algos):
+            good_poly = trace.good[j].polygon
+            best_poly = trace.best[j].polygon
+            if good_poly is not None:
+                in_good[:, j] = [good_poly.covers(p) for p in points]
+            if best_poly is not None:
+                in_best[:, j] = [best_poly.covers(p) for p in points]
+
+        return in_good, in_best
 
 
 def instance_space_from_files(

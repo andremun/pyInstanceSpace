@@ -63,6 +63,24 @@ REQUIREMENTS:
 ### Step 3: Install Python dependencies into a virtual environment
 `poetry install`
 
+## The explore() inference pipeline
+
+`InstanceSpace.explore()` applies a previously trained model to unseen instances, mirroring the MATLAB toolkit's `exploreIS.m`: the test metadata is bounded and scaled with the stored PRELIM parameters, reduced to the selected SIFTED features, projected with the trained PILOT matrix, and evaluated by the trained PYTHIA selectors and TRACE footprints. No stage is re-fitted.
+
+`explore()` identifies the shape of the trained model itself and logs what it detected. A model trained by the Python `build()` — which stores the PYTHIA SVMs as fitted scikit-learn `SVC` objects — is converted internally, once, into the flattened structure `explore()` consumes; the scikit-learn model is not modified and remains available via the `model` property for anyone who prefers to keep working with scikit-learn objects. A model already in the flattened form (assembled from MATLAB-exported artifacts) is consumed as-is.
+
+The conversion lives in `instancespace/build_explore_adapter.py` and only rewrites the PYTHIA SVMs into the flattened form; PRELIM, SIFTED, PILOT and TRACE pass through unchanged. Its module docstring explains each choice. The normal flow is therefore direct:
+
+```python
+space = InstanceSpace(train_metadata, options)
+space.build()
+result = space.explore(test_metadata)
+```
+
+`explore()` returns the full result in one call; `explore_iter()` runs the same stages but yields each one's output in turn (`prelim`, `sifted`, `pilot`, `pythia`, `trace`), for inspecting the pipeline one stage at a time. The operation manual `liveDemoExploreIS.ipynb` — the Python counterpart of the MATLAB live demo (`liveDemoIS.mlx`) — walks through both and is meant to be read as a usage guide; run it from the repository root.
+
+The port is validated stage by stage against the MATLAB implementation: `tests/matlab_reference/` holds the MATLAB-trained artifacts and reference outputs, `tests/exploreIS/` holds the validation and unit tests (run `pytest tests/exploreIS/`), and `docs/explore_validation.ipynb` documents how the validation numbers were obtained and how a from-scratch Python build behaves. The test folders document their contents in their own README files.
+
 ## The metadata file
 
 The ```metadata.csv``` file should contain a table where each row corresponds to a problem instance, and each column must strictly follow the naming convention mentioned below:
