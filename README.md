@@ -129,32 +129,37 @@ Moreover, empty cells, NaN or null values are allowed but **not recommended**. W
 
 The ```options.json``` contains a structure that contains all the settings used by the code. Broadly, there are settings required for the analysis itself, settings for data pre-processing, and output settings. These are divided into general, dimensionality reduction, bound estimation, algorithm selection and footprint construction settings. Additionally, the toolkit includes routines for bounding outliers, scaling the data, and selecting features.
 
+Option names below are given as the Python attribute path (e.g. ```options.perf.max_perf```); the
+same names, case-insensitively, are the keys expected in ```options.json```. A handful of legacy
+MATLAB-style key spellings (e.g. ```ncores```, ```cvfolds```) are still accepted for backward
+compatibility with option files written for the MATLAB toolkit.
+
 ### General settings
 
--	```opts.perf.MaxPerf``` determines whether the algorithm performance values provided are **efficiency** measures that should be maximised (set as ```TRUE```), or **cost** measures that should be minimised (set as ```FALSE```).
--	```opts.perf.AbsPerf``` determines whether good performance is defined absolutely, e.g., misclassification error is lower than a 20%, (set as ```TRUE```), or if it is defined relatively to the best performing algorithm, e.g., misclassification error is within at least 5% of the best algorithm, (set as ```FALSE```).
+-	```opts.perf.max_perf``` determines whether the algorithm performance values provided are **efficiency** measures that should be maximised (set as ```TRUE```), or **cost** measures that should be minimised (set as ```FALSE```).
+-	```opts.perf.abs_perf``` determines whether good performance is defined absolutely, e.g., misclassification error is lower than a 20%, (set as ```TRUE```), or if it is defined relatively to the best performing algorithm, e.g., misclassification error is within at least 5% of the best algorithm, (set as ```FALSE```).
 -	```opts.perf.epsilon``` corresponds to the threshold used to calculate good performance. It must be of the type "Double".
--	```opts.general.betaThreshold``` corresponds to the fraction of algorithms in the portfolio that must have good performance in the instance, for it to be considered an **easy** instance. It must be a value between 0 and 1.
+-	```opts.perf.beta_threshold``` corresponds to the fraction of algorithms in the portfolio that must have good performance in the instance, for it to be considered an **easy** instance. It must be a value between 0 and 1.
 - ```opts.parallel.flag``` determines whether parallel processing will be available (set as ```TRUE```), or not (set as ```FALSE```). The toolkit uses Python's ```multiprocessing``` (in TRACE) and scikit-learn's ```n_jobs``` (in PYTHIA) to distribute work across local cores.
-- ```opts.parallel.ncores``` number of available cores for parallel procesing.
--	```opts.selvars.smallscaleflag``` by setting this flag as ```TRUE```, you can carry out a small scale experiment using a randomly selected fraction of the original data. This is useful if you have a large dataset with more than 1000 instances, and you want to explore the parameters of the model.
--	```opts.selvars.smallscale``` fraction taken from the original data on the small scale experiment.
--	```opts.selvars.fileidxflag``` by setting this flag as ```TRUE```, you can carry out a small scale experiment. This time you must provide a ```.csv``` file that contains in one column the indices of the instances to be taken. This may be useful if you want to make a more controlled experiment than just randomly selecting instances.
--	```opts.selvars.fileidx``` name of the file containing the indexes of the instances.
+- ```opts.parallel.n_cores``` number of available cores for parallel procesing.
+-	```opts.selvars.small_scale_flag``` by setting this flag as ```TRUE```, you can carry out a small scale experiment using a randomly selected fraction of the original data. This is useful if you have a large dataset with more than 1000 instances, and you want to explore the parameters of the model.
+-	```opts.selvars.small_scale``` fraction taken from the original data on the small scale experiment.
+-	```opts.selvars.file_idx_flag``` by setting this flag as ```TRUE```, you can carry out a small scale experiment. This time you must provide a ```.csv``` file that contains in one column the indices of the instances to be taken. This may be useful if you want to make a more controlled experiment than just randomly selecting instances.
+-	```opts.selvars.file_idx``` name of the file containing the indexes of the instances.
 
 ### Dimensionality reduction settings
 
 The toolkit uses PILOT as a dimensionality reduction method, with [BFGS](https://en.wikipedia.org/wiki/Broyden-Fletcher-Goldfarb-Shanno_algorithm) as numerical solver. Technical details about it can be found [here](https://doi.org/10.1007/s10994-017-5629-5).
 
 -	```opts.pilot.analytic``` determines whether the analytic (set as ```TRUE```) or the numerical (set as ```FALSE```) solution to the dimensionality reduction problem should be used. We recommend to leave this setting as ```FALSE```, due to the instability of the analytical solution due to possible poor-conditioning.
--	```opts.pilot.ntries``` number of iterations that the numerical solution is attempted.
+-	```opts.pilot.n_tries``` number of iterations that the numerical solution is attempted.
 
 ### Empirical bound estimation settings.
 
 The toolkit uses CLOISTER, an algorithm based on correlation to detect the empirical bounds of the Instance Space.
 
-- ```opts.cloister.cthres``` Determines the maximum [Pearson correlation coefficient](https://en.wikipedia.org/wiki/Pearson_correlation_coefficient) that would indicate non-correlated variables. The lower this value is, the more stringent is the algorithm; hence, it would be less likely to produce a good bound.
-- ```opts.cloister.pval``` Determines the p-value of the Pearson correlation coefficient that indicates no correlation.
+- ```opts.cloister.c_thres``` Determines the maximum [Pearson correlation coefficient](https://en.wikipedia.org/wiki/Pearson_correlation_coefficient) that would indicate non-correlated variables. The lower this value is, the more stringent is the algorithm; hence, it would be less likely to produce a good bound.
+- ```opts.cloister.p_val``` Determines the p-value of the Pearson correlation coefficient that indicates no correlation.
 
 ###  Algorithm selection settings
 
@@ -170,8 +175,8 @@ The toolkit trains one [scikit-learn](https://scikit-learn.org/) `SVC` per algor
 
 The toolkit uses TRACE, an algorithm based on [```shapely```](https://shapely.readthedocs.io/) polygons to define the regions in the space where we statistically infer good algorithm performance. The polygons are then pruned to remove those sections for which the evidence, as defined by a minimum purity value, is poor or non-existing.
 
--	```opts.trace.usesim``` makes use of the actual (set as ```FALSE```) or simulated data from the SVM results (set as ```TRUE```) to produce the footprints.
--	```opts.trace.PI``` minimum purity required for a section of a footprint.
+-	```opts.trace.use_sim``` makes use of the actual (set as ```FALSE```) or simulated data from the SVM results (set as ```TRUE```) to produce the footprints.
+-	```opts.trace.purity``` minimum purity required for a section of a footprint.
 
 ### Automatic data bounding and scaling
 
@@ -187,10 +192,10 @@ The toolkit implements SIFTED, a routine to select features, given their cross-c
 
 - ```opts.sifted.flag``` turns on (set as ```TRUE```) the automatic feature selection. SIFTED is composed of two sub-processes. On the first one, SIFTED calculates the [Pearson correlation coefficient](https://en.wikipedia.org/wiki/Pearson_correlation_coefficient) between the features and the performance. Then it takes its absolute value, and sorts them from largest to smallest. Then, it takes all features that have a correlation above the threshold. It automatically bounds itself to a minimum of 3 features. Then, SIFTED uses the [Pearson correlation coefficient](https://en.wikipedia.org/wiki/Pearson_correlation_coefficient) as a dissimilarity metric between features. Then, [k-means clustering](https://en.wikipedia.org/wiki/K-means_clustering) is used to identify groups of similar features. To select one feature per group, the algorithm first projects the subset of selected featurs into two dimensions using Principal Components Analysis ([PCA](https://en.wikipedia.org/wiki/Principal_component_analysis)) and then [Random Forests](https://en.wikipedia.org/wiki/Random_forest) to predict whether an instance is easy or not for a given algorithm. Then, the subset of features that gives the most accurate models is selected. This section of the routine is **potentially computationally very expensive** due to the multiple-layer training process. However, it is our current recommended approach to select the most relevant features. This routine tests all possible combinations if they are less than 1000, or uses the combination of a [Genetic Algorithm](https://en.wikipedia.org/wiki/Genetic_algorithm) and a Look-up table otherwise.
 - ```opts.sifted.rho``` correlation threshold indicating the lowest acceptable absolute correlation between a feature and performance. It should be a value between 0 and 1.
-- ```opts.sifted.K``` number of clusters which corresponds to the final number of features returned. The routine assumes at least 3 clusters and no more than the number of features. Ideally, it **should not** be a value larger than 10.
-- ```opts.sifted.NTREES``` number of threes used by the Random Forest models. Typically, this setting does not require adjustment.
-- ```opts.sifted.MaxIter``` number of iterations used to converge the k-means algorithm. Typically, this setting does not require adjustment.
-- ```opts.sifted.Replicates``` number of repeats carried out of the k-means algorithm. Typically, this setting does not require adjustment.
+- ```opts.sifted.k``` number of clusters which corresponds to the final number of features returned. The routine assumes at least 3 clusters and no more than the number of features. Ideally, it **should not** be a value larger than 10.
+- ```opts.sifted.n_trees``` number of threes used by the Random Forest models. Typically, this setting does not require adjustment.
+- ```opts.sifted.max_iter``` number of iterations used to converge the k-means algorithm. Typically, this setting does not require adjustment.
+- ```opts.sifted.replicates``` number of repeats carried out of the k-means algorithm. Typically, this setting does not require adjustment.
 
 ### Output settings
 

@@ -25,6 +25,17 @@ authors:
     given-names: Hazel
   - family-names: Yu
     given-names: Tao
+preferred-citation:
+  type: software
+  title: "Instance Space Analysis: A Python toolkit for the assessment of algorithmic power"
+  authors:
+    - family-names: Muñoz
+      given-names: "Mario Andrés"
+    - family-names: Smith-Miles
+      given-names: Kate
+  doi: 10.5281/zenodo.15562567
+  repository-code: "https://github.com/andremun/pyInstanceSpace"
+  year: 2025
 references:
   - type: article
     title: "instancespace: A Python package for insightful algorithm testing through Instance Space Analysis"
