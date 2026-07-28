@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Display software disclaimer and citation information for a given software or file.
 
 The `script_disc` function within this module is used to print out standardized

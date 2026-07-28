@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Contains default values for options as constants."""
 
 DEFAULT_GENERAL_VERBOSE = True
@@ -54,6 +56,7 @@ DEFAULT_PYTHIA_CV_FOLDS = 5
 DEFAULT_PYTHIA_IS_POLY_KRNL = False
 DEFAULT_PYTHIA_USE_WEIGHTS = False
 DEFAULT_PYTHIA_USE_GRID_SEARCH = False
+DEFAULT_PYTHIA_CLASSIFIER = "svm"
 
 DEFAULT_TRACE_USE_SIM = True
 DEFAULT_TRACE_PURITY = 0.55

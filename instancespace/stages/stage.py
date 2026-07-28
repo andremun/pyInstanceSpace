@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Generic stage."""
 
 from __future__ import annotations
@@ -41,12 +43,26 @@ Usage::
     list_of_classes: list[StageClass] = [PrelimStage, CloisterStage]
 """
 
-T = TypeVar("T", bound=StageClass)
+T = TypeVar("T", bound=Stage[Any, Any])
 
 
 class RunBefore(Generic[T]):
-    """Marks that a stage should be run before another stage."""
+    """Marks that a stage should be run before another stage.
+
+    Usage::
+
+        class MyInput(NamedTuple):
+            run_before: RunBefore[SomeStage] = RunBefore()
+            ...
+    """
 
 
 class RunAfter(Generic[T]):
-    """Marks that a stage should be run after another stage."""
+    """Marks that a stage should be run after another stage.
+
+    Usage::
+
+        class MyInput(NamedTuple):
+            run_after: RunAfter[SomeStage] = RunAfter()
+            ...
+    """

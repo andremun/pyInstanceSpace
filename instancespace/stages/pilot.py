@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """PILOT: Obtaining a two-dimensional projection.
 
 Projecting Instances with Linearly Observable Trends (PILOT)
@@ -525,7 +527,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                 disp=False,
             )
 
-            (xopts, fopts, _, _, _, _, _) = result
+            xopts, fopts, _, _, _, _, _ = result
             alpha[:, i] = xopts
             eoptim[i] = fopts
 

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Defines data types for metadata.
 
 These classes define types for problem instances found in the metadata.csv file.
@@ -63,11 +65,9 @@ class Metadata:
         # graphs, and exported CSVs show the actual feature/algorithm name
         # (matching MATLAB), not the raw CSV column name.
         feature_names = [
-            name[len("feature_"):] for name in features_raw.columns.tolist()
+            name[len("feature_") :] for name in features_raw.columns.tolist()
         ]
-        algorithm_names = [
-            name[len("algo_"):] for name in algo_raw.columns.tolist()
-        ]
+        algorithm_names = [name[len("algo_") :] for name in algo_raw.columns.tolist()]
 
         return Metadata(
             feature_names=feature_names,

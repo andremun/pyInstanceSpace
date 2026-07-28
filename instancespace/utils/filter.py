@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Filter data instances based on pairwise distances and compute uniformity.
 
 This module implements a filtering mechanism to identify and classify data instances

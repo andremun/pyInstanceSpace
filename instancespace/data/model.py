@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Defines a comprehensive set of data classes used in the instance space analysis.
 
 These classes are designed to encapsulate various aspects of the data and the results

@@ -23,6 +23,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 from numpy.typing import NDArray
 from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
@@ -395,3 +396,114 @@ def compare_performance(
             correct += 1
 
     assert correct / total >= threshold
+
+
+def _small_pythia_dataset() -> tuple[
+    NDArray[np.double],
+    NDArray[np.double],
+    NDArray[np.bool_],
+    NDArray[np.double],
+    list[str],
+]:
+    """Build a tiny synthetic dataset for fast, classifier-agnostic PYTHIA tests."""
+    rng = np.random.default_rng(0)
+    ninst = 20
+    nalgos = 2
+    coin_flip_threshold = 0.5
+    z_small = rng.random((ninst, 2))
+    y_small = rng.random((ninst, nalgos))
+    y_bin_small = rng.random((ninst, nalgos)) > coin_flip_threshold
+    y_best_small = rng.random(ninst)
+    algo_small = ["a0", "a1"]
+    return z_small, y_small, y_bin_small, y_best_small, algo_small
+
+
+@pytest.mark.parametrize("classifier", ["knn", "tree", "nb", "linear", "ensemble"])
+def test_pythia_trains_each_registered_classifier(classifier: str) -> None:
+    """PYTHIA can train and evaluate every registered non-SVM classifier (F1).
+
+    Runs end-to-end on a tiny synthetic dataset (not the MATLAB reference,
+    which only covers 'svm') and checks the output has the right shape and
+    the right estimator type - not numeric parity with MATLAB, since these
+    five classifiers have no MATLAB-verified reference to compare against.
+    """
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        use_grid_search=True,
+        params=None,
+        classifier=classifier,
+    )
+
+    out = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        opts,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    assert len(out.svm) == len(algo_small)
+    for clf in out.svm:
+        assert type(clf).__name__ != "SVC"
+    assert out.y_hat.shape == y_bin_small.shape
+    assert out.pr0_hat.shape == y_bin_small.shape
+    # Non-tunable classifiers report no C/gamma - box_consnt/k_scale stay NaN.
+    assert all(np.isnan(c) for c in out.box_consnt)
+    assert all(np.isnan(g) for g in out.k_scale)
+
+
+def test_pythia_default_classifier_is_svm() -> None:
+    """PythiaOptions.default() still trains SVMs, matching pre-F1 behaviour."""
+    assert PythiaOptions.default().classifier == "svm"
+
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    small_opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        use_grid_search=True,
+        params=None,
+    )
+    out = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        small_opts,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+    assert all(isinstance(clf, SVC) for clf in out.svm)
+
+
+def test_pythia_knn_ignores_use_weights_with_a_warning() -> None:
+    """A classifier without sample_weight support degrades gracefully, not a crash."""
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=True,
+        use_grid_search=True,
+        params=None,
+        classifier="knn",
+    )
+
+    # Should not raise, despite use_weights=True and KNN not supporting it.
+    out = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        opts,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+    assert len(out.svm) == len(algo_small)

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Thin matplotlib wrappers around a trained ``Model``.
 
 Mirrors MATLAB's ``InstanceSpace.plot('sources' | 'portfolio' | 'good' | 'footprint',
@@ -69,7 +71,11 @@ def plot_portfolio(model: Any, ax: Axes | None = None) -> Axes:  # noqa: ANN401
     return ax
 
 
-def plot_good(model: Any, algo: str | int, ax: Axes | None = None) -> Axes:  # noqa: ANN401
+def plot_good(
+    model: Any,  # noqa: ANN401
+    algo: str | int,
+    ax: Axes | None = None,
+) -> Axes:
     """Scatter instances coloured by PYTHIA's good/bad prediction for one algorithm."""
     j = _resolve_algo_index(model, algo)
     algo_name = model.data.algo_labels[j]
@@ -113,8 +119,12 @@ def plot_footprint(
         for region in regions:
             xs, ys = region.exterior.xy
             ax.fill(
-                xs, ys,
-                facecolor="tab:blue", alpha=0.15, edgecolor="tab:blue", linewidth=1.5,
+                xs,
+                ys,
+                facecolor="tab:blue",
+                alpha=0.15,
+                edgecolor="tab:blue",
+                linewidth=1.5,
             )
     ax.set_xlabel("$z_1$")
     ax.set_ylabel("$z_2$")

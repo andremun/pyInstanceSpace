@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """PYTHIA: Automated Algorithm Selection.
 
 By training Support Vector Machines (SVMs) to predict the best-performing
@@ -28,7 +30,7 @@ Classes:
 Functions:
 ----------
 - pythia: The main function for the Pythia stage.
-- _fitmatsvm: Train the SVM model with configurable options.
+- _fit_classifier: Train the configured classifier (see PythiaOptions.classifier).
 - _display_overall_perf: Output overall performance metrics.
 - _compute_znorm: Compute normalized instance space.
 - _check_precalcparams: Check pre-calculated hyper-parameters.
@@ -46,6 +48,7 @@ import pandas as pd
 from loguru import logger
 from numpy.typing import NDArray
 from scipy import stats
+from sklearn.base import ClassifierMixin
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -57,20 +60,20 @@ from sklearn.model_selection import (
     StratifiedKFold,
     cross_val_predict,
 )
-from sklearn.svm import SVC
 from skopt import BayesSearchCV
 
 from instancespace.data.options import GeneralOptions, ParallelOptions, PythiaOptions
 from instancespace.stages.stage import Stage
+from instancespace.utils.get_classifier_fcn import get_classifier_fcn
 
 LARGE_NUM_INSTANCE: int = 1000
 
 
 @dataclass(frozen=True)
-class _SvmRes:
-    """SVM result class."""
+class _ClassifierResult:
+    """Trained-classifier result, generic over PythiaOptions.classifier's choice."""
 
-    svm: SVC
+    classifier: ClassifierMixin
     Ysub: NDArray[np.bool_]
     Psub: NDArray[np.double]
     Yhat: NDArray[np.bool_]
@@ -125,8 +128,12 @@ class PythiaOutput(NamedTuple):
         The weight matrix used for cost-sensitive classification.
     cp : StratifiedKFold
         The Stratified K-Fold cross-validator.
-    svm : list[SVC]
-        A list of trained Support Vector Classifier (SVC) models.
+    svm : list[ClassifierMixin]
+        The trained classifiers, one per algorithm - `SVC` instances unless
+        `PythiaOptions.classifier` selected a different registered type. The
+        field is still named `svm` for backward compatibility; it holds
+        whatever `PythiaOptions.classifier` chose to train, `'svm'` by
+        default.
     cvcmat : NDArray[np.double]
         Confusion matrix for each algorithm
     y_sub : NDArray[np.bool_]
@@ -159,7 +166,7 @@ class PythiaOutput(NamedTuple):
     sigma: list[float]
     w: NDArray[np.double]
     cp: StratifiedKFold
-    svm: list[SVC]
+    svm: list[ClassifierMixin]
     cvcmat: NDArray[np.double]
     y_sub: NDArray[np.bool_]
     y_hat: NDArray[np.bool_]
@@ -197,11 +204,13 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 parallel_options: ParallelOptions) -> PythiaOutput
         Main method that perform automated algorithm selection.
 
-    _fitmatsvm(z: NDArray[np.double], y_bin: NDArray[np.bool_], w: NDArray[np.double],
-                skf: StratifiedKFold, is_poly_kernel: bool,
-                param_space: dict[str, list[float]],use_grid_search: bool,
-                parallel_options: ParallelOptions) -> _SvmRes
-        Train the SVM model with configurable options.
+    _fit_classifier(z: NDArray[np.double], y_bin: NDArray[np.bool_],
+                w: NDArray[np.double], skf: StratifiedKFold, classifier_name: str,
+                is_poly_kernel: bool, param_space: dict[str, list[float]] | None,
+                use_grid_search: bool, use_weights: bool,
+                parallel_options: ParallelOptions,
+                general_options: GeneralOptions) -> _ClassifierResult
+        Train the classifier selected by PythiaOptions.classifier.
 
     _display_overall_perf(precision: list[float], accuracy: list[float]) -> None
         Output overall performance metrics.
@@ -357,35 +366,24 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         w = np.ones((z.shape[0], nalgos), dtype=np.double)
         rng = np.random.default_rng(seed=general_options.seed)
-        # Section 1: Normalize the feature matrix
-        (mu, sigma, z) = PythiaStage._compute_znorm(z)
-
-        if ninst > LARGE_NUM_INSTANCE and not opts.is_poly_krnl:
-            logger.info(
-                "[PYTHIA]   -> For datasets larger than 1K Instances, "
-                "PYTHIA works better with a Polynomial kernel.",
-            )
-            logger.info(
-                "[PYTHIA]   -> Consider changing the kernel if the results are"
-                " unsatisfactory.",
-            )
-            logger.info(
-                "[PYTHIA] ---------------------------------------------------"
-                "----------------",
-            )
-
-        if opts.is_poly_krnl:
-            logger.info("[PYTHIA]  => PYTHIA is using polynomial kernel")
-        else:
-            logger.info("[PYTHIA]  => PYTHIA is using gaussian kernel")
-
+        classifier_spec = get_classifier_fcn(opts.classifier)
         logger.info(
-            "[PYTHIA] -------------------------------------------------------"
-            "------------------",
+            f"[PYTHIA]  -> PYTHIA is training a '{opts.classifier}' classifier.",
         )
+        # Section 1: Normalize the feature matrix
+        mu, sigma, z = PythiaStage._compute_znorm(z)
+
+        if opts.classifier == "svm":
+            PythiaStage._log_kernel_choice(ninst, opts.is_poly_krnl)
 
         # Section 2: Configure hyperparameter optimization
-        if opts.use_grid_search:
+        if not classifier_spec.tunable:
+            logger.info(
+                f"[PYTHIA]  -> '{opts.classifier}' is fit with scikit-learn's own "
+                "default hyperparameters; PYTHIA's hyperparameter search only "
+                "applies to 'svm'.",
+            )
+        elif opts.use_grid_search:
             logger.info(
                 "[PYTHIA]  -> PYTHIA is using grid search for hyper-parameter"
                 " optimization.",
@@ -431,19 +429,23 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         for i in range(nalgos):
             algo_start_time = perf_counter()
-            param_space = (
-                PythiaStage._generate_params(rng)
-                if precalcparams is None
-                else {"C": precalcparams[i][0], "gamma": precalcparams[i][1]}
-            )
-            res = PythiaStage._fitmatsvm(
+            param_space: dict[str, list[float]] | None = None
+            if classifier_spec.tunable:
+                param_space = (
+                    PythiaStage._generate_params(rng)
+                    if precalcparams is None
+                    else {"C": precalcparams[i][0], "gamma": precalcparams[i][1]}
+                )
+            res = PythiaStage._fit_classifier(
                 z=z,
                 y_bin=y_bin[:, i],
                 w=w[:, i].flatten(),
                 skf=cp,
+                classifier_name=opts.classifier,
                 is_poly_kernel=opts.is_poly_krnl,
                 param_space=param_space,
                 use_grid_search=opts.use_grid_search,
+                use_weights=opts.use_weights,
                 parallel_options=parallel_options,
                 general_options=general_options,
             )
@@ -455,7 +457,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             pr0hat[:, [i]] = res.Phat.reshape(-1, 1)
             box_consnt.append(res.c)
             k_scale.append(res.g)
-            svm.append(res.svm)
+            svm.append(res.classifier)
 
             cm = confusion_matrix(y_bin[:, i], res.Ysub)
             tn, fp, fn, tp = cm.ravel()
@@ -495,7 +497,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         PythiaStage._display_overall_perf(precision_record, accuracy_record)
 
         # Select the algorithm with the highest precision
-        (selection0, selection1) = PythiaStage._determine_selections(
+        selection0, selection1 = PythiaStage._determine_selections(
             nalgos,
             precision_record,
             y_hat,
@@ -546,18 +548,25 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         )
 
     @staticmethod
-    def _fitmatsvm(
+    def _fit_classifier(
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         w: NDArray[np.double],
         skf: StratifiedKFold,
+        classifier_name: str,
         is_poly_kernel: bool,
         param_space: dict[str, list[float]] | None,
         use_grid_search: bool,
+        use_weights: bool,
         parallel_options: ParallelOptions,
         general_options: GeneralOptions,
-    ) -> _SvmRes:
-        """Train a SVM model based on configuration.
+    ) -> _ClassifierResult:
+        """Train one classifier (per `PythiaOptions.classifier`) for one algorithm.
+
+        Only `'svm'` is tuned via `param_space`/grid or Bayesian search - see
+        `instancespace.utils.get_classifier_fcn`. Every other registered
+        classifier is fit once with scikit-learn's own default
+        hyperparameters.
 
         Parameters
         ----------
@@ -569,12 +578,17 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             The sample weights.
         skf : StratifiedKFold
             The stratified k-fold cross-validation object.
+        classifier_name : str
+            `PythiaOptions.classifier` - which registered classifier to train.
         is_poly_kernel : bool
-            Whether to use a polynomial kernel.
+            Whether to use a polynomial kernel. Only meaningful for `'svm'`.
         param_space : dict | None
-            The hyperparameters for the SVM model.
+            The hyperparameters to search, when the classifier is tunable.
         use_grid_search : bool
-            Whether to use grid search for hyperparameter optimization.
+            Whether to use grid search (vs. Bayesian optimisation), when tunable.
+        use_weights : bool
+            Whether cost-sensitive classification was requested - honoured only
+            for classifiers whose `fit()` accepts `sample_weight`.
         parallel_options : ParallelOptions
             The parallel options, specifiy whether run in parallel and number of cores.
         general_options : GeneralOptions
@@ -582,23 +596,51 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         Returns
         -------
-        _SvmRes
-        The SVM result object.
+        _ClassifierResult
+        The trained-classifier result.
         """
-        kernel = "poly" if is_poly_kernel else "rbf"
-        svm_model = SVC(
-            kernel=kernel,
-            random_state=general_options.seed,
-            probability=True,
-            degree=2,
-            coef0=1,
-        )
+        spec = get_classifier_fcn(classifier_name)
+        estimator = spec.build(general_options.seed, is_poly_kernel)
+
+        if not spec.tunable:
+            if use_weights and not spec.supports_sample_weight:
+                logger.warning(
+                    f"[PYTHIA] '{classifier_name}' does not support sample "
+                    "weights - training without cost-sensitive classification "
+                    "for this algorithm.",
+                )
+            if spec.supports_sample_weight:
+                estimator.fit(z, y_bin, sample_weight=w)
+            else:
+                estimator.fit(z, y_bin)
+
+            y_sub = cross_val_predict(estimator, z, y_bin, cv=skf, method="predict")
+            p_sub = cross_val_predict(
+                estimator,
+                z,
+                y_bin,
+                cv=skf,
+                method="predict_proba",
+            )[:, 1]
+            y_hat = estimator.predict(z)
+            p_hat = estimator.predict_proba(z)[:, 1]
+
+            return _ClassifierResult(
+                classifier=estimator,
+                Yhat=y_hat,
+                Ysub=y_sub,
+                Psub=p_sub,
+                Phat=p_hat,
+                c=float("nan"),
+                g=float("nan"),
+            )
+
         if use_grid_search:
             # Perform grid search for hyperparameter optimization
             # The randomizedsearchCV is used to reduce the computational cost
             # by considering a limited number combination of hyperparameters
             optimization = RandomizedSearchCV(
-                estimator=svm_model,
+                estimator=estimator,
                 n_iter=30,
                 param_distributions=param_space,
                 cv=skf,
@@ -608,7 +650,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             )
         else:
             optimization = BayesSearchCV(
-                estimator=svm_model,
+                estimator=estimator,
                 n_iter=30,
                 search_spaces=param_space,
                 cv=skf,
@@ -617,28 +659,61 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 n_jobs=(parallel_options.n_cores if parallel_options.flag else 1),
             )
         optimization.fit(z, y_bin, sample_weight=w)
-        best_svm = optimization.best_estimator_
+        best_estimator = optimization.best_estimator_
         c = optimization.best_params_["C"]
         g = optimization.best_params_["gamma"]
 
-        # Perform cross-validated predictions using the best SVM model
-        y_sub = cross_val_predict(best_svm, z, y_bin, cv=skf, method="predict")
-        p_sub = cross_val_predict(best_svm, z, y_bin, cv=skf, method="predict_proba")[
-            :,
-            1,
-        ]
+        # Perform cross-validated predictions using the best estimator
+        y_sub = cross_val_predict(best_estimator, z, y_bin, cv=skf, method="predict")
+        p_sub = cross_val_predict(
+            best_estimator,
+            z,
+            y_bin,
+            cv=skf,
+            method="predict_proba",
+        )[:, 1]
         # Predict the labels and probabilities for the entire dataset
-        y_hat = best_svm.predict(z)
-        p_hat = best_svm.predict_proba(z)[:, 1]
+        y_hat = best_estimator.predict(z)
+        p_hat = best_estimator.predict_proba(z)[:, 1]
 
-        return _SvmRes(
-            svm=best_svm,
+        return _ClassifierResult(
+            classifier=best_estimator,
             Yhat=y_hat,
             Ysub=y_sub,
             Psub=p_sub,
             Phat=p_hat,
             c=c,
             g=g,
+        )
+
+    @staticmethod
+    def _log_kernel_choice(ninst: int, is_poly_krnl: bool) -> None:
+        """Log the SVM kernel choice and the large-dataset kernel suggestion.
+
+        Only meaningful when `PythiaOptions.classifier == 'svm'`.
+        """
+        if ninst > LARGE_NUM_INSTANCE and not is_poly_krnl:
+            logger.info(
+                "[PYTHIA]   -> For datasets larger than 1K Instances, "
+                "PYTHIA works better with a Polynomial kernel.",
+            )
+            logger.info(
+                "[PYTHIA]   -> Consider changing the kernel if the results are"
+                " unsatisfactory.",
+            )
+            logger.info(
+                "[PYTHIA] ---------------------------------------------------"
+                "----------------",
+            )
+
+        if is_poly_krnl:
+            logger.info("[PYTHIA]  => PYTHIA is using polynomial kernel")
+        else:
+            logger.info("[PYTHIA]  => PYTHIA is using gaussian kernel")
+
+        logger.info(
+            "[PYTHIA] -------------------------------------------------------"
+            "------------------",
         )
 
     @staticmethod

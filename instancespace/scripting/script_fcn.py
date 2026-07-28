@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Provides a suite of helper functions for data processing and visualization.
 
 It includes functionalities for writing arrays and data frames to CSV files,

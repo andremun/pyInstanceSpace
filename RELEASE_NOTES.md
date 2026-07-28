@@ -25,9 +25,9 @@ toolkit rather than a single change.
 
 - Frozen dataclasses for options and metadata give real immutability MATLAB structs
   don't have.
-- A self-validating DAG scheduler (`stage_builder.py`/`stage_runner.py`) infers stage
-  execution order from each stage's declared inputs/outputs, with its own cycle and
-  ambiguity detection, rather than a hand-maintained dependency map.
+- `stage_runner.py` executes a hardcoded, explicit 7-stage order (see the *Better
+  engineering* entry below); `build_stage_runner()` attaches any extra/plugin stage to
+  it via an explicit `RunBefore`/`RunAfter` declaration.
 - `tests/matlab_reference/` provides a cross-implementation golden-reference harness:
   MATLAB-trained artifacts checked in, validated against Python's output stage by stage
   under documented tolerance thresholds.
@@ -106,3 +106,20 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   called them once S1 landed (S3, #284).
 - Removed a dead, commented-out CI lint/format-check step from `validation-tests.yml`
   rather than leaving it neither enabled nor deleted (#259).
+- Replaced `stage_builder.py`'s type-matching DAG auto-resolution (ambiguous-ordering
+  detection, mutating-stage special-casing, iterative wave computation) with a hardcoded
+  explicit order for the built-in 7 stages, verified to resolve to the identical schedule
+  the auto-resolver produced before the change. Any extra/plugin stage now attaches via
+  an explicit `RunBefore[X]`/`RunAfter[X]` declaration instead of relying on its
+  input/output types being matched against the rest of the pipeline — `example_plugin.py`
+  updated accordingly. The remaining attachment logic was subsequently folded directly
+  into `stage_runner.py` as `build_stage_runner()`, and `stage_builder.py` deleted
+  entirely, since it had shrunk to a single call site with no further reason to be a
+  separate module (S2).
+- Added a `classifier` option to `PythiaOptions` (default `'svm'`, matching prior
+  behaviour exactly) and a registry (`instancespace/utils/get_classifier_fcn.py`)
+  dispatching PYTHIA's training to one of six scikit-learn classifiers (`svm`, `knn`,
+  `tree`, `nb`, `linear`, `ensemble`), mirroring MATLAB's `ISAgetClassifierFcn.m`
+  structurally. Only `svm` is tuned via PYTHIA's existing `C`/`gamma` search; the other
+  five are fit with scikit-learn's own default hyperparameters — registering a classifier
+  here is not a claim of MATLAB-verified tuning parity for it (F1).
