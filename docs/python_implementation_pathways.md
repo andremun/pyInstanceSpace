@@ -199,12 +199,26 @@ most sense), `stages/trace.py`, `stages/pythia.py`, `stages/sifted.py`
    default when called repeatedly in-process, so the main win is TRACE's explicit
    `ThreadPoolExecutor`).
 3. Close/dispose on `InstanceSpace.__del__` or an explicit `close()` method — decide which.
+4. **Pickle-exclusion (added alongside roadmap v1.18, required once F7 exists in any form):**
+   add `__getstate__`/`__setstate__` to whichever class holds the pool attribute, dropping it
+   from the returned state dict on `__getstate__` and setting it back to `None` on
+   `__setstate__`. Without this, `Model.save()`/`InstanceSpace.save()` (F7) either crashes
+   outright when a pool is live (a `ThreadPoolExecutor` holds `threading.Lock`/`Thread` objects
+   pickle can't serialise) or only "works" because the caller happened to call `close()` first —
+   a scenario-dependent failure that would surface as an intermittent F7 test failure rather than
+   an obvious gap here. This is not optional cleanup, it's a correctness requirement for
+   anything downstream that pickles the object holding the pool.
 **Test:** assert no new `ThreadPoolExecutor` is constructed on a second `run_stage(TraceStage)`
 call with the same `n_cores`; assert one *is* constructed if `n_cores` changes between calls.
+Also assert `pickle.dumps()`/`save()` succeeds with a live (unclosed) pool and that the pool
+attribute comes back unset after `load()`, with the next `run_stage()` call recreating it lazily
+— this is the test that actually proves the pickle-exclusion works, not just an assumption.
 **Decision needed:** explicit `close()` method the user must call, or rely on `__del__`
 (implicit, less reliable in Python but less API surface)? Recommended default: explicit
 `close()`, since relying on `__del__` for resource cleanup is a known Python anti-pattern
-(non-deterministic timing, exceptions during interpreter shutdown are swallowed).
+(non-deterministic timing, exceptions during interpreter shutdown are swallowed). Note this
+decision only governs live-session cleanup — the pickle-exclusion above is required regardless
+of which option is chosen here.
 
 ### Q7 — Add `plot()` convenience methods
 **Files:** new `instancespace/plotting.py` (or methods directly on `InstanceSpace`)
