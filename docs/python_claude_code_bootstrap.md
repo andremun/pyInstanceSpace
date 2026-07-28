@@ -35,8 +35,11 @@ session. Commit message: `docs: add roadmap, implementation pathways, and CLAUDE
 ## Step 2 — Create milestones
 
 Two, matching the near-term/long-term split already in the roadmap:
-- **`fork-merge-and-quality`** — Phase -1 (if not already done), P0–P5, Phase Q, Phase T.
-  Everything additive or low-risk-behavior-changing-with-a-clear-verification-step.
+- **`fork-merge-and-quality`** — Phase -1 (if not already done), P0–P5, Phase Q, Phase S,
+  Phase T. Everything additive or low-risk-behavior-changing-with-a-clear-verification-step.
+  Phase S belongs here, not in `functionality-parity`, despite being sequenced *before* F-phase
+  work — it's a simplification pass, not new functionality, and several F-items (F1, F7, F8)
+  can't be scoped correctly until it lands.
 - **`functionality-parity`** — F1–F9, R1–R3. Long-term, several explicitly "audit first."
 
 ```bash
@@ -49,6 +52,7 @@ gh api repos/{owner}/{repo}/milestones -f title="functionality-parity" -f state=
 ```bash
 gh label create "phase:P" --color "0E8A16" --description "Documentation & quality"
 gh label create "phase:Q" --color "1D76DB" --description "MATLAB-derived quality ideas"
+gh label create "phase:S" --color "0052CC" --description "Structural simplification (before F-phase)"
 gh label create "phase:F" --color "5319E7" --description "Functionality parity (long-term)"
 gh label create "phase:R" --color "FBCA04" --description "Third-party implementation ideas"
 gh label create "phase:T" --color "D93F0B" --description "Testing infrastructure"
@@ -59,15 +63,28 @@ gh label create "compat:unknown" --color "BFD4F2" --description "Needs its own a
 
 ## Step 4 — Create one parent issue per phase, with sub-issues underneath
 
-For each phase (P, Q, F, R, T), create a parent issue summarizing the phase (pull the
+For each phase (P, Q, S, F, R, T), create a parent issue summarizing the phase (pull the
 phase-level prose straight from the roadmap document — don't rewrite it), then create one
-sub-issue per numbered item (P0, P1, ... Q1, Q2, ... etc.), each with:
+sub-issue per numbered item (P0, P1, ... Q2, Q3, ... S1, S2, S3, ... etc.), each with:
 - Title: the item's heading from the roadmap (e.g. "Q9 — Centralise RNG seeding via a
   `general.seed` option")
 - Body: the item's full text from the roadmap, plus its implementation pathway from
   `python_implementation_pathways.md`
 - Labels: the relevant `phase:X` and `compat:Y` labels
 - Milestone: `fork-merge-and-quality` or `functionality-parity` per the item's phase
+
+**Q1 is a special case — do not skip it silently.** It's retired in the roadmap (superseded by
+S3), not a normal open item. Create it anyway, immediately closed, with a one-line body
+pointing to S3 — this preserves the numbering for anyone who finds "Q1" referenced elsewhere
+(other documents, the drafted MATLAB issue batches) without leaving a dangling, unexplained gap
+in the sequence:
+```bash
+gh issue create --title "Q1 — RETIRED, superseded by S3" \
+  --body "Originally: fix build_explore_adapter.py's poly-kernel gap. Superseded: S1 + the \
+closed cross-platform-loading decision make the whole adapter module unnecessary. See S3." \
+  --label "phase:Q" --milestone "fork-merge-and-quality"
+gh issue close <issue-number> --comment "Closed on creation — retired in favour of S3."
+```
 
 ```bash
 # Parent issue example (Phase Q)

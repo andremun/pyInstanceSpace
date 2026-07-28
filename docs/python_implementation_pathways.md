@@ -1,6 +1,6 @@
 # pyInstanceSpace — Implementation Pathways
 
-**Companion to:** `pyIS_docs_quality_roadmap.md` (v1.12)
+**Companion to:** `pyIS_docs_quality_roadmap.md` (v1.15)
 **Purpose:** every task in that roadmap, expanded to implementation-ready detail — files to
 touch, concrete steps, and every open decision flagged explicitly with a recommended default.
 Organised in the same P/Q/F/R/T structure. Nothing here has been implemented; this is the plan
@@ -114,31 +114,13 @@ immediately; revisit (a) once the repo has more external users who'd benefit fro
 
 ## Phase Q — MATLAB-derived quality ideas
 
-### Q1 — Fix build→explore adapter's missing polynomial-kernel branch
-**Files:** `instancespace/build_explore_adapter.py`
-**Pathway:**
-1. In `_svc_to_artifact()`, add an `elif svc.kernel == "poly":` branch. MATLAB's PYTHIA doesn't
-   expose a `poly` *degree* option in the current registry, but scikit-learn's default degree
-   is 3 — decide whether to read `svc.degree` and pass it through, or hardcode 3 to match
-   MATLAB's implicit behaviour today (MATLAB's `ispolykrnl` doesn't parameterise degree either).
-2. `kernel_param` for poly should carry whatever the artifact format's poly-kernel scoring
-   function expects — check `_explore_pythia`'s existing poly-handling branch (it already has
-   one: `elif kernel_fn == "polynomial": k = (z_norm @ svs.T + 1.0) ** order`) — so `kernel_fn`
-   should be the string `"polynomial"` (not `"poly"`) to match what `_explore_pythia` already
-   checks for, and `kernel_param` should carry the degree as `order`.
-3. Aside worth noting while in this function: the existing `"linear"` branch appears to be dead
-   code today — `stages/pythia.py`'s only training call is `kernel = "poly" if is_poly_kernel
-   else "rbf"`, never `"linear"` — so `build()` can never actually produce a linear-kernel SVC
-   for this branch to handle. Not a bug, just worth a comment noting it's defensive/future-proofing
-   rather than reachable today.
-4. Generate the missing MATLAB reference fixture (T-phase dependency, §7.3 of the roadmap)
-   before writing the round-trip validation test — without it there's nothing to check the
-   fix's numerical output against.
-**Test:** build with `is_poly_krnl=True` → `.explore()` → assert no exception and predictions
-are finite/sane; once the new reference fixture exists, validate against it with the same
-tolerance convention as the other `_validation.py` tests.
-**Decision needed:** none blocking — the degree-handling question above is a one-line choice,
-recommended default: hardcode degree 3 to match MATLAB's current (also-hardcoded) behaviour.
+### Q1 — RETIRED, superseded by S3
+This pathway (adding a `poly` branch to `_svc_to_artifact()`) is no longer the plan. S1 makes
+`explore()` operate on native `SVC` objects, which handle poly kernels via `.predict_proba()`
+with no special-casing needed at all — and S3 retires `build_explore_adapter.py` entirely once
+that lands, since nothing calls it anymore. See S3's pathway below instead. (The aside in the
+original pathway about `_svc_to_artifact()`'s `"linear"` branch being unreachable is now moot
+too — the whole function is being deleted, not patched.)
 
 ### Q2 — Out-of-distribution warning in `explore()`
 **Files:** `instancespace/instance_space.py` (`_explore_prelim`)
@@ -307,6 +289,78 @@ production callers settle it in favour of `0`.
 
 ---
 
+## Phase S — structural simplification (before Phase F)
+
+### S1 — Collapse model-shape detection to native scikit-learn objects
+**Files:** `instancespace/instance_space.py` (`_ensure_explore_model`, `_explore_pythia`),
+`instancespace/build_explore_adapter.py` (scope narrows to F7's persistence use only, if kept
+at all)
+**Pathway:**
+1. **Decision resolved, not just confirmed:** cross-platform MATLAB-model loading is closed as
+   impractical — not attempted, not "impossible" in principle, but not worth building given the
+   real cost (six PYTHIA classifier types, several with no clean flattened representation —
+   decision trees especially). Recorded this way specifically so it can be reopened if a real
+   use case ever appears. Proceed with the steps below.
+2. Rewrite `_explore_pythia` to call `svc.predict(z)`/`svc.predict_proba(z)` directly on the
+   stored `SVC` objects in `model.pythia.svm`, replacing the hand-rolled decision-function
+   recomputation from flattened parameters.
+3. Remove `_ensure_explore_model()`'s branching entirely (not just simplify it) — there's only
+   one shape to handle once native objects are the interface.
+4. `adapt_for_explore()`/`build_explore_adapter.py` has no remaining purpose at all once this
+   and F7's signed-pickle design (no flattening needed — `SVC` objects pickle natively) both
+   land — see S3, which retires the file outright rather than narrowing its scope.
+5. Re-run `test_pythia_validation.py` unmodified as a regression check — it bypasses
+   `_ensure_explore_model()` via `Mock(spec=PythiaOut)` and calls `_explore_pythia` directly, so
+   it shouldn't need changes, but confirm that explicitly rather than assume it.
+6. New test: build with each kernel type (rbf, linear, poly) via `stages/pythia.py`, call
+   `explore()`, assert predictions match calling `.predict_proba()` directly on the same stored
+   `SVC` — this is also what makes the old Q1 (poly-kernel `NotImplementedError`) moot, since
+   native `predict_proba()` handles poly kernels with no special-casing at all.
+**Decision needed:** none — resolved above.
+
+### S2 — Replace DAG auto-resolution with explicit stage order + prerequisites
+**Files:** `instancespace/stage_builder.py` (removed or drastically reduced),
+`instancespace/instance_space.py` (constructor — replace the `StageBuilder` call with a direct
+list), `instancespace/stage_runner.py` (keep — the *execution* engine given a resolved order is
+still useful; only the *resolution* algorithm goes)
+**Pathway:**
+1. Write the explicit structure MATLAB's `InstanceSpace.m` uses as a template: an ordered list
+   (`[PreprocessingStage, PrelimStage, SiftedStage, PilotStage, CloisterStage, PythiaStage,
+   TraceStage]`, encoding that `CloisterStage`/`PythiaStage` can run in either order relative to
+   each other but both after `PilotStage`) plus an explicit prerequisite mapping.
+2. Keep each stage's declared `_inputs()`/`_outputs()` NamedTuple typing — the point is to stop
+   *inferring* the schedule from it, not to stop *checking* declared types against it. `mypy
+   --strict` should still catch a stage declaring a field type that doesn't match what's
+   actually available at that point in the explicit order.
+3. Remove: the ambiguous-ordering error path, mutating-stage special-casing, wave computation
+   (confirmed elsewhere — Q6/T6 — that wave-based concurrency isn't actually used).
+4. Keep: `run_stage()`, `run_until_stage()`, `run_iter()` — these are the genuinely valuable
+   public capabilities, and none of them require auto-resolution to work; MATLAB provides the
+   equivalent (`build('stages', {...})`) off its own hardcoded structure.
+5. Sequence before T6, or skip T6 entirely — no point writing edge-case tests for an
+   ambiguity-detection algorithm about to be removed.
+**Test:** run the full 7-stage pipeline before and after, assert identical execution order and
+identical output — this change should be invisible from the outside.
+**Decision needed:** none blocking — this is a mechanical simplification once the team is
+comfortable trading auto-inference for hand-written (but still type-checked) explicitness.
+
+### S3 — Retire `build_explore_adapter.py` entirely
+**Files:** `instancespace/build_explore_adapter.py` (deleted), `tests/build_explore_adapter/
+test_adapter.py` (deleted or repurposed)
+**Pathway:**
+1. Sequence strictly after S1 — this is a consequence of S1 landing, not independent work.
+2. Delete `build_explore_adapter.py` (`adapt_for_explore`, `_svc_to_artifact`) in full.
+3. `test_adapter.py::test_unsupported_kernel_raises` has nothing left to test once
+   `_svc_to_artifact` is gone — delete it along with the rest of the file, rather than leaving
+   a test importing a module that no longer exists.
+4. Grep the whole repo for any remaining reference to `build_explore_adapter` before considering
+   this done — confirm zero, not just the call sites already known about from S1's work.
+**Test:** the full existing suite passing with the module gone *is* the test here — nothing new
+to verify, only an absence to confirm.
+**Decision needed:** none — purely a consequence of S1 and the closed cross-platform decision.
+
+---
+
 ## Phase F — functionality parity (long-term)
 
 ### F1 — PYTHIA classifier registry
@@ -337,14 +391,13 @@ mirroring `ISAgetClassifierFcn.m`'s table.
    already generic over two numeric hyperparameters per the code I read earlier — check it
    isn't accidentally SVM-kernel-specific anywhere before assuming it "just works" for other
    classifiers.
-4. **This interacts directly with the build→explore adapter (Q1/`build_explore_adapter.py`)** —
-   that adapter currently only knows how to flatten an `SVC` into the artifact format. Adding
-   `knn`/`tree`/`nb`/`linear`/`ensemble` as trainable classifiers means `explore()` needs an
-   equivalent artifact-flattening (or a different mechanism entirely) for each new classifier
-   type, or `explore()` needs to learn to consume whichever classifier was actually trained
-   directly rather than only ever going through the flattened-artifact path. This is a real
-   scope dependency between F1 and F8 (unifying build/explore) worth resolving together rather
-   than separately.
+4. **Sequence this after S1.** Before S1, this point would have said the build→explore adapter
+   needs equivalent artifact-flattening for every new classifier type — a real scope dependency
+   between F1 and F8. S1 resolves that: once `explore()` calls `.predict()`/`.predict_proba()`
+   natively on whatever classifier `build()` trained, every classifier in the table above
+   already works on the explore side for free, no per-classifier flattening logic needed. Doing
+   F1 before S1 would mean writing that flattening logic and then deleting it — sequence S1
+   first.
 **Decision needed:** what should the *default* `classifier` value be once this exists — `'svm'`
 (preserves today's Python behaviour exactly) or `'knn'` (matches MATLAB's default, for
 cross-implementation consistency)? Recommended default: **`'svm'`**, to avoid silently changing
@@ -437,62 +490,67 @@ can insert this across all files in one pass.
 `CITATION.cff`'s `authors` field in P1; worth deciding both together rather than twice.
 
 ### F7 — Model save/load round-trip
-**Decision made: HDF5 via `h5py`.**
-**Files:** `instancespace/model.py` (new `Model.save()`/`Model.load()`), `pyproject.toml` (new
-`h5py` dependency), `instancespace/data/model.py` (for schema versioning)
+**Decision revised: signed `pickle`/`joblib`, superseding the earlier HDF5-via-`h5py` decision.**
+Confirmed production threat model: on the web platform, models are produced by the system and
+downloaded, never re-uploaded — `load()` never receives externally-supplied input, closing
+pickle's core objection, *provided this is enforced, not merely assumed* (see the
+non-negotiable requirement below).
+**Files:** `instancespace/model.py` (new `Model.save()`/`Model.load()`), no new dependency
+(`hmac`/`hashlib`/`pickle` are all stdlib; `joblib` is already a transitive scikit-learn
+dependency)
 **Pathway:**
-1. `poetry add h5py`. Since this is a new dependency, it goes through the same P0-style
-   scrutiny as anything else in `pyproject.toml` — check its own transitive dependency tree
-   before merging, not just after (this repo's own P0 audit found problems that had sat
-   unnoticed in existing transitive dependencies; no reason a new one gets a pass).
-2. `save()`: open an `h5py.File` in write mode; one HDF5 group per top-level `Model` field
-   (`data`, `prelim`, `sifted`, `pilot`, `cloister`, `pythia`, `trace`, `opts`); numpy arrays
-   become HDF5 datasets directly (h5py's native strength — no manual flattening needed, unlike
-   the JSON+`.npz` option); scalars/strings become group attributes; nested dataclasses become
-   nested HDF5 groups. Record a `schema_version` attribute at the file root.
-3. `load()`: reverse the process, reconstructing each frozen dataclass from its group's
-   attributes/datasets; raise a clear error if `schema_version` doesn't match a version this
-   `load()` knows how to read (don't attempt a silent best-effort partial load).
-4. Non-trivial parts worth flagging up front, not discovered mid-implementation:
-   - `pythia.svm` is a list of per-algorithm SVM objects (either fitted scikit-learn `SVC`s from
-     `build()`, or the flattened MATLAB-artifact `SimpleNamespace` form from `explore()`'s
-     adapter — see F8) — these aren't numpy arrays or simple scalars, so they need an explicit
-     serialisation shape decision: store each `SVC`'s constituent arrays (`support_vectors_`,
-     `dual_coef_`, `intercept_`, `probA_`/`probB_`) directly as HDF5 datasets per algorithm
-     (recommended — keeps the file free of anything resembling object serialisation), rather
-     than trying to round-trip the `SVC` object itself.
-   - `trace.good`/`trace.best` are `shapely` `Polygon`/`MultiPolygon` objects — serialise as
-     vertex arrays (the same vertex-list-with-NaN-separator convention already used for CSV
-     export, per `_serialisers.py`) rather than trying to store shapely objects directly.
-   - Neither of these needs anything unsafe — both are "flatten a Python object into arrays we
-     already know how to write," not "serialise arbitrary Python state," so the F7 design
-     constraint (no unsafe deserialisation) holds throughout.
-5. Round-trip test: save then load, assert deep equality — `np.array_equal` for arrays,
-   value-equality for the reconstructed SVM/polygon objects (compare their constituent arrays,
-   not object identity).
-6. Adversarial test: truncate/corrupt a saved `.h5` file, assert `load()` raises a clear `h5py`-
-   or schema-level error rather than partially succeeding or executing anything.
-**Decision needed:** none remaining — format is chosen; the SVM/polygon flattening shape above
-is a design detail worth a second look during implementation, not a blocking decision now.
+1. `save()`: `pickle.dumps(model)` (or `joblib.dump` — prefer `joblib` for large numpy arrays,
+   it's more efficient than raw pickle for that case and already in the dependency tree via
+   scikit-learn), then compute `hmac.new(secret_key, data, hashlib.sha256).digest()` and store
+   the signature alongside the serialised bytes (e.g. a small header, or a sibling `.sig` file).
+2. `load()`: read the bytes and signature, **recompute the HMAC and compare before touching
+   `pickle.loads()` at all** — if the signature doesn't match, raise immediately and never
+   deserialise. This ordering is the entire safety property; get this step first, not "verify
+   then load" as two independent steps that could be reordered by a future edit.
+3. Secret key management: needs a real answer before this ships — a server-side secret,
+   rotated on whatever cadence the deployment's secret-management practice already uses. Not
+   this document's call to make; flag to whoever owns the web platform's deployment.
+4. Once S1 lands: `pythia.svm`'s `SVC` objects pickle natively, exactly as fitted — no
+   flattening step, no `SimpleNamespace` conversion at load time. `trace.good`/`trace.best`
+   (shapely `Polygon`/`MultiPolygon`) also pickle natively — the vertex-array flattening this
+   pathway previously specified for HDF5 is no longer needed.
+5. Round-trip test: save then load, assert deep equality (`np.array_equal` for arrays;
+   `SVC`/polygon objects can be compared directly now, no constituent-array comparison needed).
+6. Signature-tampering test: flip one byte in the serialised payload, assert `load()` refuses
+   before ever calling `pickle.loads()` — this is the test that actually proves the safety
+   property holds, not just an assertion in a docstring.
+7. Path-safety test: assert (via whatever mechanism enforces it — allowlist, storage-layer
+   check) that `load()` is structurally unreachable from any user-supplied path or parameter.
+   This is the one thing the whole design's safety depends on; it needs its own test, not just
+   an assumption documented here.
+**Decision needed:** where does the HMAC secret key live and get rotated? Not a code-design
+question — a deployment/ops one, flag it rather than guessing.
 
 ### F8 — Unify `explore()` with build-time stage code
+**Narrowed by S1 — TRACE only.** S1 (see Phase S) resolves the PYTHIA half of this item as a
+side effect: once `explore()` calls native `.predict()`/`.predict_proba()` on the stored `SVC`
+instead of reimplementing the SVM decision function by hand, there is no second implementation
+left to reconcile with the first. The remaining scope below applies to TRACE's footprint/
+alpha-shape membership testing only — a genuinely different kind of computation S1's insight
+doesn't extend to.
+
+
 **Files:** `instancespace/stages/stage.py` (possibly extending the `Stage` contract),
-`instancespace/instance_space.py` (`_explore_pythia`/`_explore_trace`/etc. would be replaced or
-rewritten to call into the stage classes)
+`instancespace/instance_space.py` (`_explore_trace` specifically — `_explore_pythia` is
+retired entirely once S1 lands, not folded into this item)
 **Pathway — two ambition levels, pick one:**
-- **Lighter:** extract the *numerical core* of each stage's train-time logic into a shared
-  pure function that both the stage's `_run()` and `explore()`'s corresponding `_explore_*`
-  method call — no change to the `Stage`/`StageRunner` architecture itself, just de-duplicating
-  the math underneath it. Lower risk, doesn't touch the DAG scheduler.
+- **Lighter:** extract the *numerical core* of `TraceStage`'s footprint/alpha-shape logic into
+  a shared pure function that both `TraceStage._run()` and `explore()`'s `_explore_trace`
+  method call — no change to the `Stage`/`StageRunner` architecture itself, just
+  de-duplicating the math underneath it. Lower risk, doesn't touch the DAG scheduler.
 - **Fuller:** extend the `Stage[IN, OUT]` contract with a second entry point (e.g. `_predict()`
-  alongside `_run()`) so `PythiaStage`/`TraceStage` themselves know how to run in inference mode,
-  and `explore()` dispatches to `_predict()` directly instead of maintaining separate
-  `_explore_*` methods at all. Higher risk (changes a core abstraction every stage implements),
-  but closes the drift risk more completely — a bug fixed in `_run()` is structurally guaranteed
-  to also be fixed in `_predict()` if they share the surrounding class, not just a shared helper
-  function.
+  alongside `_run()`) so `TraceStage` itself knows how to run in inference mode, and
+  `explore()` dispatches to `_predict()` directly instead of maintaining `_explore_trace`
+  separately. Higher risk (changes a core abstraction every stage implements), but closes the
+  drift risk more completely — a bug fixed in `_run()` is structurally guaranteed to also be
+  fixed in `_predict()` if they share the surrounding class, not just a shared helper function.
 **Test (either way):** the drift-detection test already scoped in the roadmap's Phase T —
-deliberately break something in `PythiaStage`'s training logic, assert both the build-path test
+deliberately break something in `TraceStage`'s footprint logic, assert both the build-path test
 *and* the explore-path test fail, proving they can no longer silently diverge.
 **Decision needed:** lighter (shared function) or fuller (extended `Stage` contract)?
 Recommended default: **lighter**, as a first step — it captures most of the "no more silent
@@ -668,12 +726,14 @@ this document — noting it rather than escalating to the top-3 question list.
 **Resolved:** F7 (HDF5 via `h5py`), Q5 (keep permissive feature-order auto-reorder), F9
 (Option 1 — extend `explore()` itself, with the "new algorithm" edge case deferred by default),
 Q9 (seed default — `0`, not `None`; corrected once the production/backward-compatibility
-context was confirmed — see the note at the top of this document).
+context was confirmed — see the note at the top of this document), S1 (cross-platform
+MATLAB-model loading closed as impractical given no demonstrated need, not impossible —
+consequently Q1 is retired in favour of S3, which retires `build_explore_adapter.py` entirely).
 
 **Still open, each with a recommended default stated in place above:** Q7 (API shape — four
 idiomatic methods vs. one MATLAB-style dispatch method),
 F1 (default classifier once the registry exists — `'svm'` vs. `'knn'`), F8 (ambition level —
-shared function vs. extended `Stage` contract), T1 (coverage threshold, can't be set before a
-baseline exists), T5 (warn vs. fail on fixture staleness), T7 (three-way vs. two-way test-file
-split). Flag any of these you'd like to override and I'll update this document and the roadmap
-accordingly.
+shared function vs. extended `Stage` contract, now scoped to TRACE only per S1), T1 (coverage
+threshold, can't be set before a baseline exists), T5 (warn vs. fail on fixture staleness), T7
+(three-way vs. two-way test-file split). Flag any of these you'd like to override and I'll
+update this document and the roadmap accordingly.

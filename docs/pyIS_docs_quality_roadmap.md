@@ -1,6 +1,6 @@
 # pyInstanceSpace — Documentation & Quality Roadmap
 
-**Version:** v1.13
+**Version:** v1.15
 **Date:** 2026-07-26
 **Scope:** `aoxiangx/pyInstanceSpace` (branch `explore/build-explore-adapter`, tracking `andremun/pyInstanceSpace`)
 **Owner:** Andrés (review) / aoxiangx (delivery)
@@ -35,11 +35,17 @@ architecture or MATLAB's current quality bar. So:
 - **Phase T** (added v1.6): testing-infrastructure audit — what's actually strong (the
   MATLAB-reference validation harness) versus genuinely thin (no end-to-end integration test,
   no coverage tooling, DAG-resolver edge cases untested), plus the specific tests every
-  already-scoped item above (Q1, Q2, Q8, F7, F8, R1, R2) needs to be verified, not just built.
+  already-scoped item above (Q2, Q8, F7, F8, R1, R2, S1, S3) needs to be verified, not just built.
 - **Phase -1** (added v1.11): a prerequisite, not a phase in sequence — merge the fork
   (`aoxiangx/pyInstanceSpace`) back into the upstream repo (`andremun/pyInstanceSpace`)
   before, or very early alongside, P0. Everything else in this document assumes work
   continues on a single, merged codebase.
+- **Phase S** (added v1.14): structural simplification, sequenced before F-phase work
+  specifically because it changes *how* F1/F7/F8 should be built, not just what quality bar
+  they meet. Removes generality the codebase doesn't currently use (a model-shape detection
+  branch with no reachable second case; a DAG auto-resolver for a pipeline whose shape has
+  never actually varied), in favour of designs already proven sufficient by the MATLAB
+  reference implementation.
 
 Nothing below has been implemented yet; this is the plan, not the change.
 
@@ -81,9 +87,9 @@ not a fast-forward, but git resolved it automatically without help.
    action needed from aoxiangx's side, since the fork is public. Verified `andremun/
    pyInstanceSpace` already has the same `validation-tests.yml` CI as the fork, so this runs
    the test suite against the merge automatically, and it's a natural place to attach the
-   already-catalogued follow-up work (Q1's poly-kernel gap, F4's audit findings, and everything
-   else in this document) as a visible checklist rather than leaving it undiscoverable in a
-   silent merge.
+   already-catalogued follow-up work (S3's planned retirement of `build_explore_adapter.py`,
+   F4's audit findings, and everything else in this document) as a visible checklist rather
+   than leaving it undiscoverable in a silent merge.
 
 **Checkpoint:** PR merged, CI green, `main` contains the stage architecture and `build()`/
 `explore()`/`explore_iter()` API the rest of this roadmap assumes already exists.
@@ -213,19 +219,20 @@ if any output CSV is likely to be opened in Excel downstream).
 
 ## 4. Phase plan — quality ideas transferred from MATLAB (near-term, low-risk)
 
-The reverse of §5.1's audit: concrete MATLAB v0.9.0 behaviours worth adopting in Python.
+The reverse of §6.1's audit: concrete MATLAB v0.9.0 behaviours worth adopting in Python.
 Filtered specifically for low risk — each item below is additive or narrowly contained, doesn't
 touch the DAG scheduler (`stage_builder.py`/`stage_runner.py`) or change any stage's algorithm,
-and is independently testable. Heavier ideas that didn't clear that bar are in §5 as F7–F9
+and is independently testable. Heavier ideas that didn't clear that bar are in §6 as F7–F9
 instead.
 
-### Q1 — Fix build→explore adapter's missing polynomial-kernel branch
-**[Additive]** — fixes a path that currently always raises `NotImplementedError`; no working caller could have depended on the old failure.
-`build_explore_adapter.py::_svc_to_artifact()` handles `"rbf"` and `"linear"` only; `stages/pythia.py`
-can train `"poly"` (per `opts.pythia.ispolykrnl` parity with MATLAB). Calling `.explore()` after a
-poly-kernel `build()` raises `NotImplementedError` today. **This is a bug fix, not a hygiene
-item** — recommend doing this first, ahead of Q2–Q8, since it's the one item on this list with
-a reproducible failure case rather than a missing nicety.
+### Q1 — RETIRED, superseded by S3
+**Originally:** fix `build_explore_adapter.py`'s missing polynomial-kernel branch (it handled
+`"rbf"`/`"linear"` only, raising `NotImplementedError` for poly-kernel models). **Superseded,
+not fixed:** with S1 (native scikit-learn objects in `explore()`) and the closed decision that
+cross-platform MATLAB-model loading isn't worth building, the adapter this bug lived in has no
+remaining reason to exist at all — see S3, which retires the whole file rather than patching
+one branch of it. Kept this heading as a pointer rather than deleting it outright, since other
+parts of this document (and the drafted MATLAB issue batches) reference "Q1" by name.
 
 ### Q2 — Out-of-distribution warning in `explore()`
 **[Additive]** — adds a logged warning only; no change to any returned value.
@@ -272,11 +279,11 @@ inline matplotlib boilerplate to demonstrate the same views MATLAB's manual show
 
 ### Q8 — Regression test for stage-rerun invalidation (verification, not yet a fix)
 **[Additive]** — this is a test. If it reveals a real fix is needed, that fix (in `stage_runner.py`) inherits its own **[Behavior-changing]** tag — don't assume it's free just because the test itself is.
-§5.1 flagged that Python's `_rollback_to_schedule_index()` invalidates by schedule-wave position
+§6.1 flagged that Python's `_rollback_to_schedule_index()` invalidates by schedule-wave position
 rather than by real dependency (MATLAB's `invalidateDownstream()` BFS). Write a test: build,
 re-run `cloister` only via `run_stage()`, and check whether `pythia`'s output is unnecessarily
 marked stale. If the test confirms over-invalidation, promote the fix to F-phase work (it touches
-`stage_runner.py`, so it doesn't clear this phase's low-risk bar) — see the note on F4 in §5.
+`stage_runner.py`, so it doesn't clear this phase's low-risk bar) — see the note on F4 in §6.
 
 ### Q9 — Centralise RNG seeding via a `general.seed` option
 **[Behavior-changing if defaulted wrong — corrected below]** Every current build/explore call is
@@ -327,15 +334,119 @@ removed. One-line decision, not a design question: either uncomment it (folding 
 whatever T4 lands as `poe test`'s real content) or delete the dead lines outright — leaving
 commented-out CI steps in place is exactly the anti-pattern the practice above names.
 
-**Checkpoint for Phase Q:** existing `pytest` suite passes; a new poly-kernel build→explore
-round-trip test passes (Q1); `pytest` covers the new out-of-distribution warning (Q2), the
-feature-order regression test (Q5), and the new seed option (Q9) producing identical output
-across repeated runs with the same seed and different output across different seeds; no change
-to any stage's numerical output for the reference dataset when run with the same seed as before.
+**Checkpoint for Phase Q:** existing `pytest` suite passes (Q1 is retired — see S3's checkpoint
+instead); `pytest` covers the new out-of-distribution warning (Q2), the feature-order
+regression test (Q5), and the new seed option (Q9) producing identical output across repeated
+runs with the same seed and different output across different seeds; no change to any stage's
+numerical output for the reference dataset when run with the same seed as before.
 
 ---
 
-## 5. Phase plan — functionality parity (long-term, deferred)
+## 5. Phase S — structural simplification (before F-phase)
+
+Two candidates surfaced during an architecture discussion, not from a code-pattern audit like
+Q/R — both remove generality the codebase carries but doesn't currently use, in favour of
+designs the MATLAB reference implementation already proves sufficient. Sequenced *before*
+F-phase specifically because S1 changes how much new code F1/F7/F8 actually need.
+
+### S1 — Collapse model-shape detection to the one reachable path
+**[Behavior-changing risk — but see native-object recommendation below, which changes the risk shape]**
+`instance_space.py`'s `_ensure_explore_model()` branches on whether `self._model.pythia.svm[0]`
+has an `.alphas` attribute — real scikit-learn `SVC` objects don't, the flattened
+("MATLAB-artifact") shape does. Verified directly: there is no `Model.load()` (F7 gap) and no
+MATLAB-`.mat`-into-Python loader anywhere in this repo, so the "already flattened" branch is not
+reachable by any real, documented, working path today — the only place it's exercised is
+`test_pythia_validation.py`, which bypasses this method entirely via `Mock(spec=PythiaOut)` and
+calls `_explore_pythia` directly with a hand-built `SimpleNamespace`.
+
+**Recommended design, not just a branch removal:** go further than collapsing the detection —
+have `explore()` operate on live scikit-learn objects natively (`.predict()`/`.predict_proba()`)
+instead of a hand-rolled recomputation of the SVM decision function from flattened parameters.
+Scikit-learn's Estimator API already gives every classifier type the same calling convention,
+which is what F1's classifier registry needs on the *build* side anyway — this makes the
+*explore* side of F1 close to free, and removes the reimplemented-SVM-math half of F8 outright
+(there's no second implementation left to reconcile with the first). See F1/F8 below, revised
+accordingly.
+
+**What this does *not* mean:** don't delete `adapt_for_explore()` or the flattened shape
+entirely — it's still needed as F7's *persistence* format (see F7 below, also revised). It
+stops being `explore()`'s primary interface and becomes purely a save/load serialisation
+concern.
+
+**[DECISION] Topic:** is the "accept an externally-produced model" branch a dead path or a
+planted seam? **Closed.** Cross-platform MATLAB-model loading is impractical, not attempted —
+not "impossible" in principle, but not worth building given the actual cost: MATLAB's PYTHIA
+registry has six classifier types, each needing its own converter (the SVM one already required
+non-trivial kernel-scale and Platt-parameter handling that doesn't generalise), and at least one
+type (decision trees — fitted state is splitting rules and node structure, not a few named
+arrays) has no clean flattened representation at all. Six converters, several without a good
+solution, for a capability with no demonstrated need, isn't worth it. Recorded as "impractical
+given no demonstrated need" rather than "impossible" specifically so this can be reopened later
+if a real use case ever appears — this is a closed decision under current circumstances, not a
+permanent architectural wall.
+
+**Test impact:** `test_pythia_validation.py` bypasses `_ensure_explore_model()` via mocking, so
+it is not directly affected by this change — but re-verify it explicitly rather than assuming,
+since it's the one place today that exercises the artifact shape at all.
+
+### S2 — Replace DAG auto-resolution with explicit stage order + prerequisites
+**[Additive if done carefully — see the type-safety tradeoff below, which is the real cost]**
+`stage_builder.py` (414 lines) infers stage dependencies from NamedTuple field-name/type
+matching, with cycle detection, ambiguous-ordering errors, mutating-stage handling, and
+`RunBefore`/`RunAfter` overrides. MATLAB's `InstanceSpace.m` does the equivalent with a
+~10-line hardcoded `StageOrder` cell array and `StagePrereq` map. This pipeline's shape
+(prelim → sifted → pilot → {cloister, pythia} → trace) has been stable across everything
+read in this whole project — no stage insertions or reorderings in evidence, and even F2/F5
+extend existing stages' internals rather than proposing new ones.
+
+**Proposed change:** explicit `StageOrder`-equivalent list + explicit prerequisite mapping,
+still typed against each stage's declared input/output NamedTuples so `mypy --strict` can
+verify the *literal* prerequisites as written — just not *auto-infer* them. This keeps most of
+the type-safety benefit the current design provides while dropping the resolution algorithm
+and the edge cases (ambiguous-ordering detection, mutating-stage special-casing, wave
+computation — the last of which Q6/T6 already found isn't even used for real parallelism)
+that nothing currently exercises.
+
+**Real cost, not a formality:** losing auto-*inference* is losing something — a stage
+declaring the wrong input type today gets caught by the resolver at typecheck-adjacent time
+(via the NamedTuple matching); a hand-written prerequisite map, MATLAB's way, only fails at
+runtime if someone gets it wrong. This is a genuine tradeoff to make consciously, not an
+incidental side effect to discover later.
+
+**Sequencing:** do this *before* T6 (DAG-resolver edge-case tests), or not at all — there's no
+point writing tests for an ambiguity-detection algorithm about to be deleted.
+
+### S3 — Retire `build_explore_adapter.py` entirely
+**[Additive]** — deleting code nothing calls once S1 lands and cross-platform loading is
+closed; the risk here is entirely in confirming that precondition, not in the deletion itself.
+Formerly tracked as Q1 ("fix the missing polynomial-kernel branch"). Superseded, not fixed:
+once S1 makes `explore()` operate on native `SVC` objects directly, and cross-platform
+MATLAB-model loading is closed as impractical (see S1's decision above), there is no remaining
+caller for `adapt_for_explore()`/`_svc_to_artifact()` at all — not a Python-build consumer (S1
+removed the need), not a MATLAB-model consumer (never had one reachable in practice, per S1's
+verification, and now formally not being built).
+
+**Pathway:**
+1. Confirm S1 has landed and the model-shape branching is gone before starting this — this is
+   a consequence of S1, not independent work.
+2. Delete `build_explore_adapter.py` (`adapt_for_explore`, `_svc_to_artifact`) entirely.
+3. Delete or repurpose `test_adapter.py` — its `test_unsupported_kernel_raises` test (the one
+   that confirmed the poly-kernel gap fails loudly rather than silently) has nothing left to
+   test once the function it's testing is gone.
+4. Grep the whole repo for any remaining import of `build_explore_adapter` before considering
+   this done — confirm zero, not just the call sites already known about.
+**Test:** the existing full test suite passing with the module gone *is* the test — there's no
+new behaviour to verify, only an absence to confirm.
+
+**Checkpoint for Phase S:** S1 — `test_pythia_validation.py` still passes unmodified;
+`_ensure_explore_model()`'s branching is gone, not just simplified. S2 — the same 7-stage
+pipeline resolves to the identical execution order as before; `mypy --strict` still passes
+against the explicit prerequisite declarations. S3 — `build_explore_adapter.py` no longer
+exists; full test suite passes without it.
+
+---
+
+## 6. Phase plan — functionality parity (long-term, deferred)
 
 These map loosely to MATLAB's Phases 4–10 but are **not scoped yet** — each starts with its
 own audit (read the relevant `stages/*.py` + tests) before any specific fix is committed to.
@@ -343,40 +454,54 @@ Order is a starting suggestion, not a commitment.
 
 | Phase | Maps to MATLAB | Focus | Status | Compat |
 |---|---|---|---|---|
-| F1 | Phase 4 | PYTHIA classifier registry — confirm whether `stages/pythia.py` supports a pluggable classifier set or is fixed | Not started | **[Additive at default]** — new `classifier` option defaults to `'svm'`, matching today's only behaviour. New registry entries themselves are new production surface, though — need their own validation before being trusted in production, not just "it runs." |
+| F1 | Phase 4 | PYTHIA classifier registry — confirm whether `stages/pythia.py` supports a pluggable classifier set or is fixed | Not started — **sequence after S1**: with `explore()` calling scikit-learn's own `.predict()`/`.predict_proba()` natively, the explore-side half of this item is largely resolved as a side effect of S1, narrowing F1's remaining scope to the training-side registry table (build-side dispatch, mirroring `ISAgetClassifierFcn.m`) | **[Additive at default]** — new `classifier` option defaults to `'svm'`, matching today's only behaviour. New registry entries themselves are new production surface, though — need their own validation before being trusted in production, not just "it runs." |
 | F2 | Phase 5 | PILOT 3D / viewpoint optimisation parity in `stages/pilot.py` | Not started | **[Behavior-changing risk]** — generalising the 2D-specific solver to n-dims can shift 2D output even at `dims=2` if not done carefully (different array shapes can trigger different BLAS code paths). Verify bit-for-bit or tolerance-verified identical 2D output before shipping — this touches existing code, not just adding an independent new path. |
 | F3 | Phase 6 | SIFTED promotion refinements | Not started | **[Unknown until audit]** — F3's own pathway starts with "audit first" for exactly this reason. Treat any fix the audit finds as **[Behavior-changing]** by default until proven otherwise, since it touches SIFTED's core computation. |
-| F4 | Phases 7–8 | `InstanceSpace` class & `build`/`explore` robustness | **Audited (v1.3)** — see §5.1 for findings; Q8 (§4) verifies one open question before F4's invalidation-fix work is scoped | — (audit only; see F7/F8/F9 for the actionable, taggable derivatives) |
+| F4 | Phases 7–8 | `InstanceSpace` class & `build`/`explore` robustness | **Audited (v1.3)** — see §6.1 for findings; Q8 (§4) verifies one open question before F4's invalidation-fix work is scoped | — (audit only; see F7/F8/F9 for the actionable, taggable derivatives) |
 | F5 | Phase 9 | Output consolidation / 3D visualisation parity (MATLAB's `scriptpng.m`) | Not started | **[Additive]** — new rendering paths; doesn't change any existing 2D output function. |
 | F6 | Phase 10 | Namespace & per-file licence headers — licence itself already matches MATLAB | Header audit only | **[Additive]** — comments only. |
-| F7 | — | Model save/load round-trip (`Model.save()`/`InstanceSpace.load()`), matching MATLAB's persistence | **Format decided: HDF5 via `h5py`** — see design constraint below | **[Additive]** — brand-new capability; nothing existing depends on it. |
-| F8 | — | Unify `explore()` with build-time stage code (predict-mode dispatch on `PythiaStage`/`TraceStage`, matching MATLAB calling the same `PYTHIA()`/`TRACE()` in both modes) | Not started | **[Behavior-changing risk]** — this refactors existing, working code. The full `tests/matlab_reference/` validation suite must pass identically before/after; treat any tolerance-threshold change during this work as a red flag to investigate, not a "close enough" adjustment. |
+| F7 | — | Model save/load round-trip (`Model.save()`/`InstanceSpace.load()`), matching MATLAB's persistence | **Format revised: signed `pickle`/`joblib`** — see design constraint below (supersedes the earlier HDF5-via-`h5py` decision) | **[Additive]** — brand-new capability; nothing existing depends on it. |
+| F8 | — | Unify `explore()` with build-time stage code (predict-mode dispatch on `PythiaStage`/`TraceStage`, matching MATLAB calling the same `PYTHIA()`/`TRACE()` in both modes) | **Narrowed by S1**: the PYTHIA half is resolved as a side effect of calling native `.predict_proba()` instead of reimplementing SVM math — nothing left there to reconcile. Remaining scope is TRACE only (footprint/alpha-shape membership testing is a genuinely different computation S1's insight doesn't extend to) | **[Behavior-changing risk]** — this refactors existing, working code. The full `tests/matlab_reference/` validation suite must pass identically before/after; treat any tolerance-threshold change during this work as a red flag to investigate, not a "close enough" adjustment. |
 | F9 | — | Expand `explore()` to full evaluation scope: algorithm reconciliation + ground-truth performance metrics, matching MATLAB's `evaluateTestSet` | **Decided: extend `explore()` itself** (silent branch on whether ground truth is present) — see companion implementation-pathways document for the full pathway | **[Additive]** — new fields default to `None`; existing feature-only callers see no change. Add explicit test coverage for the "no ground truth present" path specifically, to lock this in rather than assume it. |
 
-**F7 design constraint:** must not use raw `pickle` or any other unsafe-deserialisation format.
-§2.1 confirmed this codebase is currently clean of `pickle`/`eval`/`exec`/unsafe deserialisation,
-and §2.1's [DECISION] already restricts future web uploads to CSV specifically to avoid
-reintroducing untrusted-deserialisation risk — adding a pickle-based model format would undercut
-both.
+**F7 design constraint — revised:** the original "no `pickle`" constraint assumed model files
+could arrive from an untrusted source, following §2.1's CSV-only upload [DECISION]. Revisited
+given the confirmed production threat model: on the web platform, models are produced by the
+system and downloaded by users — never re-uploaded. There is no code path where `load()` is
+called on anything other than a file the system itself wrote, *as long as this stays true and
+is enforced, not merely assumed* — hence the signing requirement below, which makes that
+enforcement real rather than a claim about the future that could quietly become false.
 
-**[DECISION] Topic:** F7 persistence format — HDF5 via `h5py`
-**Rationale:** handles nested structure and large numpy arrays natively (`Model`'s tree of
-dataclasses maps onto HDF5 groups/datasets directly), without the manual flattening a JSON+
-`.npz` approach would need. Doesn't execute arbitrary code on load — reading an HDF5 file means
-reading arrays and attributes, not deserialising Python objects — so the no-pickle constraint
-above still holds.
-**Alternatives rejected:** JSON manifest + `.npz` (no new dependency, but more manual flattening
-work for no real safety or capability advantage); a fully custom versioned binary schema
-(unjustified implementation/maintenance cost).
-**Impact:** adds `h5py` as a new dependency — goes through the same P0-style scrutiny as any
-other dependency before merging (check its own transitive tree, not just add and forget).
-Non-trivial serialisation shapes to decide during implementation: `pythia.svm`'s per-algorithm
-SVM objects and `trace.good`/`trace.best`'s shapely polygons both need flattening into arrays
-(constituent SVM parameters; vertex lists with the NaN-separator convention already used for CSV
-export) rather than attempting to store the objects themselves — full detail in the companion
-implementation-pathways document.
+**[DECISION] Topic:** F7 persistence format — signed `pickle`/`joblib` (supersedes the v1.9
+HDF5-via-`h5py` decision)
+**Rationale:** the "never re-uploaded" threat model removes pickle's core objection (arbitrary
+code execution from *untrusted* input) — but rather than rely on that assumption holding
+forever across every future change to this codebase, add an HMAC signature: sign the serialised
+bytes with a server-held secret at `save()` time, verify the signature *before* ever
+unpickling at `load()` time; refuse to deserialise on mismatch. This converts "we're confident
+this file is trustworthy" from an architectural assumption into something checked at the
+moment it matters — if the never-re-upload assumption is ever accidentally violated later (a
+debug endpoint, a path parameter, a storage misconfiguration), the signature check is what
+actually stops it from mattering, not a design note nobody re-reads. Also resolves a problem
+the HDF5 approach never solved: `DecisionTreeClassifier`/ensemble estimators (needed once F1
+adds them to the registry) don't have a small set of named arrays to flatten the way `SVC`
+does — pickle round-trips them natively, no custom serialiser required.
+**Alternatives rejected:** HDF5 via `h5py` (the previous decision) — still viable, still safe,
+but adds a new dependency and requires hand-written flattening for every estimator type,
+including ones (trees, ensembles) that don't flatten cleanly; no longer justified once the
+threat model is confirmed to make pickle safe. `skops` (a library built specifically for
+pickle-free sklearn persistence) — worth a look if the signing approach ever proves
+insufficient, but not needed given the signing approach already closes the real risk.
+**Impact:** no new third-party dependency (`hmac`/`hashlib` are stdlib) — a smaller dependency
+footprint than the HDF5 option, not just a safer-by-assumption one. **Non-negotiable
+implementation requirement:** every code path that calls `load()` must be audited to guarantee
+it never receives a user-supplied path or file — this is the one place the whole design's
+safety actually lives, and it needs to be a checked invariant (e.g. a path-allowlist or a
+storage-layer guarantee), not an assumption held only in this document. Once S1 lands, `SVC`
+objects round-trip through pickle exactly as trained — no adapter/flattening step needed at
+load time at all, since `explore()` will already be operating on native objects.
 
-### 5.1 F4 audit findings — class architecture deep dive
+### 6.1 F4 audit findings — class architecture deep dive
 
 Line-by-line comparison of `instancespace/instance_space.py` (+ `stage_builder.py`,
 `stage_runner.py`, `build_explore_adapter.py`) against MATLAB's `InstanceSpace.m` (1030 lines).
@@ -423,7 +548,7 @@ can't; CSV ingestion is cleanly separated into `PreprocessingStage` versus MATLA
 
 ---
 
-## 6. Ideas from independent implementations — PyISpace / PyHard
+## 7. Ideas from independent implementations — PyISpace / PyHard
 
 Not a MATLAB-vs-Python comparison — a third data point. **PyISpace** (`gitlab.com/ita-ml/pyispace`)
 is a deliberately lean, partial Python reimplementation of ISA (PRELIM-equivalent inline, PILOT,
@@ -470,7 +595,7 @@ add new ones:
 - **Proper `logging` module use throughout, never raw `print()`** — independent validation that
   Q3 (§4) is the right call, since a separate implementation reached the same conclusion.
 - **Raw `pickle.dump()` straight to `model.pkl` for persistence** — a real-world example of
-  exactly the anti-pattern F7's design constraint (§5) already rules out. Cited here as evidence
+  exactly the anti-pattern F7's design constraint (§6) already rules out. Cited here as evidence
   for *why* that constraint exists, not as something to adopt.
 
 **Checkpoint for Phase R:** R1 — a rotation-adjustment unit test confirms `Z`'s pairwise distances
@@ -481,9 +606,9 @@ complete boundary rather than a partial one.
 
 ---
 
-## 7. Phase T — testing infrastructure quality & additions
+## 8. Phase T — testing infrastructure quality & additions
 
-### 7.1 Audit findings
+### 8.1 Audit findings
 
 `tests/` is 6,678 lines across ~35 files. One genuine strength, several concrete gaps —
 verified against source, not inferred from file names.
@@ -493,8 +618,11 @@ verified against source, not inferred from file names.
 checked in, with per-stage validation tests comparing Python's output against them under
 documented tolerance thresholds (e.g. `test_pilot_matches_matlab`'s docstring states the 1%
 threshold's rationale: PILOT inference is a pure linear projection, so Python should match
-MATLAB to floating-point precision). `test_adapter.py::test_unsupported_kernel_raises` is good
-discipline too — the poly-kernel gap (Q1) is tested to fail loudly, not silently.
+MATLAB to floating-point precision). `test_adapter.py::test_unsupported_kernel_raises` was good
+discipline while the adapter existed — tested the poly-kernel gap failed loudly, not silently.
+Now moot: S3 retires `build_explore_adapter.py` (and this test with it) entirely, once S1 makes
+`explore()` operate on native `SVC` objects, which handle poly kernels with no special-casing
+at all.
 
 **Gaps, verified:**
 1. **No true end-to-end integration test.** Every `InstanceSpace(` construction outside
@@ -503,8 +631,8 @@ discipline too — the poly-kernel gap (Q1) is tested to fail loudly, not silent
    through the actual 7-stage pipeline. No Python equivalent of MATLAB's `test_integration.m`.
 2. **The DAG resolver's hard logic is untested.** `test_stage_builder_runner.py` (3 tests) uses
    two trivial synthetic stages (`int→str→str`). Mutating-stage handling, `RunBefore`/
-   `RunAfter`, and ambiguous-ordering error paths (all found during the §5.1 audit) have no
-   test touching them.
+   `RunAfter`, and ambiguous-ordering error paths (all found during the §6.1 audit) have no
+   test touching them. Moot if S2 lands — no point testing a resolver about to be replaced.
 3. **No coverage tooling.** `pytest-cov` isn't even a dev dependency — no visibility into what
    percentage of the codebase is actually exercised.
 4. **`poe test` doesn't run pytest.** The `[tool.poe.tasks]` `test` sequence is
@@ -515,12 +643,12 @@ discipline too — the poly-kernel gap (Q1) is tested to fail loudly, not silent
 6. **Test-file fragmentation.** PILOT alone is covered by `test_pilot.py`,
    `exploreIS/pilot/test_pilot_unit.py`, *and* `exploreIS/pilot/test_pilot_validation.py`, with
    no documented rule for what belongs where. Same pattern for sifted/trace/pythia/prelim.
-7. **The reference harness itself has a real gap.** Checked several `svm_<algo>.csv` artifacts
-   directly — every one has `kernel_fn = gaussian`, regardless of which portfolio algorithm it
-   predicts for. There is **no MATLAB reference data for a polynomial-kernel PYTHIA model at
-   all** — Q1 can't be validated against MATLAB until new reference data exists. The reference
-   README also never states which MATLAB commit/tag produced it, so there's no way to detect if
-   it's gone stale as MATLAB keeps moving (see §7.3).
+7. **Historical note, now moot.** Every `svm_<algo>.csv` reference artifact has
+   `kernel_fn = gaussian` — there was no MATLAB reference data for a polynomial-kernel PYTHIA
+   model, which would have blocked validating Q1's original fix. No longer relevant: S3 retires
+   the code this would have validated rather than fixing it, so no new fixture is needed for
+   this purpose. The general fixture-provenance problem this finding also raised (no recorded
+   MATLAB commit/tag, no staleness detection) stands independently — see §8.3.
 
 ### T1 — Add `pytest-cov` + track a coverage threshold in CI
 **[Additive]** — tooling only.
@@ -542,7 +670,7 @@ One-line change to `[tool.poe.tasks]`. Makes the local dev command match what CI
 
 ### T5 — Version-pin `tests/matlab_reference/`'s MATLAB provenance
 **[Additive]** — test-fixture metadata only.
-Record the exact MATLAB commit/tag the fixtures were generated from. See §7.3 for the fuller
+Record the exact MATLAB commit/tag the fixtures were generated from. See §8.3 for the fuller
 cross-repo data-sharing proposal this connects to.
 
 ### T6 — DAG-resolver edge-case tests with representative stages
@@ -556,21 +684,23 @@ Decide and document what belongs in top-level `test_<stage>.py` vs. `exploreIS/<
 test_<stage>_unit.py` vs. `..._validation.py`, then merge or clearly demarcate — starting with
 PILOT as the worst-fragmented case.
 
-### 7.2 Test debt tied to already-scoped items
+### 8.2 Test debt tied to already-scoped items
 
 Specific tests each already-scoped item (Q, F, R) needs to actually be verified, not just built:
 
 | Item | Test needed |
 |---|---|
-| Q1 (poly-kernel adapter fix) | New MATLAB reference artifact with a real poly-kernel PYTHIA SVM (doesn't exist — prerequisite per §7.1 finding 7) + a build→adapt→explore round-trip test |
+| Q1 | Retired — see S3's checkpoint (confirm the module is genuinely unreferenced anywhere, full suite passes without it) instead of a poly-kernel validation test |
 | Q2 (OOD warning) | Fires above 5% clipped; silent below it — both directions need a test |
 | Q8 (rerun-invalidation regression test) | Must use the real 7-stage pipeline once T2 exists — the current synthetic 2-stage setup can't exercise the cloister/pythia sibling-branch question at all |
-| F7 (save/load) | Round-trip equality test, plus a malformed/adversarial-file test proving the safe format (per F7's design constraint) can't execute anything on load |
-| F8 (explore/build code reuse) | A deliberately-introduced bug in `PythiaStage`'s logic should break both the build-path and explore-path tests once they share code — proves the drift risk F8 is meant to close is actually closed |
+| F7 (save/load) | Round-trip equality test; a signature-tampering test (flip one byte, assert `load()` refuses to deserialise rather than raising deep inside `pickle`); a test asserting `load()` is never reachable from any user-supplied path/parameter (the actual safety invariant the whole design depends on) |
+| F8 (explore/build code reuse, now TRACE-only per S1) | A deliberately-introduced bug in `TraceStage`'s footprint logic should break both the build-path and explore-path tests once they share code — proves the drift risk F8 is meant to close is actually closed. (The PYTHIA half of this row is resolved by S1 instead — see S1's own checkpoint.) |
 | R1 (rotation canonicalisation) | Not just "pairwise distances preserved" — assert the target group's centroid angle lands within tolerance of 135° post-rotation, or the test doesn't prove the feature does what it's for |
 | R2 (alpha-shape retry) | A constructed point cloud engineered to produce a `MultiPolygon` at the naive alpha, asserting a complete (non-partial) boundary after the fix |
+| S1 (model-shape collapse) | `test_pythia_validation.py` re-run unmodified as a regression check (it bypasses `_ensure_explore_model()` via mocking, so it shouldn't need changes — confirm that stays true rather than assume it); a new test asserting `explore()` on a real `build()`-trained model of each kernel type (rbf, linear, poly) produces predictions matching direct `.predict_proba()` calls on the stored `SVC` |
+| S2 (explicit stage order) | Same 7-stage pipeline resolves to the identical execution order as the auto-resolver produced before the change — a before/after comparison, not just "it doesn't crash" |
 
-### 7.3 Cross-repo test-data sharing proposal
+### 8.3 Cross-repo test-data sharing proposal
 
 The root problem: `tests/matlab_reference/` was produced by a one-off manual MATLAB run, with no
 recorded provenance and no repeatable process. As MATLAB keeps evolving (this document alone has
@@ -580,9 +710,10 @@ of sync, silently, with no signal when it happens. Proposed, layered by effort:
 1. **Now, low-risk:** a MATLAB export script (new file, or extend `test_integration.m`) that
    dumps training artifacts + explore outputs in exactly the CSV interchange format
    `tests/matlab_reference/` already documents. Turns "regenerate the fixtures" from a bespoke
-   manual copy-paste into one command. Use it immediately to generate the missing poly-kernel
-   case (§7.1 finding 7 / Q1's blocker) — the first real use of the new tool closes an existing
-   gap rather than being speculative infrastructure.
+   manual copy-paste into one command. No longer needed for the poly-kernel case specifically
+   (§8.1 finding 7 is moot now that S3 retires the code it would have validated) — but the
+   general problem (no recorded provenance, no staleness detection as MATLAB keeps evolving)
+   stands on its own regardless, and this remains the right first fix for it.
 2. **Now, low-risk:** add a `provenance.json` (or similar) alongside the fixtures recording the
    exact MATLAB commit SHA/tag/version used, mirroring the `Contents.m`/`CITATION.cff` version
    fields already established in the MATLAB refactor. Cheap, and it's the difference between
@@ -605,7 +736,7 @@ ships with its listed test, not just its implementation.
 
 ---
 
-## 8. Outstanding / deferred items
+## 9. Outstanding / deferred items
 
 | Item | Status |
 |---|---|
@@ -618,12 +749,14 @@ ships with its listed test, not just its implementation.
 | MATILDA web-upload format | Decided: CSV only (see [DECISION] in §2.1). No F-phase owns upload-handling code yet — flag this constraint when one is scoped. |
 | Q8 outcome | Determines whether F4's invalidation-fix scope includes `stage_runner.py` changes or closes as "verified fine" |
 | R2 / `traceAlphaBoundary` | Same underlying question on both sides now: does an alpha-retry pattern fix the known multi-region alpha-shape gap? Corresponding MATLAB issue tracks the MATLAB side; R2 (§6) tracks the Python side. |
-| Missing poly-kernel reference fixture | Blocks validating Q1 against MATLAB — needs the T5/§7.3 export tool run once before Q1 can be closed with confidence |
-| MATLAB has no CI | Verified (no `.github/workflows/`) — outside this document's scope (MATLAB repo), but relevant context for §7.3's phased data-sharing proposal, phase 3 of which depends on it existing |
+| Missing poly-kernel reference fixture | No longer relevant — was blocking validation of Q1's original fix, which is retired (see S3) rather than fixed. The general fixture-provenance problem this finding also raised stands independently, tracked via T5/§8.3. |
+| MATLAB has no CI | Verified (no `.github/workflows/`) — outside this document's scope (MATLAB repo), but relevant context for §8.3's phased data-sharing proposal, phase 3 of which depends on it existing |
+| S1's "planted seam" question | **Resolved (v1.15)** — closed as impractical given no demonstrated need, not impossible; see S1's `[DECISION]` block. Reopenable if a real cross-platform use case appears later. |
+| F7's `load()` path-safety invariant | The entire revised F7 design depends on `load()` never receiving a user-supplied path — needs to be an enforced, checked invariant (allowlist, storage-layer guarantee) once implementation starts, not left as a design-doc assumption |
 
 ---
 
-## 9. Document history
+## 10. Document history
 
 | Version | Date | Change |
 |---|---|---|
@@ -641,3 +774,5 @@ ships with its listed test, not just its implementation.
 | v1.11 | 2026-07-26 | Added Phase -1 (before §2) — merging `aoxiangx/pyInstanceSpace`'s fork branch back into `andremun/pyInstanceSpace` upstream, as an explicit prerequisite ahead of P0 rather than an implicit assumption. Verified via a real (unpushed) scratch merge: clean, no conflicts, despite both sides having diverged independently (main +14 commits, fork branch +24). Recommended path is a PR via GitHub's cross-fork compare view rather than a silent direct merge, since upstream already has matching CI. |
 | v1.12 | 2026-07-26 | Production/delegation context: Claude Code will have write access, work is delegated, this ships behind a production web server. Added a **[Additive]**/**[Behavior-changing]**/**[Unknown until audit]** compatibility tag to every P/Q/F/R/T item (new "Compat" column on the F-phase table; inline tags elsewhere). Corrected Q9's recommended seed default from `None` to `0` — the original recommendation didn't account for production callers expecting deterministic output; `0` exactly preserves today's hardcoded behaviour. |
 | v1.13 | 2026-07-26 | Re-verified §2.1's dependency findings against `main`'s actual current commit history (prompted by a direct question about whether "main +14 commits" was still accurate while drafting the fork-merge PR description) — confirmed accurate, and confirmed all 14 are Dependabot dependency bumps, not manual development. Two of them (`pillow`→12.2.0, `tornado`→6.5.5) partially address two of P0's four flagged CVEs, landing exactly at the versions already audited — both still short of the fully-patched target. `click`/`jupyter-core` show zero Dependabot movement, directly confirming (not just inferring) that only security-alerts-only automation is active, not full version-update checks. P0 and the outstanding-items table updated to reflect partial-vs-untouched status per package. |
+| v1.14 | 2026-07-26 | Added Phase S (§5) — structural simplification, sequenced before F-phase: S1 (collapse model-shape detection to the one reachable path, moving to native scikit-learn objects for `explore()`) and S2 (replace DAG auto-resolution with explicit stage order + prerequisites, keeping mypy verification of the literal declarations). Revised F1 (explore-side classifier dispatch resolved as a side effect of S1, narrowing remaining scope to the training-side registry), F7 (persistence format changed from HDF5-via-`h5py` to signed `pickle`/`joblib`, given the confirmed production threat model — models are system-produced/downloaded only, never re-uploaded — with an HMAC signature as the actual enforced control rather than relying on that assumption holding forever), and F8 (narrowed to TRACE only, since S1 resolves the PYTHIA half by removing the second implementation entirely rather than needing to reconcile it with the first). Renumbered §5→§6 (functionality parity), §5.1→§6.1, §6→§7 (PyISpace/PyHard), §7→§8 (Phase T, and its own §7.1–§7.3→§8.1–§8.3), §8→§9 (outstanding items), §9→§10 (document history) to make room. |
+| v1.15 | 2026-07-26 | Closed S1's open decision: cross-platform MATLAB-model loading recorded as impractical (six classifier types, several — decision trees especially — with no clean flattened representation), not impossible, and not attempted given no demonstrated need — reopenable later if that changes. Consequence: added S3, retiring `build_explore_adapter.py` entirely, since nothing calls it once S1 lands and cross-platform loading is closed. Q1 (was "fix the poly-kernel gap") retired in favour of S3 — kept as a pointer rather than deleted outright since other parts of this document and the drafted MATLAB issue batches reference it by name. Updated every downstream reference: Phase Q's checkpoint, §8.1's audit findings (the poly-kernel reference-fixture gap and the `test_unsupported_kernel_raises` note are both now historical/moot), §8.2's test-debt table, §8.3's data-sharing proposal (kept on its own merits, decoupled from Q1), the outstanding-items table, and Phase -1's example PR text. |
