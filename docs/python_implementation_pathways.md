@@ -490,41 +490,67 @@ can insert this across all files in one pass.
 `CITATION.cff`'s `authors` field in P1; worth deciding both together rather than twice.
 
 ### F7 — Model save/load round-trip
-**Decision revised: signed `pickle`/`joblib`, superseding the earlier HDF5-via-`h5py` decision.**
-Confirmed production threat model: on the web platform, models are produced by the system and
-downloaded, never re-uploaded — `load()` never receives externally-supplied input, closing
-pickle's core objection, *provided this is enforced, not merely assumed* (see the
-non-negotiable requirement below).
+**Decision revised: signed `pickle`/`joblib` with an optional signature, superseding both the
+HDF5-via-`h5py` decision and the earlier unconditional-signing decision.** Confirmed production
+threat model: on the web platform, models are produced by the system and downloaded, never
+re-uploaded — `load()` never receives externally-supplied input, closing pickle's core
+objection, *provided this is enforced, not merely assumed* (see the non-negotiable requirement
+below). A second, distinct usage mode exists alongside the server one: local/desktop
+development, where a researcher saves and loads their own model file on their own machine with
+no secrets-manager wired up. `secret_key` is `None` by default there — the plain-pickle risk is
+no different from running any other file the user already controls, e.g. `joblib.load` itself
+carries the same caveat with no signing at all.
 **Files:** `instancespace/model.py` (new `Model.save()`/`Model.load()`), no new dependency
 (`hmac`/`hashlib`/`pickle` are all stdlib; `joblib` is already a transitive scikit-learn
 dependency)
 **Pathway:**
-1. `save()`: `pickle.dumps(model)` (or `joblib.dump` — prefer `joblib` for large numpy arrays,
-   it's more efficient than raw pickle for that case and already in the dependency tree via
-   scikit-learn), then compute `hmac.new(secret_key, data, hashlib.sha256).digest()` and store
-   the signature alongside the serialised bytes (e.g. a small header, or a sibling `.sig` file).
-2. `load()`: read the bytes and signature, **recompute the HMAC and compare before touching
-   `pickle.loads()` at all** — if the signature doesn't match, raise immediately and never
-   deserialise. This ordering is the entire safety property; get this step first, not "verify
-   then load" as two independent steps that could be reordered by a future edit.
-3. Secret key management: needs a real answer before this ships — a server-side secret,
-   rotated on whatever cadence the deployment's secret-management practice already uses. Not
-   this document's call to make; flag to whoever owns the web platform's deployment.
+1. `save(path, secret_key: bytes | None = None)`: `pickle.dumps(model)` (or `joblib.dump` —
+   prefer `joblib` for large numpy arrays, it's more efficient than raw pickle for that case and
+   already in the dependency tree via scikit-learn). If `secret_key` is given, compute
+   `hmac.new(secret_key, data, hashlib.sha256).digest()` and write the signature alongside the
+   serialised bytes (e.g. a sibling `.sig` file); if `secret_key` is `None`, write only the data
+   — no `.sig` file at all, so an unsigned save leaves no artifact claiming to be verified.
+2. `load(path, secret_key: bytes | None = None)`: read the bytes and, if a `.sig` file exists,
+   the signature. Four cases, all of which must be handled explicitly (this is the actual design
+   surface — not just the signed-server case as before):
+   - `secret_key` given, `.sig` present: **recompute the HMAC and compare before touching
+     `pickle.loads()` at all** — if it doesn't match, raise immediately and never deserialise.
+     This ordering is the entire safety property for the server path; get this step first, not
+     "verify then load" as two independent steps a future edit could reorder.
+   - `secret_key` given, `.sig` absent: raise — a caller expecting a verified load must never
+     silently fall through to an unverified one.
+   - `secret_key` is `None`, `.sig` absent: desktop/dev path — `pickle.loads()` directly, no
+     verification, matching today's "you already trust files you produced yourself" caveat.
+   - `secret_key` is `None`, `.sig` present: **raise, do not load.** This is the downgrade-attack
+     case — a server-signed file must not become loadable-unverified just because the caller
+     omitted the key. Without this branch, the whole point of signing (making tampering or
+     substitution detectable) is defeated by the simplest possible bypass.
+3. Secret key management for the server path: needs a real answer before this ships — a
+   server-side secret, rotated on whatever cadence the deployment's secret-management practice
+   already uses. Not this document's call to make; flag to whoever owns the web platform's
+   deployment. The desktop path has no equivalent key-management question — it has no key.
 4. Once S1 lands: `pythia.svm`'s `SVC` objects pickle natively, exactly as fitted — no
    flattening step, no `SimpleNamespace` conversion at load time. `trace.good`/`trace.best`
    (shapely `Polygon`/`MultiPolygon`) also pickle natively — the vertex-array flattening this
    pathway previously specified for HDF5 is no longer needed.
 5. Round-trip test: save then load, assert deep equality (`np.array_equal` for arrays;
    `SVC`/polygon objects can be compared directly now, no constituent-array comparison needed).
+   Run once with `secret_key` set (signed path) and once without (desktop path).
 6. Signature-tampering test: flip one byte in the serialised payload, assert `load()` refuses
    before ever calling `pickle.loads()` — this is the test that actually proves the safety
    property holds, not just an assertion in a docstring.
-7. Path-safety test: assert (via whatever mechanism enforces it — allowlist, storage-layer
-   check) that `load()` is structurally unreachable from any user-supplied path or parameter.
-   This is the one thing the whole design's safety depends on; it needs its own test, not just
-   an assumption documented here.
-**Decision needed:** where does the HMAC secret key live and get rotated? Not a code-design
-question — a deployment/ops one, flag it rather than guessing.
+7. Downgrade-attack test: `save()` with a `secret_key`, then `load()` the resulting file with
+   `secret_key=None` — assert this raises rather than silently deserialising unverified. This is
+   the test that proves the two-mode split doesn't reopen the exact hole signing was meant to
+   close.
+8. Path-safety test: assert (via whatever mechanism enforces it — allowlist, storage-layer
+   check) that the *server* code path always calls `load()` with a `secret_key`, and is
+   structurally unreachable via any user-supplied path or parameter. This is the one thing the
+   server-side design's safety depends on; it needs its own test, not just an assumption
+   documented here.
+**Decision needed:** where does the HMAC secret key live and get rotated, for the server path?
+Not a code-design question — a deployment/ops one, flag it rather than guessing. The desktop
+path's `secret_key=None` default needs no equivalent decision.
 
 ### F8 — Unify `explore()` with build-time stage code
 **Narrowed by S1 — TRACE only.** S1 (see Phase S) resolves the PYTHIA half of this item as a
