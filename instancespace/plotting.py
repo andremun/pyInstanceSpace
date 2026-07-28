@@ -8,8 +8,7 @@ in a notebook cell the way MATLAB's does rather than each silently opening a new
 figure. Pass an explicit ``ax`` to draw somewhere else instead.
 
 These take a ``Model`` (or, for testing, anything duck-typing the same shape) rather
-than an ``InstanceSpace``, matching the pattern already used by
-``build_explore_adapter.py``.
+than an ``InstanceSpace``.
 """
 
 from __future__ import annotations

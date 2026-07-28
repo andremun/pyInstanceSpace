@@ -44,7 +44,7 @@ Please refer to the pdoc documentation for instructions on exporting static HTML
 
 ## Repository layout
 
-- `instancespace/` — the package itself: `instance_space.py` (the `InstanceSpace` class — `build()`/`explore()`/`explore_iter()`), `stage_builder.py`/`stage_runner.py` (the DAG scheduler that infers stage order from each stage's declared inputs/outputs), `stages/` (one module per pipeline stage — `preprocessing`, `prelim`, `sifted`, `pilot`, `pythia`, `cloister`, `trace`), `data/` (option and metadata dataclasses), `model.py` (the trained `Model` and its `save_to_csv`/`save_for_web`/`save_graphs`/`save_to_mat`/`save_zip` methods), `build_explore_adapter.py` (converts a `build()`-trained model into the form `explore()` consumes), and `scripting/` (CSV/plot output helpers).
+- `instancespace/` — the package itself: `instance_space.py` (the `InstanceSpace` class — `build()`/`explore()`/`explore_iter()`), `stage_builder.py`/`stage_runner.py` (the DAG scheduler that infers stage order from each stage's declared inputs/outputs), `stages/` (one module per pipeline stage — `preprocessing`, `prelim`, `sifted`, `pilot`, `pythia`, `cloister`, `trace`), `data/` (option and metadata dataclasses), `model.py` (the trained `Model` and its `save_to_csv`/`save_for_web`/`save_graphs`/`save_to_mat`/`save_zip` methods), and `scripting/` (CSV/plot output helpers).
 - `tests/` — the test suite; `tests/matlab_reference/` holds MATLAB-trained golden-reference artifacts used to validate the Python port stage by stage, and `tests/exploreIS/` holds `explore()`/`explore_iter()`-specific validation and unit tests. Most other test files are named `test_<stage>.py` per stage.
 - `integration_demo.py` — the minimal runnable example: load metadata + options from `tests/test_data/demo/`, construct an `InstanceSpace` with the full stage list, and `build()` it.
 - `example_plugin.py` — demonstrates writing a custom `Stage` and slotting it into the pipeline alongside the built-in stages.
@@ -76,9 +76,7 @@ See `integration_demo.py` for a complete, runnable version of this (including th
 
 `InstanceSpace.explore()` applies a previously trained model to unseen instances, mirroring the MATLAB toolkit's `exploreIS.m`: the test metadata is bounded and scaled with the stored PRELIM parameters, reduced to the selected SIFTED features, projected with the trained PILOT matrix, and evaluated by the trained PYTHIA selectors and TRACE footprints. No stage is re-fitted.
 
-`explore()` identifies the shape of the trained model itself and logs what it detected. A model trained by the Python `build()` — which stores the PYTHIA SVMs as fitted scikit-learn `SVC` objects — is converted internally, once, into the flattened structure `explore()` consumes; the scikit-learn model is not modified and remains available via the `model` property for anyone who prefers to keep working with scikit-learn objects. A model already in the flattened form (assembled from MATLAB-exported artifacts) is consumed as-is.
-
-The conversion lives in `instancespace/build_explore_adapter.py` and only rewrites the PYTHIA SVMs into the flattened form; PRELIM, SIFTED, PILOT and TRACE pass through unchanged. Its module docstring explains each choice. The normal flow is therefore direct:
+`explore()` works directly on the model `build()` produced: the trained PYTHIA SVMs are fitted scikit-learn `SVC` objects, and `explore()` calls each one's own `predict`/`predict_proba` — there is no intermediate flattened representation or conversion step. PRELIM, SIFTED, PILOT and TRACE pass their stored parameters through unchanged. The normal flow is therefore direct:
 
 ```python
 space = InstanceSpace(train_metadata, options)
