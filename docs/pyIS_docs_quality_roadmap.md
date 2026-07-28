@@ -263,6 +263,16 @@ behaviour — not an accidental divergence from MATLAB's stricter `featureOrderM
 Document it explicitly in `explore()`'s docstring and add the regression test below.
 
 ### Q6 — Reuse thread/process pools across staged calls
+**Implemented and verified (v1.24)** — `InstanceSpace._get_executor()`/`close()` cache a lazily
+-created `ThreadPoolExecutor`, recreated only if the worker count changes, threaded through
+`TraceInputs.executor`/`TraceStage`'s `compute_algorithm_qualities()` instead of the previous
+per-call `with ThreadPoolExecutor(...) as executor:`. 10 new unit tests (pool identity reuse,
+recreation on worker-count change, `close()`/lazy-recreate-after-close, `run_stage()` injecting
+the cached pool by default without overriding a caller-supplied one, and `compute_algorithm_
+qualities()` submitting to a supplied pool vs. creating its own with identical output either
+way). Output verified bit-identical: `test_trace.py`'s existing MATLAB-reference tests pass
+unmodified. See T2/Q8's entry below for a real crash this change caused that only a full
+end-to-end build caught, and the resulting fix in `stage_runner.py`.
 **[Additive if implemented correctly]** — this is a concurrency change, not just a resource optimisation; verify computed output is bit-identical before/after, not just "faster."
 MATLAB's `ensurePool()` opens a parallel pool once and reuses it across successive staged
 `build()` calls in the same session, only tearing it down if it opened it. Python currently
@@ -270,23 +280,21 @@ creates a fresh `ThreadPoolExecutor`/joblib backend per stage call. Pure resourc
 change — no correctness implications, easy to test (assert no new pool created on a second
 `run_stage()` call).
 
-**Interaction with F7 (added v1.18) — undocumented until now, must be handled in Q6's own
-implementation:** a `ThreadPoolExecutor` is not picklable (`threading.Lock`/`Thread` objects
-raise `TypeError` from `pickle.dumps`). If Q6's pool-holder attribute (e.g. `self._executor`)
-sits on the same object F7's `save()` pickles, this produces a scenario-dependent failure: save
-crashes outright if a pool is live (e.g. a session that ran TRACE, then saved, without an
-intervening `close()`), or succeeds only by caller discipline (remembering to `close()` first)
-otherwise — and forgetting once surfaces as an opaque threading-internals traceback, not a
-domain-relevant error. The fix belongs to Q6: exclude the pool from pickled state via
-`__getstate__`/`__setstate__` (or `__reduce__`) so `save()` never attempts to serialise it
-regardless of caller discipline, and `load()` always comes back with the pool attribute unset —
-consistent with Q6's own "created lazily on first use" design, so the next `run_stage()` call
-after a load simply recreates the pool from scratch. This is not a regression: OS threads from a
-previous process can't meaningfully survive a save/load round-trip anyway, and MATLAB's own
-`gcp`/`ensurePool()` pool handles are session-local too — `.mat` save/load never attempted to
-serialise a parallel pool either. Net effect on Q6's own open decision (explicit `close()` vs
-`__del__`): keep `close()` for live-session resource cleanup, but treat the pickle-exclusion as
-the actual correctness mechanism for the save/load path, not `close()` discipline.
+**Interaction with F7 (added v1.18) — corrected v1.23, was based on a premise that doesn't hold
+in the actual code:** a `ThreadPoolExecutor` is not picklable, so if Q6's pool-holder attribute
+sat on the same object F7's `save()` pickles, that would be a real problem. Checked directly
+against `instancespace/model.py`: F7's target is `Model.save()`/`Model.load()`, and `Model` is a
+frozen dataclass (`data, data_dense, feat_sel, prelim, sifted, pilot, cloister, pythia, trace,
+opts`) with **no field referencing `InstanceSpace` or `StageRunner`** — the only two places Q6's
+own pathway proposes putting the pool. `Model.save()` never touches either, so there is nothing
+for a `__getstate__`/`__setstate__` pickle-exclusion to guard against, as currently scoped. The
+shared-checklist item in §6.0 ("Q6 and F7, whichever lands second, must add the pickle-exclusion
+check") is retracted for that reason — verified moot, not just deprioritised. If a future change
+ever gives `Model` a live reference back to `InstanceSpace`/`StageRunner` (it doesn't today),
+this would need revisiting; until then, don't build unused `__getstate__`/`__setstate__`
+machinery on `InstanceSpace`/`StageRunner` on this note's authority. Q6's own open decision
+(explicit `close()` vs `__del__`) stands on its own merits, unaffected by this correction:
+default to explicit `close()`, per the reasoning already given below.
 
 ### Q7 — Add `plot()` convenience methods
 **[Additive]** — new methods only; nothing existing calls them yet.
@@ -296,6 +304,37 @@ touched. Complements P2 (notebook parity): a `plot()` method means the notebook 
 inline matplotlib boilerplate to demonstrate the same views MATLAB's manual shows.
 
 ### Q8 — Regression test for stage-rerun invalidation (verification, not yet a fix)
+**Implemented and verified (v1.24)**, negative result: on `v0.9.0/development-branch-QSF`,
+against a real full-7-stage build (T2's fixture, `tests/test_build_integration.py`) — rerunning
+`CloisterStage` via `run_stage()` does **not** wrongly invalidate `PythiaStage`'s output (they
+share a schedule wave, and `_rollback_to_schedule_index()` only invalidates *later* waves, never
+wave-mates) and does not block `run_stage(TraceStage)` either, even though `TraceInputs` has no
+field CloisterStage produces (`z_edge`/`z_ecorr`) — confirmed by reading `TraceInputs`'s full
+field list directly, not inferred. Traced the general case, not just this one pair: every
+"later wave depends on an earlier wave" relationship in the built-in 7-stage order is a real
+dependency except this one (Cloister→Trace, non-adjacent-in-dependency but adjacent-in-schedule),
+and that one is already correctly not order-adjacent in a way that triggers invalidation, since
+Cloister and Trace aren't in the same wave and Trace's own rollback point only depends on the
+wave it's actually in. §6.1's speculative concern does not reproduce for the *current* built-in
+order — this is a scoped, verified finding about this specific 7-stage pipeline, not a claim
+that `_rollback_to_schedule_index()`'s wave-position mechanism is correct in general (a future
+plugin stage attached via `RunBefore`/`RunAfter` with a real cross-wave dependency gap could
+still hit it). No fix promoted to F-phase; nothing to promote. **Real bug found and fixed along
+the way, unrelated to the invalidation question**: writing T2 as this test's real-build fixture
+surfaced a genuine crash — `StageRunner.run_stage()` unconditionally deep-copies every stage's
+resolved inputs, and Q6's `executor: ThreadPoolExecutor | None` field (added to `TraceInputs`)
+isn't deepcopy-safe (`TypeError: cannot pickle '_queue.SimpleQueue' object`) — none of Q6's own
+unit tests caught this because they called `TraceStage.compute_algorithm_qualities()`/`_run()`
+directly, bypassing `StageRunner.run_stage()`'s deepcopy step entirely. Fixed in
+`stage_runner.py` via a new `_deepcopy_stage_inputs()` helper that pre-seeds `copy.deepcopy`'s
+memo with any live `ThreadPoolExecutor` values so they pass through by reference instead of
+being copied — correct for two independent reasons, not just to silence the crash: copying a
+pool wouldn't just fail, it would (if it somehow succeeded) silently create a redundant pool per
+stage call, defeating Q6's entire reuse purpose. Added a fast, targeted regression test
+(`tests/test_stage_runner.py::test_run_stage_does_not_deepcopy_a_live_executor`) so this doesn't
+require another 8-minute full build to catch a regression. This is exactly why T2 was sequenced
+as Q8's prerequisite rather than skipped — a synthetic 2-stage fixture would never have exercised
+this.
 **[Additive]** — this is a test. If it reveals a real fix is needed, that fix (in `stage_runner.py`) inherits its own **[Behavior-changing]** tag — don't assume it's free just because the test itself is.
 §6.1 flagged that Python's `_rollback_to_schedule_index()` invalidates by schedule-wave position
 rather than by real dependency (MATLAB's `invalidateDownstream()` BFS). Write a test: build,
@@ -532,12 +571,12 @@ Order is a starting suggestion, not a commitment.
 
 ### 6.0 Consolidated execution order — remaining Q/S/F items (added v1.21)
 
-Q1–Q5, Q7, Q9–Q11, S1/S3, and — as of v1.22 — S2 and F1 and F6 are already implemented. What
-follows orders everything still pending — Q6, Q8, and every remaining F item — by actual
-dependency, not just by letter. Compiled from every cross-item finding recorded in this document
-(v1.17–v1.20) plus two dependencies already stated in each item's own pathway that hadn't been
-pulled into one place before: F5's hard block on F2, and F9's shared-extraction pattern mirroring
-F8's.
+Q1–Q5, Q7, Q9–Q11, S1/S3, and — as of v1.22 — S2 and F1 and F6, and — as of v1.24 — Q6, F7, T2
+(Phase T), and Q8 are already implemented. What follows orders everything still pending — F8, F9,
+F2, F5, F3's audit — by actual dependency, not just by letter. Compiled from every cross-item
+finding recorded in this document (v1.17–v1.20) plus two dependencies already stated in each
+item's own pathway that hadn't been pulled into one place before: F5's hard block on F2, and F9's
+shared-extraction pattern mirroring F8's.
 
 **Hard dependencies (violating these means redoing real work, not just resequencing):**
 - **Q8 → after S2** — Q8's fix targets `_rollback_to_schedule_index()`'s wave-grouped
@@ -553,8 +592,10 @@ F8's.
 independently):**
 - **Q6 after S2** — no dependency, but both touch `stage_runner.py`, which S2 substantially
   rewrites; building Q6's pool cache against the post-S2 structure avoids redoing it.
-- **Q6 and F7, whichever lands second, must add the pickle-exclusion check** (§4 Q6) — no order
-  requirement between the two, just a shared checklist item neither should skip.
+- ~~**Q6 and F7, whichever lands second, must add the pickle-exclusion check**~~ — **retracted,
+  v1.23**: verified `Model` (F7's actual pickle target) has no reference to `InstanceSpace`/
+  `StageRunner` (Q6's only proposed pool-holder locations), so there is nothing to exclude. See
+  §4 Q6's corrected note for the full check.
 - **F8 before F9** — not blocking, but F9's own pathway extracts `PrelimStage`'s shared logic
   explicitly "to serve F8's goal at the same time," and F8 has its own open ambition-level
   decision (lighter shared-function vs. fuller `Stage` contract extension) that determines what
@@ -573,9 +614,10 @@ audit runs, but nothing blocks running the audit itself).
 | 1 | ~~S2~~ | **Done (v1.22).** Unblocked Q8, de-risked Q6. |
 | 2 | ~~F1~~ | **Done (v1.22).** Fully unblocked, additive at default. |
 | 3 | ~~F6~~ | **Done (v1.22).** Trivial, mechanical. |
-| 4 | Q6 | Targets S2's final `stage_runner.py` (now `build_stage_runner()`); build the pickle-exclusion in from the start |
-| 5 | F7 | S1 already done; if Q6 landed, its round-trip tests exercise the pool-exclusion case directly |
-| 6 | Q8 | S2 done (no wasted implementation) — confirm T2 exists first or this stays blocked regardless |
+| 4 | ~~Q6~~ | **Done (v1.24).** No pickle-exclusion needed (corrected §4 Q6 note, v1.23). |
+| 5 | ~~F7~~ | **Done (v1.24).** Independent of Q6 once the pickle-exclusion link was retracted. |
+| 5.5 | ~~T2~~ (Phase T) | **Done (v1.24).** Real full-7-stage `.build()` fixture; found and fixed a real deepcopy/`ThreadPoolExecutor` crash Q6's own unit tests hadn't caught. |
+| 6 | ~~Q8~~ | **Done (v1.24), negative result.** No over-invalidation reproduces for the built-in 7-stage order — see §4 Q8. |
 | 7 | F8 | S1 already resolved the PYTHIA half; decide lighter-vs-fuller here; behavior-changing — full `tests/matlab_reference` suite before/after |
 | 8 | F9 | Mirrors F8's just-decided extraction pattern for `PrelimStage`; fully additive |
 | 9 | F2 | Independent but higher-risk (bit-for-bit verification burden) — do with full attention once lower-risk items are clear; land R1 first internally |
@@ -593,7 +635,7 @@ concrete derivatives and are already in the table.
 | F4 | Phases 7–8 | `InstanceSpace` class & `build`/`explore` robustness | **Audited (v1.3)** — see §6.1 for findings; Q8 (§4) verifies one open question before F4's invalidation-fix work is scoped | — (audit only; see F7/F8/F9 for the actionable, taggable derivatives) |
 | F5 | Phase 9 | Output consolidation / 3D visualisation parity (MATLAB's `scriptpng.m`) | Not started | **[Additive]** — new rendering paths; doesn't change any existing 2D output function. |
 | F6 | Phase 10 | Namespace & per-file licence headers — licence itself already matches MATLAB | **Implemented (v1.22)** — `SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0` + copyright header added to all 27 `instancespace/**/*.py` files. | **[Additive]** — comments only. |
-| F7 | — | Model save/load round-trip (`Model.save()`/`InstanceSpace.load()`), matching MATLAB's persistence | **Format revised: signed `pickle`/`joblib`, with signing optional (`secret_key: bytes \| None`)** — see design constraint below (supersedes the earlier HDF5-via-`h5py` decision and the earlier unconditional-signing decision) | **[Additive]** — brand-new capability; nothing existing depends on it. |
+| F7 | — | Model save/load round-trip (`Model.save()`/`Model.load()`), matching MATLAB's persistence | **Implemented and verified (v1.24)** — `instancespace/model.py`, signed `joblib`-based round-trip with `secret_key: bytes \| None`. 7 new tests: round-trip (signed/unsigned, incl. a genuinely fitted `SVC` and a real shapely `Polygon` compared directly, not flattened), wrong-key rejection, byte-tampering rejection before deserialising, the downgrade-attack guard, missing-signature rejection, and stale-`.sig`-cleanup on a subsequent unsigned save to the same path. `joblib` promoted from a transitive to a direct dependency (`pyproject.toml`) since it's now imported directly. | **[Additive]** — brand-new capability; nothing existing depends on it. |
 | F8 | — | Unify `explore()` with build-time stage code (predict-mode dispatch on `PythiaStage`/`TraceStage`, matching MATLAB calling the same `PYTHIA()`/`TRACE()` in both modes) | **Narrowed by S1**: the PYTHIA half is resolved as a side effect of calling native `.predict_proba()` instead of reimplementing SVM math — nothing left there to reconcile. Remaining scope is TRACE only (footprint/alpha-shape membership testing is a genuinely different computation S1's insight doesn't extend to) | **[Behavior-changing risk]** — this refactors existing, working code. The full `tests/matlab_reference/` validation suite must pass identically before/after; treat any tolerance-threshold change during this work as a red flag to investigate, not a "close enough" adjustment. |
 | F9 | — | Expand `explore()` to full evaluation scope: algorithm reconciliation + ground-truth performance metrics, matching MATLAB's `evaluateTestSet` | **Decided: extend `explore()` itself** (silent branch on whether ground truth is present) — see companion implementation-pathways document for the full pathway | **[Additive]** — new fields default to `None`; existing feature-only callers see no change. Add explicit test coverage for the "no ground truth present" path specifically, to lock this in rather than assume it. |
 
@@ -660,11 +702,11 @@ this document; (2) `load()` must refuse both mismatched signed/unsigned combinat
 above — this is what prevents the desktop mode's existence from becoming a bypass for the server
 mode. Once S1 lands, `SVC` objects round-trip through pickle exactly as trained — no
 adapter/flattening step needed at load time at all, since `explore()` will already be operating
-on native objects. **Depends on Q6 handling its own pickle-exclusion (added v1.18):** if Q6
-lands first, its pool-holder attribute must already be excluded from pickled state (see Q6's
-entry above) — otherwise F7's round-trip test can fail intermittently depending on whether a
-pool-using stage ran before `save()`, which would look like an F7 bug but is actually an
-un-isolated Q6 gap.
+on native objects. ~~**Depends on Q6 handling its own pickle-exclusion (added v1.18)**~~ —
+**retracted, v1.23**: `Model.save()`/`Model.load()` operate on `Model`
+(`instancespace/model.py`), which has no field referencing `InstanceSpace`/`StageRunner` (where
+Q6's pool actually lives), so nothing about Q6's pool state is ever part of what F7 pickles.
+Verified directly rather than assumed — see Q6's corrected §4 entry.
 
 ### 6.1 F4 audit findings — class architecture deep dive
 
@@ -820,6 +862,12 @@ at all.
 Mechanical, additive. Can't manage what isn't measured.
 
 ### T2 — Add a real end-to-end `build()` integration test
+**Implemented and verified (v1.24)** — `tests/test_build_integration.py`, built against
+`tests/test_data/preprocessing/`'s 213-instance/10-algorithm real fixture (same dataset
+`instance_space_from_files`'s existing partial tests already use). A genuinely slow test
+(~8.5 minutes, serial - `parallel.flag: false` in that fixture's options) but the only one in
+the repo that calls `.build()` end to end; found a real crash (see Q8's entry) that no other
+test in the repo was positioned to catch.
 **[Additive]** — a test.
 Construct a real `InstanceSpace` with real metadata + options, call `.build()`, assert it
 completes and produces a `Model` with every expected stage output populated. The Python
@@ -951,3 +999,5 @@ ships with its listed test, not just its implementation.
 | v1.20 | 2026-07-28 | Sharpened v1.19's Q8/S2 sequencing note: it had treated Q8 and T6 as fully parallel cases, but they differ in what "sequence after S2" actually protects against. T6 tests the resolution *algorithm* S2 deletes outright — post-S2 it may have no remaining subject matter, hence S2's own "or skip T6 entirely." Q8 tests a *behavioral property* (correct invalidation on partial rerun) that still has to hold post-S2 — S2's own before/after checkpoint (full-pipeline output equality) doesn't cover partial-rerun invalidation, so it doesn't subsume Q8 either. The real risk in doing Q8 before S2 isn't a stale test, it's wasted *implementation*: a promoted F-phase fix for over-invalidation would be written against the wave-grouped `_stage_order` S2 then deletes, forcing S2 to re-derive the same dependency-graph walk against its own replacement structure. Net correction: Q8 must wait for S2 same as T6, but unlike T6 it is never at risk of becoming pointless. Updated Q8's entry, S2's entry, and the Q8/S2 outstanding-items row in this document, plus both cross-references in the companion implementation-pathways document. No code changed. |
 | v1.21 | 2026-07-28 | Added §6.0 — a single consolidated execution order for every remaining Q/S/F item (Q6, Q8, S2, F1–F3, F5–F9; F4 excluded, already audited), compiled from every cross-item dependency recorded so far (v1.17–v1.20) plus two more pulled from each item's own pathway that hadn't been assembled in one place before: F5's hard block on F2 ("genuinely blocked on F2 landing first") and F9's shared-extraction step explicitly mirroring F8's pattern. Recommended order: S2 → F1/F6 → Q6 → F7 → Q8 → F8 → F9 → F2 → F5, with F3's audit runnable independently at any point. CLAUDE.md's phase-gate section updated to point at §6.0 instead of restating a partial version of it. No code changed. |
 | v1.22 | 2026-07-28 | S2, F1, and F6 implemented and verified on `v0.9.0/development-branch-QSF` (full suite: 265 passed, 0 failed; F1 alone adds 18 new dedicated tests). S2's audit found a real gap in its own §5 design — the `stages` constructor parameter is a documented plugin-extension point (`example_plugin.py`), not just internal plumbing — resolved by requiring explicit `RunBefore`/`RunAfter` declarations for any non-built-in stage rather than type-matching inference; two latent bugs in the never-before-exercised `RunBefore`/`RunAfter` mechanism were found and fixed in the same pass (a wrong `TypeVar` bound, and `isinstance()` used where `get_origin()` was needed for subscripted generics). Following a direct request, `stage_builder.py` was then folded entirely into `stage_runner.py` (`build_stage_runner()` plus two private helpers) and deleted, since post-S2 it had shrunk to one call site with no remaining reason to be a separate module — net line-count for that fold alone: 322 deleted, 122 added. `tests/test_stage_builder_runner.py` renamed to `tests/test_stage_runner.py`. F1 added `PythiaOptions.classifier` (default `'svm'`, zero behaviour change verified against the existing MATLAB-reference tests) and a training-side registry dispatching to 6 scikit-learn classifiers, explicitly scoped to *not* claim MATLAB-verified hyperparameter tuning for the 5 non-`svm` entries (no MATLAB reference exists for them) — flagged in both code and this document rather than silently assumed. Fixed a real, separate bug found during cleanup: `instancespace/__init__.py`'s `__all__` still listed the now-deleted `stage_builder`, which made `from instancespace import *` raise `AttributeError` — confirmed by reproducing the crash before fixing it. README and RELEASE_NOTES.md's baseline section updated to describe the current (not pre-S2) DAG/scheduler behaviour, following the same v1.16 precedent for stale "describes current state" prose. §6.0's recommended-order table and status line updated to mark S2/F1/F6 done. |
+| v1.23 | 2026-07-28 | Before starting Q6/F7/Q8 (the next three items in §6.0's order), evaluated their scope against the post-fold code rather than assuming the existing text still applied. Two findings: (1) the Q6↔F7 pickle-exclusion interaction (v1.18) rests on a premise that doesn't hold — verified `instancespace/model.py`'s `Model` (F7's actual pickle target, per its own pathway) is a frozen dataclass with no field referencing `InstanceSpace`/`StageRunner` (Q6's only proposed pool-holder locations), so there is nothing for a `__getstate__`/`__setstate__` exclusion to guard against; retracted the shared-checklist item in §6.0 and corrected Q6's §4 entry accordingly — this is a scoping correction, not new work. (2) Q8's hard T2 dependency, already flagged in §6.0's "Hard dependencies" list, was confirmed concrete rather than theoretical: grepped `tests/` for any full-7-stage `.build()` call and found none — the only `instance_space_from_files` callers (`test_prepro_n_prelim.py`, `test_load_file.py`, `test_preprocessing.py`) stop at preprocessing/prelim. T2 does not exist in any form, so Q8 cannot be written yet. User confirmed (asked directly, not guessed): insert T2 as Q8's direct prerequisite rather than deferring Q8 to later in the order or substituting a different third item. §6.0's recommended-order table updated (new row 5.5 for T2). No code changed. |
+| v1.24 | 2026-07-28 | Q6, F7, T2, and Q8 implemented and verified on `v0.9.0/development-branch-QSF`. Q6: a lazily-created, reused `ThreadPoolExecutor` cached on `InstanceSpace`, threaded through `TraceStage` in place of a fresh per-call pool; 10 new unit tests. F7: `Model.save()`/`Model.load()`, signed `joblib` round-trip with optional `secret_key`, following the format decided in v1.14/v1.17; 7 new tests covering both modes plus the tampering/downgrade-attack/missing-signature guards; `joblib` promoted to a direct dependency. T2: `tests/test_build_integration.py`, the repo's first true end-to-end `.build()` test, against the real 213-instance/10-algorithm fixture already used by other partial tests — genuinely slow (~8.5 min, serial) but the only test positioned to catch what it caught. Q8: verified negative result — rerunning `CloisterStage` neither invalidates `PythiaStage`'s output (same schedule wave) nor blocks `run_stage(TraceStage)` (no real dependency on `CloisterStage`, and not wave-position-blocked either); §6.1's speculative over-invalidation concern does not reproduce for the current built-in 7-stage order — scoped to that order, not a general correctness claim about `_rollback_to_schedule_index()`. **Real bug found by T2, unrelated to the invalidation question**: `StageRunner.run_stage()`'s unconditional `deepcopy(inputs)` crashed (`TypeError: cannot pickle '_queue.SimpleQueue' object`) on Q6's new `TraceInputs.executor` field — Q6's own unit tests missed this because they called `TraceStage` directly, bypassing `run_stage()`'s deepcopy step. Root-caused and fixed via a new `_deepcopy_stage_inputs()` helper in `stage_runner.py` that pre-seeds `deepcopy`'s memo with any live `ThreadPoolExecutor` so it passes through by reference — necessary for two independent reasons (executors aren't deepcopy-safe at all, and even a successful copy would silently defeat Q6's pool-reuse purpose), not just to silence the crash. Added a fast, dedicated regression test (`test_run_stage_does_not_deepcopy_a_live_executor`) so this doesn't require another 8-minute build to re-catch. Full test suite (excluding the two genuinely slow PYTHIA-tuning/T2 tests, which were run and verified separately): 224 passed, 0 failed. §6.0's recommended-order table, status line, and Q6/F7/T2/Q8 entries updated to reflect all four items done. |

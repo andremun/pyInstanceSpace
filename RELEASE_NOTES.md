@@ -76,6 +76,13 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   decision function. (`build_explore_adapter.py` itself has since been deleted — see the
   *Better engineering* entry below; `explore()` now calls `SVC.predict_proba` directly
   for every kernel type, so this specific formula no longer exists either.)
+- `StageRunner.run_stage()` no longer crashes with `TypeError: cannot pickle
+  '_queue.SimpleQueue' object` when a stage's inputs carry a live `ThreadPoolExecutor`
+  (introduced by the Q6 pool-reuse change below, caught by the new end-to-end build test
+  before ever shipping) — its unconditional `deepcopy(inputs)` now exempts live
+  `ThreadPoolExecutor` references, passing them through by reference instead of
+  attempting to copy them, which both isn't deepcopy-safe and would have silently
+  defeated Q6's pool-reuse purpose even if it somehow succeeded.
 
 ### Better engineering
 
@@ -123,3 +130,22 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   structurally. Only `svm` is tuned via PYTHIA's existing `C`/`gamma` search; the other
   five are fit with scikit-learn's own default hyperparameters — registering a classifier
   here is not a claim of MATLAB-verified tuning parity for it (F1).
+- `InstanceSpace` now reuses a single `ThreadPoolExecutor` across staged calls instead of
+  creating and tearing one down on every `TraceStage` run, mirroring MATLAB's
+  `ensurePool()`. The pool is created lazily, recreated only if the requested worker
+  count changes, and released via a new explicit `InstanceSpace.close()` method (Q6).
+- Added `Model.save()`/`Model.load()` (`instancespace/model.py`): a signed
+  `joblib`-based persistence round-trip, matching MATLAB's model save/load. Signing via
+  an HMAC-SHA256 `secret_key` is optional — omitted for local/desktop use (identical
+  trust caveat to any other unsigned `pickle`/`joblib` file), required and verified
+  *before* deserialising for the production/server path. A signed file can never be
+  loaded unverified by omitting the key (the downgrade-attack case is refused, not
+  silently allowed) (F7).
+- Added `tests/test_build_integration.py`, the repo's first genuine end-to-end
+  `.build()` test — real metadata/options through all 7 stages, asserting every
+  stage's output actually lands on the resulting `Model` (T2). Also verified, against
+  that same real build, that rerunning `CloisterStage` neither wrongly invalidates
+  `PythiaStage`'s already-computed output nor blocks a subsequent `TraceStage` run — a
+  negative result for a previously-flagged concern about `_rollback_to_schedule_index()`
+  over-invalidating by schedule-wave position rather than real dependency, scoped to the
+  current built-in 7-stage order (Q8).
