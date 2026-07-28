@@ -78,8 +78,9 @@ def test_trace_matches_matlab():
     trace = build_trace_from_artifacts()
 
     instance_space = Mock(spec=InstanceSpace)
-    instance_space._explore_model = Mock()
-    instance_space._explore_model.trace = trace
+    instance_space._model = Mock()
+    instance_space._model.trace = trace
+    instance_space._require_model = Mock(return_value=instance_space._model)
 
     z = pd.read_csv(OUTPUTS_DIR / "step3_after_pilot.csv", index_col=0)
     in_good, in_best = InstanceSpace._explore_trace(instance_space, z.to_numpy())
