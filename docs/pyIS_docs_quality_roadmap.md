@@ -505,6 +505,60 @@ These map loosely to MATLAB's Phases 4–10 but are **not scoped yet** — each 
 own audit (read the relevant `stages/*.py` + tests) before any specific fix is committed to.
 Order is a starting suggestion, not a commitment.
 
+### 6.0 Consolidated execution order — remaining Q/S/F items (added v1.21)
+
+Q1–Q5, Q7, Q9–Q11 and S1/S3 are already implemented. What follows orders everything still
+pending — Q6, Q8, S2, and every F item — by actual dependency, not just by letter. Compiled from
+every cross-item finding recorded in this document (v1.17–v1.20) plus two dependencies already
+stated in each item's own pathway that hadn't been pulled into one place before: F5's hard block
+on F2, and F9's shared-extraction pattern mirroring F8's.
+
+**Hard dependencies (violating these means redoing real work, not just resequencing):**
+- **Q8 → after S2** — Q8's fix targets `_rollback_to_schedule_index()`'s wave-grouped
+  `_stage_order`, which S2 deletes; fixing Q8 first means implementing the same dependency-graph
+  walk twice (§4 Q8, §5 S2).
+- **Q8 → after T2** (Phase T, not Q/S/F, flagged because it's a real blocker regardless) — Q8's
+  own pathway requires a real end-to-end `build()` fixture that doesn't exist yet.
+- **F5 → after F2** — F5's pathway states this outright: "genuinely blocked on F2 landing
+  first — no further detail useful until then."
+- **F1, F7, F8 → after S1** — already satisfied; all three are unblocked now.
+
+**Soft preferences (no correctness risk, but reduce rework or converging conventions
+independently):**
+- **Q6 after S2** — no dependency, but both touch `stage_runner.py`, which S2 substantially
+  rewrites; building Q6's pool cache against the post-S2 structure avoids redoing it.
+- **Q6 and F7, whichever lands second, must add the pickle-exclusion check** (§4 Q6) — no order
+  requirement between the two, just a shared checklist item neither should skip.
+- **F8 before F9** — not blocking, but F9's own pathway extracts `PrelimStage`'s shared logic
+  explicitly "to serve F8's goal at the same time," and F8 has its own open ambition-level
+  decision (lighter shared-function vs. fuller `Stage` contract extension) that determines what
+  that extraction pattern looks like in this codebase. Deciding it once via F8 first means F9
+  mirrors an established pattern instead of the two converging on one independently.
+- **Within F2:** land R1's 2D rotation canonicalisation (Phase R, tangential to Q/S/F) before
+  F2's `dims=3` work — already F2's own recommended default.
+
+**No dependency either way, ready any time:** F1, F6, and F3's *audit* (its fix stays unscoped
+until the audit runs, but nothing blocks running the audit itself).
+
+**Recommended order:**
+
+| Order | Item | Why here |
+|---|---|---|
+| 1 | S2 | Unblocks Q8, de-risks Q6; no open design decision of its own |
+| 2 | F1 | Fully unblocked, additive at default, no interaction with anything else pending |
+| 3 | F6 | Trivial, mechanical, no dependency — fine to interleave anywhere |
+| 4 | Q6 | Targets S2's final `stage_runner.py`; build the pickle-exclusion in from the start |
+| 5 | F7 | S1 already done; if Q6 landed, its round-trip tests exercise the pool-exclusion case directly |
+| 6 | Q8 | S2 done (no wasted implementation) — confirm T2 exists first or this stays blocked regardless |
+| 7 | F8 | S1 already resolved the PYTHIA half; decide lighter-vs-fuller here; behavior-changing — full `tests/matlab_reference` suite before/after |
+| 8 | F9 | Mirrors F8's just-decided extraction pattern for `PrelimStage`; fully additive |
+| 9 | F2 | Independent but higher-risk (bit-for-bit verification burden) — do with full attention once lower-risk items are clear; land R1 first internally |
+| 10 | F5 | Direct consumer of F2, natural next step |
+| — | F3 (audit) | No dependency — run whenever, ideally early, so its fix scope stops being unknown sooner rather than later |
+
+F4 doesn't appear above — it's already "audited," not an actionable item; F7/F8/F9 are its
+concrete derivatives and are already in the table.
+
 | Phase | Maps to MATLAB | Focus | Status | Compat |
 |---|---|---|---|---|
 | F1 | Phase 4 | PYTHIA classifier registry — confirm whether `stages/pythia.py` supports a pluggable classifier set or is fixed | Not started — **sequence after S1**: with `explore()` calling scikit-learn's own `.predict()`/`.predict_proba()` natively, the explore-side half of this item is largely resolved as a side effect of S1, narrowing F1's remaining scope to the training-side registry table (build-side dispatch, mirroring `ISAgetClassifierFcn.m`) | **[Additive at default]** — new `classifier` option defaults to `'svm'`, matching today's only behaviour. New registry entries themselves are new production surface, though — need their own validation before being trusted in production, not just "it runs." |
@@ -869,3 +923,4 @@ ships with its listed test, not just its implementation.
 | v1.18 | 2026-07-28 | Recorded a previously-undocumented Q6↔F7 interaction, found while discussing a start-pool → run stage → save → restart session → load → run next stage scenario: `ThreadPoolExecutor` (Q6's pool-holder attribute) is not picklable, so if Q6 lands without excluding it from pickled state, F7's `save()` either crashes outright (pool live) or succeeds only by caller discipline (pool closed first) — a scenario-dependent failure that would surface as a flaky F7 round-trip test rather than an obvious Q6 gap. Fix recorded as belonging to Q6: exclude the pool via `__getstate__`/`__setstate__`, letting `load()` come back with the pool unset for lazy recreation on next use — consistent with both Q6's own "lazily created" design and MATLAB's own non-serialised, session-local parallel-pool handles. Updated Q6's entry (new interaction note), F7's `[DECISION]` block (cross-reference), and §9 outstanding-items (new row) in this document, plus Q6's pathway in the companion implementation-pathways document. No code changed — both Q6 and F7 remain unimplemented. |
 | v1.19 | 2026-07-28 | Swept the remaining pending Q/S items (Q6, Q8, S2 — everything else in both phases is already implemented) for the same shape of cross-item gap just found in Q6/F7. Found one: Q8's regression test and its own stated diagnosis target `stage_runner.py`'s `_rollback_to_schedule_index()` — verified directly (`stage_runner.py:256-267`) to invalidate by iterating the wave-grouped `_stage_order` list by position. S2's own pathway (step 3) already removes "wave computation" as part of replacing DAG auto-resolution, and already sequences itself against T6 for the identical reason ("no point testing an algorithm about to be deleted") — but nothing sequenced S2 against Q8, even though both operate on the same function, just because they sit under different phase headings. Recorded the same before-S2-or-reconcile-after reasoning for Q8 that already existed for T6, in both directions (Q8's entry and S2's entry) so it surfaces regardless of which one someone reads first. No further gaps found in Q6 beyond the one already recorded in v1.18. No code changed. |
 | v1.20 | 2026-07-28 | Sharpened v1.19's Q8/S2 sequencing note: it had treated Q8 and T6 as fully parallel cases, but they differ in what "sequence after S2" actually protects against. T6 tests the resolution *algorithm* S2 deletes outright — post-S2 it may have no remaining subject matter, hence S2's own "or skip T6 entirely." Q8 tests a *behavioral property* (correct invalidation on partial rerun) that still has to hold post-S2 — S2's own before/after checkpoint (full-pipeline output equality) doesn't cover partial-rerun invalidation, so it doesn't subsume Q8 either. The real risk in doing Q8 before S2 isn't a stale test, it's wasted *implementation*: a promoted F-phase fix for over-invalidation would be written against the wave-grouped `_stage_order` S2 then deletes, forcing S2 to re-derive the same dependency-graph walk against its own replacement structure. Net correction: Q8 must wait for S2 same as T6, but unlike T6 it is never at risk of becoming pointless. Updated Q8's entry, S2's entry, and the Q8/S2 outstanding-items row in this document, plus both cross-references in the companion implementation-pathways document. No code changed. |
+| v1.21 | 2026-07-28 | Added §6.0 — a single consolidated execution order for every remaining Q/S/F item (Q6, Q8, S2, F1–F3, F5–F9; F4 excluded, already audited), compiled from every cross-item dependency recorded so far (v1.17–v1.20) plus two more pulled from each item's own pathway that hadn't been assembled in one place before: F5's hard block on F2 ("genuinely blocked on F2 landing first") and F9's shared-extraction step explicitly mirroring F8's pattern. Recommended order: S2 → F1/F6 → Q6 → F7 → Q8 → F8 → F9 → F2 → F5, with F3's audit runnable independently at any point. CLAUDE.md's phase-gate section updated to point at §6.0 instead of restating a partial version of it. No code changed. |
