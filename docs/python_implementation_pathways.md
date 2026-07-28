@@ -440,13 +440,24 @@ cross-implementation consistency)? Recommended default: **`'svm'`**, to avoid si
 existing users' default output the moment this option is introduced — `'knn'` remains one
 config change away.
 
-### F2 — PILOT 3D / viewpoint / PLS alternative
+### F2 — PILOT 3D / viewpoint / PLS alternative, plus `ntries` restart parallelism
 **Verified starting point:** no `dims`, `viewGroups`, or `method` handling found in `stages/
 pilot.py` at all — Python's PILOT is 2D-only, single-method, with none of MATLAB's Phase 5
-surface.
+surface. **Added v1.25, verified directly against `core/PILOT.m`:** MATLAB's numeric/BFGS branch
+also parallelises its `opts.ntries` multi-start restarts — `nworkers = gcp('nocreate').NumWorkers`
+(reuses whatever pool is already open, opens none itself) then `parfor (i=1:opts.ntries,
+nworkers) ... end`, each restart independent (different random `X0(:,i)`, same cost function),
+picked by `[~,idx] = max(out.perf)` afterward — order of completion doesn't affect the result.
+Python's `pilot.py:520` runs the equivalent `for i in range(opts.n_tries):` loop strictly
+sequentially; `PilotInput` has no `parallel_options` field at all, unlike `TraceInputs`/
+`PythiaInput`. Not previously tracked under Q6 (Q6's own scope only ever named TRACE's
+`ThreadPoolExecutor` and PYTHIA's `n_jobs`) or anywhere else — folded into F2 since F2 already
+owns PILOT parity work end to end, and this restart loop is the same code F2's `dims`/`method`
+work touches regardless.
 **Files:** `data/options.py` (`PilotOptions` — add `dims: int`, `view_groups: list[list[int]] |
 None`, `method: str`), `stages/pilot.py` (extend the analytic/numeric solvers to `n×3` where
-`dims=3`), new `stages/pilot_viewpoint.py` (direct port of `PILOTviewpoint.m`).
+`dims=3`; parallelise the `ntries` restart loop), new `stages/pilot_viewpoint.py` (direct port of
+`PILOTviewpoint.m`).
 **Pathway:**
 1. Extend the existing 2D projection math to general `dims` (2 or 3) — check whether the
    analytic eigen-solution path and the BFGS numeric path both generalise cleanly to 3 output
@@ -461,11 +472,27 @@ None`, `method: str`), `stages/pilot.py` (extend the analytic/numeric solvers to
 4. PLS alternative (`method='pls'`): `sklearn.cross_decomposition.PLSRegression` gives the
    weight/loading matrices analogous to MATLAB's `plsregress` output — map its `x_weights_`/
    `x_loadings_`/`y_loadings_` onto the `A`/`B`/`C` triple the rest of the pipeline expects.
+5. Parallelise the `ntries` restart loop: add `parallel_options: ParallelOptions` to
+   `PilotInput` (matching `TraceInputs`/`PythiaInput`'s existing pattern) and submit each restart
+   to a `ThreadPoolExecutor` instead of the plain `for` loop — Q6's `InstanceSpace._get_executor()`
+   pool-reuse mechanism already exists and can be threaded through the same way it now is for
+   `TraceStage`; no need to invent a second pooling scheme. Each restart is CPU-bound (`fminunc`
+   equivalent — likely `scipy.optimize.minimize`), so confirm whether Python's GIL makes a thread
+   pool actually faster here or whether a `ProcessPoolExecutor`/joblib `loky` backend is needed for
+   a real speedup — MATLAB's `parfor` uses OS processes, not threads, so this is a real port
+   decision, not just a mechanical translation.
+**Test:** `ntries` restarts must be embarrassingly parallel and order-independent — assert
+identical `out.A`/`out.Z`/`out.perf` (up to the same numerical tolerance already used elsewhere)
+whether run with `parallel.flag=True` or `False`, proving parallelising the loop doesn't change
+which restart wins.
 **Decision needed:** should R1 (rotation canonicalisation, already scoped separately) be applied
 before or after `dims=3` lands? Recommended default: **after** — R1's centroid-angle math as
 written assumes 2D; generalising it to 3D orientation (which needs an axis choice, not just an
 angle) is a bigger question than R1's original scope intended, so land 2D rotation first, revisit
-3D rotation as its own follow-on once F2 exists.
+3D rotation as its own follow-on once F2 exists. **New, added v1.25:** thread pool (matching Q6)
+or process pool (matching MATLAB's actual `parfor` semantics) for the `ntries` loop? Recommended:
+resolve via the GIL/CPU-bound test above rather than assuming thread-pool parity with Q6 is
+automatically correct just because Q6 exists.
 
 ### F3 — SIFTED refinements
 **Verified starting point:** MATLAB's "SIFTED promotion" specifically meant promoting an
