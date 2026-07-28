@@ -303,20 +303,28 @@ re-run `cloister` only via `run_stage()`, and check whether `pythia`'s output is
 marked stale. If the test confirms over-invalidation, promote the fix to F-phase work (it touches
 `stage_runner.py`, so it doesn't clear this phase's low-risk bar) — see the note on F4 in §6.
 
-**Sequencing gap with S2 (added v1.19) — same shape as the already-recorded S2→T6 sequencing,
-just not caught for Q8 because it lives under a different phase heading:** verified directly in
-`stage_runner.py:256-267` — `_rollback_to_schedule_index()` invalidates by iterating
-`self._stage_order[index+1:]`, i.e. it operates directly on the wave-grouped schedule list. S2
-(§5) explicitly removes "wave computation" as part of replacing DAG auto-resolution with an
-explicit stage order. That means Q8's target function, and the specific diagnosis its own
-pathway states ("the fix belongs in `stage_runner.py`'s `_rollback_to_schedule_index`, replacing
-schedule-index comparison with a real dependency-graph walk"), are pinned to a data structure S2
-is about to restructure. Running Q8 before S2 risks either finding a bug and shipping an F-phase
-fix into code S2 then rewrites (silently reintroducing the same gap unless S2's own test suite
-re-checks the identical invalidation property), or running Q8 after S2 with a stale pathway
-description of what to patch. Recommended: sequence Q8 **after** S2, mirroring S2's own
-T6-sequencing rationale — test the invalidation property against the `stage_order` shape that
-will actually ship, not the wave-computed one about to be replaced.
+**Sequencing gap with S2 (added v1.19, sharpened v1.20) — related to, but not identical in
+shape to, the already-recorded S2→T6 sequencing:** verified directly in `stage_runner.py:256-267`
+— `_rollback_to_schedule_index()` invalidates by iterating `self._stage_order[index+1:]`, i.e.
+it operates directly on the wave-grouped schedule list. S2 (§5) explicitly removes "wave
+computation" as part of replacing DAG auto-resolution with an explicit stage order. Running Q8
+before S2 doesn't just risk a stale test — it risks **implementing a fix twice**: if Q8's test
+confirms over-invalidation, the promoted F-phase fix (per Q8's own pathway, "replacing
+schedule-index comparison with a real dependency-graph walk") would be written against the
+wave-grouped `_stage_order`, a data structure S2 then deletes — S2 would have to re-derive the
+same dependency-graph walk against its own new structure regardless, making the first
+implementation wasted work, not just a wasted test.
+
+**Where this differs from T6, precisely:** T6 tests the *ambiguity-detection/resolution
+algorithm itself* — S2 deletes that algorithm outright, so post-S2 there may be no remaining
+subject matter at all, which is why S2's own pathway says "or skip T6 entirely." Q8 tests a
+*behavioral property* — rerunning one stage must not wrongly invalidate unrelated downstream
+stages — that still has to hold after S2 lands; S2 changes how the schedule is represented, not
+whether correct invalidation matters. S2's own checkpoint ("run the full 7-stage pipeline before
+and after, assert identical output") only covers a full initial run, not partial-rerun
+invalidation, so it doesn't accidentally subsume Q8 either. **Net: sequence Q8 after S2 (same as
+T6), but unlike T6, Q8 is not at risk of becoming pointless — it only needs to target whatever
+`_rollback_to_schedule_index`-equivalent S2 leaves behind, not be abandoned.**
 
 ### Q9 — Centralise RNG seeding via a `general.seed` option
 **[Behavior-changing if defaulted wrong — corrected below]** Every current build/explore call is
@@ -450,11 +458,16 @@ incidental side effect to discover later.
 
 **Sequencing:** do this *before* T6 (DAG-resolver edge-case tests), or not at all — there's no
 point writing tests for an ambiguity-detection algorithm about to be deleted. **Also before Q8
-(added v1.19)**, for the identical reason: Q8's regression test (and the diagnosis its own
+(added v1.19, distinguished from T6 in v1.20)**: Q8's regression test (and the diagnosis its own
 pathway states) targets `_rollback_to_schedule_index()`'s schedule-wave-position invalidation —
-exactly the "wave computation" this item removes. See Q8's entry (§4) for the full reasoning;
-recorded there and here since neither phase heading would surface it to someone reading only the
-other one.
+exactly the "wave computation" this item removes. Unlike T6, though, Q8 doesn't risk becoming
+pointless here — the invalidation *property* Q8 checks still needs to hold post-S2, only the
+*data structure* it's implemented against changes. The risk with Q8 specifically is wasted
+*implementation*, not wasted *test-writing*: if Q8's test is run and fixed before S2, that fix
+gets written against the wave-grouped structure this item deletes, and S2 ends up re-deriving
+the same dependency-graph walk against its own new structure anyway. See Q8's entry (§4) for the
+full reasoning; recorded there and here since neither phase heading would surface it to someone
+reading only the other one.
 
 ### S3 — Retire `build_explore_adapter.py` entirely
 **[Additive]** — deleting code nothing calls once S1 lands and cross-platform loading is
@@ -827,7 +840,7 @@ ships with its listed test, not just its implementation.
 | F7's `load()` path-safety invariant | The server-side half of the revised F7 design depends on `load()` never receiving a user-supplied path, and always passing `secret_key` — needs to be an enforced, checked invariant (allowlist, storage-layer guarantee) once implementation starts, not left as a design-doc assumption |
 | F7's desktop/unsigned mode — downgrade-attack invariant | `secret_key=None` is a deliberate second mode (v1.17), not a loophole — but only if `load()` refuses both "signed file, no key given" and "no signed file, key given" cases. Needs its own enforced test (see §8.2), since this is the one place the two-mode split could silently regress into a bypass of the server mode's signing. |
 | Q6/F7 pickle-exclusion for pooled executors | (Added v1.18) If Q6 lands before F7, its pool-holder attribute must exclude itself from pickled state (`__getstate__`/`__setstate__`) or F7's save/load round-trip fails intermittently depending on whether a pool-using stage ran before `save()`. Whichever of Q6/F7 implements second should verify this explicitly rather than discover it via a flaky test. |
-| Q8/S2 sequencing | (Added v1.19) Q8's test and diagnosis target `_rollback_to_schedule_index()`'s wave-position invalidation (verified in `stage_runner.py:256-267`); S2 removes wave computation entirely. Sequence Q8 after S2, same reasoning already recorded for S2→T6 — otherwise a Q8-motivated F-phase fix could be silently undone (or need re-porting) when S2 restructures the same function. |
+| Q8/S2 sequencing | (Added v1.19, sharpened v1.20) Q8's test and diagnosis target `_rollback_to_schedule_index()`'s wave-position invalidation (verified in `stage_runner.py:256-267`); S2 removes wave computation entirely. Sequence Q8 after S2, same reasoning already recorded for S2→T6 — but unlike T6, Q8 isn't at risk of becoming pointless (the invalidation property it checks still matters post-S2), only of wasting *implementation* effort if a fix is written against the pre-S2 wave-grouped structure and then has to be re-derived against S2's replacement. |
 
 ---
 
@@ -855,3 +868,4 @@ ships with its listed test, not just its implementation.
 | v1.17 | 2026-07-28 | Revised F7's persistence decision (still design-only, not yet implemented) from unconditional HMAC signing to signing-optional-via-`secret_key: bytes \| None`, to serve a second reachable caller the v1.14 decision didn't account for: local/desktop development with no server-managed secret. `secret_key=None` skips signing entirely for that caller (equivalent risk to any other unsigned `pickle`/`joblib` use of a file the caller already trusts); `secret_key` given enforces the original signed-and-verified path unchanged. Added the one new risk the split introduces — a downgrade attack, where a server-signed file is loaded unverified by omitting the key — and closed it structurally: `load()` must refuse both "signed file, no key" and "unsigned file, key given" mismatches, not just the already-covered "signed file, wrong key" case. Updated the F7 table row, `[DECISION]` block, §8.2 test-debt row (added a downgrade-attack test), and §9 outstanding-items (added a dedicated downgrade-invariant entry) in this document, plus F7's pathway steps and `Decision needed` note in the companion implementation-pathways document. No code changed — F7 remains unimplemented. |
 | v1.18 | 2026-07-28 | Recorded a previously-undocumented Q6↔F7 interaction, found while discussing a start-pool → run stage → save → restart session → load → run next stage scenario: `ThreadPoolExecutor` (Q6's pool-holder attribute) is not picklable, so if Q6 lands without excluding it from pickled state, F7's `save()` either crashes outright (pool live) or succeeds only by caller discipline (pool closed first) — a scenario-dependent failure that would surface as a flaky F7 round-trip test rather than an obvious Q6 gap. Fix recorded as belonging to Q6: exclude the pool via `__getstate__`/`__setstate__`, letting `load()` come back with the pool unset for lazy recreation on next use — consistent with both Q6's own "lazily created" design and MATLAB's own non-serialised, session-local parallel-pool handles. Updated Q6's entry (new interaction note), F7's `[DECISION]` block (cross-reference), and §9 outstanding-items (new row) in this document, plus Q6's pathway in the companion implementation-pathways document. No code changed — both Q6 and F7 remain unimplemented. |
 | v1.19 | 2026-07-28 | Swept the remaining pending Q/S items (Q6, Q8, S2 — everything else in both phases is already implemented) for the same shape of cross-item gap just found in Q6/F7. Found one: Q8's regression test and its own stated diagnosis target `stage_runner.py`'s `_rollback_to_schedule_index()` — verified directly (`stage_runner.py:256-267`) to invalidate by iterating the wave-grouped `_stage_order` list by position. S2's own pathway (step 3) already removes "wave computation" as part of replacing DAG auto-resolution, and already sequences itself against T6 for the identical reason ("no point testing an algorithm about to be deleted") — but nothing sequenced S2 against Q8, even though both operate on the same function, just because they sit under different phase headings. Recorded the same before-S2-or-reconcile-after reasoning for Q8 that already existed for T6, in both directions (Q8's entry and S2's entry) so it surfaces regardless of which one someone reads first. No further gaps found in Q6 beyond the one already recorded in v1.18. No code changed. |
+| v1.20 | 2026-07-28 | Sharpened v1.19's Q8/S2 sequencing note: it had treated Q8 and T6 as fully parallel cases, but they differ in what "sequence after S2" actually protects against. T6 tests the resolution *algorithm* S2 deletes outright — post-S2 it may have no remaining subject matter, hence S2's own "or skip T6 entirely." Q8 tests a *behavioral property* (correct invalidation on partial rerun) that still has to hold post-S2 — S2's own before/after checkpoint (full-pipeline output equality) doesn't cover partial-rerun invalidation, so it doesn't subsume Q8 either. The real risk in doing Q8 before S2 isn't a stale test, it's wasted *implementation*: a promoted F-phase fix for over-invalidation would be written against the wave-grouped `_stage_order` S2 then deletes, forcing S2 to re-derive the same dependency-graph walk against its own replacement structure. Net correction: Q8 must wait for S2 same as T6, but unlike T6 it is never at risk of becoming pointless. Updated Q8's entry, S2's entry, and the Q8/S2 outstanding-items row in this document, plus both cross-references in the companion implementation-pathways document. No code changed. |
