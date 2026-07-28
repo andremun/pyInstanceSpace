@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Defines a collection of data classes that represent configuration options.
 
 These classes provide a structured way to specify and manage settings for different
@@ -34,6 +36,7 @@ from instancespace.data.default_options import (
     DEFAULT_PERFORMANCE_MAX_PERF,
     DEFAULT_PILOT_ANALYTICS,
     DEFAULT_PILOT_N_TRIES,
+    DEFAULT_PYTHIA_CLASSIFIER,
     DEFAULT_PYTHIA_CV_FOLDS,
     DEFAULT_PYTHIA_IS_POLY_KRNL,
     DEFAULT_PYTHIA_USE_GRID_SEARCH,
@@ -357,6 +360,7 @@ class PythiaOptions:
     use_weights: bool
     use_grid_search: bool
     params: NDArray[np.double] | None
+    classifier: str = DEFAULT_PYTHIA_CLASSIFIER
 
     @staticmethod
     def default(
@@ -364,6 +368,7 @@ class PythiaOptions:
         is_poly_krnl: bool = DEFAULT_PYTHIA_IS_POLY_KRNL,
         use_weights: bool = DEFAULT_PYTHIA_USE_WEIGHTS,
         use_grid_search: bool = DEFAULT_PYTHIA_USE_GRID_SEARCH,
+        classifier: str = DEFAULT_PYTHIA_CLASSIFIER,
     ) -> PythiaOptions:
         """Instantiate with default values."""
         return PythiaOptions(
@@ -372,6 +377,7 @@ class PythiaOptions:
             use_weights=use_weights,
             use_grid_search=use_grid_search,
             params=None,
+            classifier=classifier,
         )
 
 

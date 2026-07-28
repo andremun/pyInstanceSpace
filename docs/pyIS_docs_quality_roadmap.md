@@ -433,6 +433,31 @@ it is not directly affected by this change — but re-verify it explicitly rathe
 since it's the one place today that exercises the artifact shape at all.
 
 ### S2 — Replace DAG auto-resolution with explicit stage order + prerequisites
+**Implemented and verified (v1.22)** on `v0.9.0/development-branch-QSF`. Audit while
+implementing found a real gap this section's design didn't account for: `InstanceSpace`'s
+`stages` constructor parameter is a documented extension point (`example_plugin.py`,
+referenced by name in the README), not just internal plumbing for the fixed 7 — the
+auto-resolver was also handling arbitrary plugin-stage placement by type-matching, which a
+naively hardcoded order would have silently broken. Resolved (discussed and decided directly,
+not guessed): the built-in 7 stages get the hardcoded explicit order below; any additional
+stage must declare an explicit `RunBefore[X]`/`RunAfter[X]` field instead of relying on
+input/output type-matching — `example_plugin.py` updated to add one (`RunAfter[PythiaStage]`).
+Verified the resulting schedule is byte-identical to the pre-S2 auto-resolved one for the real
+7-stage pipeline (`[[Preprocessing], [Prelim], [Sifted], [Pilot], [Pythia, Cloister],
+[Trace]]`), and that `integration_demo.py`/`example_plugin.py` both still run end-to-end.
+Two latent bugs surfaced and fixed along the way, both from `RunBefore`/`RunAfter` never
+having a real caller before this: their `TypeVar` bound in `stages/stage.py` was `type[Stage[
+Any, Any]]` where it needed to be `Stage[Any, Any]` for `RunAfter[SomeStage]` to type-check;
+and both `StageRunner.run_stage()` and `_check_stage_order_is_runnable()` used
+`isinstance(x, type)` to detect these fields, which is `False` for a subscripted generic like
+`RunAfter[SomeStage]` (a `_GenericAlias`, not a plain class) — `get_origin()` is required
+instead. Full test suite: 265 passed, 0 failed. Following a direct request, `stage_builder.py`
+was subsequently folded entirely into `stage_runner.py` (as `build_stage_runner()` plus two
+private helpers) and deleted — once reduced to attaching extras to a caller-supplied base
+order, it had shrunk to one call site with no remaining reason to be a separate module; see
+§10 v1.22 for the line-count accounting. `tests/test_stage_builder_runner.py` renamed to
+`tests/test_stage_runner.py` and rewritten against the new function-based API.
+
 **[Additive if done carefully — see the type-safety tradeoff below, which is the real cost]**
 `stage_builder.py` (414 lines) infers stage dependencies from NamedTuple field-name/type
 matching, with cycle detection, ambiguous-ordering errors, mutating-stage handling, and
@@ -507,11 +532,12 @@ Order is a starting suggestion, not a commitment.
 
 ### 6.0 Consolidated execution order — remaining Q/S/F items (added v1.21)
 
-Q1–Q5, Q7, Q9–Q11 and S1/S3 are already implemented. What follows orders everything still
-pending — Q6, Q8, S2, and every F item — by actual dependency, not just by letter. Compiled from
-every cross-item finding recorded in this document (v1.17–v1.20) plus two dependencies already
-stated in each item's own pathway that hadn't been pulled into one place before: F5's hard block
-on F2, and F9's shared-extraction pattern mirroring F8's.
+Q1–Q5, Q7, Q9–Q11, S1/S3, and — as of v1.22 — S2 and F1 and F6 are already implemented. What
+follows orders everything still pending — Q6, Q8, and every remaining F item — by actual
+dependency, not just by letter. Compiled from every cross-item finding recorded in this document
+(v1.17–v1.20) plus two dependencies already stated in each item's own pathway that hadn't been
+pulled into one place before: F5's hard block on F2, and F9's shared-extraction pattern mirroring
+F8's.
 
 **Hard dependencies (violating these means redoing real work, not just resequencing):**
 - **Q8 → after S2** — Q8's fix targets `_rollback_to_schedule_index()`'s wave-grouped
@@ -537,17 +563,17 @@ independently):**
 - **Within F2:** land R1's 2D rotation canonicalisation (Phase R, tangential to Q/S/F) before
   F2's `dims=3` work — already F2's own recommended default.
 
-**No dependency either way, ready any time:** F1, F6, and F3's *audit* (its fix stays unscoped
-until the audit runs, but nothing blocks running the audit itself).
+**No dependency either way, ready any time:** F3's *audit* (its fix stays unscoped until the
+audit runs, but nothing blocks running the audit itself).
 
 **Recommended order:**
 
 | Order | Item | Why here |
 |---|---|---|
-| 1 | S2 | Unblocks Q8, de-risks Q6; no open design decision of its own |
-| 2 | F1 | Fully unblocked, additive at default, no interaction with anything else pending |
-| 3 | F6 | Trivial, mechanical, no dependency — fine to interleave anywhere |
-| 4 | Q6 | Targets S2's final `stage_runner.py`; build the pickle-exclusion in from the start |
+| 1 | ~~S2~~ | **Done (v1.22).** Unblocked Q8, de-risked Q6. |
+| 2 | ~~F1~~ | **Done (v1.22).** Fully unblocked, additive at default. |
+| 3 | ~~F6~~ | **Done (v1.22).** Trivial, mechanical. |
+| 4 | Q6 | Targets S2's final `stage_runner.py` (now `build_stage_runner()`); build the pickle-exclusion in from the start |
 | 5 | F7 | S1 already done; if Q6 landed, its round-trip tests exercise the pool-exclusion case directly |
 | 6 | Q8 | S2 done (no wasted implementation) — confirm T2 exists first or this stays blocked regardless |
 | 7 | F8 | S1 already resolved the PYTHIA half; decide lighter-vs-fuller here; behavior-changing — full `tests/matlab_reference` suite before/after |
@@ -561,12 +587,12 @@ concrete derivatives and are already in the table.
 
 | Phase | Maps to MATLAB | Focus | Status | Compat |
 |---|---|---|---|---|
-| F1 | Phase 4 | PYTHIA classifier registry — confirm whether `stages/pythia.py` supports a pluggable classifier set or is fixed | Not started — **sequence after S1**: with `explore()` calling scikit-learn's own `.predict()`/`.predict_proba()` natively, the explore-side half of this item is largely resolved as a side effect of S1, narrowing F1's remaining scope to the training-side registry table (build-side dispatch, mirroring `ISAgetClassifierFcn.m`) | **[Additive at default]** — new `classifier` option defaults to `'svm'`, matching today's only behaviour. New registry entries themselves are new production surface, though — need their own validation before being trusted in production, not just "it runs." |
+| F1 | Phase 4 | PYTHIA classifier registry — confirm whether `stages/pythia.py` supports a pluggable classifier set or is fixed | **Implemented and verified (v1.22)** — training-side registry (`instancespace/utils/get_classifier_fcn.py`) dispatches to `svm`/`knn`/`tree`/`nb`/`linear`/`ensemble`; explore-side already handled by S1. Only `svm` is tuned via the existing `C`/`gamma` search — the other five fit with scikit-learn's own defaults, not a MATLAB-verified tuning range (no MATLAB reference exists for them). `PythiaOutput.svm`'s type widened to `list[ClassifierMixin]` (field name kept for backward compatibility). Full suite + 18 new dedicated tests (registry unit tests + one per registered classifier trained end-to-end) all pass. | **[Additive at default]** — new `classifier` option defaults to `'svm'`, matching today's only behaviour verified via the existing MATLAB-reference tests unchanged. New registry entries themselves are new production surface — validated by dedicated tests, not just "it runs," but without MATLAB-verified hyperparameter tuning for the five non-`svm` entries; flagged in code and docs, not assumed. |
 | F2 | Phase 5 | PILOT 3D / viewpoint optimisation parity in `stages/pilot.py` | Not started | **[Behavior-changing risk]** — generalising the 2D-specific solver to n-dims can shift 2D output even at `dims=2` if not done carefully (different array shapes can trigger different BLAS code paths). Verify bit-for-bit or tolerance-verified identical 2D output before shipping — this touches existing code, not just adding an independent new path. |
 | F3 | Phase 6 | SIFTED promotion refinements | Not started | **[Unknown until audit]** — F3's own pathway starts with "audit first" for exactly this reason. Treat any fix the audit finds as **[Behavior-changing]** by default until proven otherwise, since it touches SIFTED's core computation. |
 | F4 | Phases 7–8 | `InstanceSpace` class & `build`/`explore` robustness | **Audited (v1.3)** — see §6.1 for findings; Q8 (§4) verifies one open question before F4's invalidation-fix work is scoped | — (audit only; see F7/F8/F9 for the actionable, taggable derivatives) |
 | F5 | Phase 9 | Output consolidation / 3D visualisation parity (MATLAB's `scriptpng.m`) | Not started | **[Additive]** — new rendering paths; doesn't change any existing 2D output function. |
-| F6 | Phase 10 | Namespace & per-file licence headers — licence itself already matches MATLAB | Header audit only | **[Additive]** — comments only. |
+| F6 | Phase 10 | Namespace & per-file licence headers — licence itself already matches MATLAB | **Implemented (v1.22)** — `SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0` + copyright header added to all 27 `instancespace/**/*.py` files. | **[Additive]** — comments only. |
 | F7 | — | Model save/load round-trip (`Model.save()`/`InstanceSpace.load()`), matching MATLAB's persistence | **Format revised: signed `pickle`/`joblib`, with signing optional (`secret_key: bytes \| None`)** — see design constraint below (supersedes the earlier HDF5-via-`h5py` decision and the earlier unconditional-signing decision) | **[Additive]** — brand-new capability; nothing existing depends on it. |
 | F8 | — | Unify `explore()` with build-time stage code (predict-mode dispatch on `PythiaStage`/`TraceStage`, matching MATLAB calling the same `PYTHIA()`/`TRACE()` in both modes) | **Narrowed by S1**: the PYTHIA half is resolved as a side effect of calling native `.predict_proba()` instead of reimplementing SVM math — nothing left there to reconcile. Remaining scope is TRACE only (footprint/alpha-shape membership testing is a genuinely different computation S1's insight doesn't extend to) | **[Behavior-changing risk]** — this refactors existing, working code. The full `tests/matlab_reference/` validation suite must pass identically before/after; treat any tolerance-threshold change during this work as a red flag to investigate, not a "close enough" adjustment. |
 | F9 | — | Expand `explore()` to full evaluation scope: algorithm reconciliation + ground-truth performance metrics, matching MATLAB's `evaluateTestSet` | **Decided: extend `explore()` itself** (silent branch on whether ground truth is present) — see companion implementation-pathways document for the full pathway | **[Additive]** — new fields default to `None`; existing feature-only callers see no change. Add explicit test coverage for the "no ground truth present" path specifically, to lock this in rather than assume it. |
@@ -924,3 +950,4 @@ ships with its listed test, not just its implementation.
 | v1.19 | 2026-07-28 | Swept the remaining pending Q/S items (Q6, Q8, S2 — everything else in both phases is already implemented) for the same shape of cross-item gap just found in Q6/F7. Found one: Q8's regression test and its own stated diagnosis target `stage_runner.py`'s `_rollback_to_schedule_index()` — verified directly (`stage_runner.py:256-267`) to invalidate by iterating the wave-grouped `_stage_order` list by position. S2's own pathway (step 3) already removes "wave computation" as part of replacing DAG auto-resolution, and already sequences itself against T6 for the identical reason ("no point testing an algorithm about to be deleted") — but nothing sequenced S2 against Q8, even though both operate on the same function, just because they sit under different phase headings. Recorded the same before-S2-or-reconcile-after reasoning for Q8 that already existed for T6, in both directions (Q8's entry and S2's entry) so it surfaces regardless of which one someone reads first. No further gaps found in Q6 beyond the one already recorded in v1.18. No code changed. |
 | v1.20 | 2026-07-28 | Sharpened v1.19's Q8/S2 sequencing note: it had treated Q8 and T6 as fully parallel cases, but they differ in what "sequence after S2" actually protects against. T6 tests the resolution *algorithm* S2 deletes outright — post-S2 it may have no remaining subject matter, hence S2's own "or skip T6 entirely." Q8 tests a *behavioral property* (correct invalidation on partial rerun) that still has to hold post-S2 — S2's own before/after checkpoint (full-pipeline output equality) doesn't cover partial-rerun invalidation, so it doesn't subsume Q8 either. The real risk in doing Q8 before S2 isn't a stale test, it's wasted *implementation*: a promoted F-phase fix for over-invalidation would be written against the wave-grouped `_stage_order` S2 then deletes, forcing S2 to re-derive the same dependency-graph walk against its own replacement structure. Net correction: Q8 must wait for S2 same as T6, but unlike T6 it is never at risk of becoming pointless. Updated Q8's entry, S2's entry, and the Q8/S2 outstanding-items row in this document, plus both cross-references in the companion implementation-pathways document. No code changed. |
 | v1.21 | 2026-07-28 | Added §6.0 — a single consolidated execution order for every remaining Q/S/F item (Q6, Q8, S2, F1–F3, F5–F9; F4 excluded, already audited), compiled from every cross-item dependency recorded so far (v1.17–v1.20) plus two more pulled from each item's own pathway that hadn't been assembled in one place before: F5's hard block on F2 ("genuinely blocked on F2 landing first") and F9's shared-extraction step explicitly mirroring F8's pattern. Recommended order: S2 → F1/F6 → Q6 → F7 → Q8 → F8 → F9 → F2 → F5, with F3's audit runnable independently at any point. CLAUDE.md's phase-gate section updated to point at §6.0 instead of restating a partial version of it. No code changed. |
+| v1.22 | 2026-07-28 | S2, F1, and F6 implemented and verified on `v0.9.0/development-branch-QSF` (full suite: 265 passed, 0 failed; F1 alone adds 18 new dedicated tests). S2's audit found a real gap in its own §5 design — the `stages` constructor parameter is a documented plugin-extension point (`example_plugin.py`), not just internal plumbing — resolved by requiring explicit `RunBefore`/`RunAfter` declarations for any non-built-in stage rather than type-matching inference; two latent bugs in the never-before-exercised `RunBefore`/`RunAfter` mechanism were found and fixed in the same pass (a wrong `TypeVar` bound, and `isinstance()` used where `get_origin()` was needed for subscripted generics). Following a direct request, `stage_builder.py` was then folded entirely into `stage_runner.py` (`build_stage_runner()` plus two private helpers) and deleted, since post-S2 it had shrunk to one call site with no remaining reason to be a separate module — net line-count for that fold alone: 322 deleted, 122 added. `tests/test_stage_builder_runner.py` renamed to `tests/test_stage_runner.py`. F1 added `PythiaOptions.classifier` (default `'svm'`, zero behaviour change verified against the existing MATLAB-reference tests) and a training-side registry dispatching to 6 scikit-learn classifiers, explicitly scoped to *not* claim MATLAB-verified hyperparameter tuning for the 5 non-`svm` entries (no MATLAB reference exists for them) — flagged in both code and this document rather than silently assumed. Fixed a real, separate bug found during cleanup: `instancespace/__init__.py`'s `__all__` still listed the now-deleted `stage_builder`, which made `from instancespace import *` raise `AttributeError` — confirmed by reproducing the crash before fixing it. README and RELEASE_NOTES.md's baseline section updated to describe the current (not pre-S2) DAG/scheduler behaviour, following the same v1.16 precedent for stale "describes current state" prose. §6.0's recommended-order table and status line updated to mark S2/F1/F6 done. |

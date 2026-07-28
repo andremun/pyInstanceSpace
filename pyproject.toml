@@ -193,6 +193,11 @@ module = [
     'shapely.ops' ,
     'scipy.special' ,
     'sklearn.cluster',
-    'alphashape'
+    'alphashape',
+    'sklearn.base',
+    'sklearn.ensemble',
+    'sklearn.linear_model',
+    'sklearn.naive_bayes',
+    'sklearn.tree',
 ]
 ignore_missing_imports = 'True'

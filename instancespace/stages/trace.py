@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """TRACE Stage Module for Performance-Based Footprint Estimation.
 
 This module implements the TRACE stage, which analyzes the performance of multiple

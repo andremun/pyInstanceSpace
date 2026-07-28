@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Contains modules for instance space analysis.
 
 The module consists of various algorithms to perform instance space analysis.
@@ -35,6 +37,5 @@ __all__ = [
     "data",
     "stages",
     "instance_space",
-    "stage_builder",
     "stage_runner",
 ]

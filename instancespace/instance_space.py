@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Perform instance space analysis on given dataset and configuration.
 
 Construct an instance space from data and configuration files located in a specified
@@ -44,11 +46,13 @@ from instancespace.plotting import (
     plot_portfolio,
     plot_sources,
 )
-from instancespace.stage_builder import StageBuilder
 from instancespace.stage_runner import (
     AnnotatedStageOutput,
     StageRunner,
     StageRunningError,
+    StageScheduleElement,
+    build_stage_runner,
+    named_tuple_to_stage_arguments,
 )
 from instancespace.stages.cloister import CloisterStage
 from instancespace.stages.pilot import PilotStage
@@ -119,6 +123,23 @@ class _InstanceSpaceInputs(NamedTuple):
         )
 
 
+# The fixed execution order for the built-in pipeline (S2). PythiaStage and
+# CloisterStage share a wave - both depend only on PilotStage's output, and
+# nothing downstream depends on CloisterStage's output at all - matching the
+# schedule the DAG auto-resolver produced for this exact pipeline before S2
+# removed it. Any stage passed to InstanceSpace() that isn't one of these is
+# treated as an extra/plugin stage and must declare where it attaches via a
+# RunBefore[X]/RunAfter[X] input field (see build_stage_runner() in stage_runner.py).
+_BUILTIN_STAGE_ORDER: list[StageScheduleElement] = [
+    [PreprocessingStage],
+    [PrelimStage],
+    [SiftedStage],
+    [PilotStage],
+    [PythiaStage, CloisterStage],
+    [TraceStage],
+]
+
+
 class InstanceSpace:
     """The main instance space class.
 
@@ -185,23 +206,24 @@ class InstanceSpace:
         self._final_output: dict[str, Any] | None = None
         self._explore_results: list[ExploreResult] = []
 
-        stage_builder = StageBuilder()
+        requested_stages = set(stages)
+        base_order = [
+            [stage for stage in wave if stage in requested_stages]
+            for wave in _BUILTIN_STAGE_ORDER
+        ]
+        base_order = [wave for wave in base_order if wave]
 
-        for stage in stages:
-            stage_builder.add_stage(stage)
+        known_stages = {stage for wave in _BUILTIN_STAGE_ORDER for stage in wave}
+        extra_stages = [stage for stage in stages if stage not in known_stages]
 
-        annotations = stage_builder._named_tuple_to_stage_arguments(  # noqa: SLF001
-            _InstanceSpaceInputs,
-        )
+        annotations = named_tuple_to_stage_arguments(_InstanceSpaceInputs)
 
         if additional_initial_inputs_type is not None:
-            annotations |= (
-                stage_builder._named_tuple_to_stage_arguments(  # noqa: SLF001
-                    additional_initial_inputs_type,
-                )
+            annotations |= named_tuple_to_stage_arguments(
+                additional_initial_inputs_type,
             )
 
-        self._runner = stage_builder.build(annotations)
+        self._runner = build_stage_runner(base_order, extra_stages, annotations)
 
     @property
     def metadata(self) -> Metadata:
@@ -674,15 +696,17 @@ class InstanceSpace:
         self,
         z: NDArray[np.double],
     ) -> tuple[NDArray[np.bool_], NDArray[np.double], NDArray[np.int_]]:
-        """Get algorithm predictions using PYTHIA SVMs.
+        """Get algorithm predictions using PYTHIA's trained classifiers.
 
         Ports MATLAB PYTHIAtest.m: z-score normalises the 2D coordinates using the
         training projection's own mean/std (PYTHIA's own stored ``mu``/``sigma`` are
         the post-normalisation statistics of its already-normalised training data,
         not the pre-normalisation ones explore-time inputs need), applies each
-        per-algorithm SVM natively via scikit-learn's own ``predict``/
-        ``predict_proba``, and picks the algorithm with the highest
-        precision-weighted positive prediction per instance.
+        per-algorithm classifier natively via scikit-learn's own ``predict``/
+        ``predict_proba`` (an ``SVC`` unless ``PythiaOptions.classifier`` selected
+        a different registered type - S1 made this classifier-agnostic before F1
+        added the registry, so no change was needed here), and picks the algorithm
+        with the highest precision-weighted positive prediction per instance.
 
         Args
         ----

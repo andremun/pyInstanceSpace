@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """SIFTED Stage: Feature Selection and Optimisation.
 
 This module implements the SIFTED stage, which focuses on feature selection,

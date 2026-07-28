@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """CLOISTER Stage Module for Correlation-Based Boundary Estimation.
 
 This module implements the CLOISTER stage, which estimates boundaries in a dataset

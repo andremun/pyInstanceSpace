@@ -244,8 +244,9 @@ call site P2/notebook work would use.
 production code changes yet — this is verification-only per the roadmap.
 **Pathway:**
 1. Requires T2 (real end-to-end `build()` test) to exist first, or at minimum a fixture that
-   constructs a real `InstanceSpace` with all 7 stages — the current synthetic 2-stage
-   `test_stage_builder_runner.py` setup can't exercise this at all.
+   constructs a real `InstanceSpace` with all 7 stages — the synthetic 2-stage
+   `test_stage_runner.py` setup (renamed from `test_stage_builder_runner.py` when S2
+   folded `StageBuilder` into `stage_runner.py`, v1.22) can't exercise this at all.
 2. Build fully, capture `pythia`'s output object identity/values, call
    `space.run_stage(CloisterStage)` again, then check whether `pythia`'s output changed identity
    or got marked for re-run despite not depending on `cloister`.
@@ -758,15 +759,15 @@ release, failing (or warning) if they've diverged.
 **Decision needed:** warn or fail on divergence? Recommended default: warn at first — failing CI
 on a fixture-staleness signal before the MATLAB-side export tooling is mature risks being noisy.
 
-### T6 — DAG-resolver edge-case tests
-**Files:** `tests/test_stage_builder_runner.py` (or split into a new file)
-**Pathway:** add cases exercising: a genuine mutating stage (input name == output name), an
-explicit `RunBefore`/`RunAfter` pair, and two stages producing the same output at the same
-resolved schedule step (asserting the `StageResolutionError` fires with a useful message) — using
-either slightly-less-trivial synthetic stages than today's `StageA`/`StageB`, or (once T2 exists)
-the real 7-stage pipeline for the parts that need real branching (cloister/pythia sibling
-structure) to mean anything.
-**Decision needed:** none.
+### T6 — DAG-resolver edge-case tests — MOOT, superseded by S2 (v1.22)
+S2 (implemented) removed the ambiguity-detection/mutating-stage/type-matching resolution
+algorithm this item was written to test — there is no longer an "ambiguous ordering" or
+"mutating stage" concept anywhere in `stage_runner.py`'s `build_stage_runner()`. Confirmed, not
+just theoretical: S2's own pathway said to skip T6 entirely if S2 landed first, and it has.
+`RunBefore`/`RunAfter` conflict handling (the one part of this item's original scope that still
+exists post-S2) is already covered by `tests/test_stage_runner.py::test_extra_stage_without_
+attachment_point_raises` and the RunAfter/RunBefore attachment tests added alongside S2 — no
+further work needed here.
 
 ### T7 — Consolidate fragmented per-stage test files
 **Files:** `tests/test_pilot.py`, `tests/exploreIS/pilot/test_pilot_unit.py`, `tests/exploreIS/
