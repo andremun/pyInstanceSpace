@@ -11,6 +11,7 @@ import multiprocessing
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, NamedTuple, TypeVar
 
@@ -141,6 +142,32 @@ _BUILTIN_STAGE_ORDER: list[StageScheduleElement] = [
     [PythiaStage, CloisterStage],
     [TraceStage],
 ]
+
+
+class ExploreStage(Enum):
+    """One step of the explore()-time inference pipeline.
+
+    The explore-time counterpart of a build-time `StageClass`: `explore()`
+    reuses `build()`'s trained parameters rather than running the real
+    `Stage` subclasses in a predict mode (see roadmap item F8), so these
+    are lightweight identifiers, not `Stage` subclasses themselves.
+    """
+
+    PRELIM = "prelim"
+    SIFTED = "sifted"
+    PILOT = "pilot"
+    PYTHIA = "pythia"
+    TRACE = "trace"
+
+
+class AnnotatedExploreOutput(NamedTuple):
+    """The yielded output of running one explore-time step.
+
+    Mirrors `stage_runner.AnnotatedStageOutput`'s (stage, output) shape.
+    """
+
+    stage: ExploreStage
+    output: Any
 
 
 class InstanceSpace:
@@ -476,20 +503,23 @@ class InstanceSpace:
                 If test_metadata features don't match training features.
         """
         # Run every inference stage, then assemble the result from each stage's output
-        stages = dict(self.explore_iter(test_metadata))
+        stages = {
+            annotated.stage: annotated.output
+            for annotated in self.explore_stage_iter(test_metadata)
+        }
 
         if dataset_id is None:
             dataset_id = f"explore_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
         inst_labels = self._extract_instance_labels(test_metadata)
-        pythia_result = stages["pythia"]
-        trace_result = stages["trace"]
+        pythia_result = stages[ExploreStage.PYTHIA]
+        trace_result = stages[ExploreStage.TRACE]
 
         result = ExploreResult(
             dataset_id=dataset_id,
             timestamp=datetime.now(),
-            x=stages["sifted"],
-            z=stages["pilot"],
+            x=stages[ExploreStage.SIFTED],
+            z=stages[ExploreStage.PILOT],
             y_hat=pythia_result[0] if pythia_result else None,
             pr0_hat=pythia_result[1] if pythia_result else None,
             selection0=pythia_result[2] if pythia_result else None,
@@ -501,20 +531,20 @@ class InstanceSpace:
         self._explore_results.append(result)
         return result
 
-    def explore_iter(
+    def explore_stage_iter(
         self,
         test_metadata: Metadata,
-    ) -> Generator[tuple[str, Any], None, None]:
+    ) -> Generator[AnnotatedExploreOutput, None, None]:
         """Run explore() one stage at a time, yielding each stage's output.
 
         Same computation and trained model as ``explore()``, but instead of
-        returning a single ``ExploreResult`` it yields a ``(stage_name, output)``
-        pair after each inference stage, so the intermediate result of every stage
-        can be inspected or plotted before the next one runs. The stages, in order,
-        are ``"prelim"``, ``"sifted"``, ``"pilot"``, ``"pythia"`` and ``"trace"``:
-        ``prelim``/``sifted``/``pilot`` yield the transformed feature or coordinate
-        array, ``pythia`` yields ``(y_hat, pr0_hat, selection0)`` and ``trace``
-        yields ``(in_good, in_best)``.
+        returning a single ``ExploreResult`` it yields an ``AnnotatedExploreOutput``
+        (an ``(ExploreStage, output)`` pair - the explore-time counterpart of
+        ``run_iter()``'s ``AnnotatedStageOutput``) after each inference stage, so the
+        intermediate result of every stage can be inspected or plotted before the next
+        one runs. In order: ``ExploreStage.PRELIM``/``SIFTED``/``PILOT`` yield the
+        transformed feature or coordinate array, ``PYTHIA`` yields ``(y_hat, pr0_hat,
+        selection0)`` and ``TRACE`` yields ``(in_good, in_best)``.
 
         Args
         ----
@@ -523,8 +553,8 @@ class InstanceSpace:
 
         Yields
         ------
-            tuple[str, Any]
-                The name of the stage that just ran and its output.
+            AnnotatedExploreOutput
+                The stage that just ran and its output.
 
         Raises
         ------
@@ -536,13 +566,13 @@ class InstanceSpace:
         self._validate_for_explore(test_metadata)
 
         x = self._explore_prelim(self._extract_features(test_metadata))
-        yield "prelim", x
+        yield AnnotatedExploreOutput(ExploreStage.PRELIM, x)
         x = self._explore_sifted(x)
-        yield "sifted", x
+        yield AnnotatedExploreOutput(ExploreStage.SIFTED, x)
         z = self._explore_pilot(x)
-        yield "pilot", z
-        yield "pythia", self._explore_pythia(z)
-        yield "trace", self._explore_trace(z)
+        yield AnnotatedExploreOutput(ExploreStage.PILOT, z)
+        yield AnnotatedExploreOutput(ExploreStage.PYTHIA, self._explore_pythia(z))
+        yield AnnotatedExploreOutput(ExploreStage.TRACE, self._explore_trace(z))
 
     def _require_model(self) -> Model:
         """Return the trained model, raising if build() hasn't been called yet."""

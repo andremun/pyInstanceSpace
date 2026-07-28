@@ -92,7 +92,7 @@ this repo (already noted in the roadmap) — no new decision here.
 **Pathway:**
 1. Seed with one entry titled after the current version (`0.2.1` per `pyproject.toml`),
    structured like MATLAB's: *New functionality* (stage architecture, `build()`/`explore()`/
-   `explore_iter()`), *Better engineering* (frozen dataclasses, DAG scheduler), *Bug fixes*
+   `explore_stage_iter()`), *Better engineering* (frozen dataclasses, DAG scheduler), *Bug fixes*
    (none yet catalogued — start the list from here forward), *Licence* (PolyForm Noncommercial
    1.0.0, already in place).
 2. Process rule: every PR that changes behaviour gets a `RELEASE_NOTES.md` entry before merge —
@@ -649,7 +649,7 @@ if the lighter version proves insufficient in practice.
 ### F9 — Expand `explore()` to full evaluation scope
 **Decision made: Option 1 — extend `explore()` itself** (not a new method; silent branching
 based on whether ground truth is present in the input).
-**Files:** `instancespace/instance_space.py` (`explore()`, `explore_iter()`), `instancespace/
+**Files:** `instancespace/instance_space.py` (`explore()`, `explore_stage_iter()`), `instancespace/
 data/model.py` (`ExploreResult` — new optional fields), `instancespace/stages/prelim.py`
 (extract shared binary-performance logic)
 **Pathway:**
@@ -683,10 +683,12 @@ data/model.py` (`ExploreResult` — new optional fields), `instancespace/stages/
    Calculating the binary measure of performance" console line, so the mode switch is
    observable, not a silent surprise, even though it's inferred from input shape rather than an
    explicit flag.
-6. **`explore_iter()` needs the same treatment:** yield a 6th `("evaluation", ...)` item after
-   `"trace"` when ground truth is present; omit it entirely (yield only the original 5) when it
-   isn't. `explore_iter()`'s yielded-stage count becomes conditional on input shape, matching
-   `explore()`'s own conditional field population.
+6. **`explore_stage_iter()` needs the same treatment:** add an `ExploreStage.EVALUATION`
+   member (see `instancespace/instance_space.py`'s `ExploreStage` enum, added alongside the
+   `explore_iter()` -> `explore_stage_iter()` rename) and yield an `AnnotatedExploreOutput`
+   for it after `ExploreStage.TRACE` when ground truth is present; omit it entirely (yield
+   only the original 5) when it isn't. `explore_stage_iter()`'s yielded-stage count becomes
+   conditional on input shape, matching `explore()`'s own conditional field population.
 **Decision needed (smaller, now that the main structural choice is made):** implement the
 "new algorithm absent from training" edge case now, or defer it as a documented limitation?
 Recommended default: **defer** — evaluating against the *same* algorithm portfolio used in
