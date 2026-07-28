@@ -18,11 +18,41 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from instancespace.data.options import CloisterOptions
 from instancespace.stages.cloister import CloisterInput, CloisterStage
 
 script_dir = Path(__file__).parent
+
+
+def _assert_same_hull_cycle(
+    expected: NDArray[np.double],
+    actual: NDArray[np.double],
+    atol: float = 1e-6,
+) -> None:
+    """Assert two vertex lists describe the same closed convex-hull boundary.
+
+    Convex hull vertex order is only defined up to a starting point and
+    traversal direction - neither MATLAB's `convhull` nor SciPy's
+    `ConvexHull` guarantees a canonical one, so a plain `np.allclose` on raw
+    row order is fragile to a version-driven change in either. Checks every
+    rotation of `actual`, and of its reversal, against `expected`; fails
+    only if none match, i.e. the underlying point set or values actually
+    differ, not just their starting vertex or direction.
+    """
+    if expected.shape != actual.shape:
+        pytest.fail(f"shape mismatch: expected {expected.shape}, got {actual.shape}")
+
+    for candidate in (actual, actual[::-1]):
+        for offset in range(len(candidate)):
+            if np.allclose(np.roll(candidate, -offset, axis=0), expected, atol=atol):
+                return
+
+    pytest.fail(
+        "no rotation or reflection of actual matches expected - the "
+        "boundary points themselves differ, not just their order",
+    )
 
 
 class CloisterMatlabInputs:
@@ -146,11 +176,13 @@ class TestCloister:
     ) -> None:
         """Test run methods correctly run analysis from start to end.
 
-        The test also test for convex hull calculation with valid input. The z_edge and
-        z_ecorr output from MATLAB's convhull produce circular ouput, containing
-        duplicated point for start value and have different ordering compared to Scipy's
-        ConvexHull ouput. Thus, for the purpose of testing, MATLAB's ouput has been
-        reordered.
+        The test also tests convex hull calculation with valid input. MATLAB's
+        `convhull` and SciPy's `ConvexHull` both produce a circular sequence of
+        boundary vertices, but neither guarantees the same starting vertex or
+        traversal direction as the other - that's an implementation detail of
+        the underlying algorithm, not a documented contract either side
+        promises. `_assert_same_hull_cycle` compares them as the same closed
+        polygon rather than as literally identical arrays.
         """
         input_x = input_data.input_x
         input_a = input_data.input_a
@@ -166,8 +198,8 @@ class TestCloister:
         z_edge_matlab = output_data.z_edge
         z_ecorr_matlab = output_data.z_ecorr
 
-        assert np.allclose(z_edge_matlab, z_edge_python)
-        assert np.allclose(z_ecorr_matlab, z_ecorr_python)
+        _assert_same_hull_cycle(z_edge_matlab, z_edge_python)
+        _assert_same_hull_cycle(z_ecorr_matlab, z_ecorr_python)
 
     def test_convex_hull_qhull_error(self) -> None:
         """Test convex hull function properly handles qhull error."""
