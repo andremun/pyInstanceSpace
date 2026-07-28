@@ -480,7 +480,12 @@ None`, `method: str`), `stages/pilot.py` (extend the analytic/numeric solvers to
    equivalent — likely `scipy.optimize.minimize`), so confirm whether Python's GIL makes a thread
    pool actually faster here or whether a `ProcessPoolExecutor`/joblib `loky` backend is needed for
    a real speedup — MATLAB's `parfor` uses OS processes, not threads, so this is a real port
-   decision, not just a mechanical translation.
+   decision, not just a mechanical translation. **Nested-parallelism check (added v1.27, F3's
+   audit, roadmap §6.2 finding 2):** `SiftedStage._find_best_combination()` already calls
+   `PilotStage.pilot(...)` from inside `pygad.GA`'s own worker processes
+   (`parallel_processing=["process", n_cores]`) when `parallel_options.flag` is set. Whatever
+   pool this step adds to PILOT must detect (or otherwise avoid) already running inside one of
+   those worker processes, or it reintroduces MATLAB's nested-`parfor`-inside-GA bug.
 **Test:** `ntries` restarts must be embarrassingly parallel and order-independent — assert
 identical `out.A`/`out.Z`/`out.perf` (up to the same numerical tolerance already used elsewhere)
 whether run with `parallel.flag=True` or `False`, proving parallelising the loop doesn't change
@@ -724,6 +729,22 @@ assertion (also already scoped) — both needed, not either/or, per the Phase T 
 across all algorithms" matches PyISpace's actual definition precisely (worth re-checking their
 `Ybad` construction directly if this gets implemented, rather than assuming from the function
 signature alone).
+
+**Implemented and verified (v1.28).** Re-checked `Ybad`'s construction directly against the
+actual GitLab source rather than assuming: PyISpace's `train.py::train_is()` computes
+`bad_instances = mode(Ybin * 1, axis=1, keepdims=True)[0] == 0` — the per-instance majority
+vote across algorithms in `Ybin`, not `beta` (which is per-*feature*, unrelated) and not a
+simple `~Ybin.all(axis=1)` (which would flag an instance as "bad" if even one algorithm fails
+it, not the majority). Ported as `PilotStage._bad_instances()` using `scipy.stats.mode` for
+exact fidelity to the tie-breaking behaviour of the original. `y_bin` reaches `PilotStage`
+via a new `PilotInput.y_bin` field, auto-wired by `stage_runner.py`'s name-based argument
+matching from `SiftedOutput.y_bin` (SIFTED already re-exports PRELIM's `y_bin` unchanged) —
+no explicit plumbing needed once the field exists, confirmed by reading `run_stage()` rather
+than assumed. `adjust_rotation()` and the rotation-application step (`Z`, `A = rot @ A`) are
+direct ports of PyISpace's `pilot.py::adjust_rotation()` and its `train.py` call site. Both
+tests scoped here are implemented in `tests/test_pilot.py` (pairwise-distance invariance and
+the centroid-angle assertion), plus 4 more covering the flag's off/no-bad-instances/
+cross-run-reproducibility/missing-`y_bin` cases.
 
 ### R2 — Alpha-shape auto-retry for TRACE
 **Files:** `stages/trace.py`

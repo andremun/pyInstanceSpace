@@ -52,6 +52,16 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
 - Added `InstanceSpace.plot_sources()`/`plot_portfolio()`/`plot_good()`/
   `plot_footprint()` convenience methods (`instancespace/plotting.py`), thin
   matplotlib wrappers mirroring MATLAB's `InstanceSpace.plot()` (#255).
+- `PrelimStage` now warns when more than 5% of instances have a best-algorithm
+  performance of exactly zero, matching MATLAB's `ISA:PRELIM:manyZeroBest` diagnostic —
+  the relative-performance matrix becomes uninformative (close to 1 everywhere) for
+  those instances once the existing `eps`-substitution kicks in (F14, #291).
+- Added `PilotOptions.adjust_rotation` (default `False`), ported from PyISpace's
+  `adjust_rotation()` (`gitlab.com/ita-ml/pyispace`): rotates PILOT's trained 2D
+  projection so instances poorly solved by every algorithm face a consistent direction
+  (135°, upper-left), making similar datasets easier to visually compare across runs.
+  Rotation is a rigid transform — pairwise distances, error, R², and footprint areas are
+  unchanged either way (R1).
 
 ### Bug fixes
 

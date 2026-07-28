@@ -149,6 +149,7 @@ The toolkit uses PILOT as a dimensionality reduction method, with [BFGS](https:/
 
 -	```opts.pilot.analytic``` determines whether the analytic (set as ```TRUE```) or the numerical (set as ```FALSE```) solution to the dimensionality reduction problem should be used. We recommend leaving this setting as ```FALSE```due to the instability of the analytical solution caused by possible poor conditioning.
 -	```opts.pilot.n_tries``` number of iterations that the numerical solution is attempted.
+-	```opts.pilot.adjust_rotation``` (default ```FALSE```) rotates the trained projection so that instances poorly solved by every algorithm face a consistent direction (135°, upper-left), making it easier to visually compare the instance space across similar datasets or independent runs. Rotation is a rigid transform: pairwise distances, error, R², and footprint areas are unchanged either way. Ported from [PyISpace](https://gitlab.com/ita-ml/pyispace)'s `adjust_rotation()`.
 
 ### Empirical bound estimation settings.
 

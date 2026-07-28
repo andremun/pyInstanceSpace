@@ -34,6 +34,7 @@ from instancespace.data.default_options import (
     DEFAULT_PERFORMANCE_BETA_THRESHOLD,
     DEFAULT_PERFORMANCE_EPSILON,
     DEFAULT_PERFORMANCE_MAX_PERF,
+    DEFAULT_PILOT_ADJUST_ROTATION,
     DEFAULT_PILOT_ANALYTICS,
     DEFAULT_PILOT_N_TRIES,
     DEFAULT_PYTHIA_CLASSIFIER,
@@ -320,6 +321,7 @@ class PilotOptions:
     alpha: NDArray[np.double] | None
     analytic: bool
     n_tries: int
+    adjust_rotation: bool = DEFAULT_PILOT_ADJUST_ROTATION
 
     @staticmethod
     def default(
@@ -327,9 +329,16 @@ class PilotOptions:
         n_tries: int = DEFAULT_PILOT_N_TRIES,
         x0: NDArray[np.double] | None = None,
         alpha: NDArray[np.double] | None = None,
+        adjust_rotation: bool = DEFAULT_PILOT_ADJUST_ROTATION,
     ) -> PilotOptions:
         """Instantiate with default values."""
-        return PilotOptions(analytic=analytic, n_tries=n_tries, x0=x0, alpha=alpha)
+        return PilotOptions(
+            analytic=analytic,
+            n_tries=n_tries,
+            x0=x0,
+            alpha=alpha,
+            adjust_rotation=adjust_rotation,
+        )
 
 
 @dataclass(frozen=True)
@@ -537,6 +546,7 @@ class InstanceSpaceOptions:
                 file_contents.get("pilot", {}),
                 {
                     "ntries": "n_tries",
+                    "adjustrotation": "adjust_rotation",
                     # "x0": "x0"
                 },
             ),

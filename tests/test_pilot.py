@@ -16,7 +16,9 @@ Tests include:
 from pathlib import Path
 
 import numpy as np
+import pytest
 from scipy.io import loadmat
+from scipy.spatial.distance import pdist
 
 from instancespace.data.options import GeneralOptions, PilotOptions
 from instancespace.stages.pilot import PilotStage
@@ -183,3 +185,161 @@ def test_pilot_seed_reproducibility() -> None:
 
     np.testing.assert_array_equal(result_a.z, result_b.z)
     assert not np.array_equal(result_a.z, result_c.z)
+
+
+def test_adjust_rotation_preserves_pairwise_distances() -> None:
+    """R1: `adjust_rotation()` only rotates Z - pairwise distances are unchanged.
+
+    Ported from PyISpace's `pilot.adjust_rotation()`
+    (gitlab.com/ita-ml/pyispace). Rotation is a rigid transform, so the
+    pairwise-distance matrix of Z must be identical before and after.
+    """
+    rng = np.random.default_rng(7)
+    z = rng.random((25, 2))
+    bad_instances = np.zeros(25, dtype=bool)
+    bad_instances[[2, 5, 9, 14]] = True
+
+    z_rot, rot = PilotStage.adjust_rotation(z, bad_instances)
+
+    np.testing.assert_allclose(pdist(z), pdist(z_rot), atol=1e-10)
+    # A rotation matrix is orthonormal: R @ R.T == I.
+    np.testing.assert_allclose(rot @ rot.T, np.eye(2), atol=1e-10)
+
+
+def test_adjust_rotation_places_bad_centroid_at_theta() -> None:
+    """The bad-instance centroid lands at the requested angle after rotation."""
+    rng = np.random.default_rng(11)
+    z = rng.random((20, 2)) - 0.5
+    bad_instances = np.zeros(20, dtype=bool)
+    bad_instances[[1, 4, 7]] = True
+
+    z_rot, _ = PilotStage.adjust_rotation(z, bad_instances, theta=135.0)
+
+    centroid = np.mean(z_rot[bad_instances], axis=0)
+    angle = np.degrees(np.arctan2(centroid[1], centroid[0]))
+    np.testing.assert_allclose(angle, 135.0, atol=1e-6)
+
+
+def test_pilot_adjust_rotation_matches_unrotated_up_to_rotation() -> None:
+    """`adjust_rotation=True` rotates Z but leaves pairwise distances unchanged.
+
+    Roadmap R1 checkpoint: confirms Z's pairwise distances are unchanged
+    before/after the rotation adjustment.
+    """
+    rng = np.random.default_rng(3)
+    x = rng.random((30, 4))
+    y = rng.random((30, 2))
+    feat_labels = ["f0", "f1", "f2", "f3"]
+    y_bin = np.zeros((30, 2), dtype=bool)
+    y_bin[::3, 0] = True
+
+    opts_plain = PilotOptions(None, None, False, 3, adjust_rotation=False)
+    opts_rotated = PilotOptions(None, None, False, 3, adjust_rotation=True)
+    general_options = GeneralOptions(verbose=False, seed=0)
+
+    plain = PilotStage.pilot(
+        x,
+        y,
+        feat_labels,
+        opts_plain,
+        general_options,
+        y_bin=y_bin,
+        _do_output=False,
+    )
+    rotated = PilotStage.pilot(
+        x,
+        y,
+        feat_labels,
+        opts_rotated,
+        general_options,
+        y_bin=y_bin,
+        _do_output=False,
+    )
+
+    np.testing.assert_allclose(pdist(plain.z), pdist(rotated.z), atol=1e-8)
+    assert not np.allclose(plain.z, rotated.z)
+
+
+def test_pilot_adjust_rotation_reproducible_across_runs() -> None:
+    """Two independent runs on the same data rotate to the same orientation."""
+    rng = np.random.default_rng(3)
+    x = rng.random((30, 4))
+    y = rng.random((30, 2))
+    feat_labels = ["f0", "f1", "f2", "f3"]
+    y_bin = np.zeros((30, 2), dtype=bool)
+    y_bin[::3, 0] = True
+    opts = PilotOptions(None, None, False, 3, adjust_rotation=True)
+    general_options = GeneralOptions(verbose=False, seed=0)
+
+    run_a = PilotStage.pilot(
+        x,
+        y,
+        feat_labels,
+        opts,
+        general_options,
+        y_bin=y_bin,
+        _do_output=False,
+    )
+    run_b = PilotStage.pilot(
+        x,
+        y,
+        feat_labels,
+        opts,
+        general_options,
+        y_bin=y_bin,
+        _do_output=False,
+    )
+
+    np.testing.assert_array_equal(run_a.z, run_b.z)
+
+
+def test_pilot_adjust_rotation_requires_y_bin() -> None:
+    """`adjust_rotation=True` without `y_bin` fails loudly, not silently."""
+    rng = np.random.default_rng(3)
+    x = rng.random((20, 3))
+    y = rng.random((20, 2))
+    feat_labels = ["f0", "f1", "f2"]
+    opts = PilotOptions(None, None, False, 2, adjust_rotation=True)
+
+    with pytest.raises(ValueError, match="y_bin"):
+        PilotStage.pilot(
+            x,
+            y,
+            feat_labels,
+            opts,
+            GeneralOptions(verbose=False, seed=0),
+            _do_output=False,
+        )
+
+
+def test_pilot_adjust_rotation_no_bad_instances_leaves_z_unchanged() -> None:
+    """No poorly-solved instances: rotation is skipped, Z is returned as-is."""
+    rng = np.random.default_rng(3)
+    x = rng.random((20, 3))
+    y = rng.random((20, 2))
+    feat_labels = ["f0", "f1", "f2"]
+    y_bin_all_good = np.ones((20, 2), dtype=bool)
+    opts_plain = PilotOptions(None, None, False, 2, adjust_rotation=False)
+    opts_rotated = PilotOptions(None, None, False, 2, adjust_rotation=True)
+    general_options = GeneralOptions(verbose=False, seed=0)
+
+    plain = PilotStage.pilot(
+        x,
+        y,
+        feat_labels,
+        opts_plain,
+        general_options,
+        y_bin=y_bin_all_good,
+        _do_output=False,
+    )
+    rotated = PilotStage.pilot(
+        x,
+        y,
+        feat_labels,
+        opts_rotated,
+        general_options,
+        y_bin=y_bin_all_good,
+        _do_output=False,
+    )
+
+    np.testing.assert_array_equal(plain.z, rotated.z)

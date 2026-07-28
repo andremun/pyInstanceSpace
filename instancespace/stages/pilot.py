@@ -19,7 +19,7 @@ import scipy.optimize as optim
 from loguru import logger
 from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
-from scipy.stats import pearsonr
+from scipy.stats import mode, pearsonr
 
 from instancespace.data.options import GeneralOptions, PilotOptions
 from instancespace.stages.stage import Stage
@@ -40,6 +40,9 @@ class PilotInput(NamedTuple):
         The options enabled for the Pilot Class
     general_options : GeneralOptions
         General options (e.g. the RNG seed), not specific to any one stage.
+    y_bin : NDArray[np.bool_]
+        Binary matrix indicating good algorithm performance per instance,
+        used only when `pilot_options.adjust_rotation` is set.
     """
 
     x: NDArray[np.double]
@@ -47,6 +50,7 @@ class PilotInput(NamedTuple):
     feat_labels: list[str]
     pilot_options: PilotOptions
     general_options: GeneralOptions
+    y_bin: NDArray[np.bool_]
 
 
 class PilotOutput(NamedTuple):
@@ -168,6 +172,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             inputs.feat_labels,
             inputs.pilot_options,
             general_options=inputs.general_options,
+            y_bin=inputs.y_bin,
         )
 
     @staticmethod
@@ -194,6 +199,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         feat_labels: list[str],
         options: PilotOptions,
         general_options: GeneralOptions,
+        y_bin: NDArray[np.bool_] | None = None,
         _do_output: bool = True,
     ) -> PilotOutput:
         """Run the PILOT dimensionality reduction algorithm.
@@ -208,6 +214,9 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             List feature names.
         options : PilotOptions
             The options enabled for the Pilot Class.
+        y_bin : NDArray[np.bool_] | None
+            Binary matrix (instances x algorithms) indicating good algorithm
+            performance. Required only when `options.adjust_rotation` is set.
 
         Return
         -------
@@ -288,6 +297,14 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             error = np.sum((x_bar - x_hat) ** 2)
             r2 = np.diag(np.corrcoef(x_bar, x_hat) ** 2).astype(np.double)
 
+        if options.adjust_rotation:
+            out_z, out_a = PilotStage._maybe_adjust_rotation(
+                out_z,
+                out_a,
+                y_bin,
+                _do_output,
+            )
+
         if options.analytic:
             summary = pd.DataFrame(out_a)
             summary.rename(
@@ -346,6 +363,95 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         PilotStage._pilot_print(out_a, _do_output)
 
         return pout
+
+    @staticmethod
+    def _maybe_adjust_rotation(
+        out_z: NDArray[np.double],
+        out_a: NDArray[np.double],
+        y_bin: NDArray[np.bool_] | None,
+        _do_output: bool,
+    ) -> tuple[NDArray[np.double], NDArray[np.double]]:
+        """Apply `adjust_rotation()` when there are poorly-solved instances.
+
+        Split out of `pilot()` purely to keep that method's branch count
+        down; see `adjust_rotation()` for what the rotation itself does.
+        """
+        if y_bin is None:
+            msg = "PILOT cannot adjust rotation without y_bin."
+            raise ValueError(msg)
+        bad_instances = PilotStage._bad_instances(y_bin)
+        if not bad_instances.any():
+            PilotStage._pilot_print(
+                "  -> PILOT could not adjust the IS rotation: there are no "
+                "poorly-solved instances.",
+                _do_output,
+            )
+            return out_z, out_a
+        PilotStage._pilot_print(
+            "  -> PILOT is adjusting the IS rotation so poorly-solved "
+            "instances face a consistent direction.",
+            _do_output,
+        )
+        out_z, rot = PilotStage.adjust_rotation(out_z, bad_instances)
+        out_a = rot @ out_a
+        return out_z, out_a
+
+    @staticmethod
+    def _bad_instances(y_bin: NDArray[np.bool_]) -> NDArray[np.bool_]:
+        """Flag instances where most algorithms perform poorly.
+
+        Per-instance majority vote across `y_bin` (instances x algorithms):
+        an instance counts as "bad" when the mode of its good/bad flags
+        across algorithms is `False`, i.e. most algorithms are not good for
+        it.
+        """
+        majority_good, _ = mode(y_bin.astype(int), axis=1, keepdims=True)
+        bad_instances: NDArray[np.bool_] = majority_good[:, 0] == 0
+        return bad_instances
+
+    @staticmethod
+    def adjust_rotation(
+        z: NDArray[np.double],
+        bad_instances: NDArray[np.bool_],
+        theta: float = 135.0,
+    ) -> tuple[NDArray[np.double], NDArray[np.double]]:
+        """Rotate the 2D projection so poorly-solved instances face `theta`.
+
+        Ported from PyISpace's `pilot.adjust_rotation()`
+        (gitlab.com/ita-ml/pyispace). Rotation preserves all pairwise
+        distances in `z`, so it only changes the space's visual orientation
+        - error, R2, and footprint areas are unaffected. The centroid of the
+        instances flagged by `bad_instances` is rotated to sit at `theta`
+        degrees (135 = upper-left quadrant, matching PyISpace's default), so
+        that similar datasets come out consistently oriented across runs.
+
+        Args
+        ----
+        z : NDArray[np.double]
+            The 2D projection (instances x 2) to rotate.
+        bad_instances : NDArray[np.bool_]
+            Boolean mask selecting the instances whose centroid should be
+            placed at `theta`.
+        theta : float
+            Target angle, in degrees, for the bad-instance centroid.
+
+        Returns
+        -------
+        NDArray[np.double]
+            The rotated projection, same shape as `z`.
+        NDArray[np.double]
+            The 2x2 rotation matrix applied.
+        """
+        centroid_bad = np.mean(z[bad_instances], axis=0)[::-1]
+        theta_rad = np.radians(theta) - np.arctan2(*centroid_bad)
+        rot = np.array(
+            (
+                (np.cos(theta_rad), -np.sin(theta_rad)),
+                (np.sin(theta_rad), np.cos(theta_rad)),
+            ),
+        )
+        z_rot = np.dot(rot, z.T)
+        return z_rot.T, rot
 
     @staticmethod
     def analytic_solve(

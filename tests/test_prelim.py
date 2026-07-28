@@ -12,10 +12,12 @@ Tests include:
 - Verifying the values of the data.model after running the Prelim class.
 """
 
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 from instancespace.data.options import GeneralOptions, PrelimOptions, SelvarsOptions
 from instancespace.stages.prelim import PrelimInput, PrelimStage
@@ -359,3 +361,45 @@ def test_prelim_run() -> None:
         np.array(ybest_output_run, dtype=np.float64),
     )
     assert np.allclose(p, np.array(p_output_run, dtype=np.float64))
+
+
+def _collect_warnings(
+    fn: Callable[..., None],
+    *args: NDArray[np.double],
+) -> list[str]:
+    """Run fn(*args) and return the loguru WARNING-level messages it emitted."""
+    from loguru import logger
+
+    messages: list[str] = []
+    sink_id = logger.add(
+        lambda msg: messages.append(msg.record["message"]),
+        level="WARNING",
+    )
+    try:
+        fn(*args)
+    finally:
+        logger.remove(sink_id)
+    return messages
+
+
+def test_prelim_many_zero_best_warning_fires_above_threshold() -> None:
+    """Regression test for F14: warn when >5% of instances have Ybest == 0."""
+    prelim_stage = PrelimStage.__new__(PrelimStage)
+    # 2 of 10 instances (20%) have a best-algorithm performance of exactly zero.
+    y_best = np.concatenate([np.zeros(2), np.ones(8)])
+    warn_many_zero_best = prelim_stage._warn_many_zero_best  # noqa: SLF001
+
+    messages = _collect_warnings(warn_many_zero_best, y_best)
+
+    assert any("best-algorithm performance of exactly zero" in m for m in messages)
+
+
+def test_prelim_many_zero_best_warning_silent_below_threshold() -> None:
+    """No warning when at most 5% of instances have Ybest == 0."""
+    prelim_stage = PrelimStage.__new__(PrelimStage)
+    y_best = np.ones(10)  # none are zero
+    warn_many_zero_best = prelim_stage._warn_many_zero_best  # noqa: SLF001
+
+    messages = _collect_warnings(warn_many_zero_best, y_best)
+
+    assert messages == []
