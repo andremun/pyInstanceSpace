@@ -13,8 +13,8 @@ toolkit rather than a single change.
 
 - Stage architecture (`preprocessing → prelim → sifted → pilot → pythia → cloister →
   trace`) with an `InstanceSpace` class exposing `build()`, `explore()`, and
-  `explore_iter()`.
-- `explore()`/`explore_iter()` apply a previously trained model to unseen instances,
+  `explore_stage_iter()`.
+- `explore()`/`explore_stage_iter()` apply a previously trained model to unseen instances,
   mirroring MATLAB's `exploreIS.m`, by calling the `build()`-trained scikit-learn
   objects (e.g. `SVC.predict`/`predict_proba`) directly. (This originally went through
   `build_explore_adapter.py`, converting the trained model into the flattened form
@@ -149,3 +149,9 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   negative result for a previously-flagged concern about `_rollback_to_schedule_index()`
   over-invalidating by schedule-wave position rather than real dependency, scoped to the
   current built-in 7-stage order (Q8).
+- Renamed `InstanceSpace.explore_iter()` to `explore_stage_iter()` and gave it a proper
+  `AnnotatedExploreOutput` (`stage: ExploreStage, output: Any`) return type in place of a
+  bare `(str, Any)` tuple, so it mirrors `run_iter()`'s `AnnotatedStageOutput` shape —
+  build's and explore's incremental-iteration APIs now use the same vocabulary. Naming
+  only: no computation changed. (Real code-sharing between build- and explore-time stage
+  execution is separately tracked as F8, not done here.)

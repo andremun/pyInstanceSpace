@@ -8,7 +8,7 @@ anything. Full detail lives in `docs/` (see below) — this file is a map, not t
 Python port of the MATLAB Instance Space Analysis (ISA) toolkit (`andremun/InstanceSpace`,
 currently v0.9.0). **Not** a 1:1 port and not required to become one — the stage architecture
 (`preprocessing → prelim → sifted → pilot → pythia → cloister → trace`, an `InstanceSpace`
-class, `build()`/`explore()`/`explore_iter()`) is independently engineered. Forked from MATLAB
+class, `build()`/`explore()`/`explore_stage_iter()`) is independently engineered. Forked from MATLAB
 v0.3.3 (Feb 2023) — MATLAB has since moved through a ten-phase refactor this repo doesn't have.
 
 ## Production status — read this before changing any existing behaviour

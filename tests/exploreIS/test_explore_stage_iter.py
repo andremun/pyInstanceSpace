@@ -1,6 +1,6 @@
 """Unit tests for the staged explore entry points.
 
-These exercise the orchestration added by ``explore_iter`` and the refactored
+These exercise the orchestration added by ``explore_stage_iter`` and the refactored
 ``explore`` in isolation: the per-stage inference methods are stubbed, so the tests
 check only that the stages run in the right order, that each stage's output feeds the
 next, and that ``explore`` maps those outputs onto the right ``ExploreResult`` fields.
@@ -8,7 +8,7 @@ The stage methods' numerical fidelity is covered against MATLAB by the per-stage
 validation suites.
 """
 
-from instancespace.instance_space import InstanceSpace
+from instancespace.instance_space import ExploreStage, InstanceSpace
 
 
 def _stub_stages(space):
@@ -22,22 +22,26 @@ def _stub_stages(space):
     space._explore_trace = lambda _z: ("ingood", "inbest")
 
 
-def test_explore_iter_yields_the_five_stages_in_order():
+def test_explore_stage_iter_yields_the_five_stages_in_order():
     space = InstanceSpace.__new__(InstanceSpace)
     _stub_stages(space)
 
-    yielded = list(space.explore_iter(None))
+    yielded = list(space.explore_stage_iter(None))
 
-    assert [name for name, _ in yielded] == [
-        "prelim", "sifted", "pilot", "pythia", "trace",
+    assert [annotated.stage for annotated in yielded] == [
+        ExploreStage.PRELIM,
+        ExploreStage.SIFTED,
+        ExploreStage.PILOT,
+        ExploreStage.PYTHIA,
+        ExploreStage.TRACE,
     ]
-    stages = dict(yielded)
+    stages = {annotated.stage: annotated.output for annotated in yielded}
     # Each geometric stage feeds the next; PILOT's output feeds PYTHIA and TRACE.
-    assert stages["prelim"] == "prelim(xraw)"
-    assert stages["sifted"] == "sifted(prelim(xraw))"
-    assert stages["pilot"] == "Z"
-    assert stages["pythia"] == ("yhat", "pr0", "sel")
-    assert stages["trace"] == ("ingood", "inbest")
+    assert stages[ExploreStage.PRELIM] == "prelim(xraw)"
+    assert stages[ExploreStage.SIFTED] == "sifted(prelim(xraw))"
+    assert stages[ExploreStage.PILOT] == "Z"
+    assert stages[ExploreStage.PYTHIA] == ("yhat", "pr0", "sel")
+    assert stages[ExploreStage.TRACE] == ("ingood", "inbest")
 
 
 def test_explore_maps_stage_outputs_onto_the_result():

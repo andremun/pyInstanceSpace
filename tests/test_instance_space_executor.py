@@ -4,8 +4,9 @@
 
 Exercises `_get_executor()`/`close()` directly against a bare `InstanceSpace`
 (`__new__` + only the attributes these methods touch), mirroring the stubbing
-style already used in `tests/exploreIS/test_explore_iter.py` - constructing a
-full pipeline just to check pool-reuse bookkeeping would be disproportionate.
+style already used in `tests/exploreIS/test_explore_stage_iter.py` -
+constructing a full pipeline just to check pool-reuse bookkeeping would be
+disproportionate.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -16,9 +17,9 @@ from instancespace.instance_space import InstanceSpace
 
 
 def _bare_instance_space(n_cores):
-    # Deliberately untyped (matching test_explore_iter.py's `_stub_stages`
-    # pattern): a typed signature makes mypy check this body, which then
-    # rejects the intentional attribute-monkeypatching below.
+    # Deliberately untyped (matching test_explore_stage_iter.py's
+    # `_stub_stages` pattern): a typed signature makes mypy check this body,
+    # which then rejects the intentional attribute-monkeypatching below.
     space = InstanceSpace.__new__(InstanceSpace)
     space._options = SimpleNamespace(parallel=ParallelOptions(True, n_cores))
     space._executor = None

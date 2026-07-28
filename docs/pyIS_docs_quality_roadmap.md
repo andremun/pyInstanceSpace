@@ -13,7 +13,7 @@
 before the ten-phase refactor documented in `isa_refactor_plan_v1_7.pdf` began. MATLAB is
 now at **v0.9.0** (133 commits / ~44.6k lines changed since v0.3.3). The Python port's stage
 architecture (`preprocessing → prelim → sifted → pilot → pythia → cloister → trace`, an
-`InstanceSpace` class, a `build()`/`explore()`/`explore_iter()` API) is already independently
+`InstanceSpace` class, a `build()`/`explore()`/`explore_stage_iter()` API) is already independently
 well-engineered — it is **not** a 1:1 port and does not need to become one.
 
 This document intentionally **inverts** the MATLAB refactor's priority order. The MATLAB plan
@@ -92,7 +92,7 @@ not a fast-forward, but git resolved it automatically without help.
    than leaving it undiscoverable in a silent merge.
 
 **Checkpoint:** PR merged, CI green, `main` contains the stage architecture and `build()`/
-`explore()`/`explore_iter()` API the rest of this roadmap assumes already exists.
+`explore()`/`explore_stage_iter()` API the rest of this roadmap assumes already exists.
 
 ---
 
@@ -110,7 +110,7 @@ Findings from a documentation-focused pass over the `aoxiangx` fork (README.md,
 | 4 | Root directory | No `CITATION.cff` (MATLAB has one, with DOI/author/licence metadata). |
 | 5 | Root directory | No `RELEASE_NOTES.md` / `CHANGELOG.md` — no versioned record of what changed and why. |
 | 6 | `README.md` structure | Missing sections MATLAB's README has: *Repository layout*, *Working with the code* (class walkthrough), *The metadata file*. |
-| 7 | `liveDemoExploreIS.ipynb` | 17 cells / 9 markdown headers, reasonable stage-by-stage structure, actively being improved (recent commits added per-stage diagnostics and `explore_iter` notes). Gap is narrative depth — MATLAB's manual explains *why* and *how to read the output* at each stage; the notebook should be audited cell-by-cell against that bar, not rewritten from scratch. |
+| 7 | `liveDemoExploreIS.ipynb` | 17 cells / 9 markdown headers, reasonable stage-by-stage structure, actively being improved (recent commits added per-stage diagnostics and `explore_stage_iter` notes). Gap is narrative depth — MATLAB's manual explains *why* and *how to read the output* at each stage; the notebook should be audited cell-by-cell against that bar, not rewritten from scratch. |
 | 8 | `docs/explore_validation.ipynb` | Exists but its relationship to the main demo notebook (user-facing manual vs. validation artefact) isn't documented anywhere. |
 | 9 | `.github/workflows/` | Only `validation-tests.yml`. The `docs-passing` badge in `README.md` has no corresponding CI job — it's either stale or manually maintained. |
 | 10 | `LICENSE` | Already PolyForm Noncommercial 1.0.0 — matches MATLAB. No action needed here. |
@@ -204,7 +204,7 @@ if any output CSV is likely to be opened in Excel downstream).
 
 ### P4 — Release notes discipline
 **[Additive]** — docs/process only.
-- Introduce `RELEASE_NOTES.md`, seeded with a baseline entry describing the current state (stage architecture, `build()`/`explore()`/`explore_iter()`, licence), using MATLAB's section convention: *New functionality* / *Better engineering* / *Bug fixes* / *Licence*.
+- Introduce `RELEASE_NOTES.md`, seeded with a baseline entry describing the current state (stage architecture, `build()`/`explore()`/`explore_stage_iter()`, licence), using MATLAB's section convention: *New functionality* / *Better engineering* / *Bug fixes* / *Licence*.
 - Process rule going forward: every version bump gets an entry before merge, not after.
 
 ### P5 — Docs CI honesty
@@ -644,7 +644,7 @@ concrete derivatives and are already in the table.
 | F13 | — | No Python equivalent of `ISAvalidateOpts.m` — eager, comprehensive type/range/membership validation of every recognised option field at load time, with clear `ISA:ISAvalidateOpts:*`-style errors, instead of a bad value surfacing as a confusing crash deep inside a stage — added v1.25 | Not started | **[Additive]** — a new validation pass that only ever rejects what would already have failed later (or silently produced wrong output); doesn't change behaviour for any currently-valid options file. |
 | F14 | — | PRELIM's missing "more than 5% of instances have a best-algorithm performance of exactly zero" data-quality warning (`ISA:PRELIM:manyZeroBest`) — added v1.25 | Not started | **[Additive]** — a warning only; the underlying eps-substitution computation it warns about is already correctly ported (verified directly in `prelim.py`). |
 
-**F10 finding, verified directly against `core/PYTHIA.m` and `utils/ISAdefaults.m` (v1.25):**
+**F10 finding, verified directly against `core/PYTHIA.m` and `utils/ISAdefaults.m` (v1.25, tracked as #287):**
 MATLAB exposes `opts.pythia.tuning` with three modes — `'sobol'` (the *default*: quasi-random
 Sobol-sequence sampling of the hyperparameter space, `nsobol` candidates evaluated in parallel
 per CV fold via `parfor`, same "common random numbers" per-fold seeding discipline Q9 already
@@ -660,7 +660,7 @@ this needs a decision on whether `'sobol'` is worth porting (a new quasi-random 
 as an intentional, permanent divergence is the better call — not decided here.
 
 **F11 finding, verified directly against `core/TRACE.m`, `core/TRACE_legacy.m`, and
-`utils/ISAdefaults.m` (v1.25):** MATLAB's `TraceOptions`-equivalent carries `method`
+`utils/ISAdefaults.m` (v1.25, tracked as #288):** MATLAB's `TraceOptions`-equivalent carries `method`
 (`'trace3'` default vs `'legacy'`, with an automatic `'legacy'`→`'trace3'` fallback and warning
 if a 3D instance space is requested with `'legacy'`, which doesn't support it), `contra` (defaults
 to `true` only for `'legacy'` — contradiction-removal is opt-in for `'trace3'`), `minInstances`,
@@ -675,7 +675,7 @@ from F8 (which is about *reusing* build-time TRACE code at explore time, not abo
 algorithm variant or options TRACE itself exposes).
 
 **F12 finding, verified directly against `core/FILTER.m` and `instancespace/utils/filter.py`
-(v1.25):** MATLAB avoids the `O(ninst²)` pairwise-distance cost entirely — `rangesearch(X, X,
+(v1.25, tracked as #289):** MATLAB avoids the `O(ninst²)` pairwise-distance cost entirely — `rangesearch(X, X,
 opts.mindistance)` builds a KD-tree once and returns only the pairs actually within
 `mindistance` (MATLAB's own comment: "at ninst ~ 20000 a dense Dx alone needs ~3GB"), and the
 uniformity computation uses `knnsearch(Xkept, Xkept, 'K', 2)` the same way. Python's
@@ -690,7 +690,7 @@ coincident in feature space) fall through to `numpy`'s own `RuntimeWarning`s (`i
 encountered`, `divide by zero`) and a silently-produced `NaN`/`inf`, not a domain-meaningful
 message.
 
-**F13 finding, verified directly against `utils/ISAvalidateOpts.m` (v1.25):** MATLAB validates
+**F13 finding, verified directly against `utils/ISAvalidateOpts.m` (v1.25, tracked as #290):** MATLAB validates
 ~35 individual option fields (logical scalars, positive-integer, unit-range `[0,1]`, membership
 in an enumerated set, cell-of-text, etc.) immediately after loading `options.json` and before any
 stage runs, erroring clearly on the first invalid one (`opts.pythia.classifier must be one of
@@ -700,7 +700,7 @@ range. A bad value (negative `epsilon`, out-of-range `dims`, an unregistered `cl
 currently passes straight through and either crashes confusingly deep inside a stage, or — worse
 — silently produces a numerically-valid-looking but wrong result with no error at all.
 
-**F14 finding, verified directly against `core/PRELIM.m` lines 78-83/99-104 (v1.25):** MATLAB
+**F14 finding, verified directly against `core/PRELIM.m` lines 78-83/99-104 (v1.25, tracked as #291):** MATLAB
 warns (`ISA:PRELIM:manyZeroBest`) when more than 5% of instances have a best-algorithm
 performance of exactly zero, since the relative-performance matrix becomes uninformative (close
 to 1 everywhere) for those instances once the `eps`-substitution kicks in. Verified Python's
@@ -1073,3 +1073,4 @@ ships with its listed test, not just its implementation.
 | v1.23 | 2026-07-28 | Before starting Q6/F7/Q8 (the next three items in §6.0's order), evaluated their scope against the post-fold code rather than assuming the existing text still applied. Two findings: (1) the Q6↔F7 pickle-exclusion interaction (v1.18) rests on a premise that doesn't hold — verified `instancespace/model.py`'s `Model` (F7's actual pickle target, per its own pathway) is a frozen dataclass with no field referencing `InstanceSpace`/`StageRunner` (Q6's only proposed pool-holder locations), so there is nothing for a `__getstate__`/`__setstate__` exclusion to guard against; retracted the shared-checklist item in §6.0 and corrected Q6's §4 entry accordingly — this is a scoping correction, not new work. (2) Q8's hard T2 dependency, already flagged in §6.0's "Hard dependencies" list, was confirmed concrete rather than theoretical: grepped `tests/` for any full-7-stage `.build()` call and found none — the only `instance_space_from_files` callers (`test_prepro_n_prelim.py`, `test_load_file.py`, `test_preprocessing.py`) stop at preprocessing/prelim. T2 does not exist in any form, so Q8 cannot be written yet. User confirmed (asked directly, not guessed): insert T2 as Q8's direct prerequisite rather than deferring Q8 to later in the order or substituting a different third item. §6.0's recommended-order table updated (new row 5.5 for T2). No code changed. |
 | v1.24 | 2026-07-28 | Q6, F7, T2, and Q8 implemented and verified on `v0.9.0/development-branch-QSF`. Q6: a lazily-created, reused `ThreadPoolExecutor` cached on `InstanceSpace`, threaded through `TraceStage` in place of a fresh per-call pool; 10 new unit tests. F7: `Model.save()`/`Model.load()`, signed `joblib` round-trip with optional `secret_key`, following the format decided in v1.14/v1.17; 7 new tests covering both modes plus the tampering/downgrade-attack/missing-signature guards; `joblib` promoted to a direct dependency. T2: `tests/test_build_integration.py`, the repo's first true end-to-end `.build()` test, against the real 213-instance/10-algorithm fixture already used by other partial tests — genuinely slow (~8.5 min, serial) but the only test positioned to catch what it caught. Q8: verified negative result — rerunning `CloisterStage` neither invalidates `PythiaStage`'s output (same schedule wave) nor blocks `run_stage(TraceStage)` (no real dependency on `CloisterStage`, and not wave-position-blocked either); §6.1's speculative over-invalidation concern does not reproduce for the current built-in 7-stage order — scoped to that order, not a general correctness claim about `_rollback_to_schedule_index()`. **Real bug found by T2, unrelated to the invalidation question**: `StageRunner.run_stage()`'s unconditional `deepcopy(inputs)` crashed (`TypeError: cannot pickle '_queue.SimpleQueue' object`) on Q6's new `TraceInputs.executor` field — Q6's own unit tests missed this because they called `TraceStage` directly, bypassing `run_stage()`'s deepcopy step. Root-caused and fixed via a new `_deepcopy_stage_inputs()` helper in `stage_runner.py` that pre-seeds `deepcopy`'s memo with any live `ThreadPoolExecutor` so it passes through by reference — necessary for two independent reasons (executors aren't deepcopy-safe at all, and even a successful copy would silently defeat Q6's pool-reuse purpose), not just to silence the crash. Added a fast, dedicated regression test (`test_run_stage_does_not_deepcopy_a_live_executor`) so this doesn't require another 8-minute build to re-catch. Full test suite (excluding the two genuinely slow PYTHIA-tuning/T2 tests, which were run and verified separately): 224 passed, 0 failed. §6.0's recommended-order table, status line, and Q6/F7/T2/Q8 entries updated to reflect all four items done. |
 | v1.25 | 2026-07-28 | Two-part follow-up requested directly: (1) folded a PILOT-parallelism finding into F2 — verified directly against `core/PILOT.m`, MATLAB parallelises its `ntries` BFGS multi-start restarts via `parfor` reusing an existing pool (`gcp('nocreate')`), while Python's `pilot.py` runs the equivalent loop strictly sequentially with no `parallel_options` field at all; added as pathway step 5 and a new decision point (thread pool matching Q6, or process pool matching MATLAB's actual `parfor`/OS-process semantics — a real port decision, not just translation, given the GIL). (2) A full pass through every `.m` file in `andremun/InstanceSpace` (cloned to `/workspace/instancespace`) not already referenced anywhere in this document, cross-checked against the corresponding Python module, per an explicit "do not change the MATLAB code, this is read-only" instruction. Five new, previously-untracked findings recorded as F10–F14 (all "Not started," none implemented): F10 (PYTHIA's actual default tuning strategy, Sobol-sequence search, has no Python implementation at all — Python only implements the non-default Bayes strategy, with no `tuning` option to choose either way); F11 (TRACE's `method`/`contra`/`minInstances`/`minAreaFrac` option surface and the `pythia.skip` interaction are entirely absent from Python — `TraceOptions` only has `use_sim`/`purity`); F12 (`utils/filter.py` is a naive nested-Python-loop `O(n²)` with per-pair `cdist()` calls where MATLAB uses a KD-tree/`rangesearch`, and has no guard for the degenerate-uniformity cases MATLAB explicitly checks and warns on); F13 (no Python equivalent of `ISAvalidateOpts.m`'s eager type/range/membership validation of ~35 option fields — Python's `_validate_fields` only checks field *names*, never values); F14 (PRELIM's `manyZeroBest` 5%-threshold data-quality warning has no Python equivalent, though the underlying eps-substitution computation it warns about is already correctly ported). Explicitly not implemented, listed for the user to prioritise, per direct instruction. No MATLAB code touched (read-only clone). No Python code changed beyond F2's documentation update. |
+| v1.26 | 2026-07-28 | Registered F10–F14 as GitHub sub-issues under the Phase F parent (#260), matching the existing F1–F9 issue format and milestone (v0.5.0, milestone 3): F10 → #287, F11 → #288, F12 → #289, F13 → #290, F14 → #291. Each of F10–F14's finding write-ups above (§6) updated with a "tracked as #NNN" cross-reference. No code changed. |
