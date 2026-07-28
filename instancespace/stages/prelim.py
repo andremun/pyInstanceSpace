@@ -27,6 +27,11 @@ from instancespace.data.options import GeneralOptions, PrelimOptions, SelvarsOpt
 from instancespace.stages.stage import Stage
 from instancespace.utils.filter import do_filter
 
+# Fraction of instances with a best-algorithm performance of exactly zero above
+# which a data-quality warning fires (matches MATLAB's PRELIM.m,
+# ISA:PRELIM:manyZeroBest).
+_MANY_ZERO_BEST_THRESHOLD = 0.05
+
 
 class PrelimInput(NamedTuple):
     """Inputs for the Prelim stage.
@@ -218,6 +223,21 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         """Log per-trial/per-iteration detail, only shown when general.verbose."""
         if self.general_opts.verbose:
             logger.debug(f"[PRELIM] {msg}")
+
+    def _warn_many_zero_best(self, y_best: NDArray[np.double]) -> None:
+        """Warn if too many instances have a best-algorithm performance of zero.
+
+        Matches MATLAB's ISA:PRELIM:manyZeroBest: once these zeros are
+        substituted with `eps` below, the relative-performance matrix becomes
+        uninformative (close to 1 everywhere) for those instances.
+        """
+        frac_zero_best = np.mean(y_best == 0)
+        if frac_zero_best > _MANY_ZERO_BEST_THRESHOLD:
+            logger.warning(
+                f"[PRELIM] {frac_zero_best:.1%} of instances have a best-algorithm "
+                "performance of exactly zero; the relative-performance matrix will be "
+                "close to 1 everywhere for these instances.",
+            )
 
     @staticmethod
     def _inputs() -> type[PrelimInput]:
@@ -648,6 +668,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
                 y_bin = y_aux >= prelim_opts.epsilon
                 msg = msg + "higher than " + str(prelim_opts.epsilon)
             else:
+                self._warn_many_zero_best(y_best)
                 y_best[y_best == 0] = np.finfo(float).eps
                 y[y == 0] = np.finfo(float).eps
                 y = 1 - y / y_best[:, np.newaxis]
@@ -672,6 +693,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
                 y_bin = y_aux <= prelim_opts.epsilon
                 msg = msg + "less than " + str(prelim_opts.epsilon)
             else:
+                self._warn_many_zero_best(y_best)
                 y_best[y_best == 0] = np.finfo(float).eps
                 y[y == 0] = np.finfo(float).eps
                 y = 1 - y_best[:, np.newaxis] / y

@@ -40,6 +40,7 @@ mypy = "^1.9.0"
 pdoc = "^14.4.0"
 docconvert = "^2.1.0"
 ipykernel = "^6.29.5"
+pytest-cov = "^7.1.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -53,11 +54,12 @@ check_black = "black ."
 
 test_ruff = "ruff check --no-fix"
 test_black = "black . --check"
+test_pytest = "pytest"
 
 check.sequence = ["format_docstrings", "check_black", "check_ruff", "check_mypy"]
 check.ignore_fail = "return_non_zero"
 
-test.sequence = ["test_ruff", "check_mypy", "test_black"]
+test.sequence = ["test_ruff", "check_mypy", "test_black", "test_pytest"]
 test.ignore_fail = "return_non_zero"
 
 [tool.ruff]

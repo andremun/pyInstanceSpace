@@ -630,8 +630,8 @@ concrete derivatives and are already in the table.
 | Phase | Maps to MATLAB | Focus | Status | Compat |
 |---|---|---|---|---|
 | F1 | Phase 4 | PYTHIA classifier registry — confirm whether `stages/pythia.py` supports a pluggable classifier set or is fixed | **Implemented and verified (v1.22)** — training-side registry (`instancespace/utils/get_classifier_fcn.py`) dispatches to `svm`/`knn`/`tree`/`nb`/`linear`/`ensemble`; explore-side already handled by S1. Only `svm` is tuned via the existing `C`/`gamma` search — the other five fit with scikit-learn's own defaults, not a MATLAB-verified tuning range (no MATLAB reference exists for them). `PythiaOutput.svm`'s type widened to `list[ClassifierMixin]` (field name kept for backward compatibility). Full suite + 18 new dedicated tests (registry unit tests + one per registered classifier trained end-to-end) all pass. | **[Additive at default]** — new `classifier` option defaults to `'svm'`, matching today's only behaviour verified via the existing MATLAB-reference tests unchanged. New registry entries themselves are new production surface — validated by dedicated tests, not just "it runs," but without MATLAB-verified hyperparameter tuning for the five non-`svm` entries; flagged in code and docs, not assumed. |
-| F2 | Phase 5 | PILOT 3D / viewpoint optimisation parity in `stages/pilot.py`, **plus `ntries` restart parallelism** (added v1.25 — verified directly against MATLAB's `PILOT.m`, not inferred: `parfor (i=1:opts.ntries, nworkers)` runs the BFGS multi-start restarts in parallel, reusing an existing pool via `gcp('nocreate')` rather than opening a new one; Python's `pilot.py` runs the equivalent `for i in range(opts.n_tries):` loop sequentially, no parallelism at all, no `parallel_options` field on `PilotInput`) | Not started | **[Behavior-changing risk]** — generalising the 2D-specific solver to n-dims can shift 2D output even at `dims=2` if not done carefully (different array shapes can trigger different BLAS code paths). Verify bit-for-bit or tolerance-verified identical 2D output before shipping — this touches existing code, not just adding an independent new path. Parallelising `ntries` is additive on top of that (independent restarts, order of completion doesn't affect which is picked — `out.perf`'s `argmax` is order-invariant), but do it in the same pass as the dims/PLS work since both touch `PilotInput`'s options surface and the same `for`/`parfor` loop. |
-| F3 | Phase 6 | SIFTED promotion refinements | Not started | **[Unknown until audit]** — F3's own pathway starts with "audit first" for exactly this reason. Treat any fix the audit finds as **[Behavior-changing]** by default until proven otherwise, since it touches SIFTED's core computation. |
+| F2 | Phase 5 | PILOT 3D / viewpoint optimisation parity in `stages/pilot.py`, **plus `ntries` restart parallelism** (added v1.25 — verified directly against MATLAB's `PILOT.m`, not inferred: `parfor (i=1:opts.ntries, nworkers)` runs the BFGS multi-start restarts in parallel, reusing an existing pool via `gcp('nocreate')` rather than opening a new one; Python's `pilot.py` runs the equivalent `for i in range(opts.n_tries):` loop sequentially, no parallelism at all, no `parallel_options` field on `PilotInput`) | Not started | **[Behavior-changing risk]** — generalising the 2D-specific solver to n-dims can shift 2D output even at `dims=2` if not done carefully (different array shapes can trigger different BLAS code paths). Verify bit-for-bit or tolerance-verified identical 2D output before shipping — this touches existing code, not just adding an independent new path. Parallelising `ntries` is additive on top of that (independent restarts, order of completion doesn't affect which is picked — `out.perf`'s `argmax` is order-invariant), but do it in the same pass as the dims/PLS work since both touch `PilotInput`'s options surface and the same `for`/`parfor` loop. **Nested-parallelism caution (added v1.27, found during F3's audit, §6.2 finding 2):** `SiftedStage._find_best_combination()` already calls `PilotStage.pilot(...)` from inside its own GA fitness function, which itself runs in separate OS worker processes when `parallel_options.flag` is set — adding a pool to PILOT's `ntries` loop without detecting this (e.g. skipping/serialising PILOT's own pool when already running inside a worker process) reintroduces the exact nested-`parfor`-inside-GA bug MATLAB's SIFTED promotion fixed. |
+| F3 | Phase 6 | SIFTED promotion refinements | **Audited (v1.27)** — see §6.2 for the full checklist result against MATLAB's 4 historical fixes. One real gap confirmed (unvectorized correlation loop); one real cross-item risk found for F2 to account for when it lands; two of the four MATLAB issues confirmed not present in Python at all. No fix implemented — audit only, per the audit-first rule. | **[Unknown until fix is scoped]** — the one confirmed gap (`_compute_correlation`'s nested loop) is a performance-only change if vectorised without altering NaN-handling semantics; verify identical `rho`/`pval` output before/after regardless. |
 | F4 | Phases 7–8 | `InstanceSpace` class & `build`/`explore` robustness | **Audited (v1.3)** — see §6.1 for findings; Q8 (§4) verifies one open question before F4's invalidation-fix work is scoped | — (audit only; see F7/F8/F9 for the actionable, taggable derivatives) |
 | F5 | Phase 9 | Output consolidation / 3D visualisation parity (MATLAB's `scriptpng.m`) | Not started | **[Additive]** — new rendering paths; doesn't change any existing 2D output function. |
 | F6 | Phase 10 | Namespace & per-file licence headers — licence itself already matches MATLAB | **Implemented (v1.22)** — `SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0` + copyright header added to all 27 `instancespace/**/*.py` files. | **[Additive]** — comments only. |
@@ -642,7 +642,7 @@ concrete derivatives and are already in the table.
 | F11 | — | TRACE option-surface parity: `method` (`'trace3'`/`'legacy'`), `contra`, `minInstances`, `minAreaFrac`, and `pythia.skip` interaction — added v1.25 | Not started | **[Additive]** — new option surface exposing an existing-but-unreachable code path (Python's `trace.py` already implements the `'trace3'`-equivalent behaviour as its only path); adding the `'legacy'` alternative and the tunable thresholds doesn't change output for callers who don't opt in. |
 | F12 | — | `utils/filter.py` performance (naive `O(n²)` nested-loop with per-pair `scipy.spatial.distance.cdist` calls) and a missing degenerate-uniformity guard — added v1.25 | Not started | **[Additive if implemented correctly]** — a spatial-index rewrite must produce bit-identical `subset_index`/`is_dissimilar`/`is_visa`/uniformity output to the current `O(n²)` version for the same input; verify before/after, not just "faster." |
 | F13 | — | No Python equivalent of `ISAvalidateOpts.m` — eager, comprehensive type/range/membership validation of every recognised option field at load time, with clear `ISA:ISAvalidateOpts:*`-style errors, instead of a bad value surfacing as a confusing crash deep inside a stage — added v1.25 | Not started | **[Additive]** — a new validation pass that only ever rejects what would already have failed later (or silently produced wrong output); doesn't change behaviour for any currently-valid options file. |
-| F14 | — | PRELIM's missing "more than 5% of instances have a best-algorithm performance of exactly zero" data-quality warning (`ISA:PRELIM:manyZeroBest`) — added v1.25 | Not started | **[Additive]** — a warning only; the underlying eps-substitution computation it warns about is already correctly ported (verified directly in `prelim.py`). |
+| F14 | — | PRELIM's missing "more than 5% of instances have a best-algorithm performance of exactly zero" data-quality warning (`ISA:PRELIM:manyZeroBest`) — added v1.25 | **Implemented and verified (v1.27)** — `PrelimStage._warn_many_zero_best()`; 2 new tests | **[Additive]** — a warning only; the underlying eps-substitution computation it warns about is already correctly ported (verified directly in `prelim.py`). |
 
 **F10 finding, verified directly against `core/PYTHIA.m` and `utils/ISAdefaults.m` (v1.25, tracked as #287):**
 MATLAB exposes `opts.pythia.tuning` with three modes — `'sobol'` (the *default*: quasi-random
@@ -699,6 +699,10 @@ only checks that JSON keys map to *known field names* — it never validates a v
 range. A bad value (negative `epsilon`, out-of-range `dims`, an unregistered `classifier` string)
 currently passes straight through and either crashes confusingly deep inside a stage, or — worse
 — silently produces a numerically-valid-looking but wrong result with no error at all.
+
+**F14 — Implemented and verified (v1.27).** `PrelimStage._warn_many_zero_best()` warns when more
+than 5% of instances have a best-algorithm performance of exactly zero, matching MATLAB's message
+and threshold exactly. 2 new tests (fires above threshold, silent at/below it).
 
 **F14 finding, verified directly against `core/PRELIM.m` lines 78-83/99-104 (v1.25, tracked as #291):** MATLAB
 warns (`ISA:PRELIM:manyZeroBest`) when more than 5% of instances have a best-algorithm
@@ -824,6 +828,53 @@ hand-maintained `StagePrereq` map; frozen dataclasses give real immutability MAT
 can't; CSV ingestion is cleanly separated into `PreprocessingStage` versus MATLAB's monolithic
 `runPrelim` (file I/O + selvars filtering + calling `PRELIM()` all in one method).
 
+### 6.2 F3 audit findings — SIFTED vs. MATLAB's 4 historical fixes (added v1.27)
+
+Checked `instancespace/stages/sifted.py` directly against each of the four fixes MATLAB's SIFTED
+promotion made (see F3's own description, §6 table). No fix implemented here — audit only, per
+CLAUDE.md's F3 audit-first rule.
+
+1. **Thread-unsafe global `containers.Map` → persistent variable.** **Not applicable to
+   Python.** Verified via grep: zero module-level mutable state anywhere in `sifted.py` — no
+   shared cache of any kind for Python to have inherited this bug into.
+2. **Nested-`parfor`-inside-GA bug.** **Not currently present, but only by accident, not by
+   design — a real forward-looking risk for F2.** `_find_best_combination()`'s `pygad.GA`
+   uses real OS-process parallelism (`parallel_processing=["process", n_cores]`) when
+   `parallel_options.flag` is set. Its fitness function, `cost_fcn` (a `@staticmethod`, so it
+   runs inside those worker processes), calls `PilotStage.pilot(...)` internally on every
+   candidate evaluation. This is safe *today* only because `pilot.py` currently has zero
+   parallelism of its own (confirmed separately during the v1.25 MATLAB audit, now part of
+   F2's scope). **If F2 adds a thread/process pool for PILOT's `ntries` restart loop without
+   checking whether `pilot()` is already running inside one of SIFTED's own worker processes,
+   it will reintroduce this exact MATLAB bug** — a pool spawning its own nested sub-pool.
+   Recorded here and cross-referenced in F2's own entry so whoever implements F2's parallelism
+   sees it before, not after. Separately verified `cost_fcn`'s own `cross_val_score(...)` call
+   passes no `n_jobs` (defaults to sequential) — no nested-parallelism hazard from that call
+   specifically, today.
+3. **`rng('default')` reset inside the per-candidate cost function, discarding any user
+   seed.** **Not present.** `rng = np.random.default_rng(seed=self.general_opts.seed)` is
+   created once per `SiftedStage` run and passed by reference through
+   `evaluate_cluster`/`select_features_by_clustering`/`_find_best_combination` — never
+   recreated or reset inside a loop. `ga_instance.general_options = self.general_opts` (a
+   direct reference, not a fresh `GeneralOptions.default()`) threads the same user-configured
+   seed into `cost_fcn`, so every GA candidate's internal `PilotStage.pilot(...)` call uses the
+   identical seed — this is the deliberate "common random numbers" pattern already established
+   elsewhere in this codebase (e.g. PYTHIA's `sobolSearch` per-fold reseeding), needed for a
+   fair comparison across candidates, not an accidental MATLAB-style global-state reset (Python's
+   `np.random.default_rng()` creates an isolated local generator regardless; there is no global
+   RNG state for a stray reset to silently corrupt the way MATLAB's `rng('default')` can).
+4. **Unvectorised correlation-selection loop.** **Present, confirmed.** `_compute_correlation()`
+   is a plain nested Python `for i in range(rows): for j in range(cols):` loop calling
+   `scipy.stats.pearsonr` once per (feature, algorithm) pair — not vectorised. Runs once per
+   `SiftedStage` call (not per-GA-candidate, so lower urgency than a hot-loop would be), but a
+   real, still-open, bounded-scope gap matching MATLAB's fix exactly. Per-column-pair NaN
+   filtering (`valid_indices` can differ for every (i, j) pair) is what makes this non-trivial
+   to vectorise fully — `np.corrcoef` alone doesn't handle ragged NaN patterns per pair.
+
+**Net result:** 2 of 4 MATLAB issues don't apply to Python at all (items 1, 3); 1 is a real,
+scoped, low-urgency performance gap (item 4); 1 is a latent risk for a *different*, not-yet-done
+item to avoid reintroducing (item 2, flagged to F2).
+
 ---
 
 ## 7. Ideas from independent implementations — PyISpace / PyHard
@@ -847,6 +898,29 @@ distances, so error/R²/footprint areas are unaffected. Neither MATLAB's `PILOT.
 `stages/pilot.py` canonicalises orientation today, so the same or similar datasets can come out
 mirrored/rotated relative to each other across runs, making plots hard to visually compare.
 Low-risk, self-contained (~10 lines), additive-only. Worth adding to **both** MATLAB and Python.
+
+**R1 — Implemented and verified (v1.28).** Re-read directly from the actual GitLab source
+(`gitlab.com/ita-ml/pyispace`, cloned at commit `a5ee7f3a02e`), not the PyPI sdist this section
+was originally written against, and not from memory — `pyispace/pilot.py`'s `adjust_rotation(Z,
+Ybad, theta=135.0)` plus its call site in `train.py::train_is()` (`bad_instances =
+mode(Ybin*1, axis=1)[0] == 0`, i.e. instances where the majority-vote across algorithms in
+`Ybin` is "not good"). Ported into `PilotStage`: `PilotOptions.adjust_rotation: bool = False`
+(new field, defaulted so every existing `PilotOptions(...)` call site — production and test —
+is unaffected); `PilotInput` gained a `y_bin` field, auto-wired by the stage runner's
+name-based matching from `SiftedOutput.y_bin` (no explicit plumbing needed, confirmed by
+reading `stage_runner.py`'s `run_stage()`); `PilotStage.adjust_rotation()` and
+`PilotStage._bad_instances()` are direct ports of PyISpace's two pieces; `pilot()` applies the
+rotation to `Z` and `A` (`A = rot @ A`) only when `adjust_rotation=True` and at least one bad
+instance exists, matching PyISpace's own guard. Six new tests in `tests/test_pilot.py`: pairwise
+distances and orthonormality preserved by the rotation itself; the bad-instance centroid lands
+at 135° within tolerance (the §8.2 test-debt row's explicit requirement, not just "distances
+preserved"); the flag reproduces the same `Z` up to rotation as the flag off; two independent
+runs on identical input rotate identically (the roadmap's Phase R checkpoint's "visually
+consistent across two independent runs", verified as exact equality since PILOT's numerical
+solve is itself seed-deterministic); `adjust_rotation=True` without `y_bin` raises `ValueError`
+rather than failing silently; no bad instances present leaves `Z` unchanged. MATLAB-side
+`PILOT.m` change is explicitly out of scope for this repo (see CLAUDE.md) — tracked separately
+for the MATLAB v0.9.1 issue set, not done here.
 
 ### R2 — Alpha-shape auto-retry for TRACE footprint construction
 **[Behavior-changing for the specific edge case it fixes]** — output changes from a wrong partial boundary to a correct complete one for any dataset that hits the multi-region alpha-shape case. This is a correctness fix, but call it out explicitly in release notes — a downstream consumer may have unknowingly built something around the old (wrong) boundary shape.
@@ -949,6 +1023,12 @@ equivalent of MATLAB's `test_integration.m` — currently doesn't exist in any f
 Reference-dataset loader, common `Mock` builders — reduce duplication across ~35 files.
 
 ### T4 — Fix `poe test` to actually include pytest
+**Implemented and verified (v1.27)** — added `test_pytest = "pytest"` to `[tool.poe.tasks]` and
+appended it to `test.sequence`. Verified `poe --dry-run test` now runs `ruff check --no-fix` →
+`mypy --strict .` → `black . --check` → `pytest`, matching CI's `poetry run pytest` step plus the
+lint/type/format checks CI doesn't currently run at all (confirmed: `validation-tests.yml` has no
+ruff/mypy/black step, only pytest — Q11 removed the dead commented-out lint step rather than
+re-enabling it).
 **[Additive]** — CI/tooling config only.
 One-line change to `[tool.poe.tasks]`. Makes the local dev command match what CI actually does.
 
@@ -1074,3 +1154,5 @@ ships with its listed test, not just its implementation.
 | v1.24 | 2026-07-28 | Q6, F7, T2, and Q8 implemented and verified on `v0.9.0/development-branch-QSF`. Q6: a lazily-created, reused `ThreadPoolExecutor` cached on `InstanceSpace`, threaded through `TraceStage` in place of a fresh per-call pool; 10 new unit tests. F7: `Model.save()`/`Model.load()`, signed `joblib` round-trip with optional `secret_key`, following the format decided in v1.14/v1.17; 7 new tests covering both modes plus the tampering/downgrade-attack/missing-signature guards; `joblib` promoted to a direct dependency. T2: `tests/test_build_integration.py`, the repo's first true end-to-end `.build()` test, against the real 213-instance/10-algorithm fixture already used by other partial tests — genuinely slow (~8.5 min, serial) but the only test positioned to catch what it caught. Q8: verified negative result — rerunning `CloisterStage` neither invalidates `PythiaStage`'s output (same schedule wave) nor blocks `run_stage(TraceStage)` (no real dependency on `CloisterStage`, and not wave-position-blocked either); §6.1's speculative over-invalidation concern does not reproduce for the current built-in 7-stage order — scoped to that order, not a general correctness claim about `_rollback_to_schedule_index()`. **Real bug found by T2, unrelated to the invalidation question**: `StageRunner.run_stage()`'s unconditional `deepcopy(inputs)` crashed (`TypeError: cannot pickle '_queue.SimpleQueue' object`) on Q6's new `TraceInputs.executor` field — Q6's own unit tests missed this because they called `TraceStage` directly, bypassing `run_stage()`'s deepcopy step. Root-caused and fixed via a new `_deepcopy_stage_inputs()` helper in `stage_runner.py` that pre-seeds `deepcopy`'s memo with any live `ThreadPoolExecutor` so it passes through by reference — necessary for two independent reasons (executors aren't deepcopy-safe at all, and even a successful copy would silently defeat Q6's pool-reuse purpose), not just to silence the crash. Added a fast, dedicated regression test (`test_run_stage_does_not_deepcopy_a_live_executor`) so this doesn't require another 8-minute build to re-catch. Full test suite (excluding the two genuinely slow PYTHIA-tuning/T2 tests, which were run and verified separately): 224 passed, 0 failed. §6.0's recommended-order table, status line, and Q6/F7/T2/Q8 entries updated to reflect all four items done. |
 | v1.25 | 2026-07-28 | Two-part follow-up requested directly: (1) folded a PILOT-parallelism finding into F2 — verified directly against `core/PILOT.m`, MATLAB parallelises its `ntries` BFGS multi-start restarts via `parfor` reusing an existing pool (`gcp('nocreate')`), while Python's `pilot.py` runs the equivalent loop strictly sequentially with no `parallel_options` field at all; added as pathway step 5 and a new decision point (thread pool matching Q6, or process pool matching MATLAB's actual `parfor`/OS-process semantics — a real port decision, not just translation, given the GIL). (2) A full pass through every `.m` file in `andremun/InstanceSpace` (cloned to `/workspace/instancespace`) not already referenced anywhere in this document, cross-checked against the corresponding Python module, per an explicit "do not change the MATLAB code, this is read-only" instruction. Five new, previously-untracked findings recorded as F10–F14 (all "Not started," none implemented): F10 (PYTHIA's actual default tuning strategy, Sobol-sequence search, has no Python implementation at all — Python only implements the non-default Bayes strategy, with no `tuning` option to choose either way); F11 (TRACE's `method`/`contra`/`minInstances`/`minAreaFrac` option surface and the `pythia.skip` interaction are entirely absent from Python — `TraceOptions` only has `use_sim`/`purity`); F12 (`utils/filter.py` is a naive nested-Python-loop `O(n²)` with per-pair `cdist()` calls where MATLAB uses a KD-tree/`rangesearch`, and has no guard for the degenerate-uniformity cases MATLAB explicitly checks and warns on); F13 (no Python equivalent of `ISAvalidateOpts.m`'s eager type/range/membership validation of ~35 option fields — Python's `_validate_fields` only checks field *names*, never values); F14 (PRELIM's `manyZeroBest` 5%-threshold data-quality warning has no Python equivalent, though the underlying eps-substitution computation it warns about is already correctly ported). Explicitly not implemented, listed for the user to prioritise, per direct instruction. No MATLAB code touched (read-only clone). No Python code changed beyond F2's documentation update. |
 | v1.26 | 2026-07-28 | Registered F10–F14 as GitHub sub-issues under the Phase F parent (#260), matching the existing F1–F9 issue format and milestone (v0.5.0, milestone 3): F10 → #287, F11 → #288, F12 → #289, F13 → #290, F14 → #291. Each of F10–F14's finding write-ups above (§6) updated with a "tracked as #NNN" cross-reference. No code changed. |
+| v1.27 | 2026-07-28 | Following a direct risk/reward review of all open issues, worked T4, F14, T1 (in progress), F3, and R1 as a batch, deferring T5 (needs an as-yet-nonexistent MATLAB-data collection script, left open). T4: `pyproject.toml`'s `test` poe task was missing `pytest` entirely (`test.sequence` ran only `ruff`/`mypy`/`black`) — added `test_pytest = "pytest"`; also surfaced that CI (`validation-tests.yml`) runs only `pytest`, no lint/type/format step at all, consistent with Q11's prior decision not to re-enable one. F14: `PrelimStage._warn_many_zero_best()` — warns when more than 5% of instances have a best-algorithm performance of exactly zero, matching MATLAB's `ISA:PRELIM:manyZeroBest`; 2 new tests. F3: audited `stages/sifted.py` against MATLAB SIFTED's 4 historical bug fixes (thread-unsafe global cache, nested-`parfor`-inside-GA, RNG-reset losing the seed, unvectorized correlation loop) — full result in the new §6.2. Two of the four confirmed not present in Python at all (no module-level mutable state anywhere in the file; the per-candidate `rng` reuse across GA fitness evaluations is deliberate common-random-numbers, not an accidental reset — Python's `rng` is threaded by reference throughout, never reseeded mid-search). One real gap confirmed and left as F3's own future fix target: `_compute_correlation()` is an unvectorized nested Python loop calling `scipy.stats.pearsonr` per feature/algorithm pair. One genuinely new, forward-looking finding with no current bug: `SiftedStage._find_best_combination()`'s GA already runs `PilotStage.pilot(...)` inside `pygad.GA`'s own OS worker processes when `parallel_options.flag` is set — F2's planned PILOT `ntries` parallelism must detect (or otherwise avoid) already running inside one of those workers, or it reintroduces the exact nested-`parfor`-inside-GA bug MATLAB's SIFTED promotion fixed; cross-referenced into F2's entry here and in the companion pathways document. Audit only, per the audit-first rule — no SIFTED code changed. T1 (pytest-cov): dependency added (`pytest-cov` 7.1.0); coverage config and CI wiring carried into v1.28 below once a real baseline number was in hand. |
+| v1.28 | 2026-07-28 | R1 implemented and verified: PyISpace's `adjust_rotation()` read directly from the actual GitLab source (`gitlab.com/ita-ml/pyispace`, cloned at commit `a5ee7f3a02e`) rather than the PyPI sdist v1.25's original write-up was based on, per direct instruction not to port from memory. Full detail in the R1 section (§7) above; summary: `PilotOptions.adjust_rotation: bool = False` (new, defaulted field — no existing call site changes), `PilotInput.y_bin` (auto-wired by the stage runner's name-based matching from `SiftedOutput.y_bin`, confirmed by reading `stage_runner.py::run_stage()` rather than assumed), `PilotStage.adjust_rotation()`/`_bad_instances()` as direct ports, applied inside `pilot()` only when the flag is set and at least one poorly-solved instance exists. 6 new tests in `tests/test_pilot.py`, including the centroid-angle assertion §8.2's test-debt row explicitly required (not just "distances preserved") and the Phase R checkpoint's cross-run reproducibility check. MATLAB-side `PILOT.m` change explicitly left out of scope for this repo. |
