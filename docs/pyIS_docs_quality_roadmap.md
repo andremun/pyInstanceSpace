@@ -462,7 +462,7 @@ Order is a starting suggestion, not a commitment.
 | F4 | Phases 7–8 | `InstanceSpace` class & `build`/`explore` robustness | **Audited (v1.3)** — see §6.1 for findings; Q8 (§4) verifies one open question before F4's invalidation-fix work is scoped | — (audit only; see F7/F8/F9 for the actionable, taggable derivatives) |
 | F5 | Phase 9 | Output consolidation / 3D visualisation parity (MATLAB's `scriptpng.m`) | Not started | **[Additive]** — new rendering paths; doesn't change any existing 2D output function. |
 | F6 | Phase 10 | Namespace & per-file licence headers — licence itself already matches MATLAB | Header audit only | **[Additive]** — comments only. |
-| F7 | — | Model save/load round-trip (`Model.save()`/`InstanceSpace.load()`), matching MATLAB's persistence | **Format revised: signed `pickle`/`joblib`** — see design constraint below (supersedes the earlier HDF5-via-`h5py` decision) | **[Additive]** — brand-new capability; nothing existing depends on it. |
+| F7 | — | Model save/load round-trip (`Model.save()`/`InstanceSpace.load()`), matching MATLAB's persistence | **Format revised: signed `pickle`/`joblib`, with signing optional (`secret_key: bytes \| None`)** — see design constraint below (supersedes the earlier HDF5-via-`h5py` decision and the earlier unconditional-signing decision) | **[Additive]** — brand-new capability; nothing existing depends on it. |
 | F8 | — | Unify `explore()` with build-time stage code (predict-mode dispatch on `PythiaStage`/`TraceStage`, matching MATLAB calling the same `PYTHIA()`/`TRACE()` in both modes) | **Narrowed by S1**: the PYTHIA half is resolved as a side effect of calling native `.predict_proba()` instead of reimplementing SVM math — nothing left there to reconcile. Remaining scope is TRACE only (footprint/alpha-shape membership testing is a genuinely different computation S1's insight doesn't extend to) | **[Behavior-changing risk]** — this refactors existing, working code. The full `tests/matlab_reference/` validation suite must pass identically before/after; treat any tolerance-threshold change during this work as a red flag to investigate, not a "close enough" adjustment. |
 | F9 | — | Expand `explore()` to full evaluation scope: algorithm reconciliation + ground-truth performance metrics, matching MATLAB's `evaluateTestSet` | **Decided: extend `explore()` itself** (silent branch on whether ground truth is present) — see companion implementation-pathways document for the full pathway | **[Additive]** — new fields default to `None`; existing feature-only callers see no change. Add explicit test coverage for the "no ground truth present" path specifically, to lock this in rather than assume it. |
 
@@ -472,10 +472,14 @@ given the confirmed production threat model: on the web platform, models are pro
 system and downloaded by users — never re-uploaded. There is no code path where `load()` is
 called on anything other than a file the system itself wrote, *as long as this stays true and
 is enforced, not merely assumed* — hence the signing requirement below, which makes that
-enforcement real rather than a claim about the future that could quietly become false.
+enforcement real rather than a claim about the future that could quietly become false. A second
+usage mode — local/desktop development, with no secrets-manager available — is deliberately
+allowed to skip signing entirely; see the [DECISION] below for why that doesn't reopen the risk
+the signing requirement exists to close.
 
-**[DECISION] Topic:** F7 persistence format — signed `pickle`/`joblib` (supersedes the v1.9
-HDF5-via-`h5py` decision)
+**[DECISION] Topic:** F7 persistence format — signed `pickle`/`joblib`, signing optional via
+`secret_key: bytes | None` (supersedes the v1.9 HDF5-via-`h5py` decision, and revises the v1.14
+unconditional-signing decision to add a second mode)
 **Rationale:** the "never re-uploaded" threat model removes pickle's core objection (arbitrary
 code execution from *untrusted* input) — but rather than rely on that assumption holding
 forever across every future change to this codebase, add an HMAC signature: sign the serialised
@@ -488,20 +492,44 @@ actually stops it from mattering, not a design note nobody re-reads. Also resolv
 the HDF5 approach never solved: `DecisionTreeClassifier`/ensemble estimators (needed once F1
 adds them to the registry) don't have a small set of named arrays to flatten the way `SVC`
 does — pickle round-trips them natively, no custom serialiser required.
+
+A second, narrower use case doesn't fit the server threat model at all: local/desktop
+development, where a researcher saves and loads a model on their own machine and has no
+server-managed secret to sign with. Rather than force that caller to invent a throwaway key (or
+block desktop use entirely), `secret_key` defaults to `None`, in which case `save()` writes no
+signature and `load()` performs no verification — the risk is identical to running any other
+file the caller already possesses and trusts, the same caveat every unsigned `pickle`/`joblib`
+user already lives with today. This is a genuine second reachable mode serving a real,
+distinct caller (unlike the model-shape branch S1 removed, which had no second reachable
+caller) — not an accidental generality regression.
+
+The one new risk this introduces is a **downgrade attack**: a file `save()`-d *with* a
+`secret_key` must never become loadable *without* one just because a caller omits the key at
+`load()` time — that would silently defeat the entire signing mechanism. This is closed
+structurally, not by convention: `load()` must raise if a `.sig` file (or equivalent signed
+marker) is present but no `secret_key` was given, and must equally raise if a `secret_key` was
+given but no `.sig` marker exists. Only "signed key + signed file" and "no key + unsigned file"
+are valid, verified combinations; the two mismatched combinations are both refused.
 **Alternatives rejected:** HDF5 via `h5py` (the previous decision) — still viable, still safe,
 but adds a new dependency and requires hand-written flattening for every estimator type,
 including ones (trees, ensembles) that don't flatten cleanly; no longer justified once the
 threat model is confirmed to make pickle safe. `skops` (a library built specifically for
 pickle-free sklearn persistence) — worth a look if the signing approach ever proves
 insufficient, but not needed given the signing approach already closes the real risk.
+Unconditional signing (the v1.14 decision) — rejected as the sole mode because it has no answer
+for the desktop/no-secrets-manager caller other than "invent a key nobody manages," which is
+security theatre, not a control.
 **Impact:** no new third-party dependency (`hmac`/`hashlib` are stdlib) — a smaller dependency
 footprint than the HDF5 option, not just a safer-by-assumption one. **Non-negotiable
-implementation requirement:** every code path that calls `load()` must be audited to guarantee
-it never receives a user-supplied path or file — this is the one place the whole design's
-safety actually lives, and it needs to be a checked invariant (e.g. a path-allowlist or a
-storage-layer guarantee), not an assumption held only in this document. Once S1 lands, `SVC`
-objects round-trip through pickle exactly as trained — no adapter/flattening step needed at
-load time at all, since `explore()` will already be operating on native objects.
+implementation requirements:** (1) every server code path that calls `load()` must be audited to
+guarantee it always passes `secret_key` and never receives a user-supplied path or file — this
+is the one place the server-side design's safety actually lives, and it needs to be a checked
+invariant (e.g. a path-allowlist or a storage-layer guarantee), not an assumption held only in
+this document; (2) `load()` must refuse both mismatched signed/unsigned combinations described
+above — this is what prevents the desktop mode's existence from becoming a bypass for the server
+mode. Once S1 lands, `SVC` objects round-trip through pickle exactly as trained — no
+adapter/flattening step needed at load time at all, since `explore()` will already be operating
+on native objects.
 
 ### 6.1 F4 audit findings — class architecture deep dive
 
@@ -695,7 +723,7 @@ Specific tests each already-scoped item (Q, F, R) needs to actually be verified,
 | Q1 | Retired — see S3's checkpoint (confirm the module is genuinely unreferenced anywhere, full suite passes without it) instead of a poly-kernel validation test |
 | Q2 (OOD warning) | Fires above 5% clipped; silent below it — both directions need a test |
 | Q8 (rerun-invalidation regression test) | Must use the real 7-stage pipeline once T2 exists — the current synthetic 2-stage setup can't exercise the cloister/pythia sibling-branch question at all |
-| F7 (save/load) | Round-trip equality test; a signature-tampering test (flip one byte, assert `load()` refuses to deserialise rather than raising deep inside `pickle`); a test asserting `load()` is never reachable from any user-supplied path/parameter (the actual safety invariant the whole design depends on) |
+| F7 (save/load) | Round-trip equality test, run once signed and once unsigned; a signature-tampering test (flip one byte, assert `load()` refuses to deserialise rather than raising deep inside `pickle`); a downgrade-attack test (`save()` with `secret_key`, `load()` without it, assert refusal rather than silent unverified deserialisation — proves the two-mode split doesn't reopen the hole signing closes); a test asserting the *server* code path always passes `secret_key` and is never reachable from any user-supplied path/parameter (the actual safety invariant the server-side design depends on) |
 | F8 (explore/build code reuse, now TRACE-only per S1) | A deliberately-introduced bug in `TraceStage`'s footprint logic should break both the build-path and explore-path tests once they share code — proves the drift risk F8 is meant to close is actually closed. (The PYTHIA half of this row is resolved by S1 instead — see S1's own checkpoint.) |
 | R1 (rotation canonicalisation) | Not just "pairwise distances preserved" — assert the target group's centroid angle lands within tolerance of 135° post-rotation, or the test doesn't prove the feature does what it's for |
 | R2 (alpha-shape retry) | A constructed point cloud engineered to produce a `MultiPolygon` at the naive alpha, asserting a complete (non-partial) boundary after the fix |
@@ -754,7 +782,8 @@ ships with its listed test, not just its implementation.
 | Missing poly-kernel reference fixture | No longer relevant — was blocking validation of Q1's original fix, which is retired (see S3) rather than fixed. The general fixture-provenance problem this finding also raised stands independently, tracked via T5/§8.3. |
 | MATLAB has no CI | Verified (no `.github/workflows/`) — outside this document's scope (MATLAB repo), but relevant context for §8.3's phased data-sharing proposal, phase 3 of which depends on it existing |
 | S1's "planted seam" question | **Resolved (v1.15)** — closed as impractical given no demonstrated need, not impossible; see S1's `[DECISION]` block. Reopenable if a real cross-platform use case appears later. |
-| F7's `load()` path-safety invariant | The entire revised F7 design depends on `load()` never receiving a user-supplied path — needs to be an enforced, checked invariant (allowlist, storage-layer guarantee) once implementation starts, not left as a design-doc assumption |
+| F7's `load()` path-safety invariant | The server-side half of the revised F7 design depends on `load()` never receiving a user-supplied path, and always passing `secret_key` — needs to be an enforced, checked invariant (allowlist, storage-layer guarantee) once implementation starts, not left as a design-doc assumption |
+| F7's desktop/unsigned mode — downgrade-attack invariant | `secret_key=None` is a deliberate second mode (v1.17), not a loophole — but only if `load()` refuses both "signed file, no key given" and "no signed file, key given" cases. Needs its own enforced test (see §8.2), since this is the one place the two-mode split could silently regress into a bypass of the server mode's signing. |
 
 ---
 
@@ -779,3 +808,4 @@ ships with its listed test, not just its implementation.
 | v1.14 | 2026-07-26 | Added Phase S (§5) — structural simplification, sequenced before F-phase: S1 (collapse model-shape detection to the one reachable path, moving to native scikit-learn objects for `explore()`) and S2 (replace DAG auto-resolution with explicit stage order + prerequisites, keeping mypy verification of the literal declarations). Revised F1 (explore-side classifier dispatch resolved as a side effect of S1, narrowing remaining scope to the training-side registry), F7 (persistence format changed from HDF5-via-`h5py` to signed `pickle`/`joblib`, given the confirmed production threat model — models are system-produced/downloaded only, never re-uploaded — with an HMAC signature as the actual enforced control rather than relying on that assumption holding forever), and F8 (narrowed to TRACE only, since S1 resolves the PYTHIA half by removing the second implementation entirely rather than needing to reconcile it with the first). Renumbered §5→§6 (functionality parity), §5.1→§6.1, §6→§7 (PyISpace/PyHard), §7→§8 (Phase T, and its own §7.1–§7.3→§8.1–§8.3), §8→§9 (outstanding items), §9→§10 (document history) to make room. |
 | v1.15 | 2026-07-26 | Closed S1's open decision: cross-platform MATLAB-model loading recorded as impractical (six classifier types, several — decision trees especially — with no clean flattened representation), not impossible, and not attempted given no demonstrated need — reopenable later if that changes. Consequence: added S3, retiring `build_explore_adapter.py` entirely, since nothing calls it once S1 lands and cross-platform loading is closed. Q1 (was "fix the poly-kernel gap") retired in favour of S3 — kept as a pointer rather than deleted outright since other parts of this document and the drafted MATLAB issue batches reference it by name. Updated every downstream reference: Phase Q's checkpoint, §8.1's audit findings (the poly-kernel reference-fixture gap and the `test_unsupported_kernel_raises` note are both now historical/moot), §8.2's test-debt table, §8.3's data-sharing proposal (kept on its own merits, decoupled from Q1), the outstanding-items table, and Phase -1's example PR text. |
 | v1.16 | 2026-07-28 | S1 and S3 implemented and verified on `v0.9.0/development-branch-S` (issues #282, #284 closed). Fixed a stale internal contradiction in §5's S1 section, caught during a post-implementation risk/payoff review: it still argued for keeping `adapt_for_explore()` alive as F7's persistence format, a position F7's own pickle/joblib decision (already recorded in v1.14) had already superseded — under signed pickle, `SVC` objects round-trip natively with no flattening step, so there was never a remaining caller to keep the adapter for. S3's full-deletion pathway (already correct) is what was actually implemented; this entry just brings §5's prose back in sync with it. |
+| v1.17 | 2026-07-28 | Revised F7's persistence decision (still design-only, not yet implemented) from unconditional HMAC signing to signing-optional-via-`secret_key: bytes \| None`, to serve a second reachable caller the v1.14 decision didn't account for: local/desktop development with no server-managed secret. `secret_key=None` skips signing entirely for that caller (equivalent risk to any other unsigned `pickle`/`joblib` use of a file the caller already trusts); `secret_key` given enforces the original signed-and-verified path unchanged. Added the one new risk the split introduces — a downgrade attack, where a server-signed file is loaded unverified by omitting the key — and closed it structurally: `load()` must refuse both "signed file, no key" and "unsigned file, key given" mismatches, not just the already-covered "signed file, wrong key" case. Updated the F7 table row, `[DECISION]` block, §8.2 test-debt row (added a downgrade-attack test), and §9 outstanding-items (added a dedicated downgrade-invariant entry) in this document, plus F7's pathway steps and `Decision needed` note in the companion implementation-pathways document. No code changed — F7 remains unimplemented. |
