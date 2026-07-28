@@ -15,9 +15,11 @@ toolkit rather than a single change.
   trace`) with an `InstanceSpace` class exposing `build()`, `explore()`, and
   `explore_iter()`.
 - `explore()`/`explore_iter()` apply a previously trained model to unseen instances,
-  mirroring MATLAB's `exploreIS.m`, via `build_explore_adapter.py`'s conversion of a
-  `build()`-trained model (fitted scikit-learn `SVC` objects) into the flattened form
-  MATLAB-exported models already use.
+  mirroring MATLAB's `exploreIS.m`, by calling the `build()`-trained scikit-learn
+  objects (e.g. `SVC.predict`/`predict_proba`) directly. (This originally went through
+  `build_explore_adapter.py`, converting the trained model into the flattened form
+  MATLAB-exported models use; that module has since been deleted — see the *Better
+  engineering* entry below.)
 
 ### Better engineering
 
@@ -71,7 +73,9 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   `opts.pythia.is_poly_krnl = True` now works. The support vectors are pre-scaled by the
   trained `gamma` so `_explore_pythia`'s existing polynomial-kernel formula (which
   assumes `gamma=1`, matching its hardcoded `coef0=1`) reproduces the actual trained
-  decision function.
+  decision function. (`build_explore_adapter.py` itself has since been deleted — see the
+  *Better engineering* entry below; `explore()` now calls `SVC.predict_proba` directly
+  for every kernel type, so this specific formula no longer exists either.)
 
 ### Better engineering
 
@@ -93,5 +97,12 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   feature-order behaviour in `explore()`: test metadata's feature columns are matched
   by name, not position (#253).
 - Added `SECURITY.md` and `CONTRIBUTING.md` (#258).
+- `explore()` now calls the `build()`-trained scikit-learn objects (`SVC.predict`/
+  `predict_proba`) directly instead of converting them into a flattened, MATLAB-artifact
+  shaped representation first. `instance_space.py`'s model-shape detection branch (which
+  handled only that flattened shape as a second, never-actually-reachable case) has been
+  removed along with it (S1, #282). `build_explore_adapter.py` and its test file, which
+  existed solely to produce that flattened shape, have been deleted in full — nothing
+  called them once S1 landed (S3, #284).
 - Removed a dead, commented-out CI lint/format-check step from `validation-tests.yml`
   rather than leaving it neither enabled nor deleted (#259).
