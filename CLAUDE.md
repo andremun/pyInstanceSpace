@@ -43,11 +43,18 @@ this from a session working directly in `andremun/pyInstanceSpace`, confirm the 
 (see roadmap Phase -1) has actually happened — if not, that's the task, not whatever else you
 were asked to do.
 
-After that: **P0 (dependency security) and Phase Q (low-risk quality items) before F-phase
-(functionality parity).** F-phase items are long-term, several are explicitly "audit first, no
-implementation until the audit resolves what's actually there" (F3 especially) — don't start
-implementing an F-item whose roadmap entry says "not started" without doing that audit first
-and reporting back, even if the fix seems obvious.
+After that: **P0, Phase Q, and Phase S before F-phase (functionality parity).** Phase S
+("structural simplification") is not optional pre-work you can defer — F1, F7, and F8's
+current scope in the roadmap is written *assuming Phase S has already landed* (S1
+specifically: `explore()` calling native scikit-learn objects instead of a flattened
+artifact). Starting F1/F7/F8 before S1/S3 land means building against a scope that's already
+been superseded. If you're about to start any F-item and Phase S isn't done, stop and do
+Phase S first, even if nobody explicitly re-asked for it.
+
+F-phase items are long-term beyond that dependency too — several are explicitly "audit first,
+no implementation until the audit resolves what's actually there" (F3 especially) — don't
+start implementing an F-item whose roadmap entry says "not started" without doing that audit
+first and reporting back, even if the fix seems obvious.
 
 ## Deferred — do not act on these without being asked
 
@@ -56,6 +63,16 @@ and reporting back, even if the fix seems obvious.
 - R3 (CLI ideas) — not scoped, no active work item.
 - Any MATLAB-side change — that's a different repo (`andremun/InstanceSpace`), tracked in its
   own issue batches, not this one.
+
+## Do not fix, extend, or otherwise touch `build_explore_adapter.py`
+
+It is being deleted, not repaired — see roadmap S3. Q1 (originally: fix its missing
+polynomial-kernel branch) is retired for exactly this reason; if you encounter its
+`NotImplementedError` or any other issue in this file, that is not a bug to fix, it's
+confirmation the file is still present and S1/S3 haven't landed yet. Cross-platform loading of
+externally-produced (e.g. MATLAB) models was evaluated and closed as impractical — don't
+re-litigate or start building support for it without checking the roadmap's S1 `[DECISION]`
+block first; it's a recorded, reasoned decision, not an open question.
 
 ## Before considering any bug fix complete
 
