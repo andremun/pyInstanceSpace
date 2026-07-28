@@ -47,9 +47,15 @@ After that: **P0, Phase Q, and Phase S before F-phase (functionality parity).** 
 ("structural simplification") is not optional pre-work you can defer — F1, F7, and F8's
 current scope in the roadmap is written *assuming Phase S has already landed* (S1
 specifically: `explore()` calling native scikit-learn objects instead of a flattened
-artifact). Starting F1/F7/F8 before S1/S3 land means building against a scope that's already
-been superseded. If you're about to start any F-item and Phase S isn't done, stop and do
-Phase S first, even if nobody explicitly re-asked for it.
+artifact).
+
+**Status: S1 and S3 have landed** (verified on `v0.9.0/development-branch-S`, see roadmap
+v1.16) — `explore()` already calls native scikit-learn objects, and `build_explore_adapter.py`
+is gone. F1/F7/F8 are unblocked on that front; nothing about S1/S3 remains to redo. **S2**
+(replace DAG auto-resolution with an explicit stage order) is still not started, and its own
+roadmap entry sequences it before both T6 and Q8 — but per the roadmap's own F1/F7/F8 pathways,
+none of them actually depend on S2, only on S1. Don't stop F-phase work to do S2 on this file's
+authority alone; if a specific F-item's pathway says otherwise, that overrides this summary.
 
 F-phase items are long-term beyond that dependency too — several are explicitly "audit first,
 no implementation until the audit resolves what's actually there" (F3 especially) — don't
@@ -64,15 +70,18 @@ first and reporting back, even if the fix seems obvious.
 - Any MATLAB-side change — that's a different repo (`andremun/InstanceSpace`), tracked in its
   own issue batches, not this one.
 
-## Do not fix, extend, or otherwise touch `build_explore_adapter.py`
+## `build_explore_adapter.py` is deleted — do not recreate it
 
-It is being deleted, not repaired — see roadmap S3. Q1 (originally: fix its missing
-polynomial-kernel branch) is retired for exactly this reason; if you encounter its
-`NotImplementedError` or any other issue in this file, that is not a bug to fix, it's
-confirmation the file is still present and S1/S3 haven't landed yet. Cross-platform loading of
-externally-produced (e.g. MATLAB) models was evaluated and closed as impractical — don't
-re-litigate or start building support for it without checking the roadmap's S1 `[DECISION]`
-block first; it's a recorded, reasoned decision, not an open question.
+S3 deleted this file (and its test) in full — `grep`-confirmed zero remaining `.py` references
+anywhere in the repo. `explore()` now calls native scikit-learn objects directly, with no
+flattening step. Q1 (originally: fix its missing polynomial-kernel branch) was retired for this
+reason, not fixed. If you ever find yourself wanting to add a "flatten a trained model into an
+artifact" step back in — for a new classifier type, for cross-platform loading, or anything
+else — stop: cross-platform loading of externally-produced (e.g. MATLAB) models was evaluated
+and closed as impractical, and native pickling (see roadmap F7) already handles every
+scikit-learn classifier type F1's registry would add, with no flattening required. Check the
+roadmap's S1 `[DECISION]` block before re-litigating either point; both are recorded, reasoned
+decisions, not open questions.
 
 ## Before considering any bug fix complete
 
