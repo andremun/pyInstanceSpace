@@ -255,15 +255,21 @@ production code changes yet — this is verification-only per the roadmap.
    roadmap, not part of Q8 itself.
 **Decision needed:** none for Q8 itself (it's a test, not a design choice) — but note the
 dependency on T2 existing first, which affects sequencing.
-**Sequencing with S2 (added alongside roadmap v1.19):** run this *after* S2, not before.
-`_rollback_to_schedule_index` (step 3 above) operates on `self._stage_order`, the wave-grouped
-schedule list — verified in `stage_runner.py:256-267`, it invalidates everything in
+**Sequencing with S2 (added alongside roadmap v1.19, sharpened v1.20):** run this *after* S2,
+not before. `_rollback_to_schedule_index` (step 3 above) operates on `self._stage_order`, the
+wave-grouped schedule list — verified in `stage_runner.py:256-267`, it invalidates everything in
 `_stage_order[index+1:]` by position. S2 removes wave computation entirely, replacing it with an
-explicit flat order. Testing (or fixing) Q8's invalidation property against the pre-S2 structure
-risks the fix being silently dropped or needing re-porting once S2 restructures the same
-function; testing after S2 targets the structure that will actually ship. Same reasoning S2
-already applies to T6 — Q8 just wasn't cross-referenced because it sits under a different phase
-heading.
+explicit flat order. Fixing Q8's invalidation property against the pre-S2 structure means
+writing the dependency-graph walk once against a data structure S2 then deletes, and S2 having
+to re-derive the equivalent walk against its own new structure regardless — wasted
+*implementation*, not just a wasted test. This differs from T6's version of the same sequencing
+note: T6 tests the resolution *algorithm itself*, which S2 deletes outright, so T6 may have no
+remaining subject matter post-S2 at all ("skip entirely" is a live option for T6). Q8 tests a
+*behavioral property* — correct invalidation on partial rerun — that still has to hold after S2;
+S2's own before/after checkpoint (full-pipeline output equality) doesn't cover partial-rerun
+invalidation, so it doesn't subsume Q8 either. Net: Q8 must wait for S2, same as T6, but Q8 is
+never at risk of becoming pointless the way T6 might — it only needs to retarget whichever
+function ends up doing rollback/invalidation once S2 lands.
 
 ### Q9 — Centralise RNG seeding via a `general.seed` option
 **[Behavior-changing if defaulted wrong — corrected]** Every current call is implicitly
@@ -362,9 +368,12 @@ still useful; only the *resolution* algorithm goes)
    equivalent (`build('stages', {...})`) off its own hardcoded structure.
 5. Sequence before T6, or skip T6 entirely — no point writing edge-case tests for an
    ambiguity-detection algorithm about to be removed. **Also before Q8** (added alongside
-   roadmap v1.19), same reasoning — Q8's regression test and diagnosis target the same
-   `_rollback_to_schedule_index`/wave-position mechanism this step removes; see Q8's own entry
-   for the full cross-reference.
+   roadmap v1.19, distinguished from T6 in v1.20) — Q8's regression test and diagnosis target
+   the same `_rollback_to_schedule_index`/wave-position mechanism this step removes, but unlike
+   T6, Q8's underlying property (correct invalidation on partial rerun) still needs to hold
+   post-S2 — it's not at risk of having no remaining subject matter, only of wasting an
+   implementation written against the structure being replaced. See Q8's own entry for the full
+   cross-reference.
 **Test:** run the full 7-stage pipeline before and after, assert identical execution order and
 identical output — this change should be invisible from the outside.
 **Decision needed:** none blocking — this is a mechanical simplification once the team is
