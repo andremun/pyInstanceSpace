@@ -49,8 +49,9 @@ def test_prelim_matches_matlab():
     x_raw = test_df.iloc[:, 1:11].to_numpy(dtype=np.double)
 
     instance_space = Mock(spec=InstanceSpace)
-    instance_space._explore_model = Mock()
-    instance_space._explore_model.prelim = load_prelim_params()
+    instance_space._model = Mock()
+    instance_space._model.prelim = load_prelim_params()
+    instance_space._require_model = Mock(return_value=instance_space._model)
 
     result = InstanceSpace._explore_prelim(instance_space, x_raw)
 

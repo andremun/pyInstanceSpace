@@ -1,70 +1,75 @@
-"""Unit tests for PYTHIA stage (_explore_pythia)."""
+"""Unit tests for PYTHIA stage (_explore_pythia).
 
-from types import SimpleNamespace
+Post-S1, _explore_pythia calls scikit-learn's own predict()/predict_proba() on
+whatever's in model.pythia.svm, so these tests fit small real SVCs rather than
+hand-computing kernel arithmetic by hand — that arithmetic is sklearn's own
+responsibility now, not ours to re-verify. What's still ours to test: correctly
+deriving the z-score normalisation from model.pilot.z (not the stage's own,
+already-normalised, mu/sigma), and the precision-weighted selection logic.
+"""
+
 from unittest.mock import Mock
 
 import numpy as np
+from sklearn.svm import SVC
 
 from instancespace.data.model import PythiaOut
 from instancespace.instance_space import InstanceSpace
 
 
-def make_svm(
-    *,
-    sv: np.ndarray,
-    alpha: np.ndarray,
-    bias: float,
-    kernel_fn: str,
-    kernel_param: float,
-    platt_a: float,
-    platt_b: float,
-) -> SimpleNamespace:
-    return SimpleNamespace(
-        support_vectors=sv,
-        alphas=alpha,
-        bias=bias,
-        kernel_fn=kernel_fn,
-        kernel_param=kernel_param,
-        platt_A=platt_a,
-        platt_B=platt_b,
-    )
+def _fit_svc(rng: np.random.Generator, *, kernel: str = "rbf") -> SVC:
+    """Fit a tiny SVC on two well-separated clusters (bad=False, good=True).
+
+    ``stages/pythia.py`` only ever trains "rbf" or "poly" (`kernel = "poly" if
+    is_poly_krnl else "rbf"` - "linear" is unreachable in production), matching
+    PYTHIA's poly hyperparameters (degree=2, coef0=1) when kernel="poly".
+    """
+    z = np.vstack([
+        rng.normal(-3.0, 0.5, size=(20, 2)),
+        rng.normal(3.0, 0.5, size=(20, 2)),
+    ])
+    y = np.array([False] * 20 + [True] * 20)
+    kwargs = {"degree": 2, "coef0": 1} if kernel == "poly" else {}
+    svc = SVC(kernel=kernel, probability=True, random_state=0, **kwargs)
+    svc.fit(z, y)
+    return svc
 
 
 def make_instance_space(
-    mu: np.ndarray,
-    sigma: np.ndarray,
-    svms: list,
-    precision: np.ndarray,
+    pilot_z: np.ndarray,  # type: ignore[type-arg]
+    svms: list[SVC],
+    precision: np.ndarray,  # type: ignore[type-arg]
 ) -> InstanceSpace:
-    pythia = Mock(spec=PythiaOut)
-    pythia.mu = mu
-    pythia.sigma = sigma
-    pythia.svm = svms
-    pythia.precision = precision
     model = Mock()
-    model.pythia = pythia
+    model.pythia = Mock(spec=PythiaOut)
+    model.pythia.svm = svms
+    model.pythia.precision = precision
+    model.pilot.z = pilot_z
     instance_space = Mock(spec=InstanceSpace)
-    instance_space._explore_model = model
+    instance_space._model = model
+    instance_space._require_model = Mock(return_value=model)
     return instance_space
 
 
+def _two_point_pilot_z(
+    mu: np.ndarray,  # type: ignore[type-arg]
+    sigma: np.ndarray,  # type: ignore[type-arg]
+) -> np.ndarray:  # type: ignore[type-arg]
+    """Build a 2-row array whose mean/std (ddof=1) exactly reproduce mu/sigma."""
+    offset = sigma / np.sqrt(2.0)
+    return np.vstack([mu - offset, mu + offset])
+
+
 def test_pythia_output_shapes():
-    svm = make_svm(
-        sv=np.array([[0.0, 0.0]]),
-        alpha=np.array([1.0]),
-        bias=0.0,
-        kernel_fn="gaussian",
-        kernel_param=1.0,
-        platt_a=-1.0,
-        platt_b=0.0,
-    )
+    rng = np.random.default_rng(0)
+    svc = _fit_svc(rng)
+    pilot_z = _two_point_pilot_z(np.array([0.0, 0.0]), np.array([1.0, 1.0]))
     space = make_instance_space(
-        mu=np.array([0.0, 0.0]),
-        sigma=np.array([1.0, 1.0]),
-        svms=[svm, svm, svm],
+        pilot_z=pilot_z,
+        svms=[svc, svc, svc],
         precision=np.array([0.9, 0.8, 0.7]),
     )
-    z = np.random.rand(10, 2)
+    z = rng.normal(size=(10, 2))
     y_hat, pr0_hat, selection0 = InstanceSpace._explore_pythia(space, z)
     assert y_hat.shape == (10, 3)
     assert pr0_hat.shape == (10, 3)
@@ -72,105 +77,97 @@ def test_pythia_output_shapes():
     assert y_hat.dtype == np.bool_
 
 
-def test_pythia_gaussian_decision_arithmetic():
-    # MATLAB fitcsvm gaussian: K(x,y) = exp(-||x-y||^2 / KernelScale^2).
-    # Single SV at origin, alpha=1, bias=0, scale=1 → decision = exp(-||z||^2).
-    # Platt A=-1, B=0 → post_good = 1/(1+exp(-decision)).
-    svm = make_svm(
-        sv=np.array([[0.0, 0.0]]),
-        alpha=np.array([1.0]),
-        bias=0.0,
-        kernel_fn="gaussian",
-        kernel_param=1.0,
-        platt_a=-1.0,
-        platt_b=0.0,
-    )
+def test_pythia_matches_direct_svc_calls():
+    """y_hat/pr0_hat must exactly match calling predict()/predict_proba() directly."""
+    rng = np.random.default_rng(0)
+    svc = _fit_svc(rng)
+    pilot_z = _two_point_pilot_z(np.array([0.0, 0.0]), np.array([1.0, 1.0]))
     space = make_instance_space(
-        mu=np.array([0.0, 0.0]),
-        sigma=np.array([1.0, 1.0]),
-        svms=[svm],
+        pilot_z=pilot_z,
+        svms=[svc],
         precision=np.array([1.0]),
     )
-    z = np.array([[0.0, 0.0], [1.0, 0.0], [10.0, 0.0]])
-    _, pr0_hat, _ = InstanceSpace._explore_pythia(space, z)
+    z = rng.normal(size=(15, 2))
+    y_hat, pr0_hat, _ = InstanceSpace._explore_pythia(space, z)
 
-    # z=(0,0): decision=exp(0)=1,   post_good=1/(1+e^-1)≈0.7311
-    # z=(1,0): decision=exp(-1),    post_good=1/(1+e^-exp(-1))
-    # z=(10,0): decision≈0,         post_good≈0.5
-    expected_pr0 = np.array([
-        1.0 - 1.0 / (1.0 + np.exp(-1.0)),
-        1.0 - 1.0 / (1.0 + np.exp(-np.exp(-1.0))),
-        1.0 - 1.0 / (1.0 + np.exp(-np.exp(-100.0))),
-    ])
-    np.testing.assert_allclose(pr0_hat[:, 0], expected_pr0, rtol=1e-10)
+    # mu=(0,0), sigma=(1,1) -> normalisation is a no-op here.
+    expected_proba = svc.predict_proba(z)
+    expected_pred = svc.predict(z)
+
+    np.testing.assert_array_equal(y_hat[:, 0], expected_pred)
+    np.testing.assert_allclose(pr0_hat[:, 0], expected_proba[:, 0])
 
 
-def test_pythia_zscore_normalization():
-    # Confirm z is z-score normalised before kernel eval.
-    # With mu=(1,2), sigma=(2,4), input z=(1,2) → normalised (0,0) → decision=1
-    svm = make_svm(
-        sv=np.array([[0.0, 0.0]]),
-        alpha=np.array([1.0]),
-        bias=0.0,
-        kernel_fn="gaussian",
-        kernel_param=1.0,
-        platt_a=-1.0,
-        platt_b=0.0,
-    )
+def test_pythia_matches_direct_svc_calls_poly_kernel():
+    """Same as above, for PYTHIA's other trainable kernel (poly, degree=2/coef0=1)."""
+    rng = np.random.default_rng(0)
+    svc = _fit_svc(rng, kernel="poly")
+    pilot_z = _two_point_pilot_z(np.array([0.0, 0.0]), np.array([1.0, 1.0]))
     space = make_instance_space(
-        mu=np.array([1.0, 2.0]),
-        sigma=np.array([2.0, 4.0]),
-        svms=[svm],
+        pilot_z=pilot_z,
+        svms=[svc],
+        precision=np.array([1.0]),
+    )
+    z = rng.normal(size=(15, 2))
+    y_hat, pr0_hat, _ = InstanceSpace._explore_pythia(space, z)
+
+    expected_proba = svc.predict_proba(z)
+    expected_pred = svc.predict(z)
+
+    np.testing.assert_array_equal(y_hat[:, 0], expected_pred)
+    np.testing.assert_allclose(pr0_hat[:, 0], expected_proba[:, 0])
+
+
+def test_pythia_zscore_normalization_uses_pilot_z():
+    """z-score normalisation must be derived from model.pilot.z, not elsewhere.
+
+    mu=(1,2), sigma=(2,4) via pilot_z; a raw input of exactly (1,2) should
+    normalise to (0,0) and therefore match calling the SVC directly on (0,0).
+    """
+    rng = np.random.default_rng(0)
+    svc = _fit_svc(rng)
+    mu = np.array([1.0, 2.0])
+    sigma = np.array([2.0, 4.0])
+    pilot_z = _two_point_pilot_z(mu, sigma)
+    space = make_instance_space(
+        pilot_z=pilot_z,
+        svms=[svc],
         precision=np.array([1.0]),
     )
     z = np.array([[1.0, 2.0]])
     _, pr0_hat, _ = InstanceSpace._explore_pythia(space, z)
-    # Normalised point is (0,0), so decision = exp(0) = 1
-    expected = 1.0 - 1.0 / (1.0 + np.exp(-1.0))
-    np.testing.assert_allclose(pr0_hat[0, 0], expected, rtol=1e-10)
+
+    expected = svc.predict_proba(np.array([[0.0, 0.0]]))[:, 0]
+    np.testing.assert_allclose(pr0_hat[:, 0], expected)
 
 
 def test_pythia_selection0_picks_highest_precision_positive():
     # Two algos both predict "good"; higher precision wins.
-    strong = make_svm(
-        sv=np.array([[0.0, 0.0]]),
-        alpha=np.array([10.0]),
-        bias=0.0,
-        kernel_fn="gaussian",
-        kernel_param=1.0,
-        platt_a=-1.0,
-        platt_b=0.0,
-    )
+    rng = np.random.default_rng(0)
+    svc = _fit_svc(rng)
+    pilot_z = _two_point_pilot_z(np.array([0.0, 0.0]), np.array([1.0, 1.0]))
     space = make_instance_space(
-        mu=np.array([0.0, 0.0]),
-        sigma=np.array([1.0, 1.0]),
-        svms=[strong, strong],
+        pilot_z=pilot_z,
+        svms=[svc, svc],
         precision=np.array([0.5, 0.9]),
     )
-    z = np.array([[0.0, 0.0]])
+    z = np.array([[3.0, 3.0]])  # deep in the "good" cluster
     y_hat, _, selection0 = InstanceSpace._explore_pythia(space, z)
     assert y_hat[0, 0] and y_hat[0, 1]
     assert selection0[0] == 1  # higher precision algo
 
 
 def test_pythia_selection0_none_when_no_positive():
-    # All algos predict "bad" (post_good < 0.5); selection0 = -1
-    weak = make_svm(
-        sv=np.array([[0.0, 0.0]]),
-        alpha=np.array([-10.0]),  # strongly negative decision
-        bias=0.0,
-        kernel_fn="gaussian",
-        kernel_param=1.0,
-        platt_a=-1.0,
-        platt_b=0.0,
-    )
+    # All algos predict "bad"; selection0 = -1
+    rng = np.random.default_rng(0)
+    svc = _fit_svc(rng)
+    pilot_z = _two_point_pilot_z(np.array([0.0, 0.0]), np.array([1.0, 1.0]))
     space = make_instance_space(
-        mu=np.array([0.0, 0.0]),
-        sigma=np.array([1.0, 1.0]),
-        svms=[weak, weak],
+        pilot_z=pilot_z,
+        svms=[svc, svc],
         precision=np.array([0.9, 0.9]),
     )
-    z = np.array([[0.0, 0.0]])
+    z = np.array([[-3.0, -3.0]])  # deep in the "bad" cluster
     y_hat, _, selection0 = InstanceSpace._explore_pythia(space, z)
     assert not y_hat[0, 0] and not y_hat[0, 1]
     assert selection0[0] == -1

@@ -14,8 +14,7 @@ from instancespace.instance_space import InstanceSpace
 
 def test_extract_features_matches_columns_by_name_not_position():
     space = InstanceSpace.__new__(InstanceSpace)
-    model_data = SimpleNamespace(feat_labels=["a", "b", "c"])
-    space._explore_model = SimpleNamespace(data=model_data)
+    space._metadata = SimpleNamespace(feature_names=["a", "b", "c"])
 
     # Test metadata supplies columns in a different order than training.
     metadata = SimpleNamespace(

@@ -17,7 +17,6 @@ from matplotlib.axes import Axes
 from numpy.typing import NDArray
 from shapely.geometry import Point
 
-from instancespace.build_explore_adapter import adapt_for_explore
 from instancespace.data.metadata import Metadata, from_csv_file
 from instancespace.data.model import ExploreResult
 from instancespace.data.options import (
@@ -148,7 +147,6 @@ class InstanceSpace:
     _options: InstanceSpaceOptions
 
     _model: Model | None
-    _explore_model: Any
     _final_output: dict[str, Any] | None
 
     def __init__(
@@ -184,7 +182,6 @@ class InstanceSpace:
         self._stages = stages
 
         self._model: Model | None = None
-        self._explore_model: Any = None
         self._final_output: dict[str, Any] | None = None
         self._explore_results: list[ExploreResult] = []
 
@@ -473,8 +470,6 @@ class InstanceSpace:
             ValueError
                 If test_metadata features don't match training features.
         """
-        # Resolve which model representation to consume, then validate it
-        self._ensure_explore_model()
         self._validate_for_explore(test_metadata)
 
         x = self._explore_prelim(self._extract_features(test_metadata))
@@ -486,38 +481,14 @@ class InstanceSpace:
         yield "pythia", self._explore_pythia(z)
         yield "trace", self._explore_trace(z)
 
-    def _ensure_explore_model(self) -> None:
-        """Resolve the model representation explore() consumes, converting once.
-
-        explore() reads the flattened structure MATLAB exports (per-SVM support
-        vectors, signed coefficients, bias, kernel scale, Platt A/B). A model
-        trained by the Python build() instead stores fitted scikit-learn ``SVC``
-        objects, so its shape is identified here and it is converted through
-        ``adapt_for_explore`` on first use. The scikit-learn model itself is not
-        modified and remains available via the ``model`` property; the flattened
-        structure is stored separately in ``_explore_model``.
-        """
-        if self._explore_model is not None or self._model is None:
-            return
-
-        svms = self._model.pythia.svm
-        if svms and not hasattr(svms[0], "alphas"):
-            logger.info(
-                "explore(): detected a Python-built model (scikit-learn SVMs); "
-                "converting it to the flattened structure explore() consumes. "
-                "The unconverted scikit-learn model remains available via the "
-                "'model' property.",
+    def _require_model(self) -> Model:
+        """Return the trained model, raising if build() hasn't been called yet."""
+        if self._model is None:
+            raise RuntimeError(
+                "Must call build() before explore(). "
+                "The instance space model must be trained first.",
             )
-            self._explore_model = adapt_for_explore(
-                self._model,
-                self._metadata.feature_names,
-            )
-        else:
-            logger.info(
-                "explore(): detected a flattened (MATLAB-artifact) model; "
-                "consuming it as-is.",
-            )
-            self._explore_model = self._model
+        return self._model
 
     def _validate_for_explore(self, metadata: Metadata) -> None:
         """Validate that the instance space is ready for explore and metadata is valid.
@@ -534,14 +505,12 @@ class InstanceSpace:
             ValueError
                 If test metadata features don't match training features.
         """
-        if self._explore_model is None:
-            raise RuntimeError(
-                "Must call build() before explore(). "
-                "The instance space model must be trained first.",
-            )
+        self._require_model()
 
-        # Get training feature names from the model's data
-        training_features = set(self._explore_model.data.feat_labels)
+        # Training feature names, pre-SIFTED: build() overwrites the model's own
+        # feat_labels with the post-SIFTED subset, so the original metadata is the
+        # source of truth for what explore()'s feature extraction needs to select.
+        training_features = set(self._metadata.feature_names)
         test_features = set(metadata.feature_names)
 
         # Check that test data has all required features
@@ -576,8 +545,8 @@ class InstanceSpace:
             NDArray[np.double]
                 Feature matrix with shape (n_instances, n_features).
         """
-        # Get the feature order from training
-        training_feature_names = self._explore_model.data.feat_labels
+        # Get the feature order from training (pre-SIFTED, see _validate_for_explore)
+        training_feature_names = self._metadata.feature_names
 
         # Build feature matrix in training order
         test_feature_dict = dict(
@@ -623,7 +592,7 @@ class InstanceSpace:
         """
         from scipy import stats
 
-        prelim = self._explore_model.prelim
+        prelim = self._require_model().prelim
 
         clipped = np.any(
             (x < prelim.lo_bound) | (x > prelim.hi_bound),
@@ -679,7 +648,7 @@ class InstanceSpace:
                 Feature matrix with selected features only.
                 Shape: (n_instances, n_selected_features).
         """
-        sifted = self._explore_model.sifted
+        sifted = self._require_model().sifted
         selected_indices = sifted.selvars
         x_selected = x[:, selected_indices]
 
@@ -698,7 +667,7 @@ class InstanceSpace:
             NDArray[np.double]
                 2D coordinates with shape (n_instances, 2).
         """
-        a = self._explore_model.pilot.a
+        a = self._require_model().pilot.a
         return x @ a.T
 
     def _explore_pythia(
@@ -707,10 +676,13 @@ class InstanceSpace:
     ) -> tuple[NDArray[np.bool_], NDArray[np.double], NDArray[np.int_]]:
         """Get algorithm predictions using PYTHIA SVMs.
 
-        Ports MATLAB PYTHIAtest.m: z-score normalises the 2D coordinates,
-        applies each per-algorithm SVM (Gaussian / polynomial / linear kernel,
-        plus Platt posterior transform), and picks the algorithm with the
-        highest precision-weighted positive prediction per instance.
+        Ports MATLAB PYTHIAtest.m: z-score normalises the 2D coordinates using the
+        training projection's own mean/std (PYTHIA's own stored ``mu``/``sigma`` are
+        the post-normalisation statistics of its already-normalised training data,
+        not the pre-normalisation ones explore-time inputs need), applies each
+        per-algorithm SVM natively via scikit-learn's own ``predict``/
+        ``predict_proba``, and picks the algorithm with the highest
+        precision-weighted positive prediction per instance.
 
         Args
         ----
@@ -726,9 +698,11 @@ class InstanceSpace:
                 - selection0: recommended algorithm index (0-based) per instance,
                   or -1 when no algorithm was predicted good. Shape (n_instances,)
         """
-        pythia = self._explore_model.pythia
-        mu = np.asarray(pythia.mu, dtype=np.double)
-        sigma = np.asarray(pythia.sigma, dtype=np.double)
+        model = self._require_model()
+        pythia = model.pythia
+        train_z = np.asarray(model.pilot.z, dtype=np.double)
+        mu = train_z.mean(axis=0)
+        sigma = train_z.std(axis=0, ddof=1)
         precision = np.asarray(pythia.precision, dtype=np.double)
         svms = pythia.svm
 
@@ -739,31 +713,11 @@ class InstanceSpace:
         y_hat = np.zeros((n_inst, n_algos), dtype=np.bool_)
         pr0_hat = np.zeros((n_inst, n_algos), dtype=np.double)
 
-        for i, svm in enumerate(svms):
-            svs = np.asarray(svm.support_vectors, dtype=np.double)
-            alphas = np.asarray(svm.alphas, dtype=np.double)
-            bias = float(svm.bias)
-            kernel_fn = svm.kernel_fn.lower()
-
-            if kernel_fn in ("gaussian", "rbf"):
-                scale = float(svm.kernel_param)
-                dist_sq = (
-                    np.sum(z_norm**2, axis=1, keepdims=True)
-                    + np.sum(svs**2, axis=1)
-                    - 2.0 * (z_norm @ svs.T)
-                )
-                k = np.exp(-dist_sq / scale**2)
-            elif kernel_fn == "polynomial":
-                order = float(svm.kernel_param)
-                k = (z_norm @ svs.T + 1.0) ** order
-            else:
-                k = z_norm @ svs.T
-
-            decision = k @ alphas + bias
-
-            post_good = 1.0 / (1.0 + np.exp(svm.platt_A * decision + svm.platt_B))
-            pr0_hat[:, i] = 1.0 - post_good
-            y_hat[:, i] = post_good >= 0.5
+        for i, svc in enumerate(svms):
+            proba = svc.predict_proba(z_norm)
+            bad_idx = int(np.where(~svc.classes_)[0][0])
+            pr0_hat[:, i] = proba[:, bad_idx]
+            y_hat[:, i] = svc.predict(z_norm)
 
         weighted = y_hat.astype(np.double) * precision
         best = weighted.max(axis=1)
@@ -799,7 +753,7 @@ class InstanceSpace:
                 - in_good: (n_instances, n_algorithms) bool array
                 - in_best: (n_instances, n_algorithms) bool array
         """
-        trace = self._explore_model.trace
+        trace = self._require_model().trace
         n = z.shape[0]
         n_algos = len(trace.good)
         points = [Point(z[i, 0], z[i, 1]) for i in range(n)]

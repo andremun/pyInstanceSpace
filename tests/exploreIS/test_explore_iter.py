@@ -13,7 +13,6 @@ from instancespace.instance_space import InstanceSpace
 
 def _stub_stages(space):
     """Replace the pieces the staged pipeline calls with cheap sentinels."""
-    space._ensure_explore_model = lambda: None
     space._validate_for_explore = lambda _md: None
     space._extract_features = lambda _md: "xraw"
     space._explore_prelim = lambda x: f"prelim({x})"

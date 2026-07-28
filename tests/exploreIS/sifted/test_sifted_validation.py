@@ -40,8 +40,9 @@ def test_sifted_matches_matlab():
     ).to_numpy(dtype=np.double)
 
     instance_space = Mock(spec=InstanceSpace)
-    instance_space._explore_model = Mock()
-    instance_space._explore_model.sifted = load_sifted_indices()
+    instance_space._model = Mock()
+    instance_space._model.sifted = load_sifted_indices()
+    instance_space._require_model = Mock(return_value=instance_space._model)
 
     result = InstanceSpace._explore_sifted(instance_space, x_input)
 
