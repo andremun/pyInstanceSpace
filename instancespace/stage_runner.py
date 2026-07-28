@@ -9,6 +9,7 @@
 
 from collections import defaultdict
 from collections.abc import Generator
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from typing import Any, NamedTuple, get_args, get_origin
 
@@ -25,6 +26,25 @@ def _is_run_restriction_type(parameter_type: type) -> bool:
     isinstance()/issubclass() on the type itself.
     """
     return get_origin(parameter_type) in (RunBefore, RunAfter)
+
+
+def _deepcopy_stage_inputs(inputs: NamedTuple) -> NamedTuple:
+    """Deep-copy a stage's resolved inputs, except any live `ThreadPoolExecutor`.
+
+    `run_stage()` deep-copies inputs so a stage can't mutate the runner's own
+    `_available_arguments` state in place. A cached, reused pool (Q6 - see
+    `TraceInputs.executor`) must be exempted from that: it isn't
+    deepcopy-safe (it holds OS-level thread/queue state `copy.deepcopy`
+    can't serialise), and even if it were, copying it would silently create
+    a redundant pool instead of submitting to the shared one, defeating the
+    entire point of caching it. Pre-seeding `deepcopy`'s memo with the
+    executor's id is the standard way to say "this object is already
+    copied" and have the original reference returned unchanged.
+    """
+    memo = {
+        id(value): value for value in inputs if isinstance(value, ThreadPoolExecutor)
+    }
+    return deepcopy(inputs, memo)
 
 
 class _StageArgument(NamedTuple):
@@ -176,7 +196,7 @@ class StageRunner:
 
         inputs: NamedTuple = input_arguments.__new__(input_arguments, **raw_inputs)
 
-        outputs = stage._run(deepcopy(inputs))  # noqa: SLF001
+        outputs = stage._run(_deepcopy_stage_inputs(inputs))  # noqa: SLF001
 
         for output_name, output_value in outputs._asdict().items():
             self._available_arguments[output_name] = output_value

@@ -1,5 +1,6 @@
 """Test StageRunner and build_stage_runner (formerly StageBuilder, folded in)."""
 
+from concurrent.futures import ThreadPoolExecutor
 from typing import NamedTuple
 
 import pytest
@@ -134,6 +135,64 @@ class StageE(Stage[_StageEInput, _StageEOutput]):
     @staticmethod
     def _run(inputs: _StageEInput) -> _StageEOutput:
         return _StageEOutput(inputs.a.__str__())
+
+
+class _StageFInput(NamedTuple):
+    a: int
+    executor: ThreadPoolExecutor | None = None
+
+
+class _StageFOutput(NamedTuple):
+    received_executor: ThreadPoolExecutor | None
+
+
+class StageF(Stage[_StageFInput, _StageFOutput]):
+    """A stage whose input carries a live, non-deepcopy-safe resource (Q6-style)."""
+
+    @staticmethod
+    def _inputs() -> type[NamedTuple]:
+        return _StageFInput
+
+    @staticmethod
+    def _outputs() -> type[NamedTuple]:
+        return _StageFOutput
+
+    @staticmethod
+    def _run(inputs: _StageFInput) -> _StageFOutput:
+        return _StageFOutput(inputs.executor)
+
+
+class InitialArgumentsWithExecutor(NamedTuple):
+    """Initial arguments for the executor-passthrough test."""
+
+    a: int
+    executor: ThreadPoolExecutor | None = None
+
+
+def test_run_stage_does_not_deepcopy_a_live_executor() -> None:
+    """A ThreadPoolExecutor-typed input passes through by reference, not copied.
+
+    `run_stage()` deep-copies its resolved inputs to protect the runner's own
+    state - but `ThreadPoolExecutor` isn't deepcopy-safe (it holds OS-level
+    thread/queue state `copy.deepcopy` can't handle) and, even if it were,
+    copying it would silently create a redundant pool instead of reusing the
+    shared one, defeating Q6's entire purpose. Regression test for a real
+    `TypeError: cannot pickle '_queue.SimpleQueue' object` crash found via
+    the T2 end-to-end integration test.
+    """
+    executor = ThreadPoolExecutor(max_workers=1)
+    try:
+        stage_runner = build_stage_runner(
+            [[StageF]],
+            [],
+            InitialArgumentsWithExecutor,
+        )
+
+        output = stage_runner.run_stage(StageF, a=1, executor=executor)
+
+        assert output.received_executor is executor
+    finally:
+        executor.shutdown(wait=True)
 
 
 def test_running_basic_example() -> None:

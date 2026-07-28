@@ -104,6 +104,7 @@ class TraceInputs(NamedTuple):
     trace_options: TraceOptions
     parallel_options: ParallelOptions
     general_options: GeneralOptions
+    executor: ThreadPoolExecutor | None = None
 
 
 class TraceOutputs(NamedTuple):
@@ -216,6 +217,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         trace_opts: TraceOptions,
         parallel_opts: ParallelOptions,
         general_opts: GeneralOptions,
+        executor: ThreadPoolExecutor | None = None,
     ) -> None:
         """Initialise the Trace analysis with provided data and options.
 
@@ -238,6 +240,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Configuration options for parallel processing in Matilda.
         general_opts : GeneralOptions
             General options (e.g. verbosity), not specific to any one stage.
+        executor : ThreadPoolExecutor | None
+            A caller-owned, already-running pool to submit footprint work to
+            instead of creating and tearing down a fresh one. ``None`` (the
+            default) preserves the previous per-call pool behaviour.
         """
         self.z = z
         self.y_bin = y_bin
@@ -247,6 +253,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         self.opts = trace_opts
         self.parallel_opts = parallel_opts
         self.general_opts = general_opts
+        self.executor = executor
 
     def _log(self, msg: str) -> None:
         """Log a top-level, always-shown stage message."""
@@ -322,6 +329,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 inputs.trace_options,
                 inputs.parallel_options,
                 inputs.general_options,
+                inputs.executor,
             )
         logger.info(
             "[TRACE]   -> TRACE will use experimental data to calculate the"
@@ -336,6 +344,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             inputs.trace_options,
             inputs.parallel_options,
             inputs.general_options,
+            inputs.executor,
         )
 
     @staticmethod
@@ -348,6 +357,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         trace_opts: TraceOptions,
         parallel_opts: ParallelOptions,
         general_opts: GeneralOptions,
+        executor: ThreadPoolExecutor | None = None,
     ) -> TraceOutputs:
         """Perform the TRACE footprint analysis.
 
@@ -369,6 +379,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Configuration options for parallel processing in Matilda.
         general_opts : GeneralOptions
             General options (e.g. verbosity), not specific to any one stage.
+        executor : ThreadPoolExecutor | None
+            A caller-owned pool to reuse instead of creating a fresh one.
 
         Returns:
         -------
@@ -387,6 +399,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             trace_opts,
             parallel_opts,
             general_opts,
+            executor,
         )
         return trace._trace()  # noqa: SLF001
 
@@ -1042,20 +1055,34 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         tuple[list[Footprint], list[Footprint]]:
             Lists of good and best performance footprints for each algorithm.
         """
-        # Determine the number of workers available for parallel processing
         good: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0) for _ in range(n_algos)]
         best: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0) for _ in range(n_algos)]
-        worker_count = min(self.parallel_opts.n_cores, multiprocessing.cpu_count())
-        with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            futures = [
-                executor.submit(self.process_algorithm, i) for i in range(n_algos)
-            ]
-            for future in as_completed(futures):
-                i: int
-                good_performance: Footprint
-                best_performance: Footprint
-                i, good_performance, best_performance = future.result()
-                good[i] = good_performance
-                best[i] = best_performance
+
+        if self.executor is not None:
+            self._submit_algorithm_futures(self.executor, n_algos, good, best)
+        else:
+            worker_count = min(self.parallel_opts.n_cores, multiprocessing.cpu_count())
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                self._submit_algorithm_futures(executor, n_algos, good, best)
 
         return good, best
+
+    def _submit_algorithm_futures(
+        self,
+        executor: ThreadPoolExecutor,
+        n_algos: int,
+        good: list[Footprint],
+        best: list[Footprint],
+    ) -> None:
+        """Submit each algorithm's footprint computation to `executor` and gather it.
+
+        `good`/`best` are filled in place, indexed by algorithm.
+        """
+        futures = [executor.submit(self.process_algorithm, i) for i in range(n_algos)]
+        for future in as_completed(futures):
+            i: int
+            good_performance: Footprint
+            best_performance: Footprint
+            i, good_performance, best_performance = future.result()
+            good[i] = good_performance
+            best[i] = best_performance

@@ -7,7 +7,9 @@ directory. The instance space is represented as a Model object, which encapsulat
 analytical results and metadata of the instance space analysis.
 """
 
+import multiprocessing
 from collections.abc import Generator
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Any, NamedTuple, TypeVar
@@ -92,6 +94,7 @@ class _InstanceSpaceInputs(NamedTuple):
     outputs_options: OutputOptions
     prelim_options: PrelimOptions
     general_options: GeneralOptions
+    executor: ThreadPoolExecutor | None = None
 
     @classmethod
     def from_metadata_and_options(
@@ -170,6 +173,13 @@ class InstanceSpace:
     _model: Model | None
     _final_output: dict[str, Any] | None
 
+    # Lazily created, reused across staged calls (Q6) - mirrors MATLAB's
+    # ensurePool()'s "rightSize" check: recreated only if the worker count
+    # changes, not on every stage call. Currently backs TraceStage's
+    # footprint computation.
+    _executor: ThreadPoolExecutor | None
+    _executor_workers: int | None
+
     def __init__(
         self,
         metadata: Metadata,
@@ -205,6 +215,8 @@ class InstanceSpace:
         self._model: Model | None = None
         self._final_output: dict[str, Any] | None = None
         self._explore_results: list[ExploreResult] = []
+        self._executor = None
+        self._executor_workers = None
 
         requested_stages = set(stages)
         base_order = [
@@ -259,6 +271,34 @@ class InstanceSpace:
 
         return self._model
 
+    def _get_executor(self) -> ThreadPoolExecutor:
+        """Return a cached ThreadPoolExecutor, reused across staged calls (Q6).
+
+        Recreated only if the worker count changes (mirrors MATLAB's
+        `ensurePool()`'s "rightSize" check) rather than on every call.
+        """
+        worker_count = min(
+            self._options.parallel.n_cores,
+            multiprocessing.cpu_count(),
+        )
+        if self._executor is None or self._executor_workers != worker_count:
+            if self._executor is not None:
+                self._executor.shutdown(wait=True)
+            self._executor = ThreadPoolExecutor(max_workers=worker_count)
+            self._executor_workers = worker_count
+        return self._executor
+
+    def close(self) -> None:
+        """Release resources held across staged calls (currently: the TRACE pool).
+
+        Safe to call even if nothing has been built yet. A subsequent
+        `build()`/`run_stage()`/etc. call recreates the pool lazily.
+        """
+        if self._executor is not None:
+            self._executor.shutdown(wait=True)
+            self._executor = None
+            self._executor_workers = None
+
     def plot_sources(self, ax: Axes | None = None) -> Axes:
         """Scatter training instances in the 2D instance space, coloured by source.
 
@@ -308,7 +348,7 @@ class InstanceSpace:
         inputs = _InstanceSpaceInputs.from_metadata_and_options(
             self.metadata,
             self.options,
-        )
+        )._replace(executor=self._get_executor())
         self._final_output = self._runner.run_all(inputs)
 
         return self.model
@@ -327,7 +367,7 @@ class InstanceSpace:
         inputs = _InstanceSpaceInputs.from_metadata_and_options(
             self.metadata,
             self.options,
-        )
+        )._replace(executor=self._get_executor())
         yield from self._runner.run_iter(inputs)
 
     def run_stage(
@@ -354,6 +394,7 @@ class InstanceSpace:
         -------
             list[Any]: The output of the stage.
         """
+        arguments.setdefault("executor", self._get_executor())
         return self._runner.run_stage(stage, **arguments)
 
     def run_until_stage(
@@ -378,7 +419,7 @@ class InstanceSpace:
         inputs = _InstanceSpaceInputs.from_metadata_and_options(
             self.metadata,
             self.options,
-        )
+        )._replace(executor=self._get_executor())
         return self._runner.run_until_stage(
             stage,
             inputs,
