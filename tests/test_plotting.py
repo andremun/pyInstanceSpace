@@ -1,8 +1,7 @@
 """Tests for the plot_*() convenience wrappers (Q7).
 
-Uses lightweight ``SimpleNamespace`` fakes (matching the pattern already used in
-``tests/build_explore_adapter/test_adapter.py``) rather than a full ``Model``, since
-these are thin matplotlib wrappers and don't need real stage output to exercise.
+Uses lightweight ``SimpleNamespace`` fakes rather than a full ``Model``, since these
+are thin matplotlib wrappers and don't need real stage output to exercise.
 
 Each test passes its own fresh ``ax`` explicitly rather than relying on the global
 "current axes" plt.gca() falls back to -- matplotlib figure state otherwise leaks
