@@ -57,6 +57,14 @@ roadmap entry sequences it before both T6 and Q8 — but per the roadmap's own F
 none of them actually depend on S2, only on S1. Don't stop F-phase work to do S2 on this file's
 authority alone; if a specific F-item's pathway says otherwise, that overrides this summary.
 
+**Full remaining order (Q6, Q8, S2, and every F item) is worked out in roadmap §6.0** — don't
+re-derive it from scratch or guess an order from the phase letters. Short version: S2 first
+(unblocks Q8, de-risks Q6), then F1/F6 (no dependencies), then Q6 → F7 (share a pickle-exclusion
+checklist item, order between them doesn't matter), then Q8 (needs S2 done, and Phase T's T2
+fixture to exist), then F8 → F9 (F9 mirrors a pattern F8's own decision establishes), then F2 →
+F5 (F5 is hard-blocked on F2), with F3's audit runnable any time independently. If you're about
+to start any of these and haven't read §6.0's actual reasoning, read it before picking an order.
+
 F-phase items are long-term beyond that dependency too — several are explicitly "audit first,
 no implementation until the audit resolves what's actually there" (F3 especially) — don't
 start implementing an F-item whose roadmap entry says "not started" without doing that audit
