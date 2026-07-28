@@ -270,6 +270,24 @@ creates a fresh `ThreadPoolExecutor`/joblib backend per stage call. Pure resourc
 change — no correctness implications, easy to test (assert no new pool created on a second
 `run_stage()` call).
 
+**Interaction with F7 (added v1.18) — undocumented until now, must be handled in Q6's own
+implementation:** a `ThreadPoolExecutor` is not picklable (`threading.Lock`/`Thread` objects
+raise `TypeError` from `pickle.dumps`). If Q6's pool-holder attribute (e.g. `self._executor`)
+sits on the same object F7's `save()` pickles, this produces a scenario-dependent failure: save
+crashes outright if a pool is live (e.g. a session that ran TRACE, then saved, without an
+intervening `close()`), or succeeds only by caller discipline (remembering to `close()` first)
+otherwise — and forgetting once surfaces as an opaque threading-internals traceback, not a
+domain-relevant error. The fix belongs to Q6: exclude the pool from pickled state via
+`__getstate__`/`__setstate__` (or `__reduce__`) so `save()` never attempts to serialise it
+regardless of caller discipline, and `load()` always comes back with the pool attribute unset —
+consistent with Q6's own "created lazily on first use" design, so the next `run_stage()` call
+after a load simply recreates the pool from scratch. This is not a regression: OS threads from a
+previous process can't meaningfully survive a save/load round-trip anyway, and MATLAB's own
+`gcp`/`ensurePool()` pool handles are session-local too — `.mat` save/load never attempted to
+serialise a parallel pool either. Net effect on Q6's own open decision (explicit `close()` vs
+`__del__`): keep `close()` for live-session resource cleanup, but treat the pickle-exclusion as
+the actual correctness mechanism for the save/load path, not `close()` discipline.
+
 ### Q7 — Add `plot()` convenience methods
 **[Additive]** — new methods only; nothing existing calls them yet.
 Mirror MATLAB's `InstanceSpace.plot('sources' | 'portfolio' | 'good' | 'footprint', algoIdx)` —
@@ -529,7 +547,11 @@ this document; (2) `load()` must refuse both mismatched signed/unsigned combinat
 above — this is what prevents the desktop mode's existence from becoming a bypass for the server
 mode. Once S1 lands, `SVC` objects round-trip through pickle exactly as trained — no
 adapter/flattening step needed at load time at all, since `explore()` will already be operating
-on native objects.
+on native objects. **Depends on Q6 handling its own pickle-exclusion (added v1.18):** if Q6
+lands first, its pool-holder attribute must already be excluded from pickled state (see Q6's
+entry above) — otherwise F7's round-trip test can fail intermittently depending on whether a
+pool-using stage ran before `save()`, which would look like an F7 bug but is actually an
+un-isolated Q6 gap.
 
 ### 6.1 F4 audit findings — class architecture deep dive
 
@@ -784,6 +806,7 @@ ships with its listed test, not just its implementation.
 | S1's "planted seam" question | **Resolved (v1.15)** — closed as impractical given no demonstrated need, not impossible; see S1's `[DECISION]` block. Reopenable if a real cross-platform use case appears later. |
 | F7's `load()` path-safety invariant | The server-side half of the revised F7 design depends on `load()` never receiving a user-supplied path, and always passing `secret_key` — needs to be an enforced, checked invariant (allowlist, storage-layer guarantee) once implementation starts, not left as a design-doc assumption |
 | F7's desktop/unsigned mode — downgrade-attack invariant | `secret_key=None` is a deliberate second mode (v1.17), not a loophole — but only if `load()` refuses both "signed file, no key given" and "no signed file, key given" cases. Needs its own enforced test (see §8.2), since this is the one place the two-mode split could silently regress into a bypass of the server mode's signing. |
+| Q6/F7 pickle-exclusion for pooled executors | (Added v1.18) If Q6 lands before F7, its pool-holder attribute must exclude itself from pickled state (`__getstate__`/`__setstate__`) or F7's save/load round-trip fails intermittently depending on whether a pool-using stage ran before `save()`. Whichever of Q6/F7 implements second should verify this explicitly rather than discover it via a flaky test. |
 
 ---
 
@@ -809,3 +832,4 @@ ships with its listed test, not just its implementation.
 | v1.15 | 2026-07-26 | Closed S1's open decision: cross-platform MATLAB-model loading recorded as impractical (six classifier types, several — decision trees especially — with no clean flattened representation), not impossible, and not attempted given no demonstrated need — reopenable later if that changes. Consequence: added S3, retiring `build_explore_adapter.py` entirely, since nothing calls it once S1 lands and cross-platform loading is closed. Q1 (was "fix the poly-kernel gap") retired in favour of S3 — kept as a pointer rather than deleted outright since other parts of this document and the drafted MATLAB issue batches reference it by name. Updated every downstream reference: Phase Q's checkpoint, §8.1's audit findings (the poly-kernel reference-fixture gap and the `test_unsupported_kernel_raises` note are both now historical/moot), §8.2's test-debt table, §8.3's data-sharing proposal (kept on its own merits, decoupled from Q1), the outstanding-items table, and Phase -1's example PR text. |
 | v1.16 | 2026-07-28 | S1 and S3 implemented and verified on `v0.9.0/development-branch-S` (issues #282, #284 closed). Fixed a stale internal contradiction in §5's S1 section, caught during a post-implementation risk/payoff review: it still argued for keeping `adapt_for_explore()` alive as F7's persistence format, a position F7's own pickle/joblib decision (already recorded in v1.14) had already superseded — under signed pickle, `SVC` objects round-trip natively with no flattening step, so there was never a remaining caller to keep the adapter for. S3's full-deletion pathway (already correct) is what was actually implemented; this entry just brings §5's prose back in sync with it. |
 | v1.17 | 2026-07-28 | Revised F7's persistence decision (still design-only, not yet implemented) from unconditional HMAC signing to signing-optional-via-`secret_key: bytes \| None`, to serve a second reachable caller the v1.14 decision didn't account for: local/desktop development with no server-managed secret. `secret_key=None` skips signing entirely for that caller (equivalent risk to any other unsigned `pickle`/`joblib` use of a file the caller already trusts); `secret_key` given enforces the original signed-and-verified path unchanged. Added the one new risk the split introduces — a downgrade attack, where a server-signed file is loaded unverified by omitting the key — and closed it structurally: `load()` must refuse both "signed file, no key" and "unsigned file, key given" mismatches, not just the already-covered "signed file, wrong key" case. Updated the F7 table row, `[DECISION]` block, §8.2 test-debt row (added a downgrade-attack test), and §9 outstanding-items (added a dedicated downgrade-invariant entry) in this document, plus F7's pathway steps and `Decision needed` note in the companion implementation-pathways document. No code changed — F7 remains unimplemented. |
+| v1.18 | 2026-07-28 | Recorded a previously-undocumented Q6↔F7 interaction, found while discussing a start-pool → run stage → save → restart session → load → run next stage scenario: `ThreadPoolExecutor` (Q6's pool-holder attribute) is not picklable, so if Q6 lands without excluding it from pickled state, F7's `save()` either crashes outright (pool live) or succeeds only by caller discipline (pool closed first) — a scenario-dependent failure that would surface as a flaky F7 round-trip test rather than an obvious Q6 gap. Fix recorded as belonging to Q6: exclude the pool via `__getstate__`/`__setstate__`, letting `load()` come back with the pool unset for lazy recreation on next use — consistent with both Q6's own "lazily created" design and MATLAB's own non-serialised, session-local parallel-pool handles. Updated Q6's entry (new interaction note), F7's `[DECISION]` block (cross-reference), and §9 outstanding-items (new row) in this document, plus Q6's pathway in the companion implementation-pathways document. No code changed — both Q6 and F7 remain unimplemented. |
