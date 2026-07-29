@@ -19,10 +19,10 @@ import pytest
 
 matplotlib.use("Agg")
 
-import matplotlib.pyplot as plt  # noqa: E402
-from matplotlib.axes import Axes  # noqa: E402
+import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 
-from instancespace import plotting  # noqa: E402
+from instancespace import plotting
 
 
 @pytest.fixture

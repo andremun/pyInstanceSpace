@@ -33,7 +33,7 @@ def make_instance_space(
 def test_trace_output_shapes() -> None:
     square = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
     space = make_instance_space([square, square, square], [square, square, square])
-    z = np.random.rand(5, 2)
+    z = np.random.default_rng().random((5, 2))
     in_good, in_best = InstanceSpace._explore_trace(space, z)
     assert in_good.shape == (5, 3)
     assert in_best.shape == (5, 3)
