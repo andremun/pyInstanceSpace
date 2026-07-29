@@ -4,7 +4,7 @@ from instancespace.data.options import InstanceSpaceOptions
 from instancespace.utils.print_options import format_options
 
 
-def test_format_options_emits_one_line_per_leaf_field():
+def test_format_options_emits_one_line_per_leaf_field() -> None:
     options = InstanceSpaceOptions.default(*([None] * 12))
 
     lines = format_options(options)
@@ -19,7 +19,7 @@ def test_format_options_emits_one_line_per_leaf_field():
     assert not any("PerformanceOptions(" in line for line in lines)
 
 
-def test_format_options_leaf_line_contains_value_repr():
+def test_format_options_leaf_line_contains_value_repr() -> None:
     options = InstanceSpaceOptions.default(*([None] * 12))
 
     lines = format_options(options)

@@ -33,7 +33,7 @@ def load_sifted_indices() -> SiftedOut:
     )
 
 
-def test_sifted_matches_matlab():
+def test_sifted_matches_matlab() -> None:
     """SIFTED output exactly matches MATLAB step2."""
     x_input = pd.read_csv(
         OUTPUTS_DIR / "step1_after_prelim.csv", index_col="instance_id",

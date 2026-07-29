@@ -27,7 +27,7 @@ def _resolve_algo_index(model: Any, algo: str | int) -> int:  # noqa: ANN401
     if isinstance(algo, int):
         return algo
     try:
-        return model.data.algo_labels.index(algo)
+        return int(model.data.algo_labels.index(algo))
     except ValueError as exc:
         raise ValueError(
             f"Unknown algorithm {algo!r}; expected one of {model.data.algo_labels}",

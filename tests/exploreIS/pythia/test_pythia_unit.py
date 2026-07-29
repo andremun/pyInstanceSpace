@@ -60,7 +60,7 @@ def _two_point_pilot_z(
     return np.vstack([mu - offset, mu + offset])
 
 
-def test_pythia_output_shapes():
+def test_pythia_output_shapes() -> None:
     rng = np.random.default_rng(0)
     svc = _fit_svc(rng)
     pilot_z = _two_point_pilot_z(np.array([0.0, 0.0]), np.array([1.0, 1.0]))
@@ -77,7 +77,7 @@ def test_pythia_output_shapes():
     assert y_hat.dtype == np.bool_
 
 
-def test_pythia_matches_direct_svc_calls():
+def test_pythia_matches_direct_svc_calls() -> None:
     """y_hat/pr0_hat must exactly match calling predict()/predict_proba() directly."""
     rng = np.random.default_rng(0)
     svc = _fit_svc(rng)
@@ -98,7 +98,7 @@ def test_pythia_matches_direct_svc_calls():
     np.testing.assert_allclose(pr0_hat[:, 0], expected_proba[:, 0])
 
 
-def test_pythia_matches_direct_svc_calls_poly_kernel():
+def test_pythia_matches_direct_svc_calls_poly_kernel() -> None:
     """Same as above, for PYTHIA's other trainable kernel (poly, degree=2/coef0=1)."""
     rng = np.random.default_rng(0)
     svc = _fit_svc(rng, kernel="poly")
@@ -118,7 +118,7 @@ def test_pythia_matches_direct_svc_calls_poly_kernel():
     np.testing.assert_allclose(pr0_hat[:, 0], expected_proba[:, 0])
 
 
-def test_pythia_zscore_normalization_uses_pilot_z():
+def test_pythia_zscore_normalization_uses_pilot_z() -> None:
     """z-score normalisation must be derived from model.pilot.z, not elsewhere.
 
     mu=(1,2), sigma=(2,4) via pilot_z; a raw input of exactly (1,2) should
@@ -141,7 +141,7 @@ def test_pythia_zscore_normalization_uses_pilot_z():
     np.testing.assert_allclose(pr0_hat[:, 0], expected)
 
 
-def test_pythia_selection0_picks_highest_precision_positive():
+def test_pythia_selection0_picks_highest_precision_positive() -> None:
     # Two algos both predict "good"; higher precision wins.
     rng = np.random.default_rng(0)
     svc = _fit_svc(rng)
@@ -157,7 +157,7 @@ def test_pythia_selection0_picks_highest_precision_positive():
     assert selection0[0] == 1  # higher precision algo
 
 
-def test_pythia_selection0_none_when_no_positive():
+def test_pythia_selection0_none_when_no_positive() -> None:
     # All algos predict "bad"; selection0 = -1
     rng = np.random.default_rng(0)
     svc = _fit_svc(rng)

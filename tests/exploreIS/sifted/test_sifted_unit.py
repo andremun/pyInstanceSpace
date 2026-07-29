@@ -20,7 +20,7 @@ from instancespace.instance_space import InstanceSpace
 
 
 @pytest.fixture
-def mock_sifted_params_all():
+def mock_sifted_params_all() -> SiftedOut:
     """Create mock SIFTED parameters selecting all features."""
     # Select all 5 features (0-based indexing)
     indices = np.array([0, 1, 2, 3, 4], dtype=np.intc)
@@ -34,7 +34,7 @@ def mock_sifted_params_all():
 
 
 @pytest.fixture
-def mock_sifted_params_subset():
+def mock_sifted_params_subset() -> SiftedOut:
     """Create mock SIFTED parameters selecting subset of features."""
     # Select features 0, 2, 4 (skip 1 and 3)
     indices = np.array([0, 2, 4], dtype=np.intc)
@@ -48,7 +48,7 @@ def mock_sifted_params_subset():
 
 
 @pytest.fixture
-def mock_instance_space_all(mock_sifted_params_all):
+def mock_instance_space_all(mock_sifted_params_all: SiftedOut) -> InstanceSpace:
     """Create mock InstanceSpace selecting all features."""
     mock_is = Mock(spec=InstanceSpace)
     mock_is._model = Mock()
@@ -58,7 +58,7 @@ def mock_instance_space_all(mock_sifted_params_all):
 
 
 @pytest.fixture
-def mock_instance_space_subset(mock_sifted_params_subset):
+def mock_instance_space_subset(mock_sifted_params_subset: SiftedOut) -> InstanceSpace:
     """Create mock InstanceSpace selecting subset of features."""
     mock_is = Mock(spec=InstanceSpace)
     mock_is._model = Mock()
@@ -67,7 +67,7 @@ def mock_instance_space_subset(mock_sifted_params_subset):
     return mock_is
 
 
-def test_sifted_select_all_features(mock_instance_space_all):
+def test_sifted_select_all_features(mock_instance_space_all: InstanceSpace) -> None:
     """Test SIFTED when all features are selected."""
     x_prelim = np.array([
         [1.0, 2.0, 3.0, 4.0, 5.0],
@@ -81,7 +81,7 @@ def test_sifted_select_all_features(mock_instance_space_all):
     assert x_sifted.shape == (2, 5)
 
 
-def test_sifted_select_subset(mock_instance_space_subset):
+def test_sifted_select_subset(mock_instance_space_subset: InstanceSpace) -> None:
     """Test SIFTED selecting subset of features."""
     x_prelim = np.array([
         [1.0, 2.0, 3.0, 4.0, 5.0],
@@ -100,7 +100,7 @@ def test_sifted_select_subset(mock_instance_space_subset):
     assert x_sifted.shape == (2, 3)
 
 
-def test_sifted_preserves_input(mock_instance_space_subset):
+def test_sifted_preserves_input(mock_instance_space_subset: InstanceSpace) -> None:
     """Test that SIFTED doesn't modify input array."""
     x_prelim = np.array([[1.0, 2.0, 3.0, 4.0, 5.0]])
     x_prelim_copy = x_prelim.copy()
@@ -111,7 +111,7 @@ def test_sifted_preserves_input(mock_instance_space_subset):
     np.testing.assert_array_equal(x_prelim, x_prelim_copy)
 
 
-def test_sifted_single_instance(mock_instance_space_subset):
+def test_sifted_single_instance(mock_instance_space_subset: InstanceSpace) -> None:
     """Test SIFTED with single instance."""
     x_prelim = np.array([[1.0, 2.0, 3.0, 4.0, 5.0]])
 
@@ -121,7 +121,7 @@ def test_sifted_single_instance(mock_instance_space_subset):
     np.testing.assert_array_equal(x_sifted, np.array([[1.0, 3.0, 5.0]]))
 
 
-def test_sifted_single_feature():
+def test_sifted_single_feature() -> None:
     """Test SIFTED selecting only one feature."""
     # Select only feature 2
     indices = np.array([2], dtype=np.intc)
@@ -152,7 +152,7 @@ def test_sifted_single_feature():
     assert x_sifted.shape == (2, 1)
 
 
-def test_sifted_preserves_order(mock_instance_space_subset):
+def test_sifted_preserves_order(mock_instance_space_subset: InstanceSpace) -> None:
     """Test that SIFTED preserves feature order from selvars."""
     x_prelim = np.array([[1.0, 2.0, 3.0, 4.0, 5.0]])
 
@@ -163,7 +163,7 @@ def test_sifted_preserves_order(mock_instance_space_subset):
     np.testing.assert_array_equal(x_sifted, expected)
 
 
-def test_sifted_handles_nan(mock_instance_space_subset):
+def test_sifted_handles_nan(mock_instance_space_subset: InstanceSpace) -> None:
     """Test SIFTED preserves NaN values."""
     x_prelim = np.array([
         [1.0, np.nan, 3.0, 4.0, np.nan],
@@ -181,7 +181,7 @@ def test_sifted_handles_nan(mock_instance_space_subset):
     assert np.isnan(x_sifted[1, 1])
 
 
-def test_sifted_different_instance_counts(mock_instance_space_subset):
+def test_sifted_different_instance_counts(mock_instance_space_subset: InstanceSpace) -> None:
     """Test SIFTED with various numbers of instances."""
     for n_instances in [1, 10, 100]:
         x_prelim = np.random.rand(n_instances, 5)
@@ -192,7 +192,7 @@ def test_sifted_different_instance_counts(mock_instance_space_subset):
         assert x_sifted.shape == (n_instances, 3)
 
 
-def test_sifted_deterministic(mock_instance_space_subset):
+def test_sifted_deterministic(mock_instance_space_subset: InstanceSpace) -> None:
     """Test that SIFTED is deterministic."""
     x_prelim = np.array([[1.0, 2.0, 3.0, 4.0, 5.0]])
 
@@ -202,7 +202,7 @@ def test_sifted_deterministic(mock_instance_space_subset):
     np.testing.assert_array_equal(result1, result2)
 
 
-def test_sifted_maintains_dtype(mock_instance_space_subset):
+def test_sifted_maintains_dtype(mock_instance_space_subset: InstanceSpace) -> None:
     """Test that SIFTED maintains float64 dtype."""
     x_prelim = np.array([[1.0, 2.0, 3.0, 4.0, 5.0]], dtype=np.float64)
 
@@ -211,7 +211,7 @@ def test_sifted_maintains_dtype(mock_instance_space_subset):
     assert x_sifted.dtype == np.float64
 
 
-def test_sifted_reverse_order():
+def test_sifted_reverse_order() -> None:
     """Test SIFTED with features in reverse order."""
     # Select features in reverse order: 4, 3, 2, 1, 0
     indices = np.array([4, 3, 2, 1, 0], dtype=np.intc)

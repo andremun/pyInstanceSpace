@@ -33,7 +33,7 @@ def load_pilot_matrix() -> Mock:
     return model
 
 
-def test_pilot_matches_matlab():
+def test_pilot_matches_matlab() -> None:
     """PILOT max relative error < 1% against MATLAB step3."""
     x_input = pd.read_csv(
         OUTPUTS_DIR / "step2_after_sifted.csv", index_col="instance_id",

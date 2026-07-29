@@ -824,7 +824,7 @@ class InstanceSpace:
     def _explore_trace(
         self,
         z: NDArray[np.double],
-    ) -> tuple[NDArray[np.bool_], NDArray[np.bool_]] | None:
+    ) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
         """Check footprint membership using TRACE polygons.
 
         Ports the per-instance equivalent of MATLAB TRACEtest: for each test

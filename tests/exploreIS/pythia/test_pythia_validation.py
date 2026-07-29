@@ -137,14 +137,14 @@ def build_pythia_from_artifacts() -> tuple[PythiaOut, NDArray[np.double]]:
     pythia = Mock(spec=PythiaOut)
     pythia.svm = svms
     pythia.precision = precision_df["precision"].to_numpy(dtype=np.double)
-    pythia._algo_order = algo_order  # type: ignore[attr-defined]
+    pythia._algo_order = algo_order
     return pythia, pilot_z
 
 
-def test_pythia_matches_matlab():
+def test_pythia_matches_matlab() -> None:
     """PYTHIA binary agreement >= 99%, probability |r| mean >= 0.99."""
     pythia, pilot_z = build_pythia_from_artifacts()
-    algo_order = pythia._algo_order
+    algo_order = pythia._algo_order  # type: ignore[attr-defined]
 
     z = pd.read_csv(OUTPUTS_DIR / "step3_after_pilot.csv", index_col=0)
 

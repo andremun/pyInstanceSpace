@@ -6,6 +6,7 @@ edge cases and error conditions, independent of MATLAB reference data.
 """
 
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -20,7 +21,7 @@ from instancespace.instance_space import InstanceSpace
 
 
 @pytest.fixture
-def mock_prelim_params():
+def mock_prelim_params() -> PrelimOut:
     """Create mock PRELIM parameters for testing."""
     n_features = 3
     return PrelimOut(
@@ -40,7 +41,7 @@ def mock_prelim_params():
 
 
 @pytest.fixture
-def mock_instance_space(mock_prelim_params):
+def mock_instance_space(mock_prelim_params: PrelimOut) -> InstanceSpace:
     """Create mock InstanceSpace with PRELIM parameters."""
     mock_is = Mock(spec=InstanceSpace)
     mock_is._model = Mock()
@@ -49,7 +50,7 @@ def mock_instance_space(mock_prelim_params):
     return mock_is
 
 
-def test_prelim_basic_functionality(mock_instance_space):
+def test_prelim_basic_functionality(mock_instance_space: InstanceSpace) -> None:
     """Test basic PRELIM transformation."""
     # Input data: 5 instances, 3 features
     x_raw = np.array([
@@ -70,7 +71,7 @@ def test_prelim_basic_functionality(mock_instance_space):
     assert x_transformed.dtype == np.float64
 
 
-def test_prelim_preserves_input(mock_instance_space):
+def test_prelim_preserves_input(mock_instance_space: InstanceSpace) -> None:
     """Test that PRELIM doesn't modify input array."""
     x_raw = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
     x_raw_copy = x_raw.copy()
@@ -81,7 +82,7 @@ def test_prelim_preserves_input(mock_instance_space):
     np.testing.assert_array_equal(x_raw, x_raw_copy)
 
 
-def test_prelim_single_instance(mock_instance_space):
+def test_prelim_single_instance(mock_instance_space: InstanceSpace) -> None:
     """Test PRELIM with single instance."""
     x_raw = np.array([[5.0, 5.0, 5.0]])
 
@@ -90,7 +91,7 @@ def test_prelim_single_instance(mock_instance_space):
     assert x_transformed.shape == (1, 3)
 
 
-def test_prelim_bounding(mock_instance_space):
+def test_prelim_bounding(mock_instance_space: InstanceSpace) -> None:
     """Test that PRELIM applies bounding correctly."""
     # Values outside bounds [0, 10]
     x_raw = np.array([
@@ -104,7 +105,7 @@ def test_prelim_bounding(mock_instance_space):
     assert np.all(np.isfinite(x_transformed))
 
 
-def test_prelim_handles_nan_input(mock_instance_space):
+def test_prelim_handles_nan_input(mock_instance_space: InstanceSpace) -> None:
     """Test PRELIM handles NaN values in input."""
     x_raw = np.array([
         [5.0, np.nan, 5.0],
@@ -121,7 +122,7 @@ def test_prelim_handles_nan_input(mock_instance_space):
     assert np.isnan(x_transformed[1, 2])
 
 
-def test_prelim_all_nan_feature(mock_instance_space):
+def test_prelim_all_nan_feature(mock_instance_space: InstanceSpace) -> None:
     """Test PRELIM with a feature that is all NaN."""
     x_raw = np.array([
         [5.0, np.nan, 5.0],
@@ -138,7 +139,7 @@ def test_prelim_all_nan_feature(mock_instance_space):
     assert np.all(np.isfinite(x_transformed[:, 2]))
 
 
-def test_prelim_dimension_consistency(mock_instance_space):
+def test_prelim_dimension_consistency(mock_instance_space: InstanceSpace) -> None:
     """Test PRELIM with various input dimensions."""
     # Test with different numbers of instances
     for n_instances in [1, 10, 100]:
@@ -149,7 +150,7 @@ def test_prelim_dimension_consistency(mock_instance_space):
         assert x_transformed.shape == (n_instances, 3)
 
 
-def test_prelim_deterministic(mock_instance_space):
+def test_prelim_deterministic(mock_instance_space: InstanceSpace) -> None:
     """Test that PRELIM is deterministic (same input → same output)."""
     x_raw = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
 
@@ -159,7 +160,7 @@ def test_prelim_deterministic(mock_instance_space):
     np.testing.assert_array_equal(result1, result2)
 
 
-def test_prelim_numerical_stability(mock_instance_space):
+def test_prelim_numerical_stability(mock_instance_space: InstanceSpace) -> None:
     """Test PRELIM with very small and very large values."""
     x_raw = np.array([
         [1e-10, 1e10, 5.0],
@@ -174,11 +175,11 @@ def test_prelim_numerical_stability(mock_instance_space):
     assert np.all(np.isfinite(x_transformed))
 
 
-def _collect_warnings(fn, *args):
+def _collect_warnings(fn: Callable[..., object], *args: object) -> list[str]:
     """Run fn(*args) and return the loguru WARNING-level messages it emitted."""
     from loguru import logger
 
-    messages = []
+    messages: list[str] = []
     sink_id = logger.add(lambda msg: messages.append(msg.record["message"]), level="WARNING")
     try:
         fn(*args)
@@ -187,7 +188,7 @@ def _collect_warnings(fn, *args):
     return messages
 
 
-def test_prelim_ood_warning_fires_above_threshold(mock_instance_space):
+def test_prelim_ood_warning_fires_above_threshold(mock_instance_space: InstanceSpace) -> None:
     """Regression test for #250: explore() warns when >5% of instances are clipped."""
     # Bounds are [0, 10] on all 3 features (mock_prelim_params). 2 of 10 instances
     # (20%) have a feature outside bounds -> above the 5% threshold.
@@ -201,7 +202,7 @@ def test_prelim_ood_warning_fires_above_threshold(mock_instance_space):
     assert any("clipped" in m for m in messages)
 
 
-def test_prelim_ood_warning_silent_below_threshold(mock_instance_space):
+def test_prelim_ood_warning_silent_below_threshold(mock_instance_space: InstanceSpace) -> None:
     """No warning when no instance needs clipping."""
     x_raw = np.full((10, 3), 5.0)  # well within [0, 10] on all features
 

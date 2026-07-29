@@ -43,7 +43,7 @@ def load_prelim_params() -> PrelimOut:
     )
 
 
-def test_prelim_matches_matlab():
+def test_prelim_matches_matlab() -> None:
     """PRELIM max relative error < 1% against MATLAB step1."""
     test_df = pd.read_csv(INPUT_DIR / "metadata_test.csv")
     x_raw = test_df.iloc[:, 1:11].to_numpy(dtype=np.double)

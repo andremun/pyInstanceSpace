@@ -8,7 +8,9 @@ Each test passes its own fresh ``ax`` explicitly rather than relying on the glob
 across tests run in the same process.
 """
 
+from collections.abc import Iterator
 from types import SimpleNamespace
+from typing import Any
 
 import matplotlib
 import numpy as np
@@ -18,18 +20,19 @@ import pytest
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.axes import Axes  # noqa: E402
 
 from instancespace import plotting  # noqa: E402
 
 
 @pytest.fixture
-def ax():
+def ax() -> Iterator[Axes]:
     fig, axes = plt.subplots()
     yield axes
     plt.close(fig)
 
 
-def _fake_model(*, source=None):
+def _fake_model(*, source: "pd.Series[str] | None" = None) -> Any:  # noqa: ANN401
     z = np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [3.0, 3.0]])
     algo_labels = ["CART", "KNN"]
     y_hat = np.array([[True, False], [False, True], [True, True], [False, False]])
@@ -50,36 +53,36 @@ def _fake_model(*, source=None):
     )
 
 
-def test_plot_sources_raises_without_source_column(ax):
+def test_plot_sources_raises_without_source_column(ax: Axes) -> None:
     model = _fake_model(source=None)
     with pytest.raises(ValueError, match="source"):
         plotting.plot_sources(model, ax=ax)
 
 
-def test_plot_sources_scatters_when_source_present(ax):
+def test_plot_sources_scatters_when_source_present(ax: Axes) -> None:
     model = _fake_model(source=pd.Series(["a", "b", "a", "b"]))
     plotting.plot_sources(model, ax=ax)
     assert len(ax.collections) == 1
-    assert ax.collections[0].get_offsets().shape == (4, 2)
+    assert np.asarray(ax.collections[0].get_offsets()).shape == (4, 2)
 
 
-def test_plot_portfolio_scatters_all_instances(ax):
+def test_plot_portfolio_scatters_all_instances(ax: Axes) -> None:
     model = _fake_model()
     plotting.plot_portfolio(model, ax=ax)
     assert len(ax.collections) == 1
-    assert ax.collections[0].get_offsets().shape == (4, 2)
+    assert np.asarray(ax.collections[0].get_offsets()).shape == (4, 2)
 
 
-def test_plot_good_splits_by_prediction(ax):
+def test_plot_good_splits_by_prediction(ax: Axes) -> None:
     model = _fake_model()
     plotting.plot_good(model, "CART", ax=ax)
     # 2 good + 2 bad -> two separate scatter calls.
     assert len(ax.collections) == 2
-    sizes = sorted(c.get_offsets().shape[0] for c in ax.collections)
+    sizes = sorted(np.asarray(c.get_offsets()).shape[0] for c in ax.collections)
     assert sizes == [2, 2]
 
 
-def test_plot_good_resolves_algorithm_by_name_and_index():
+def test_plot_good_resolves_algorithm_by_name_and_index() -> None:
     model = _fake_model()
     fig1, ax_by_name = plt.subplots()
     fig2, ax_by_index = plt.subplots()
@@ -92,20 +95,20 @@ def test_plot_good_resolves_algorithm_by_name_and_index():
         plt.close(fig2)
 
 
-def test_plot_good_unknown_algorithm_raises(ax):
+def test_plot_good_unknown_algorithm_raises(ax: Axes) -> None:
     model = _fake_model()
     with pytest.raises(ValueError, match="Unknown algorithm"):
         plotting.plot_good(model, "not-an-algorithm", ax=ax)
 
 
-def test_plot_footprint_invalid_kind_raises(ax):
+def test_plot_footprint_invalid_kind_raises(ax: Axes) -> None:
     model = _fake_model()
     with pytest.raises(ValueError, match="kind must be"):
         plotting.plot_footprint(model, "CART", kind="bad", ax=ax)
 
 
-def test_plot_footprint_draws_training_instances(ax):
+def test_plot_footprint_draws_training_instances(ax: Axes) -> None:
     model = _fake_model()
     plotting.plot_footprint(model, "CART", ax=ax)
     assert len(ax.collections) == 1
-    assert ax.collections[0].get_offsets().shape == (4, 2)
+    assert np.asarray(ax.collections[0].get_offsets()).shape == (4, 2)
