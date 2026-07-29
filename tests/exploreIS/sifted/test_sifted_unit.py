@@ -184,7 +184,7 @@ def test_sifted_handles_nan(mock_instance_space_subset: InstanceSpace) -> None:
 def test_sifted_different_instance_counts(mock_instance_space_subset: InstanceSpace) -> None:
     """Test SIFTED with various numbers of instances."""
     for n_instances in [1, 10, 100]:
-        x_prelim = np.random.rand(n_instances, 5)
+        x_prelim = np.random.default_rng().random((n_instances, 5))
 
         x_sifted = InstanceSpace._explore_sifted(mock_instance_space_subset, x_prelim)
 

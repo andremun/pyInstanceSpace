@@ -10,7 +10,7 @@ analytical results and metadata of the instance space analysis.
 import multiprocessing
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, NamedTuple, TypeVar
@@ -509,7 +509,9 @@ class InstanceSpace:
         }
 
         if dataset_id is None:
-            dataset_id = f"explore_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            dataset_id = (
+                f"explore_{datetime.now(tz=timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+            )
 
         inst_labels = self._extract_instance_labels(test_metadata)
         pythia_result = stages[ExploreStage.PYTHIA]
@@ -517,7 +519,7 @@ class InstanceSpace:
 
         result = ExploreResult(
             dataset_id=dataset_id,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(tz=timezone.utc),
             x=stages[ExploreStage.SIFTED],
             z=stages[ExploreStage.PILOT],
             y_hat=pythia_result[0] if pythia_result else None,

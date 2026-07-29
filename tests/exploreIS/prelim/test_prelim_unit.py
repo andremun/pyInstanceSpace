@@ -143,7 +143,7 @@ def test_prelim_dimension_consistency(mock_instance_space: InstanceSpace) -> Non
     """Test PRELIM with various input dimensions."""
     # Test with different numbers of instances
     for n_instances in [1, 10, 100]:
-        x_raw = np.random.rand(n_instances, 3) * 10
+        x_raw = np.random.default_rng().random((n_instances, 3)) * 10
 
         x_transformed = InstanceSpace._explore_prelim(mock_instance_space, x_raw)
 
