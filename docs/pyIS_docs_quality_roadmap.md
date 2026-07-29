@@ -1216,6 +1216,49 @@ in-flight work (F10, F11, and any future stage-behaviour change) will also need 
 better done once those land, not concurrently with them. No code or test files changed; issue
 #280 left open.
 
+**Layout decided (v1.37, direct instruction) — not yet implemented.** Resolves #280's open
+"two-way or three-way split" question in favour of two, and removes the `exploreIS/` directory
+tree entirely — every test file lives directly under `tests/`, distinguished purely by a
+`test_build_*`/`test_explore_*` filename prefix rather than by directory location.
+
+- **Per-stage trios collapse to a pair, both at `tests/` root:** `test_build_<stage>.py` (today's
+  top-level `test_<stage>.py`, unchanged) and `test_explore_<stage>.py` — a merge of today's
+  `exploreIS/<stage>/test_<stage>_unit.py` (stubbed-dependency orchestration tests) *and*
+  `exploreIS/<stage>/test_<stage>_validation.py` (MATLAB-reference numerical validation) into one
+  file, not two. Applies to all five stages `explore()` covers: pilot, prelim, sifted, pythia,
+  trace. (CLOISTER and preprocessing have no explore-time counterpart — see below.)
+  - TRACE has a third existing file, `exploreIS/trace/test_trace_executor_reuse.py` (Q6's
+    pool-reuse unit tests) — folds into the same merge, so `test_explore_trace.py` is a 3-way
+    merge for TRACE specifically, not 2-way.
+- **Non-stage-specific explore-time files** (`exploreIS/test_explore_stage_iter.py`,
+  `exploreIS/test_extract_features.py` — orchestration across the whole pipeline, not one
+  stage) move to `tests/` root with an `explore_` prefix for consistency:
+  `test_explore_stage_iter.py` (already named right, just relocates) and
+  `test_explore_extract_features.py` (renamed, since `_extract_features` is an `explore()`-only
+  method with no build-time equivalent to pair against).
+- **Build-time files with no explore-time counterpart** get the `test_build_` prefix too, for
+  naming consistency even though there's no pair to disambiguate from: `test_cloister.py` →
+  `test_build_cloister.py` (CLOISTER isn't in `ExploreStage`, build-only), `test_preprocessing.py`
+  → `test_build_preprocessing.py`, `test_filter.py` → `test_build_filter.py` (training-only
+  feature/instance filtering, no explore-time equivalent).
+- **Multi-stage build-time integration files keep their existing name, just gain the prefix:**
+  `test_pilot_pythia.py` → `test_build_pilot_pythia.py`, `test_prepro_n_prelim.py` →
+  `test_build_prepro_n_prelim.py`, `test_prelim_filter.py` → `test_build_prelim_filter.py`. These
+  span more than one stage, so they don't get folded into any single stage's file.
+- **Everything else in `tests/` is untouched** — genuinely cross-cutting infrastructure with no
+  single-stage build/explore distinction to make (`test_instance_space_executor.py`,
+  `test_model_save_load.py`, `test_options_validation.py`, `test_general_options.py`,
+  `test_print_options.py`, `test_verbose_logging.py`, `test_stage_runner.py`,
+  `test_serialisers.py`, `test_metadata.py`, `test_load_file.py`, `test_manual_selection.py`,
+  `test_get_classifier_fcn.py`, `test_remove_all_nan_row.py`, `test_basic.py`,
+  `test_plotting.py`, `test_build_integration.py` — already matches the convention as a
+  whole-pipeline build-time integration test, `conftest.py`, `utils/`).
+- **`tests/exploreIS/` (and its five stage subfolders, each with an `__init__.py`) is deleted
+  entirely** once every file above has moved — nothing should remain under it.
+
+Not yet implemented — this is the resolved design decision only, still gated behind T8 landing
+first (decided v1.33) since T8's per-file error breakdown cites the pre-move paths above.
+
 **T8 before T7 (decided v1.33, direct instruction).** T8's own file-by-file error breakdown
 (above) cites specific current file paths; if T7 merges/renames those fragmented per-stage
 trios first, that breakdown goes stale and needs re-auditing against wherever the code ends
@@ -1363,3 +1406,4 @@ ships with its listed test, not just its implementation.
 | v1.34 | 2026-07-29 | Following a direct risk/reward re-evaluation of all pending items, worked a low-risk batch: #292 (PYTHIA precalc-params crash), #293 (StageRunner unpicklable lambda), F12's degenerate-uniformity guard (performance rewrite deferred), and F13 (ISAvalidateOpts.m eager validation). #292: `PythiaStage._fit_precalculated()` now bypasses search entirely for pre-calculated `opts.pythia.params`, matching MATLAB's own `crossValPredict`/`trainFinalClassifier` branch, instead of feeding scalars into `BayesSearchCV` (which requires real search-space `Dimension`s); `ParamSpec.from_precalc()` added as `reported()`'s inverse, handling KNN's categorical `Distance` index correctly; 7 new tests across all 6 classifiers plus a dedicated KNN-category round-trip test. #293: `StageRunner`'s `defaultdict(lambda: False)` replaced with a module-level `_default_false()`; 1 new pickle round-trip test. F12: `compute_uniformity()`'s degenerate-case guard added (2 new tests); performance rewrite deliberately left for later. F13: `InstanceSpaceOptions.__post_init__()` added, validating every recognised, currently-ported option field; found and fixed three genuine pre-existing test-fixture data-quality issues along the way (two JSON fixtures' distinctive-but-invalid sentinel values, corrected to distinctive-but-valid ones; a real MATLAB `.mat` fixture's numeric-not-logical bool fields and one literal-typo string value, both fixed at the test consumption site, not the binary fixture) - full detail in each item's own §6 section above. 14 new tests in `tests/test_options_validation.py`. Full suite (excluding the two genuinely slow PYTHIA-tuning/T2/pilot-pythia test files, each re-run and verified separately): all passing. |
 | v1.35 | 2026-07-29 | On direct instruction ("scope F3 but don't implement"), replaced the companion pathways doc's stale pre-audit F3 section (which still said "fix whatever the audit finds — can't be scoped further until the audit runs," dating from before v1.27's audit actually ran) with a concrete, unimplemented pathway for the one confirmed gap: `_compute_correlation()`'s unvectorised per-`(feature, algorithm)`-pair loop (`stages/sifted.py:1031-1076`). Recommends a fast-path/fallback split (vectorise the common no-NaN case via a manual Pearson formula + `scipy.stats.t.sf` for the p-value; keep the existing, already-verified per-pair `pearsonr` loop unchanged for any pair with a ragged NaN mask) over a full masked-pairwise-sums vectorisation, specifically to avoid having to hand-re-derive `scipy.stats.pearsonr`'s own degenerate-case behaviour (zero-variance columns, `n_valid < 3`) for a function that only runs once per `SiftedStage` call, not per-GA-candidate — the performance upside doesn't justify that extra verification surface. Test plan specified (no-NaN, all-NaN-column, scattered-NaN, zero-variance, `n_valid<3` cases) but no tests written and no code changed — scoping only, per instruction. Also added F9 (#269) to the local task queue, explicitly gated on F8 (#268, still open) per the existing §6.0 F8→F9 ordering — not started. |
 | v1.36 | 2026-07-29 | Two decisions on direct instruction, following v1.35's scoping pass. **F3 closed, won't-fix** (#263, `state_reason: not_planned`): the one confirmed gap scoped in v1.35 runs once per `SiftedStage` call, not per-GA-candidate, so its performance upside doesn't justify the new edge-case test surface (zero-variance columns, `n_valid<3`) a safe fix needs — explained in the closing comment; the scoped pathway stays in the companion doc in case a future profiling run changes that calculus. No code changed. **F9 corrected from "queued" to deferred** (comment on #269): v1.35's "add F9 to the queue" framed it as next-up-after-F8, which understated the dependency — F9 only unblocks once F8 lands, and F8 is itself **[Behavior-changing risk]** with its own unresolved ambition-level decision (#268: lighter shared-function extraction vs. fuller `Stage` contract change), not a quick sequencing gap. F9 is not near-term work until F8 actually lands; roadmap §5 table and #269 both updated to say so. |
+| v1.37 | 2026-07-29 | Resolved #280's open "two-way or three-way split" question for T7 on direct instruction: two files per stage (`test_build_<stage>.py`/`test_explore_<stage>.py`), not three — today's `..._unit.py`/`..._validation.py` explore-time pair merges into one `test_explore_<stage>.py` file (TRACE's extra `test_trace_executor_reuse.py` folds in too, a 3-way merge for that stage only). Also resolves a question #280 didn't originally ask: the `exploreIS/` directory tree is removed entirely, every file living flat under `tests/`, disambiguated by filename prefix instead of directory. Confirmed via a clarifying question (not guessed): non-stage-specific explore files get an `explore_` prefix for consistency (`test_extract_features.py` → `test_explore_extract_features.py`); build-only stage files (`cloister`, `preprocessing`, `filter` — no explore-time counterpart in `ExploreStage`) get `test_build_` for the same reason; multi-stage build-time integration files (`test_pilot_pythia.py`, `test_prepro_n_prelim.py`, `test_prelim_filter.py`) keep their existing name and just gain the `test_build_` prefix rather than being folded into any single stage's file. Full file-by-file mapping recorded in T7's own section above. Decision only — no files moved or renamed yet; T7 stays gated behind T8 landing first (v1.33), and T8's own pytest verification was still running in the background when this was recorded. |
