@@ -1,5 +1,6 @@
 """Test StageRunner and build_stage_runner (formerly StageBuilder, folded in)."""
 
+import pickle
 from concurrent.futures import ThreadPoolExecutor
 from typing import NamedTuple
 
@@ -293,3 +294,24 @@ def test_extra_stage_without_attachment_point_raises() -> None:
         match="no RunBefore\\[X\\]/RunAfter\\[X\\]",
     ):
         build_stage_runner([[StageA], [StageB]], [StageE], InitialArguments)
+
+
+def test_stage_runner_is_picklable_after_running_a_stage() -> None:
+    """Regression test for #293: a live `_stages_ran` must not block pickling.
+
+    `defaultdict(lambda: False)` can't be pickled - `StageRunner` (and
+    therefore anything holding one, e.g. `InstanceSpace`) would fail to
+    serialise once any stage had run and populated `_stages_ran`.
+    """
+    stage_runner = build_stage_runner([[StageA], [StageB]], [], InitialArguments)
+    stage_runner.run_all(InitialArguments(1))
+
+    restored = pickle.loads(pickle.dumps(stage_runner))
+
+    assert restored._stages_ran == stage_runner._stages_ran  # noqa: SLF001
+    restored_args = restored._available_arguments  # noqa: SLF001
+    stage_runner_args = stage_runner._available_arguments  # noqa: SLF001
+    assert restored_args == stage_runner_args
+    # The restored defaultdict's factory must still work, not just its
+    # already-populated entries.
+    assert restored._stages_ran[StageC] is False  # noqa: SLF001

@@ -410,12 +410,14 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         for i in range(nalgos):
             algo_start_time = perf_counter()
+            precalc_params: dict[str, float | int | str] | None = None
             param_space: dict[str, Any] | None = None
             if precalcparams is not None:
                 # Pre-calculated hyperparameters always win, regardless of
-                # tuning strategy (matches MATLAB: precalcparams bypasses
-                # tuning entirely).
-                param_space = PythiaStage._precalc_param_space(
+                # tuning strategy, and bypass search entirely - matching
+                # MATLAB's precalcparams branch (a direct crossValPredict/
+                # trainFinalClassifier call, no bayesSearch/sobolSearch).
+                precalc_params = PythiaStage._precalc_param_space(
                     classifier_spec,
                     precalcparams[i],
                 )
@@ -434,6 +436,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 skf=cp,
                 classifier_name=opts.classifier,
                 is_poly_kernel=opts.is_poly_krnl,
+                precalc_params=precalc_params,
                 param_space=param_space,
                 use_weights=opts.use_weights,
                 parallel_options=parallel_options,
@@ -516,9 +519,11 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             box_consnt,
             k_scale,
             classifier_spec.param1.label,
-            classifier_spec.param2.label
-            if classifier_spec.param2 is not None
-            else None,
+            (
+                classifier_spec.param2.label
+                if classifier_spec.param2 is not None
+                else None
+            ),
         )
 
         return PythiaOutput(
@@ -546,11 +551,15 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
     def _precalc_param_space(
         spec: ClassifierSpec,
         precalc_row: NDArray[np.double],
-    ) -> dict[str, float]:
-        """Build the forced single-point search space for pre-calculated params."""
-        space = {spec.param1.sklearn_name: float(precalc_row[0])}
+    ) -> dict[str, float | int | str]:
+        """Build the classifier's `set_params()` kwargs for pre-calculated params."""
+        space: dict[str, float | int | str] = {
+            spec.param1.sklearn_name: spec.param1.from_precalc(float(precalc_row[0])),
+        }
         if spec.param2 is not None:
-            space[spec.param2.sklearn_name] = float(precalc_row[1])
+            space[spec.param2.sklearn_name] = spec.param2.from_precalc(
+                float(precalc_row[1]),
+            )
         return space
 
     @staticmethod
@@ -588,6 +597,60 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             )
 
     @staticmethod
+    def _fit_precalculated(
+        estimator: ClassifierMixin,
+        spec: ClassifierSpec,
+        precalc_params: dict[str, float | int | str],
+        use_weights: bool,
+        z: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        w: NDArray[np.double],
+        skf: StratifiedKFold,
+    ) -> _ClassifierResult:
+        """Fit a classifier at pre-calculated hyperparameters - no search at all.
+
+        Matches MATLAB's `precalcparams` branch (`core/PYTHIA.m`): a direct
+        `crossValPredict`/`trainFinalClassifier` call, bypassing
+        `bayesSearch`/`sobolSearch` entirely rather than running a
+        degenerate single-point search over them (#292 - the crash this
+        replaces came from feeding those scalars into `BayesSearchCV`, which
+        requires real search-space `Dimension`s).
+        """
+        estimator.set_params(**precalc_params)
+        if use_weights and spec.supports_sample_weight:
+            estimator.fit(z, y_bin, sample_weight=w)
+        else:
+            estimator.fit(z, y_bin)
+
+        y_sub = cross_val_predict(estimator, z, y_bin, cv=skf, method="predict")
+        p_sub = cross_val_predict(
+            estimator,
+            z,
+            y_bin,
+            cv=skf,
+            method="predict_proba",
+        )[:, 1]
+        y_hat = estimator.predict(z)
+        p_hat = estimator.predict_proba(z)[:, 1]
+
+        c = spec.param1.reported(precalc_params[spec.param1.sklearn_name])
+        g = (
+            spec.param2.reported(precalc_params[spec.param2.sklearn_name])
+            if spec.param2 is not None
+            else float("nan")
+        )
+
+        return _ClassifierResult(
+            classifier=estimator,
+            Yhat=y_hat,
+            Ysub=y_sub,
+            Psub=p_sub,
+            Phat=p_hat,
+            c=c,
+            g=g,
+        )
+
+    @staticmethod
     def _fit_classifier(
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
@@ -595,6 +658,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         skf: StratifiedKFold,
         classifier_name: str,
         is_poly_kernel: bool,
+        precalc_params: dict[str, float | int | str] | None,
         param_space: dict[str, Any] | None,
         use_weights: bool,
         parallel_options: ParallelOptions,
@@ -605,11 +669,11 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         Every registered classifier is tunable (its own per-classifier
         hyperparameter range, matching MATLAB's `classifierBayesVars`/
-        `sobolToParams`). The search strategy is `PythiaOptions.tuning`:
-        `param_space is None` means `tuning='sobol'` with no pre-calculated
-        params, dispatching to `_sobol_search`; a non-`None` `param_space`
-        (either pre-calculated params or `tuning='bayes'`'s search space)
-        uses `BayesSearchCV` below.
+        `sobolToParams`). Dispatches on, in order: `precalc_params` (set and
+        fit directly, no search, matching MATLAB - see `_fit_precalculated`);
+        else `param_space is None` (`tuning='sobol'`, dispatching to
+        `_sobol_search`); else `param_space` (`tuning='bayes'`, using
+        `BayesSearchCV` below).
 
         Parameters
         ----------
@@ -625,9 +689,13 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             `PythiaOptions.classifier` - which registered classifier to train.
         is_poly_kernel : bool
             Whether to use a polynomial kernel. Only meaningful for `'svm'`.
+        precalc_params : dict | None
+            `PythiaOptions.params`' hyperparameters for this algorithm, already
+            converted to this classifier's own units - bypasses tuning
+            entirely when not `None` (see `_fit_precalculated`).
         param_space : dict | None
             The hyperparameters to search, when `PythiaOptions.tuning` isn't
-            `'sobol'` (see above).
+            `'sobol'` (see above). Ignored when `precalc_params` is given.
         use_weights : bool
             Whether cost-sensitive classification was requested - honoured only
             for classifiers whose `fit()` accepts `sample_weight`.
@@ -652,6 +720,18 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             spec.supports_sample_weight,
         )
 
+        if precalc_params is not None:
+            return PythiaStage._fit_precalculated(
+                estimator,
+                spec,
+                precalc_params,
+                use_weights,
+                z,
+                y_bin,
+                w,
+                skf,
+            )
+
         if param_space is None:
             # tuning='sobol' with no pre-calculated params.
             return PythiaStage._sobol_search(
@@ -666,8 +746,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 general_options.seed,
             )
 
-        # tuning='bayes' (or pre-calculated params forcing a degenerate
-        # single-point space): Bayesian optimisation over param_space. Sobol
+        # tuning='bayes': Bayesian optimisation over param_space. Sobol
         # (F10's default) superseded the old RandomizedSearchCV ("grid
         # search") alternative that used to sit here for 'svm' - it covered
         # the same lightweight/random-ish search role, just done properly

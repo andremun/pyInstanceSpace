@@ -78,32 +78,43 @@ class _MatlabResults:
 
     def get_model(self) -> Model:
         opts = self.workspace_data["model"]["opts"]
+        # MATLAB's .mat serialisation stores a `logical` field as a numeric
+        # 0/1 double whenever it wasn't set via an explicit true/false
+        # literal - loadmat then hands back a Python/numpy number, not a
+        # bool. bool(...) here mirrors what a real options.json (JSON
+        # true/false -> Python bool) already gives for free, and what
+        # MATLAB's own logical fields are semantically meant to be.
         parallel_options = ParallelOptions(
-            flag=opts["parallel"]["flag"],
+            flag=bool(opts["parallel"]["flag"]),
             n_cores=opts["parallel"]["ncores"],
         )
         performance_options = PerformanceOptions(
-            max_perf=opts["perf"]["MaxPerf"],
-            abs_perf=opts["perf"]["AbsPerf"],
+            max_perf=bool(opts["perf"]["MaxPerf"]),
+            abs_perf=bool(opts["perf"]["AbsPerf"]),
             epsilon=opts["perf"]["epsilon"],
             beta_threshold=opts["perf"]["betaThreshold"],
         )
-        auto_options = AutoOptions(preproc=opts["auto"]["preproc"])
-        bound_options = BoundOptions(flag=opts["bound"]["flag"])
-        norm_options = NormOptions(flag=opts["norm"]["flag"])
+        auto_options = AutoOptions(preproc=bool(opts["auto"]["preproc"]))
+        bound_options = BoundOptions(flag=bool(opts["bound"]["flag"]))
+        norm_options = NormOptions(flag=bool(opts["norm"]["flag"]))
         selvars_options = SelvarsOptions(
-            small_scale_flag=opts["selvars"]["smallscaleflag"],
+            small_scale_flag=bool(opts["selvars"]["smallscaleflag"]),
             small_scale=opts["selvars"]["smallscale"],
-            file_idx_flag=opts["selvars"]["fileidxflag"],
+            file_idx_flag=bool(opts["selvars"]["fileidxflag"]),
             file_idx=opts["selvars"]["fileidx"],
             feats=None,
             algos=None,
-            selvars_type=opts["selvars"]["type"],
+            # workspace.mat stores this as the literal typo 'Ftr&&Good' -
+            # not a value any real MATLAB build (or this repo) has ever
+            # recognised (core/FILTER.m's validTypes has no double-'&'
+            # variant); irrelevant to what these serialiser tests actually
+            # check, so corrected here rather than touching the binary fixture.
+            selvars_type=opts["selvars"]["type"].replace("&&", "&"),
             min_distance=opts["selvars"]["mindistance"],
-            density_flag=opts["selvars"]["densityflag"],
+            density_flag=bool(opts["selvars"]["densityflag"]),
         )
         sifted_options = SiftedOptions.default(
-            flag=opts["sifted"]["flag"],
+            flag=bool(opts["sifted"]["flag"]),
             rho=opts["sifted"]["rho"],
             k=opts["sifted"]["K"],
             n_trees=opts["sifted"]["NTREES"],
@@ -111,7 +122,7 @@ class _MatlabResults:
             replicates=opts["sifted"]["Replicates"],
         )
         pilot_options = PilotOptions.default(
-            analytic=opts["pilot"]["analytic"],
+            analytic=bool(opts["pilot"]["analytic"]),
             n_tries=opts["pilot"]["ntries"],
         )
         cloister_options = CloisterOptions(
@@ -120,18 +131,18 @@ class _MatlabResults:
         )
         pythia_options = PythiaOptions.default(
             cv_folds=opts["pythia"]["cvfolds"],
-            is_poly_krnl=opts["pythia"]["ispolykrnl"],
-            use_weights=opts["pythia"]["useweights"],
+            is_poly_krnl=bool(opts["pythia"]["ispolykrnl"]),
+            use_weights=bool(opts["pythia"]["useweights"]),
             # use_lib_svm=opts["pythia"]["uselibsvm"],
         )
         trace_options = TraceOptions.default(
-            use_sim=opts["trace"]["usesim"],
+            use_sim=bool(opts["trace"]["usesim"]),
             purity=opts["trace"]["PI"],
         )
         output_options = OutputOptions(
-            csv=opts["outputs"]["csv"],
-            web=opts["outputs"]["web"],
-            png=opts["outputs"]["png"],
+            csv=bool(opts["outputs"]["csv"]),
+            web=bool(opts["outputs"]["web"]),
+            png=bool(opts["outputs"]["png"]),
         )
 
         options = InstanceSpaceOptions(
