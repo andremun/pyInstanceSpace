@@ -7,11 +7,7 @@ from the MATLAB implementation with diffcult kernel and optimisation.
 
 Tests includes:
     - test_compute_znorm: Test that the output of the compute_znorm.
-    - test_generate_params: Test that the generated param space is expected for GS
-    - test_grid_gaussian: Test that the performance of model is asexpected
-        when GS with gaussian kernel.
-    - test_grid_poly: Test that the performance of model is asexpected
-        when GS with poly kernel.
+    - test_generate_params: Test that the generated param space is expected for BO
     - test_bayes_opt_gaussian: Test that the output of the function is as expected
         when BO is required.
     - test_bayes_opt_poly: Test that the output of the function is as expected
@@ -30,6 +26,7 @@ from sklearn.svm import SVC
 
 from instancespace.data.options import GeneralOptions, ParallelOptions, PythiaOptions
 from instancespace.stages.pythia import PythiaStage
+from instancespace.utils.get_classifier_fcn import get_classifier_fcn
 
 script_dir = Path(__file__).parent
 output_dir = script_dir / "test_data/pythia/output"
@@ -54,7 +51,6 @@ opt = PythiaOptions(
     cv_folds=5,
     is_poly_krnl=False,
     use_weights=False,
-    use_grid_search=True,
     params=None,
 )
 
@@ -135,7 +131,6 @@ def test_pythia_seed_reproducibility() -> None:
         cv_folds=2,
         is_poly_krnl=False,
         use_weights=False,
-        use_grid_search=True,
         params=None,
     )
 
@@ -171,89 +166,14 @@ def test_generate_params() -> None:
     assert all(min_value <= param <= max_value for param in params["gamma"])
 
 
-def test_gridsearch_opts_gaussian() -> None:
-    """Test that the performance of model is asexpected when grid search & gaussian."""
-    opts = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=False,
-        use_weights=False,
-        use_grid_search=True,
-        params=None,
-    )
-    pythia = PythiaStage(z, y, y_bin, y_best, algo)
-    pythia_out = pythia.pythia(
-        z,
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-        parallel_opts,
-        GeneralOptions.default(),
-    )
-    matlab_output = pd.read_csv(output_dir / "GS_gaussian/gridsearch_gaussian.csv")
-
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
-    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
-    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
-    compare_performance(
-        pythia_out,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
-
-
-def test_gridsearch_opts_poly() -> None:
-    """Test that the performance of model is asexpected when grid search & poly ."""
-    opts = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=True,
-        use_weights=False,
-        use_grid_search=True,
-        params=None,
-    )
-    pythia = PythiaStage(z, y, y_bin, y_best, algo)
-    pythia_out = pythia.pythia(
-        z,
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-        parallel_opts,
-        GeneralOptions.default(),
-    )
-
-    # read the actual output
-    matlab_output = pd.read_csv(output_dir / "GS_poly/gridsearch_poly.csv")
-
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
-    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
-    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
-
-    compare_performance(
-        pythia_out,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
-
-
 def test_bayes_opt_gaussian() -> None:
     """Test that the output of the function is as expected when BO is required."""
     opts = PythiaOptions(
         cv_folds=5,
         is_poly_krnl=False,
         use_weights=False,
-        use_grid_search=False,
         params=None,
+        tuning="bayes",  # exercise the pre-F10 Bayes-search path, not sobol
     )
     pythia = PythiaStage(z, y, y_bin, y_best, algo)
     pythia_out = pythia.pythia(
@@ -303,8 +223,8 @@ def test_bayes_opt_poly() -> None:
         cv_folds=5,
         is_poly_krnl=True,
         use_weights=False,
-        use_grid_search=False,
         params=None,
+        tuning="bayes",  # exercise the pre-F10 Bayes-search path, not sobol
     )
     pythia = PythiaStage(z, y, y_bin, y_best, algo)
     pythia_out = pythia.pythia(
@@ -398,13 +318,15 @@ def compare_performance(
     assert correct / total >= threshold
 
 
-def _small_pythia_dataset() -> tuple[
-    NDArray[np.double],
-    NDArray[np.double],
-    NDArray[np.bool_],
-    NDArray[np.double],
-    list[str],
-]:
+def _small_pythia_dataset() -> (
+    tuple[
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.bool_],
+        NDArray[np.double],
+        list[str],
+    ]
+):
     """Build a tiny synthetic dataset for fast, classifier-agnostic PYTHIA tests."""
     rng = np.random.default_rng(0)
     ninst = 20
@@ -419,22 +341,26 @@ def _small_pythia_dataset() -> tuple[
 
 
 @pytest.mark.parametrize("classifier", ["knn", "tree", "nb", "linear", "ensemble"])
-def test_pythia_trains_each_registered_classifier(classifier: str) -> None:
-    """PYTHIA can train and evaluate every registered non-SVM classifier (F1).
+@pytest.mark.parametrize("tuning", ["sobol", "bayes"])
+def test_pythia_trains_each_registered_classifier(classifier: str, tuning: str) -> None:
+    """PYTHIA can train and tune every registered non-SVM classifier (#65).
 
     Runs end-to-end on a tiny synthetic dataset (not the MATLAB reference,
-    which only covers 'svm') and checks the output has the right shape and
-    the right estimator type - not numeric parity with MATLAB, since these
-    five classifiers have no MATLAB-verified reference to compare against.
+    which only covers 'svm') and checks the output has the right shape, the
+    right estimator type, and a hyperparameter reported inside that
+    classifier's own registered search range (`get_classifier_fcn`) - not
+    numeric parity with MATLAB, since these five classifiers have no
+    MATLAB-verified reference to compare against.
     """
     z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
     opts = PythiaOptions(
         cv_folds=2,
         is_poly_krnl=False,
         use_weights=False,
-        use_grid_search=True,
         params=None,
         classifier=classifier,
+        tuning=tuning,
+        n_tuning_iter=4,
     )
 
     out = PythiaStage.pythia(
@@ -453,9 +379,16 @@ def test_pythia_trains_each_registered_classifier(classifier: str) -> None:
         assert type(clf).__name__ != "SVC"
     assert out.y_hat.shape == y_bin_small.shape
     assert out.pr0_hat.shape == y_bin_small.shape
-    # Non-tunable classifiers report no C/gamma - box_consnt/k_scale stay NaN.
-    assert all(np.isnan(c) for c in out.box_consnt)
-    assert all(np.isnan(g) for g in out.k_scale)
+
+    spec = get_classifier_fcn(classifier)
+    # Every registered classifier now has a real, tuned first hyperparameter.
+    assert all(not np.isnan(c) for c in out.box_consnt)
+    if spec.param2 is None:
+        # tree/nb/linear only have one tunable hyperparameter - k_scale stays NaN.
+        assert all(np.isnan(g) for g in out.k_scale)
+    else:
+        assert all(not np.isnan(g) for g in out.k_scale)
+        assert spec.param2.label in out.pythia_summary.columns
 
 
 def test_pythia_default_classifier_is_svm() -> None:
@@ -467,7 +400,6 @@ def test_pythia_default_classifier_is_svm() -> None:
         cv_folds=2,
         is_poly_krnl=False,
         use_weights=False,
-        use_grid_search=True,
         params=None,
     )
     out = PythiaStage.pythia(
@@ -490,7 +422,6 @@ def test_pythia_knn_ignores_use_weights_with_a_warning() -> None:
         cv_folds=2,
         is_poly_krnl=False,
         use_weights=True,
-        use_grid_search=True,
         params=None,
         classifier="knn",
     )
@@ -507,3 +438,122 @@ def test_pythia_knn_ignores_use_weights_with_a_warning() -> None:
         GeneralOptions(verbose=False, seed=0),
     )
     assert len(out.svm) == len(algo_small)
+
+
+def test_pythia_default_tuning_is_sobol() -> None:
+    """F10: `PythiaOptions.default()` uses Sobol tuning, matching MATLAB's default."""
+    assert PythiaOptions.default().tuning == "sobol"
+
+
+def test_pythia_sobol_produces_valid_svm_hyperparameters() -> None:
+    """F10: the Sobol search picks a C/gamma pair inside the searched range.
+
+    Mirrors MATLAB's `sobolToParams` range for SVM: C, gamma in [2^-10, 2^4].
+    """
+    min_value = 2**-10
+    max_value = 2**4
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        params=None,
+        tuning="sobol",
+        n_tuning_iter=5,
+    )
+
+    out = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        opts,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    assert all(min_value <= c <= max_value for c in out.box_consnt)
+    assert all(min_value <= g <= max_value for g in out.k_scale)
+    assert all(isinstance(clf, SVC) for clf in out.svm)
+
+
+def test_pythia_sobol_seed_reproducibility() -> None:
+    """F10: same seed gives identical Sobol-tuned output; a different seed differs."""
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        params=None,
+        tuning="sobol",
+        n_tuning_iter=5,
+    )
+
+    def run(seed: int) -> NDArray[np.double]:
+        out = PythiaStage.pythia(
+            z_small,
+            y_small,
+            y_bin_small,
+            y_best_small,
+            algo_small,
+            opts,
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=seed),
+        )
+        return out.pr0_hat
+
+    pr0_hat_a = run(0)
+    pr0_hat_b = run(0)
+    pr0_hat_c = run(1)
+
+    np.testing.assert_array_equal(pr0_hat_a, pr0_hat_b)
+    assert not np.array_equal(pr0_hat_a, pr0_hat_c)
+
+
+def test_pythia_tuning_none_requires_params() -> None:
+    """F10: `tuning='none'` without pre-calculated params fails loudly."""
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        params=None,
+        tuning="none",
+    )
+
+    with pytest.raises(ValueError, match="tuning='none'"):
+        PythiaStage.pythia(
+            z_small,
+            y_small,
+            y_bin_small,
+            y_best_small,
+            algo_small,
+            opts,
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=0),
+        )
+
+
+def test_pythia_tuning_invalid_value_raises() -> None:
+    """F10: an unrecognised `tuning` value fails loudly, not silently."""
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        params=None,
+        tuning="not-a-real-strategy",
+    )
+
+    with pytest.raises(ValueError, match="not recognised"):
+        PythiaStage.pythia(
+            z_small,
+            y_small,
+            y_bin_small,
+            y_best_small,
+            algo_small,
+            opts,
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=0),
+        )

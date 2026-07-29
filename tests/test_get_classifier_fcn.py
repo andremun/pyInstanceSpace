@@ -5,12 +5,11 @@
 import pytest
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 
-from instancespace.utils.get_classifier_fcn import get_classifier_fcn
+from instancespace.utils.get_classifier_fcn import KernelNB, get_classifier_fcn
 
 
 @pytest.mark.parametrize(
@@ -19,7 +18,7 @@ from instancespace.utils.get_classifier_fcn import get_classifier_fcn
         ("svm", SVC),
         ("knn", KNeighborsClassifier),
         ("tree", DecisionTreeClassifier),
-        ("nb", GaussianNB),
+        ("nb", KernelNB),
         ("linear", LogisticRegression),
         ("ensemble", RandomForestClassifier),
     ],
@@ -40,11 +39,27 @@ def test_unknown_classifier_raises() -> None:
         get_classifier_fcn("not_a_real_classifier")
 
 
-def test_only_svm_is_tunable() -> None:
-    """Only 'svm' is wired into Pythia's C/gamma hyperparameter search."""
-    assert get_classifier_fcn("svm").tunable
-    for name in ("knn", "tree", "nb", "linear", "ensemble"):
-        assert not get_classifier_fcn(name).tunable
+@pytest.mark.parametrize(
+    ("name", "has_param2"),
+    [
+        ("svm", True),
+        ("knn", True),
+        ("tree", False),
+        ("nb", False),
+        ("linear", False),
+        ("ensemble", True),
+    ],
+)
+def test_every_registered_classifier_is_tunable(name: str, has_param2: bool) -> None:
+    """Every registered classifier (#65) has at least one real tunable hyperparameter.
+
+    Matches MATLAB's `classifierBayesVars`/`sobolToParams` (`core/PYTHIA.m`), which
+    tunes all six classifiers, not just `'svm'` - the old `tunable` field this test
+    used to check no longer exists (removed once every classifier became tunable).
+    """
+    spec = get_classifier_fcn(name)
+    assert spec.param1 is not None
+    assert (spec.param2 is not None) == has_param2
 
 
 def test_knn_does_not_support_sample_weight() -> None:

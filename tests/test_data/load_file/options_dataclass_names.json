@@ -38,8 +38,7 @@
   "pythia": {
     "cvfolds": 59,
     "is_poly_krnl": true,
-    "useweights": true,
-    "use_grid_search": true
+    "useweights": true
   },
   "outputs": { "csv": true, "png": true, "web": false }
 }

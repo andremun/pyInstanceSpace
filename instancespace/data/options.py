@@ -40,7 +40,8 @@ from instancespace.data.default_options import (
     DEFAULT_PYTHIA_CLASSIFIER,
     DEFAULT_PYTHIA_CV_FOLDS,
     DEFAULT_PYTHIA_IS_POLY_KRNL,
-    DEFAULT_PYTHIA_USE_GRID_SEARCH,
+    DEFAULT_PYTHIA_N_TUNING_ITER,
+    DEFAULT_PYTHIA_TUNING,
     DEFAULT_PYTHIA_USE_WEIGHTS,
     DEFAULT_SELVARS_DENSITY_FLAG,
     DEFAULT_SELVARS_FILE_IDX,
@@ -66,6 +67,8 @@ from instancespace.data.default_options import (
     DEFAULT_SIFTED_RHO,
     DEFAULT_SIFTED_SOL_PER_POP,
     DEFAULT_SIFTED_STOP_CRITERIA,
+    DEFAULT_TRACE_CONTRA,
+    DEFAULT_TRACE_METHOD,
     DEFAULT_TRACE_PURITY,
     DEFAULT_TRACE_USE_SIM,
 )
@@ -367,26 +370,29 @@ class PythiaOptions:
     cv_folds: int
     is_poly_krnl: bool
     use_weights: bool
-    use_grid_search: bool
     params: NDArray[np.double] | None
     classifier: str = DEFAULT_PYTHIA_CLASSIFIER
+    tuning: str = DEFAULT_PYTHIA_TUNING
+    n_tuning_iter: int = DEFAULT_PYTHIA_N_TUNING_ITER
 
     @staticmethod
     def default(
         cv_folds: int = DEFAULT_PYTHIA_CV_FOLDS,
         is_poly_krnl: bool = DEFAULT_PYTHIA_IS_POLY_KRNL,
         use_weights: bool = DEFAULT_PYTHIA_USE_WEIGHTS,
-        use_grid_search: bool = DEFAULT_PYTHIA_USE_GRID_SEARCH,
         classifier: str = DEFAULT_PYTHIA_CLASSIFIER,
+        tuning: str = DEFAULT_PYTHIA_TUNING,
+        n_tuning_iter: int = DEFAULT_PYTHIA_N_TUNING_ITER,
     ) -> PythiaOptions:
         """Instantiate with default values."""
         return PythiaOptions(
             cv_folds=cv_folds,
             is_poly_krnl=is_poly_krnl,
             use_weights=use_weights,
-            use_grid_search=use_grid_search,
             params=None,
             classifier=classifier,
+            tuning=tuning,
+            n_tuning_iter=n_tuning_iter,
         )
 
 
@@ -396,16 +402,22 @@ class TraceOptions:
 
     use_sim: bool
     purity: float
+    method: str = DEFAULT_TRACE_METHOD
+    contra: bool = DEFAULT_TRACE_CONTRA
 
     @staticmethod
     def default(
         use_sim: bool = DEFAULT_TRACE_USE_SIM,
         purity: float = DEFAULT_TRACE_PURITY,
+        method: str = DEFAULT_TRACE_METHOD,
+        contra: bool = DEFAULT_TRACE_CONTRA,
     ) -> TraceOptions:
         """Instantiate with default values."""
         return TraceOptions(
             use_sim=use_sim,
             purity=purity,
+            method=method,
+            contra=contra,
         )
 
 
@@ -565,8 +577,9 @@ class InstanceSpaceOptions:
                     "cvfolds": "cv_folds",
                     "ispolykrnl": "is_poly_krnl",
                     "useweights": "use_weights",
-                    "uselibsvm": "use_grid_search",
-                },  # ignoring use_lib_svm
+                    "uselibsvm": "_",  # deprecated MATLAB flag - genuinely ignored
+                    "ntuningiter": "n_tuning_iter",
+                },
             ),
             trace=InstanceSpaceOptions._load_dataclass(
                 TraceOptions,
@@ -757,7 +770,6 @@ class InstanceSpaceOptions:
         data_lowercase = {k.lower(): v for k, v in data.items()}
         # Loop through each field in the dataclass, applying field mappings if needed
         for field_name, default_value in default_values.items():
-
             # If the field name is found in the dictionary, directly use its value
             if field_name.lower() in data_lowercase:
                 mapped_data[field_name] = data_lowercase[field_name.lower()]

@@ -31,8 +31,7 @@
   "pythia": {
     "cvfolds": 5,
     "ispolykrnl": false,
-    "useweights": false,
-    "use_grid_search": true
+    "useweights": false
   },
   "trace": { "usesim": true, "PI": 0.55 },
   "outputs": { "csv": true, "web": true, "png": true }

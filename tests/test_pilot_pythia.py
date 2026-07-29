@@ -202,8 +202,8 @@ def test_pilot_num_pythia_bayes_gaussian() -> None:
         cv_folds=5,
         is_poly_krnl=False,
         use_weights=False,
-        use_grid_search=True,
         params=None,
+        tuning="bayes",  # exercise the pre-F10 grid/Bayes search, not the sobol default
     )
     pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
     pythia_result = pythia.pythia(
@@ -263,8 +263,8 @@ def test_pilot_num_pythia_bayes_poly() -> None:
         cv_folds=5,
         is_poly_krnl=True,
         use_weights=False,
-        use_grid_search=False,
         params=None,
+        tuning="bayes",  # exercise the pre-F10 grid/Bayes search, not the sobol default
     )
     pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
     pythia_result = pythia.pythia(
@@ -280,254 +280,6 @@ def test_pilot_num_pythia_bayes_poly() -> None:
 
     # read the actual output
     matlab_output = pd.read_csv(output_dir / "BO_poly/poly.csv")
-
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
-    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
-    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
-
-    compare_performance(
-        pythia_result,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
-
-
-def test_pilot_num_pythia_grid_gaussian() -> None:
-    """Test the integration of the Pilot and Pythia stages.
-
-    The test will check the output of the Pythia stage with the expected output from the
-    MATLAB.
-    This test is for Pilot stage using numerical option and Pythia stage using grid
-    search with Gaussian kernel.
-    """
-    sample_data = SampleDataNum()
-
-    x_sample = sample_data.x_sample
-    y_sample = sample_data.y_sample
-    feat_labels_sample = sample_data.feat_labels_sample
-    opts_sample = sample_data.opts_sample
-    pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
-    pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(
-        x_sample,
-        y_sample,
-        feat_labels_sample,
-        pilot_opts,
-        GeneralOptions.default(),
-    )
-
-    opts = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=False,
-        use_weights=False,
-        use_grid_search=True,
-        params=None,
-    )
-    pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
-    pythia_result = pythia.pythia(
-        pilot_result[5],
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-        parallel_opts,
-        GeneralOptions.default(),
-    )
-
-    # read the actual output
-    matlab_output = pd.read_csv(output_dir / "GS_gaussian/gridsearch_gaussian.csv")
-
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
-    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
-    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
-
-    compare_performance(
-        pythia_result,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
-
-
-def test_pilot_num_pythia_grid_poly() -> None:
-    """Test the integration of the Pilot and Pythia stages.
-
-    The test will check the output of the Pythia stage with the expected output from the
-    MATLAB.
-    This test is for Pilot stage using numerical option and Pythia stage using grid
-    search with Polynomial kernel.
-    """
-    sample_data = SampleDataNum()
-
-    x_sample = sample_data.x_sample
-    y_sample = sample_data.y_sample
-    feat_labels_sample = sample_data.feat_labels_sample
-    opts_sample = sample_data.opts_sample
-    pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
-    pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(
-        x_sample,
-        y_sample,
-        feat_labels_sample,
-        pilot_opts,
-        GeneralOptions.default(),
-    )
-
-    opts = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=True,
-        use_weights=False,
-        use_grid_search=True,
-        params=None,
-    )
-    pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
-    pythia_result = pythia.pythia(
-        pilot_result[5],
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-        parallel_opts,
-        GeneralOptions.default(),
-    )
-
-    # read the actual output
-    matlab_output = pd.read_csv(output_dir / "GS_poly/gridsearch_poly.csv")
-
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
-    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
-    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
-
-    compare_performance(
-        pythia_result,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
-
-
-def test_pilot_analytic_pythia_grid_gaussian() -> None:
-    """Test the integration of the Pilot and Pythia stages.
-
-    The test will check the output of the Pythia stage with the expected output from the
-    MATLAB.
-    This test is for Pilot stage using analytical option and Pythia stage using grid
-    search with Gaussian kernel.
-    """
-    sample_data = SampleData()
-
-    x_sample = sample_data.x_sample
-    y_sample = sample_data.y_sample
-    feat_labels_sample = sample_data.feat_labels_sample
-    opts_sample = PilotOptions(None, None, True, 5)
-    pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
-    pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(
-        x_sample,
-        y_sample,
-        feat_labels_sample,
-        pilot_opts,
-        GeneralOptions.default(),
-    )
-
-    opts = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=False,
-        use_weights=False,
-        use_grid_search=True,
-        params=None,
-    )
-
-    pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
-    pythia_result = pythia.pythia(
-        pilot_result[5],
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-        parallel_opts,
-        GeneralOptions.default(),
-    )
-
-    output_dir = script_dir / "pilot_pythia"
-    # read the actual output
-    matlab_output = pd.read_csv(output_dir / "analytic_gaussian_grid.csv")
-
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
-    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
-    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
-
-    compare_performance(
-        pythia_result,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
-
-
-def test_pilot_analytic_pythia_grid_poly() -> None:
-    """Test the integration of the Pilot and Pythia stages.
-
-    The test will check the output of the Pythia stage with the expected output from the
-    MATLAB.
-    This test is for Pilot stage using analytical option and Pythia stage using grid
-    search with Polynomial kernel.
-    """
-    sample_data = SampleData()
-
-    x_sample = sample_data.x_sample
-    y_sample = sample_data.y_sample
-    feat_labels_sample = sample_data.feat_labels_sample
-    opts_sample = PilotOptions(None, None, True, 5)
-    pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
-    pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(
-        x_sample,
-        y_sample,
-        feat_labels_sample,
-        pilot_opts,
-        GeneralOptions.default(),
-    )
-
-    opts = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=True,
-        use_weights=False,
-        use_grid_search=True,
-        params=None,
-    )
-
-    pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
-    pythia_result = pythia.pythia(
-        pilot_result[5],
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-        parallel_opts,
-        GeneralOptions.default(),
-    )
-
-    output_dir = script_dir / "pilot_pythia"
-    # read the actual output
-    matlab_output = pd.read_csv(output_dir / "analytic_poly_grid.csv")
 
     # get the accuracy, precision, recall
     matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
@@ -572,8 +324,8 @@ def test_pilot_analytic_pythia_bo_gaussian() -> None:
         cv_folds=5,
         is_poly_krnl=False,
         use_weights=False,
-        use_grid_search=False,
         params=None,
+        tuning="bayes",  # exercise the pre-F10 grid/Bayes search, not the sobol default
     )
 
     pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
@@ -635,8 +387,8 @@ def test_pilot_analytic_pythia_bo_poly() -> None:
         cv_folds=5,
         is_poly_krnl=True,
         use_weights=False,
-        use_grid_search=False,
         params=None,
+        tuning="bayes",  # exercise the pre-F10 grid/Bayes search, not the sobol default
     )
 
     pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)

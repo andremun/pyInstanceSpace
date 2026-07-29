@@ -43,5 +43,5 @@ jobs:
         poetry run pip-audit
 
     - name: Test with pytest
-      run: poetry run pytest
+      run: poetry run pytest --cov=instancespace --cov-report=term-missing
 

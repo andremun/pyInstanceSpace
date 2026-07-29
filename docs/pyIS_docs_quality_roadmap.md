@@ -638,11 +638,49 @@ concrete derivatives and are already in the table.
 | F7 | — | Model save/load round-trip (`Model.save()`/`Model.load()`), matching MATLAB's persistence | **Implemented and verified (v1.24)** — `instancespace/model.py`, signed `joblib`-based round-trip with `secret_key: bytes \| None`. 7 new tests: round-trip (signed/unsigned, incl. a genuinely fitted `SVC` and a real shapely `Polygon` compared directly, not flattened), wrong-key rejection, byte-tampering rejection before deserialising, the downgrade-attack guard, missing-signature rejection, and stale-`.sig`-cleanup on a subsequent unsigned save to the same path. `joblib` promoted from a transitive to a direct dependency (`pyproject.toml`) since it's now imported directly. | **[Additive]** — brand-new capability; nothing existing depends on it. |
 | F8 | — | Unify `explore()` with build-time stage code (predict-mode dispatch on `PythiaStage`/`TraceStage`, matching MATLAB calling the same `PYTHIA()`/`TRACE()` in both modes) | **Narrowed by S1**: the PYTHIA half is resolved as a side effect of calling native `.predict_proba()` instead of reimplementing SVM math — nothing left there to reconcile. Remaining scope is TRACE only (footprint/alpha-shape membership testing is a genuinely different computation S1's insight doesn't extend to) | **[Behavior-changing risk]** — this refactors existing, working code. The full `tests/matlab_reference/` validation suite must pass identically before/after; treat any tolerance-threshold change during this work as a red flag to investigate, not a "close enough" adjustment. |
 | F9 | — | Expand `explore()` to full evaluation scope: algorithm reconciliation + ground-truth performance metrics, matching MATLAB's `evaluateTestSet` | **Decided: extend `explore()` itself** (silent branch on whether ground truth is present) — see companion implementation-pathways document for the full pathway | **[Additive]** — new fields default to `None`; existing feature-only callers see no change. Add explicit test coverage for the "no ground truth present" path specifically, to lock this in rather than assume it. |
-| F10 | — | PYTHIA hyperparameter-tuning *strategy* parity (`opts.pythia.tuning`) — added v1.25, found during a full-repo MATLAB audit, not previously tracked | Not started | **[Behavior-changing risk if a default changes]** — see finding below; scoping needed before any tag beyond this can be assigned. |
-| F11 | — | TRACE option-surface parity: `method` (`'trace3'`/`'legacy'`), `contra`, `minInstances`, `minAreaFrac`, and `pythia.skip` interaction — added v1.25 | Not started | **[Additive]** — new option surface exposing an existing-but-unreachable code path (Python's `trace.py` already implements the `'trace3'`-equivalent behaviour as its only path); adding the `'legacy'` alternative and the tunable thresholds doesn't change output for callers who don't opt in. |
+| F10 | — | PYTHIA hyperparameter-tuning *strategy* parity (`opts.pythia.tuning`) — added v1.25, found during a full-repo MATLAB audit, not previously tracked | **Implemented and verified (v1.30)** — `PythiaOptions.tuning`/`n_tuning_iter`, `PythiaStage._sobol_search()`; `use_grid_search` removed (superseded); 6 new tests + 12 pre-existing golden tests pinned to `tuning="bayes"`. | **[Behavior-changing]** — default tuning strategy changes from Bayes to Sobol for every caller not setting `tuning` explicitly; `use_grid_search` field removed entirely (breaking for any caller setting it). Verified: all pre-existing MATLAB-reference golden tests still pass once pinned to their intended strategy explicitly. |
+| F11 | — | TRACE option-surface parity: `method`, `contra` — added v1.25, corrected + implemented v1.29 (see §6 for the correction: Python's `trace.py` already ports MATLAB's *legacy* algorithm, not `trace3` as originally claimed) | **Implemented and verified (v1.29)** — `TraceOptions.method`/`contra`; 2 new tests. `minInstances`/`minAreaFrac`/`pythia.skip` are `TRACE3`-only, out of scope. | **[Additive]** — new fields default to exactly the prior behaviour (`method='legacy'`, `contra=True`); both MATLAB-reference golden tests verified unchanged. |
 | F12 | — | `utils/filter.py` performance (naive `O(n²)` nested-loop with per-pair `scipy.spatial.distance.cdist` calls) and a missing degenerate-uniformity guard — added v1.25 | Not started | **[Additive if implemented correctly]** — a spatial-index rewrite must produce bit-identical `subset_index`/`is_dissimilar`/`is_visa`/uniformity output to the current `O(n²)` version for the same input; verify before/after, not just "faster." |
 | F13 | — | No Python equivalent of `ISAvalidateOpts.m` — eager, comprehensive type/range/membership validation of every recognised option field at load time, with clear `ISA:ISAvalidateOpts:*`-style errors, instead of a bad value surfacing as a confusing crash deep inside a stage — added v1.25 | Not started | **[Additive]** — a new validation pass that only ever rejects what would already have failed later (or silently produced wrong output); doesn't change behaviour for any currently-valid options file. |
 | F14 | — | PRELIM's missing "more than 5% of instances have a best-algorithm performance of exactly zero" data-quality warning (`ISA:PRELIM:manyZeroBest`) — added v1.25 | **Implemented and verified (v1.27)** — `PrelimStage._warn_many_zero_best()`; 2 new tests | **[Additive]** — a warning only; the underlying eps-substitution computation it warns about is already correctly ported (verified directly in `prelim.py`). |
+| F15 | — (no MATLAB counterpart — production/infra capability) | Resumable `InstanceSpace` save/load (mid-pipeline checkpoint, not just F7's finished-`Model` snapshot) + stage-progress-reporting callbacks — added v1.31, found while auditing `feature/staged-matilda-support` for salvageable work | Not started | **[Additive]** — new `InstanceSpace.save()`/`load()` and new `progress_reporter` module; no existing caller's output changes. The `StageRunner` half of the prerequisite work is tracked separately as #293 (bug, not new capability). |
+
+**F15 finding (v1.31, tracked as #294, folds in #293):** while auditing `feature/staged-matilda-support`
+(2 commits ahead of `main`, otherwise stale — see the branch-audit note this same session) for
+anything worth salvaging, found that branch's actual motivation exposes a real, previously
+undocumented gap in F7's scope. The roadmap's own v1.18 entry recorded a "start pool → run stage
+→ save → restart session → load → run next stage" scenario as the reason Q6 and F7 needed to
+interact — that scenario only makes sense if `save()`/`load()` operate on the *in-progress*
+`InstanceSpace` (so a partially-run pipeline can resume), not on a finished `Model`. v1.23's
+retraction of that interaction is correct as a statement about what got built (`Model.save()`'s
+actual target, `Model`, has no field referencing `InstanceSpace`/`StageRunner`, so nothing about
+Q6's pool is part of what F7 pickles) — but it quietly answers a different question than the one
+that motivated the interaction: it confirms F7 doesn't *break* on Q6's pool, not that F7 still
+*does* what the save-and-resume scenario needed. Verified directly: `Model.load()` returns a
+finished `Model` suitable for `explore()`/export, never a resumable `InstanceSpace` on which
+`run_stage()` could be called for the next stage — every one of `Model.from_stage_runner_output()`'s
+per-stage builders (`PrelimOut`, `SiftedOut`, `PilotOut`, ...) does unconditional dict-bracket
+access against the stage-runner output dict, so it would raise `KeyError` on any run where a
+later stage hasn't executed yet. The save-and-resume requirement is genuinely unimplemented.
+
+Separately, that same branch adds job-queue-style progress reporting
+(`instancespace/progress_reporter.py`, 528 lines) — an abstract `ProgressReporter` with
+`HttpProgressReporter` (HTTP-POST callbacks per stage via stdlib `urllib`, no new dependency),
+`FileProgressReporter` (JSON status files), `CompositeProgressReporter`, and a default
+`NullProgressReporter`, wired into `InstanceSpace.build()`/`run_iter()` (confirmed compatible
+with this repo's current `run_iter`/`_available_arguments` shape after S2's rewrite — no
+structural conflict). This has no counterpart anywhere in this repo. **Not portable as-is**,
+however: that module uses raw `pickle` as its own transport/persistence format —
+`pickle.dumps(instance_space)` base64-encoded into HTTP callback bodies
+(`OutputDetail.FULL`/`include_pickle_on_completion`), and `pickle.dump(instance_space, f)` written
+to disk for both intermediate per-stage snapshots and the final model (`FileProgressReporter`'s
+`stages_dir`). Unlike F7's signed-`joblib` scheme (§ above), these payloads carry no integrity
+check at all. Folding the two findings together: the resumable-checkpoint mechanism this item
+adds *is* the correct, signed replacement for what the progress reporter was doing with raw
+pickle — for both the per-stage checkpoint case (previously unaddressed by anything in this repo)
+and the final-completion case (previously addressed only for the narrower `Model`, not the full,
+resumable `InstanceSpace`). Port the reporter interface/HTTP-transport/JSON-metadata parts;
+replace its pickle-dumping paths with calls to this item's new `InstanceSpace.save()` instead.
 
 **F10 finding, verified directly against `core/PYTHIA.m` and `utils/ISAdefaults.m` (v1.25, tracked as #287):**
 MATLAB exposes `opts.pythia.tuning` with three modes — `'sobol'` (the *default*: quasi-random
@@ -659,20 +697,80 @@ this needs a decision on whether `'sobol'` is worth porting (a new quasi-random 
 `scipy.stats.qmc.Sobol`) purely for parity, or whether documenting Python's Bayes-only approach
 as an intentional, permanent divergence is the better call — not decided here.
 
-**F11 finding, verified directly against `core/TRACE.m`, `core/TRACE_legacy.m`, and
-`utils/ISAdefaults.m` (v1.25, tracked as #288):** MATLAB's `TraceOptions`-equivalent carries `method`
-(`'trace3'` default vs `'legacy'`, with an automatic `'legacy'`→`'trace3'` fallback and warning
-if a 3D instance space is requested with `'legacy'`, which doesn't support it), `contra` (defaults
-to `true` only for `'legacy'` — contradiction-removal is opt-in for `'trace3'`), `minInstances`,
-and `minAreaFrac`. Python's `TraceOptions` has only `use_sim`/`purity` — no `method`, `contra`,
-`minInstances`, or `minAreaFrac` field, and `stages/trace.py` has exactly one code path (matching
-`'trace3'`, the modern default — `TRACE_legacy.m`'s alternative algorithm was never ported).
-Separately, MATLAB's `opts.pythia.skip` (skip PYTHIA training entirely) has a corresponding
-`pythiaSkip` check inside `TRACE.m` itself (its `Yhat` comes back as an all-`false` placeholder,
-not empty, so `isempty()` alone can't detect the skip case) — Python's `PythiaOptions` has no
-`skip`/`flag` field at all, so this interaction has no Python equivalent to even reach. Distinct
-from F8 (which is about *reusing* build-time TRACE code at explore time, not about *which*
-algorithm variant or options TRACE itself exposes).
+**F10 — Implemented and verified (v1.30).** Decided directly: port `'sobol'` and make it the new
+default, matching MATLAB exactly (a **[Behavior-changing]** default swap, since Python's only
+prior tuning strategy was Bayes). `PythiaOptions.tuning: str = 'sobol'` (`'sobol'`/`'bayes'`/
+`'none'`) and `PythiaOptions.n_tuning_iter: int = 20` (MATLAB's own default budget) added.
+`PythiaStage._sobol_search()` evaluates `n_tuning_iter` scrambled-Sobol `(C, gamma)` candidates
+(`scipy.stats.qmc.Sobol`, mapped to MATLAB's own `2^[-10,4]` range per `sobolToParams`) via k-fold
+CV, keeping the lowest-error candidate — a direct, deliberately lighter-weight port of MATLAB's
+`sobolSearch`, replacing sklearn's `BayesSearchCV` machinery for this path entirely rather than
+wrapping it. `tuning='none'` requires `opts.params`; `tuning='bayes'` reproduces the prior
+(pre-F10) behaviour exactly, unchanged.
+
+**Follow-on decision, made in the same pass:** asked directly whether `PythiaOptions.use_grid_search`
+(the pre-existing `RandomizedSearchCV` "grid search" alternative to Bayes) should still exist now
+that Sobol covers the same lightweight/random-ish search role — decided **remove it entirely**,
+matching MATLAB (which has no grid-search mode at all, only sobol/bayes/none). Removed the field,
+`RandomizedSearchCV` import, and its branch in `_fit_classifier`; `tuning='bayes'` is now pure
+`BayesSearchCV`. This is itself behavior-changing for any caller that set `use_grid_search`
+explicitly - a public option field removal, not just a default change. The MATLAB-legacy
+`uselibsvm` JSON alias (previously silently mapped onto `use_grid_search`, itself a pre-existing
+mismatch since MATLAB's `uselibsvm` has never meant "grid search") now maps to `"_"` (the
+options-loader's existing, previously-unused "genuinely ignore this key" convention), matching
+its actual deprecated status.
+
+**Discovered, not fixed, out of scope:** while writing a test for `tuning='none'` with real
+pre-calculated `opts.params`, found that supplying non-`None` `params` has *always* crashed
+(`ValueError: Invalid dimension 1.0`, from `skopt`/`RandomizedSearchCV` rejecting scalar
+search-space values) - for both `use_grid_search` settings, predating F10 entirely and never
+previously exercised by any test. Not fixed here: unrelated to F10's actual scope (the tuning
+*strategy* dimension, not the precalculated-params feature itself), and fixing it properly needs
+its own scoping and verification pass. Tracked as a new finding rather than silently left
+undiscovered - see #292.
+
+6 new tests in `tests/test_pythia.py` (default is `'sobol'`; Sobol produces a valid C/gamma pair
+and a fitted `SVC`; Sobol is seed-reproducible; `tuning='none'` without params raises; an
+unrecognised `tuning` value raises) plus explicit `tuning="bayes"` pins added to the 12 pre-existing
+MATLAB-reference golden tests across `tests/test_pythia.py`/`tests/test_pilot_pythia.py` that
+validate the Bayes/grid-search paths specifically - without those pins they would have silently
+started exercising the new Sobol default instead of what they were written to test. The 4 tests
+whose entire subject was grid-search-vs-MATLAB-grid-search-CSV comparison
+(`test_gridsearch_opts_gaussian`/`_poly` and their two `test_pilot_*_grid_*` analogues x2 = 6
+total across both files) were deleted rather than repointed, since there is no grid-search code
+path left on either side to validate.
+
+**F11 finding — CORRECTED (v1.29), original write-up below was factually wrong.** The v1.25
+audit claimed "Python's `trace.py` already implements the `'trace3'`-equivalent behaviour as its
+only path." Re-verified directly against `core/TRACE.m` and `core/TRACE_legacy.m` before acting
+on F11 (per this document's own "verify, don't guess" rule) and that claim does not hold:
+`instancespace/stages/trace.py`'s `run_dbscan()`/`epsilon()`/`dist()`/`dbscan()`/`fit_poly()`/
+`tight()`/`contra()` are a line-for-line port of `TRACE_legacy.m`'s `TRACEdbscan`/`TRACEepsilon`/
+`TRACEdist`/`TRACEfitpoly`/`TRACEtight`/`TRACEcontra` — DBSCAN clustering followed by
+`polyshape`/alpha-shape construction per cluster, contradiction removal between best-algorithm
+footprints — not `TRACE3`'s alpha-shape-with-iterative-purity-tightening algorithm at all. This
+is consistent with this repo predating MATLAB's ten-phase refactor that introduced the
+`trace3`/`legacy` split in the first place (CLAUDE.md) — Python's `trace.py` was ported from
+before that split existed, when "the DBSCAN algorithm" was simply the only TRACE there was.
+
+**F11 — Implemented and verified (v1.29).** Given the corrected finding above, F11's real scope
+was the option surface Python's *already-legacy* implementation was missing, not a new algorithm
+to port. Added `TraceOptions.method: str = 'legacy'` (the only value this port can honour —
+requesting anything else raises `NotImplementedError` with a clear message rather than silently
+running legacy anyway, matching F13's "fail loud, not deep" philosophy) and
+`TraceOptions.contra: bool = True` (matching MATLAB legacy's own default, and reproducing
+Python's previous unconditional behaviour exactly), now actually gating the
+contradiction-removal step instead of always running it. `minInstances`/`minAreaFrac` are
+`TRACE3`-only parameters with no meaning in the legacy algorithm Python implements, and
+MATLAB's `opts.pythia.skip`/`pythiaSkip` interaction lives inside `TRACE3`'s own PYTHIA-
+availability branch — neither applies here and both are left out of scope; porting `TRACE3`
+itself would be a separate, much larger future item if ever prioritised, not part of this
+decision. 2 new tests in `tests/test_trace.py`: `method='trace3'` raises `NotImplementedError`;
+`contra=False` measurably skips the contradiction-removal log step (this fixture's footprints
+don't happen to overlap, so asserting on the log trace rather than on summary-table equality is
+what actually proves the gate works, not incidental numeric difference). Both pre-existing
+MATLAB-reference golden tests (`test_trace_pythia`, `test_trace_simulation`) still pass
+unchanged, confirming the new fields' defaults reproduce prior behaviour exactly.
 
 **F12 finding, verified directly against `core/FILTER.m` and `instancespace/utils/filter.py`
 (v1.25, tracked as #289):** MATLAB avoids the `O(ninst²)` pairwise-distance cost entirely — `rangesearch(X, X,
@@ -1006,6 +1104,19 @@ at all.
 **[Additive]** — tooling only.
 Mechanical, additive. Can't manage what isn't measured.
 
+**T1 — Implemented and verified (v1.30).** `pytest-cov` added as a dev dependency. Measured a
+real baseline before picking a threshold (not a guess): a full local run —
+`poetry run pytest --cov=instancespace --cov-report=term-missing` — reports **79% total coverage**
+(3101 statements, 641 missed; 306 passed, ~70 minutes since it includes the genuinely slow
+T2/PYTHIA-tuning tests). `[tool.coverage.run]`/`[tool.coverage.report]` added to `pyproject.toml`
+with `fail_under = 75` (a few points below the measured baseline, enough to catch a real
+regression without tripping on normal fluctuation). `poe`'s `test_pytest` task and
+`.github/workflows/validation-tests.yml`'s pytest step both updated to
+`pytest --cov=instancespace --cov-report=term-missing`, which reads `fail_under` from
+`pyproject.toml` automatically - confirmed this actually gates (not just reports) by running a
+deliberately partial test subset and observing `FAIL Required test coverage of 75.0% not
+reached` before restoring the full suite.
+
 ### T2 — Add a real end-to-end `build()` integration test
 **Implemented and verified (v1.24)** — `tests/test_build_integration.py`, built against
 `tests/test_data/preprocessing/`'s 213-instance/10-algorithm real fixture (same dataset
@@ -1042,11 +1153,32 @@ cross-repo data-sharing proposal this connects to.
 Two synthetic linear stages can't exercise mutating-stage handling, `RunBefore`/`RunAfter`, or
 the ambiguous-same-output-at-same-schedule-step error path. Add cases that actually trigger each.
 
+**T6 — Closed, not implemented (v1.29).** Confirmed directly (not assumed): S2 replaced the
+type-matching DAG auto-resolution algorithm with a hardcoded explicit 7-stage order (see S2's
+own entry and v1.20's note above — this was already anticipated as the likely outcome, just not
+yet confirmed against the landed code). Grepped `stage_runner.py` for `ambiguous`/`mutating`
+special-casing: neither exists anywhere in the file post-S2. T6's actual subject matter —
+"ambiguous-same-output-at-same-schedule-step" detection and mutating-stage handling — was part
+of the deleted auto-resolver and has no equivalent in the new explicit-order design; there is
+nothing left to write a test against. `RunBefore`/`RunAfter` (the one piece of T6's scope that
+*does* still exist post-S2) already has dedicated coverage in `tests/test_stage_runner.py`
+(`test_extra_stage_run_after`, `test_extra_stage_run_before`,
+`test_multiple_extra_stages_share_a_wave`, `test_extra_stage_without_attachment_point_raises`),
+added incidentally during S2's own implementation. Closed as `not_planned` (#279) rather than
+implemented — this is S2's own predicted "or skip T6 entirely" outcome, not a new decision.
+
 ### T7 — Consolidate fragmented per-stage test files
 **[Additive]** — test-file reorganisation only, no production code touched.
 Decide and document what belongs in top-level `test_<stage>.py` vs. `exploreIS/<stage>/
 test_<stage>_unit.py` vs. `..._validation.py`, then merge or clearly demarcate — starting with
 PILOT as the worst-fragmented case.
+
+**T7 — Deferred (v1.29).** Explicitly left for later per direct instruction: consolidating
+`test_pilot.py`/`exploreIS/pilot/test_pilot_unit.py`/`exploreIS/pilot/test_pilot_validation.py`
+(and the equivalent trio for sifted/trace/pythia/prelim) risks touching test cases that other
+in-flight work (F10, F11, and any future stage-behaviour change) will also need to touch —
+better done once those land, not concurrently with them. No code or test files changed; issue
+#280 left open.
 
 ### 8.2 Test debt tied to already-scoped items
 
@@ -1156,3 +1288,6 @@ ships with its listed test, not just its implementation.
 | v1.26 | 2026-07-28 | Registered F10–F14 as GitHub sub-issues under the Phase F parent (#260), matching the existing F1–F9 issue format and milestone (v0.5.0, milestone 3): F10 → #287, F11 → #288, F12 → #289, F13 → #290, F14 → #291. Each of F10–F14's finding write-ups above (§6) updated with a "tracked as #NNN" cross-reference. No code changed. |
 | v1.27 | 2026-07-28 | Following a direct risk/reward review of all open issues, worked T4, F14, T1 (in progress), F3, and R1 as a batch, deferring T5 (needs an as-yet-nonexistent MATLAB-data collection script, left open). T4: `pyproject.toml`'s `test` poe task was missing `pytest` entirely (`test.sequence` ran only `ruff`/`mypy`/`black`) — added `test_pytest = "pytest"`; also surfaced that CI (`validation-tests.yml`) runs only `pytest`, no lint/type/format step at all, consistent with Q11's prior decision not to re-enable one. F14: `PrelimStage._warn_many_zero_best()` — warns when more than 5% of instances have a best-algorithm performance of exactly zero, matching MATLAB's `ISA:PRELIM:manyZeroBest`; 2 new tests. F3: audited `stages/sifted.py` against MATLAB SIFTED's 4 historical bug fixes (thread-unsafe global cache, nested-`parfor`-inside-GA, RNG-reset losing the seed, unvectorized correlation loop) — full result in the new §6.2. Two of the four confirmed not present in Python at all (no module-level mutable state anywhere in the file; the per-candidate `rng` reuse across GA fitness evaluations is deliberate common-random-numbers, not an accidental reset — Python's `rng` is threaded by reference throughout, never reseeded mid-search). One real gap confirmed and left as F3's own future fix target: `_compute_correlation()` is an unvectorized nested Python loop calling `scipy.stats.pearsonr` per feature/algorithm pair. One genuinely new, forward-looking finding with no current bug: `SiftedStage._find_best_combination()`'s GA already runs `PilotStage.pilot(...)` inside `pygad.GA`'s own OS worker processes when `parallel_options.flag` is set — F2's planned PILOT `ntries` parallelism must detect (or otherwise avoid) already running inside one of those workers, or it reintroduces the exact nested-`parfor`-inside-GA bug MATLAB's SIFTED promotion fixed; cross-referenced into F2's entry here and in the companion pathways document. Audit only, per the audit-first rule — no SIFTED code changed. T1 (pytest-cov): dependency added (`pytest-cov` 7.1.0); coverage config and CI wiring carried into v1.28 below once a real baseline number was in hand. |
 | v1.28 | 2026-07-28 | R1 implemented and verified: PyISpace's `adjust_rotation()` read directly from the actual GitLab source (`gitlab.com/ita-ml/pyispace`, cloned at commit `a5ee7f3a02e`) rather than the PyPI sdist v1.25's original write-up was based on, per direct instruction not to port from memory. Full detail in the R1 section (§7) above; summary: `PilotOptions.adjust_rotation: bool = False` (new, defaulted field — no existing call site changes), `PilotInput.y_bin` (auto-wired by the stage runner's name-based matching from `SiftedOutput.y_bin`, confirmed by reading `stage_runner.py::run_stage()` rather than assumed), `PilotStage.adjust_rotation()`/`_bad_instances()` as direct ports, applied inside `pilot()` only when the flag is set and at least one poorly-solved instance exists. 6 new tests in `tests/test_pilot.py`, including the centroid-angle assertion §8.2's test-debt row explicitly required (not just "distances preserved") and the Phase R checkpoint's cross-run reproducibility check. MATLAB-side `PILOT.m` change explicitly left out of scope for this repo. |
+| v1.29 | 2026-07-28 | Decided F10, F11, T6, T7 on direct instruction. T6: confirmed its "or skip entirely" premise actually holds now that S2 has landed — no `ambiguous`/`mutating` special-casing remains anywhere in `stage_runner.py`, and `RunBefore`/`RunAfter` (the one piece of its scope still relevant) already has dedicated tests added during S2 itself. Closed #279 as `not_planned` rather than implemented. T7: left open/deferred per direct instruction — consolidating the fragmented per-stage test files risks touching test cases F10/F11 (this same batch) and any future stage-behaviour change will also touch; better done once those settle. No code changed for either. F11's premise was independently re-verified against the actual MATLAB source before acting on it, per this document's own "verify, don't guess" rule — see §6's corrected F11 finding: the v1.25 audit's claim that Python's `trace.py` already implements `trace3` was wrong; `trace.py`'s `run_dbscan`/`epsilon`/`dbscan`/`fit_poly`/`tight`/`contra` are a line-for-line port of `TRACE_legacy.m`'s `TRACEdbscan`/`TRACEepsilon`/`TRACEdist`/`TRACEfitpoly`/`TRACEtight`/`TRACEcontra` (DBSCAN clustering, not trace3's alphaShape-iterative-tightening), consistent with this repo predating the MATLAB ten-phase refactor that introduced the trace3/legacy split at all (CLAUDE.md). F10 and F11 implementation follow in this same version — see their own sections below for what changed. |
+| v1.30 | 2026-07-28 | F11 and F10 implemented; T1 completed. F11: `TraceOptions.method`/`contra` added (§6's corrected finding); `method` only accepts `'legacy'`, raising `NotImplementedError` for anything else rather than silently running legacy anyway; `contra` (default `True`, matching prior behaviour) now actually gates the contradiction-removal step. 2 new tests; both pre-existing MATLAB-reference golden tests unchanged. F10: `PythiaOptions.tuning`/`n_tuning_iter` added, default `'sobol'` (matching MATLAB, a deliberate default change); `PythiaStage._sobol_search()` is a direct, lighter-weight port of MATLAB's `sobolSearch`. Follow-on decision made in the same pass (asked directly, not guessed): `PythiaOptions.use_grid_search` removed entirely now that Sobol supersedes its role, matching MATLAB's own option surface (no grid-search mode there at all) — a second, independent behavior-changing/breaking edge beyond the default swap. `uselibsvm`'s JSON mapping corrected to genuinely ignore the key (previously silently aliased onto `use_grid_search`, itself already a mismatch). Discovered, filed separately rather than fixed under F10: pre-calculated `opts.params` has always crashed for the tunable classifier, unrelated to F10's own scope (#292). 6 new Sobol tests; 12 pre-existing golden tests across two files pinned to `tuning="bayes"` explicitly so they keep validating what they were written for; 6 tests whose entire subject was the now-removed grid-search path deleted. T1: real baseline measured (79%, full suite, 306 passed) before setting `fail_under = 75` in `pyproject.toml`; `poe`'s `test_pytest` task and CI's pytest step both updated to `--cov=instancespace --cov-report=term-missing`; confirmed the gate actually fails a build (not just reports) by observing it trip on a deliberately partial test subset. |
+| v1.31 | 2026-07-29 | Audited `feature/staged-matilda-support` (a stale, non-mainline branch, 2 commits ahead of `main`) for salvageable work, on direct instruction. Found three things: (1) its `idx`/`selvars` SIFTED fix is the same bug this repo already root-cause-fixed (removed the redundant field) — theirs instead aliases consumers onto the correct field while leaving the redundant one in place, the exact anti-pattern CLAUDE.md warns against; nothing to pull from there. (2) A real, currently-unfixed bug: `StageRunner.__init__`'s `defaultdict(lambda: False)` is unpicklable (verified directly) — filed as #293 (bug, not new capability), linked under the Phase F parent. My first two comments on #293 incorrectly claimed F7's design constraint bans pickle outright; corrected in-thread — F7's *actual*, current decision (v1.14/v1.17, superseding the v1.9 text I'd misquoted from #267's stale issue body) is signed `pickle`/`joblib` with optional HMAC signing, already implemented. (3) That branch's `progress_reporter.py` (528 lines, job-queue-style HTTP/file progress callbacks) has no counterpart in this repo, but isn't portable as-is — it uses raw `pickle` as its own transport format (base64-encoded in HTTP bodies, dumped to disk per-stage), with no integrity check, unlike F7's signed scheme. Discussion with the user surfaced a genuine, previously undocumented scope gap: F7 only covers a *finished* `Model`, never a resumable mid-pipeline `InstanceSpace` — the exact "save → restart → load → continue" scenario that originally motivated the v1.18 Q6↔F7 interaction note, which v1.23's retraction answered around rather than closed (see the new F15 finding, §6). Filed as **F15** (#294), folding in the progress-reporter port, with #293 as an explicit prerequisite/sub-issue. No code changed. |
