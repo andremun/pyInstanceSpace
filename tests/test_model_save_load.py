@@ -9,6 +9,8 @@ F7's whole point is that these objects round-trip natively through
 aren't picklable in the first place).
 """
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -180,7 +182,7 @@ def _assert_models_equal(original: Model, loaded: Model) -> None:
     assert original_polygon.equals(loaded_polygon)
 
 
-def test_round_trip_unsigned(tmp_path):
+def test_round_trip_unsigned(tmp_path: Path) -> None:
     model = _build_minimal_model()
     path = tmp_path / "model.joblib"
 
@@ -191,7 +193,7 @@ def test_round_trip_unsigned(tmp_path):
     assert not path.with_name(path.name + ".sig").exists()
 
 
-def test_round_trip_signed(tmp_path):
+def test_round_trip_signed(tmp_path: Path) -> None:
     model = _build_minimal_model()
     path = tmp_path / "model.joblib"
     secret_key = b"a-server-managed-secret"
@@ -203,7 +205,7 @@ def test_round_trip_signed(tmp_path):
     assert path.with_name(path.name + ".sig").exists()
 
 
-def test_load_with_wrong_key_raises(tmp_path):
+def test_load_with_wrong_key_raises(tmp_path: Path) -> None:
     model = _build_minimal_model()
     path = tmp_path / "model.joblib"
 
@@ -213,7 +215,7 @@ def test_load_with_wrong_key_raises(tmp_path):
         Model.load(path, secret_key=b"wrong-key")
 
 
-def test_signature_tampering_refuses_before_deserialising(tmp_path):
+def test_signature_tampering_refuses_before_deserialising(tmp_path: Path) -> None:
     model = _build_minimal_model()
     path = tmp_path / "model.joblib"
     secret_key = b"a-server-managed-secret"
@@ -228,7 +230,7 @@ def test_signature_tampering_refuses_before_deserialising(tmp_path):
         Model.load(path, secret_key=secret_key)
 
 
-def test_downgrade_attack_is_refused(tmp_path):
+def test_downgrade_attack_is_refused(tmp_path: Path) -> None:
     """A signed save() must not become loadable-unverified via secret_key=None."""
     model = _build_minimal_model()
     path = tmp_path / "model.joblib"
@@ -238,7 +240,7 @@ def test_downgrade_attack_is_refused(tmp_path):
         Model.load(path, secret_key=None)
 
 
-def test_signed_key_but_no_signature_file_is_refused(tmp_path):
+def test_signed_key_but_no_signature_file_is_refused(tmp_path: Path) -> None:
     model = _build_minimal_model()
     path = tmp_path / "model.joblib"
     model.save(path)  # unsigned - writes no .sig
@@ -247,7 +249,7 @@ def test_signed_key_but_no_signature_file_is_refused(tmp_path):
         Model.load(path, secret_key=b"some-key")
 
 
-def test_resaving_unsigned_removes_a_stale_signature(tmp_path):
+def test_resaving_unsigned_removes_a_stale_signature(tmp_path: Path) -> None:
     model = _build_minimal_model()
     path = tmp_path / "model.joblib"
     model.save(path, secret_key=b"a-server-managed-secret")

@@ -14,17 +14,18 @@ exercised against meaningfully. Both share one module-scoped build rather than
 paying its cost twice.
 """
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 
-from instancespace.instance_space import instance_space_from_files
+from instancespace.instance_space import InstanceSpace, instance_space_from_files
 from instancespace.stages.cloister import CloisterStage
 from instancespace.stages.trace import TraceStage
 
 
 @pytest.fixture(scope="module")
-def built_instance_space():
+def built_instance_space() -> Iterator[InstanceSpace]:
     script_dir = Path(__file__).resolve().parent
     metadata_path = script_dir / "test_data/preprocessing/metadata.csv"
     options_path = script_dir / "test_data/preprocessing/options.json"
@@ -38,7 +39,9 @@ def built_instance_space():
     instance_space.close()
 
 
-def test_build_produces_a_fully_populated_model(built_instance_space) -> None:
+def test_build_produces_a_fully_populated_model(
+    built_instance_space: InstanceSpace,
+) -> None:
     model = built_instance_space.model
     n_algos = len(model.data.algo_labels)
 
@@ -55,7 +58,7 @@ def test_build_produces_a_fully_populated_model(built_instance_space) -> None:
 
 
 def test_rerunning_cloister_does_not_invalidate_pythias_output(
-    built_instance_space,
+    built_instance_space: InstanceSpace,
 ) -> None:
     """Q8's literal check: PythiaStage and CloisterStage share a schedule wave.
 
@@ -73,7 +76,9 @@ def test_rerunning_cloister_does_not_invalidate_pythias_output(
     assert runner._available_arguments["y_hat"] is y_hat_before  # noqa: SLF001
 
 
-def test_rerunning_cloister_leaves_trace_runnable(built_instance_space) -> None:
+def test_rerunning_cloister_leaves_trace_runnable(
+    built_instance_space: InstanceSpace,
+) -> None:
     """TraceStage has no real dependency on CloisterStage's output at all.
 
     (`TraceInputs` never references `z_edge`/`z_ecorr`.) After rerunning

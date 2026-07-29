@@ -11,23 +11,27 @@ disproportionate.
 
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
+from typing import Any, cast
 
-from instancespace.data.options import ParallelOptions
+from instancespace.data.options import InstanceSpaceOptions, ParallelOptions
 from instancespace.instance_space import InstanceSpace
+from instancespace.stage_runner import StageRunner
 
 
-def _bare_instance_space(n_cores):
-    # Deliberately untyped (matching test_explore_stage_iter.py's
-    # `_stub_stages` pattern): a typed signature makes mypy check this body,
-    # which then rejects the intentional attribute-monkeypatching below.
+def _bare_instance_space(n_cores: int) -> InstanceSpace:
+    # SimpleNamespace duck-types InstanceSpaceOptions rather than constructing
+    # a full one - only `.parallel` is read by _get_executor()/close().
     space = InstanceSpace.__new__(InstanceSpace)
-    space._options = SimpleNamespace(parallel=ParallelOptions(True, n_cores))
+    space._options = cast(
+        InstanceSpaceOptions,
+        SimpleNamespace(parallel=ParallelOptions(True, n_cores)),
+    )
     space._executor = None
     space._executor_workers = None
     return space
 
 
-def test_get_executor_reuses_the_pool_when_worker_count_is_unchanged():
+def test_get_executor_reuses_the_pool_when_worker_count_is_unchanged() -> None:
     space = _bare_instance_space(n_cores=2)
 
     first = space._get_executor()
@@ -37,11 +41,14 @@ def test_get_executor_reuses_the_pool_when_worker_count_is_unchanged():
     space.close()
 
 
-def test_get_executor_recreates_the_pool_when_worker_count_changes():
+def test_get_executor_recreates_the_pool_when_worker_count_changes() -> None:
     space = _bare_instance_space(n_cores=2)
 
     first = space._get_executor()
-    space._options = SimpleNamespace(parallel=ParallelOptions(True, 4))
+    space._options = cast(
+        InstanceSpaceOptions,
+        SimpleNamespace(parallel=ParallelOptions(True, 4)),
+    )
     second = space._get_executor()
 
     assert first is not second
@@ -49,7 +56,7 @@ def test_get_executor_recreates_the_pool_when_worker_count_changes():
     space.close()
 
 
-def test_close_shuts_down_and_unsets_the_pool():
+def test_close_shuts_down_and_unsets_the_pool() -> None:
     space = _bare_instance_space(n_cores=2)
     executor = space._get_executor()
 
@@ -60,7 +67,7 @@ def test_close_shuts_down_and_unsets_the_pool():
     assert executor._shutdown
 
 
-def test_close_is_a_no_op_when_nothing_was_ever_built():
+def test_close_is_a_no_op_when_nothing_was_ever_built() -> None:
     space = _bare_instance_space(n_cores=2)
 
     space.close()  # must not raise
@@ -68,7 +75,7 @@ def test_close_is_a_no_op_when_nothing_was_ever_built():
     assert space._executor is None
 
 
-def test_get_executor_after_close_recreates_the_pool_lazily():
+def test_get_executor_after_close_recreates_the_pool_lazily() -> None:
     space = _bare_instance_space(n_cores=2)
     first = space._get_executor()
     space.close()
@@ -80,35 +87,41 @@ def test_get_executor_after_close_recreates_the_pool_lazily():
     space.close()
 
 
-def test_run_stage_passes_the_cached_executor_by_default():
+def test_run_stage_passes_the_cached_executor_by_default() -> None:
     space = _bare_instance_space(n_cores=2)
-    captured = {}
+    captured: dict[str, Any] = {}
 
-    def fake_run_stage(stage, **arguments):
+    def fake_run_stage(stage: object, **arguments: object) -> str:
         captured.update(arguments)
         return "ran"
 
-    space._runner = SimpleNamespace(run_stage=fake_run_stage)
+    space._runner = cast(
+        StageRunner,
+        SimpleNamespace(run_stage=fake_run_stage),
+    )
 
-    result = space.run_stage("SomeStage")
+    result: str = space.run_stage("SomeStage")  # type: ignore[arg-type]
 
     assert result == "ran"
     assert captured["executor"] is space._executor
     space.close()
 
 
-def test_run_stage_does_not_override_a_caller_supplied_executor():
+def test_run_stage_does_not_override_a_caller_supplied_executor() -> None:
     space = _bare_instance_space(n_cores=2)
-    captured = {}
+    captured: dict[str, Any] = {}
     caller_executor = ThreadPoolExecutor(max_workers=1)
 
-    def fake_run_stage(stage, **arguments):
+    def fake_run_stage(stage: object, **arguments: object) -> str:
         captured.update(arguments)
         return "ran"
 
-    space._runner = SimpleNamespace(run_stage=fake_run_stage)
+    space._runner = cast(
+        StageRunner,
+        SimpleNamespace(run_stage=fake_run_stage),
+    )
 
-    space.run_stage("SomeStage", executor=caller_executor)
+    space.run_stage("SomeStage", executor=caller_executor)  # type: ignore[arg-type]
 
     assert captured["executor"] is caller_executor
     caller_executor.shutdown(wait=True)

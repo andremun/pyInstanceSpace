@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 from loguru import logger
+from numpy.typing import NDArray
 
 from instancespace.data.options import GeneralOptions, PilotOptions
 from instancespace.stages.pilot import PilotStage
@@ -33,8 +34,8 @@ def _collect_logs(
 
 
 def _small_pilot_inputs() -> tuple[
-    np.ndarray,  # type: ignore[type-arg]
-    np.ndarray,  # type: ignore[type-arg]
+    NDArray[np.double],
+    NDArray[np.double],
     list[str],
     PilotOptions,
 ]:

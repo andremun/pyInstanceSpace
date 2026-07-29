@@ -6,23 +6,33 @@ be supplied in any order, since ``_extract_features`` matches them by name, not 
 """
 
 from types import SimpleNamespace
+from typing import cast
 
 import numpy as np
 
+from instancespace.data.metadata import Metadata
 from instancespace.instance_space import InstanceSpace
 
 
-def test_extract_features_matches_columns_by_name_not_position():
+def test_extract_features_matches_columns_by_name_not_position() -> None:
     space = InstanceSpace.__new__(InstanceSpace)
-    space._metadata = SimpleNamespace(feature_names=["a", "b", "c"])
+    # SimpleNamespace duck-types Metadata rather than constructing a full one -
+    # only feature_names/features are read by _extract_features.
+    space._metadata = cast(
+        Metadata,
+        SimpleNamespace(feature_names=["a", "b", "c"]),
+    )
 
     # Test metadata supplies columns in a different order than training.
-    metadata = SimpleNamespace(
-        feature_names=["c", "a", "b"],
-        features=np.array([
-            [30.0, 10.0, 20.0],
-            [31.0, 11.0, 21.0],
-        ]),
+    metadata = cast(
+        Metadata,
+        SimpleNamespace(
+            feature_names=["c", "a", "b"],
+            features=np.array([
+                [30.0, 10.0, 20.0],
+                [31.0, 11.0, 21.0],
+            ]),
+        ),
     )
 
     x = space._extract_features(metadata)

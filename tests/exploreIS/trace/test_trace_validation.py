@@ -38,7 +38,7 @@ ALGO_ORDER = [
 ]
 
 
-def load_polygon(path: Path):
+def load_polygon(path: Path) -> Polygon | MultiPolygon | None:
     """Reconstruct a shapely (Multi)Polygon from a MATLAB polyshape CSV.
 
     MATLAB exports multi-region polyshapes as a single CSV with NaN rows
@@ -49,7 +49,7 @@ def load_polygon(path: Path):
     df = pd.read_csv(path)
     vertices = df[["x", "y"]].to_numpy(dtype=np.double)
     regions = []
-    current = []
+    current: list[tuple[float, float]] = []
     for row in vertices:
         if np.isnan(row).any():
             if len(current) >= 3:
@@ -64,7 +64,7 @@ def load_polygon(path: Path):
     return regions[0] if len(regions) == 1 else MultiPolygon(regions)
 
 
-def build_trace_from_artifacts():
+def build_trace_from_artifacts() -> TraceOut:
     good_polys = [load_polygon(ARTIFACTS_DIR / f"good_{a}.csv") for a in ALGO_ORDER]
     best_polys = [load_polygon(ARTIFACTS_DIR / f"best_{a}.csv") for a in ALGO_ORDER]
     trace = Mock(spec=TraceOut)
@@ -73,7 +73,7 @@ def build_trace_from_artifacts():
     return trace
 
 
-def test_trace_matches_matlab():
+def test_trace_matches_matlab() -> None:
     """Per-column boolean agreement >= 99% on all in_good_*/in_best_* columns."""
     trace = build_trace_from_artifacts()
 
