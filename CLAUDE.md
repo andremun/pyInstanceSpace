@@ -49,21 +49,30 @@ current scope in the roadmap is written *assuming Phase S has already landed* (S
 specifically: `explore()` calling native scikit-learn objects instead of a flattened
 artifact).
 
-**Status: S1 and S3 have landed** (verified on `v0.9.0/development-branch-S`, see roadmap
-v1.16) — `explore()` already calls native scikit-learn objects, and `build_explore_adapter.py`
-is gone. F1/F7/F8 are unblocked on that front; nothing about S1/S3 remains to redo. **S2**
-(replace DAG auto-resolution with an explicit stage order) is still not started, and its own
-roadmap entry sequences it before both T6 and Q8 — but per the roadmap's own F1/F7/F8 pathways,
-none of them actually depend on S2, only on S1. Don't stop F-phase work to do S2 on this file's
-authority alone; if a specific F-item's pathway says otherwise, that overrides this summary.
+**Status: Phase S is fully done — S1, S2, and S3 have all landed** (S1/S3 on
+`v0.9.0/development-branch-S`, roadmap v1.16; S2 on `v0.9.0/development-branch-QSF`, roadmap
+v1.22, commit `71c852b`) — `explore()` already calls native scikit-learn objects,
+`build_explore_adapter.py` is gone, and the DAG auto-resolver has been replaced with an explicit
+hardcoded stage order (`RunBefore`/`RunAfter` for plugin stages). F1/F7/F8 are unblocked on all
+of this. GitHub issue #281 (the Phase S tracking issue) previously said S2 was deferred — that
+was stale bookkeeping the code had already outgrown; corrected and closed 2026-07-29.
 
-**Full remaining order (Q6, Q8, S2, and every F item) is worked out in roadmap §6.0** — don't
-re-derive it from scratch or guess an order from the phase letters. Short version: S2 first
-(unblocks Q8, de-risks Q6), then F1/F6 (no dependencies), then Q6 → F7 (share a pickle-exclusion
-checklist item, order between them doesn't matter), then Q8 (needs S2 done, and Phase T's T2
-fixture to exist), then F8 → F9 (F9 mirrors a pattern F8's own decision establishes), then F2 →
-F5 (F5 is hard-blocked on F2), with F3's audit runnable any time independently. If you're about
-to start any of these and haven't read §6.0's actual reasoning, read it before picking an order.
+Also done since the last time this section was written: P0, Q1–Q11, T1–T4, T6 (closed
+not-implemented — its subject matter was S2's own DAG resolver, which S2 deleted), F1, F6, F7,
+F10, F11, F14, Q6, Q8, R1, and the "extend real tuning to non-SVM classifiers" F1 follow-on.
+Check `docs/pyIS_docs_quality_roadmap.md`'s document-history table (append-only, read newest
+entries first) for the actual current state before assuming anything below is still accurate —
+this file gets stale between sessions; that table doesn't.
+
+**Full remaining order (every F item, T5/T7/T8) is worked out in roadmap §6.0** — don't
+re-derive it from scratch or guess an order from the phase letters. Short version, per the
+roadmap's own dependency notes: F8 → F9 (F9 mirrors a pattern F8's own decision establishes),
+then F2 → F5 (F5 is hard-blocked on F2), with F3's one remaining confirmed gap
+(`_compute_correlation`'s unvectorized loop) and F12's remaining `O(n²)`→KD-tree performance
+rewrite runnable independently. T8 is mechanical and low-risk; T7 is sequenced after T8 (T8's
+file-by-file breakdown would go stale if T7's consolidation landed first). T5 is blocked on a
+MATLAB-side script that doesn't exist yet. If you're about to start any of these and haven't
+read §6.0's actual reasoning, read it before picking an order.
 
 F-phase items are long-term beyond that dependency too — several are explicitly "audit first,
 no implementation until the audit resolves what's actually there" (F3 especially) — don't
@@ -127,9 +136,11 @@ is tracked; commit-message prose is not.
 
 ## Testing
 
-`poetry run pytest`. `poe test` should include pytest (Q11/T4 in the roadmap) — if it still
-doesn't when you read this, that's an open bug in this repo's own tooling, not a signal to skip
-running pytest directly.
+`poetry run pytest`. `poe test`'s sequence includes `test_pytest` (T4, fixed — see roadmap
+v1.27) and runs with `--cov=instancespace --cov-report=term-missing` against a 75% coverage
+gate (T1, roadmap v1.30/v1.34). If `poe test` doesn't actually run pytest when you read this,
+that's a regression in this repo's own tooling, not the expected state — don't assume it's
+still broken without checking `pyproject.toml`'s `[tool.poe.tasks]` first.
 
 ## Conventions
 
