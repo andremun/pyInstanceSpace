@@ -171,6 +171,24 @@ class ParamSpec(NamedTuple):
             return float(self.categories.index(value) + 1)
         return self.report(value) if self.report is not None else float(value)
 
+    def from_precalc(self, value: float) -> float | int | str:
+        """Map a raw `opts.pythia.params` value (MATLAB units) to this classifier's own.
+
+        Inverse of `reported()`'s numeric branch - used for pre-calculated
+        hyperparameters (`PythiaOptions.params`), which arrive already in
+        MATLAB's reporting units (e.g. a 1-based category index for KNN's
+        `Distance`, `Lambda` rather than sklearn's inverse `C`), not as a
+        [0,1] search-space fraction the way `sample()`'s input is.
+        """
+        if self.categories is not None:
+            index = min(len(self.categories) - 1, max(0, round(value) - 1))
+            return self.categories[index]
+        if self.report is not None:
+            # report() maps sklearn's own value to MATLAB's units (e.g. Lambda
+            # = 1/C); every registered mapping of that shape is self-inverse.
+            return self.report(value)
+        return int(round(value)) if self.is_int else float(value)
+
 
 class ClassifierSpec(NamedTuple):
     """A registry entry describing how to build and tune one classifier type.

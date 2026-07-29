@@ -443,6 +443,47 @@ class OutputOptions:
         )
 
 
+def _check_logical(name: str, value: object) -> None:
+    if not isinstance(value, bool):
+        msg = f"opts.{name} must be a logical scalar (True/False); got {value!r}."
+        raise ValueError(msg)
+
+
+def _check_unit_range(name: str, value: float) -> None:
+    if not (0 <= value <= 1):
+        msg = f"opts.{name} must be in the unit range [0, 1]; got {value!r}."
+        raise ValueError(msg)
+
+
+def _check_positive(name: str, value: float, *, zero_allowed: bool = False) -> None:
+    if zero_allowed:
+        if value < 0:
+            msg = f"opts.{name} must be non-negative; got {value!r}."
+            raise ValueError(msg)
+    elif value <= 0:
+        msg = f"opts.{name} must be strictly positive; got {value!r}."
+        raise ValueError(msg)
+
+
+def _check_pos_int(name: str, value: int, *, zero_allowed: bool = False) -> None:
+    if not isinstance(value, int) or isinstance(value, bool):
+        msg = f"opts.{name} must be an integer; got {value!r}."
+        raise ValueError(msg)
+    _check_positive(name, value, zero_allowed=zero_allowed)
+
+
+def _check_member(name: str, value: str, valid: tuple[str, ...]) -> None:
+    if value not in valid:
+        msg = f"opts.{name} must be one of {valid}; got {value!r}."
+        raise ValueError(msg)
+
+
+def _check_text_list(name: str, value: list[str] | None) -> None:
+    if value is not None and not all(isinstance(v, str) for v in value):
+        msg = f"opts.{name} must be a list of strings, or None; got {value!r}."
+        raise ValueError(msg)
+
+
 @dataclass(frozen=True)
 class InstanceSpaceOptions:
     """Aggregates all options into a single configuration object for the model."""
@@ -463,6 +504,76 @@ class InstanceSpaceOptions:
     # `InstanceSpaceOptions(...)` construction that predates this field keeps working
     # unchanged - this field must stay last for that reason.
     general: GeneralOptions = field(default_factory=GeneralOptions.default)
+
+    def __post_init__(self: Self) -> None:
+        """Validate every recognised option field, matching `ISAvalidateOpts.m` (F13).
+
+        Fails loudly and immediately - at construction time, for every
+        construction path, not just `from_dict()`/`default()` - rather than
+        letting a bad value surface many stages later as a confusing crash
+        deep inside PRELIM/PILOT/PYTHIA/etc., or silently produce a
+        numerically-valid-looking but wrong result. Only checks fields that
+        exist in this port today; MATLAB fields with no Python equivalent
+        yet (`pilot.method`/`dims`/`topoWeight`/`viewGroups`, `pythia.skip`/
+        `ensembleMethod`, `trace.minInstances`/`minAreaFrac`, `sifted.pval`,
+        `cloister.maxFeatures`, `outputs.fig`) are out of scope until those
+        options themselves are ported (see F2/F5/F8/F9).
+        """
+        _check_logical("general.verbose", self.general.verbose)
+        if self.general.seed is not None:
+            _check_pos_int("general.seed", self.general.seed, zero_allowed=True)
+
+        _check_logical("general.parallel", self.parallel.flag)
+        _check_pos_int("general.ncores", self.parallel.n_cores)
+
+        _check_logical("perf.MaxPerf", self.perf.max_perf)
+        _check_logical("perf.AbsPerf", self.perf.abs_perf)
+        _check_unit_range("perf.epsilon", self.perf.epsilon)
+        _check_unit_range("perf.betaThreshold", self.perf.beta_threshold)
+
+        _check_logical("auto.preproc", self.auto.preproc)
+        _check_logical("bound.flag", self.bound.flag)
+        _check_logical("norm.flag", self.norm.flag)
+
+        _check_logical("selvars.smallscaleflag", self.selvars.small_scale_flag)
+        _check_unit_range("selvars.smallscale", self.selvars.small_scale)
+        _check_logical("selvars.fileidxflag", self.selvars.file_idx_flag)
+        _check_logical("selvars.densityflag", self.selvars.density_flag)
+        _check_positive("selvars.mindistance", self.selvars.min_distance)
+        _check_member(
+            "selvars.type",
+            self.selvars.selvars_type,
+            ("Ftr", "Ftr&AP", "Ftr&Good", "Ftr&AP&Good"),
+        )
+        _check_text_list("selvars.feats", self.selvars.feats)
+        _check_text_list("selvars.algos", self.selvars.algos)
+
+        _check_logical("sifted.flag", self.sifted.flag)
+        _check_unit_range("sifted.rho", self.sifted.rho)
+        _check_pos_int("sifted.K", self.sifted.k)
+        _check_pos_int("sifted.MaxIter", self.sifted.max_iter)
+        _check_pos_int("sifted.Replicates", self.sifted.replicates)
+
+        _check_logical("pilot.analytic", self.pilot.analytic)
+        _check_pos_int("pilot.ntries", self.pilot.n_tries)
+
+        _check_unit_range("cloister.pval", self.cloister.p_val)
+        _check_unit_range("cloister.corrThreshold", self.cloister.c_thres)
+
+        _check_member(
+            "pythia.classifier",
+            self.pythia.classifier,
+            ("knn", "svm", "tree", "nb", "linear", "ensemble"),
+        )
+        _check_pos_int("pythia.kFold", self.pythia.cv_folds)
+
+        _check_member("trace.method", self.trace.method, ("trace3", "legacy"))
+        _check_unit_range("trace.PI", self.trace.purity)
+        _check_logical("trace.contra", self.trace.contra)
+
+        _check_logical("outputs.csv", self.outputs.csv)
+        _check_logical("outputs.png", self.outputs.png)
+        _check_logical("outputs.web", self.outputs.web)
 
     @staticmethod
     def from_dict(file_contents: dict[str, Any]) -> InstanceSpaceOptions:

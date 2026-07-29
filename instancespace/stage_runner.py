@@ -18,6 +18,16 @@ from instancespace.stages.stage import OUT, RunAfter, RunBefore, Stage, StageCla
 StageScheduleElement = list[StageClass]
 
 
+def _default_false() -> bool:
+    """Return False. A module-level `defaultdict` factory, so `StageRunner` can pickle.
+
+    A lambda can't be pickled (`pickle` looks up callables by qualified name
+    at module scope) - anything holding a `StageRunner` (e.g. `InstanceSpace`)
+    would fail to serialise otherwise.
+    """
+    return False
+
+
 def _is_run_restriction_type(parameter_type: type) -> bool:
     """Check whether a field's type is RunBefore[X]/RunAfter[X].
 
@@ -113,7 +123,7 @@ class StageRunner:
 
         self._available_arguments = {}
         self._stage_to_schedule_index = {}
-        self._stages_ran = defaultdict(lambda: False)
+        self._stages_ran = defaultdict(_default_false)
 
         for i, schedule in enumerate(self._stage_order):
             for stage in schedule:

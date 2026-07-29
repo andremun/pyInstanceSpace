@@ -318,15 +318,13 @@ def compare_performance(
     assert correct / total >= threshold
 
 
-def _small_pythia_dataset() -> (
-    tuple[
-        NDArray[np.double],
-        NDArray[np.double],
-        NDArray[np.bool_],
-        NDArray[np.double],
-        list[str],
-    ]
-):
+def _small_pythia_dataset() -> tuple[
+    NDArray[np.double],
+    NDArray[np.double],
+    NDArray[np.bool_],
+    NDArray[np.double],
+    list[str],
+]:
     """Build a tiny synthetic dataset for fast, classifier-agnostic PYTHIA tests."""
     rng = np.random.default_rng(0)
     ninst = 20
@@ -557,3 +555,87 @@ def test_pythia_tuning_invalid_value_raises() -> None:
             ParallelOptions.default(),
             GeneralOptions(verbose=False, seed=0),
         )
+
+
+@pytest.mark.parametrize(
+    "classifier",
+    ["svm", "knn", "tree", "nb", "linear", "ensemble"],
+)
+def test_pythia_precalc_params_does_not_crash(classifier: str) -> None:
+    """Regression test for #292: real pre-calculated params must not crash.
+
+    Every registered classifier previously crashed when given real
+    (non-`None`) `PythiaOptions.params` - `_fit_classifier` fed scalar
+    values straight into `BayesSearchCV`, which requires real search-space
+    `Dimension`s, not bare numbers. `_fit_precalculated` now bypasses
+    search entirely for this case, matching MATLAB's own `precalcparams`
+    branch (a direct `crossValPredict`/`trainFinalClassifier` call).
+    """
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    params = np.array([[5.0, 2.0], [3.0, 1.0]])
+    opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        params=params,
+        classifier=classifier,
+        tuning="none",
+    )
+
+    out = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        opts,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    spec = get_classifier_fcn(classifier)
+    np.testing.assert_allclose(out.box_consnt, params[:, 0])
+    if spec.param2 is not None:
+        np.testing.assert_allclose(out.k_scale, params[:, 1])
+    else:
+        assert all(np.isnan(g) for g in out.k_scale)
+
+
+def test_pythia_precalc_params_knn_distance_round_trips_through_category_index() -> (
+    None
+):
+    """#292: KNN's categorical `Distance` param survives precalc's numeric round-trip.
+
+    MATLAB stores `Distance` as a 1-based index into
+    `{'euclidean','cityblock','cosine','correlation'}` even for
+    pre-calculated params (`fitOneClassifier`'s
+    `distOpts{max(1,min(4,round(p2)))}`) - verify Python's `from_precalc`/
+    `reported` round-trip matches that exactly, not just "doesn't crash".
+    """
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    # Distance index 2 -> 'cityblock' (1-based order: euclidean, cityblock, cosine,
+    # correlation).
+    params = np.array([[5.0, 2.0], [3.0, 2.0]])
+    opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        params=params,
+        classifier="knn",
+        tuning="none",
+    )
+
+    out = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        opts,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    np.testing.assert_allclose(out.k_scale, [2.0, 2.0])
+    for clf in out.svm:
+        assert clf.metric == "cityblock"

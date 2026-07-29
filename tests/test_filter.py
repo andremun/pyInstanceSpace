@@ -11,11 +11,13 @@ Tests include:
 - Verifying ouput against MATLAB's output with 'Ftr&Good' option type
 """
 
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
+from loguru import logger
 
 from instancespace.data.options import SelvarsOptions
 from instancespace.utils.filter import compute_uniformity, do_filter, filter_instance
@@ -412,3 +414,49 @@ class TestFtrGood:
         uniformity = compute_uniformity(input_x, subset_index)
 
         assert np.allclose(uniformity, uniformity_ml)
+
+
+def _collect_warnings(
+    fn: Callable[..., object],
+    *args: object,
+) -> list[str]:
+    """Run fn(*args) and return the loguru WARNING-level messages it emitted."""
+    messages: list[str] = []
+    sink_id = logger.add(
+        lambda msg: messages.append(msg.record["message"]),
+        level="WARNING",
+    )
+    try:
+        fn(*args)
+    finally:
+        logger.remove(sink_id)
+    return messages
+
+
+def test_uniformity_is_nan_with_fewer_than_two_kept_instances() -> None:
+    """F12: fewer than 2 retained instances is degenerate, matching MATLAB's guard.
+
+    `core/FILTER.m` returns NaN with an `ISA:FILTER:degenerateUniformity`
+    warning rather than letting `std`/`mean` divide-by-zero into a
+    meaningless value - verify Python does the same instead of raising or
+    silently returning a bogus number.
+    """
+    x = np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]])
+    # Keep only the first instance - subset_index marks the other two excluded.
+    subset_index = np.array([False, True, True])
+
+    messages = _collect_warnings(compute_uniformity, x, subset_index)
+
+    assert np.isnan(compute_uniformity(x, subset_index))
+    assert any("Uniformity is undefined" in m for m in messages)
+
+
+def test_uniformity_is_nan_when_all_kept_instances_coincide() -> None:
+    """F12: all-coincident retained instances (mean distance 0) is also degenerate."""
+    x = np.array([[1.0, 1.0], [1.0, 1.0], [1.0, 1.0]])
+    subset_index = np.array([False, False, False])
+
+    messages = _collect_warnings(compute_uniformity, x, subset_index)
+
+    assert np.isnan(compute_uniformity(x, subset_index))
+    assert any("Uniformity is undefined" in m for m in messages)

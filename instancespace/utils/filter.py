@@ -14,8 +14,11 @@ strategies.
 from enum import Enum
 
 import numpy as np
+from loguru import logger
 from numpy._typing import NDArray
 from scipy.spatial.distance import cdist, pdist, squareform
+
+MIN_KEPT_INSTANCES_FOR_UNIFORMITY = 2
 
 
 class _FilterType(Enum):
@@ -106,6 +109,13 @@ def compute_uniformity(x: NDArray[np.double], subset_index: NDArray[np.bool_]) -
     and mean of the nearest-neighbor distances and returns a uniformity score as
     1 minus this ratio.
 
+    Uniformity is undefined (F12) when fewer than 2 instances are retained, or
+    when every retained instance coincides in feature space (mean
+    nearest-neighbour distance of 0, which would otherwise divide-by-zero into
+    inf/NaN) - matches MATLAB's `ISA:FILTER:degenerateUniformity` guard
+    (`core/FILTER.m`), returning NaN with a warning instead of a silent,
+    numpy-raised `RuntimeWarning` and a meaningless value.
+
     Args
     ----
         subset_index (NDArray[np.bool_]): An array indicating whether each instance
@@ -113,12 +123,30 @@ def compute_uniformity(x: NDArray[np.double], subset_index: NDArray[np.bool_]) -
 
     Returns
     -------
-        uniformity (float): A score indicating the uniformity of the subset.
+        uniformity (float): A score indicating the uniformity of the subset, or
+            NaN if undefined for the reasons above.
     """
-    d = squareform(pdist(x[~subset_index, :]))
-    np.fill_diagonal(d, np.nan)
-    nearest = np.nanmin(d, axis=0)
-    return float(1 - (np.std(nearest, ddof=1) / np.mean(nearest)))
+    x_kept = x[~subset_index, :]
+    if x_kept.shape[0] < MIN_KEPT_INSTANCES_FOR_UNIFORMITY:
+        nearest = np.array([])
+    else:
+        d = squareform(pdist(x_kept))
+        np.fill_diagonal(d, np.nan)
+        nearest = np.nanmin(d, axis=0)
+
+    if (
+        nearest.size < MIN_KEPT_INSTANCES_FOR_UNIFORMITY
+        or np.all(np.isnan(nearest))
+        or np.nanmean(nearest) == 0
+    ):
+        logger.warning(
+            "[FILTER] Uniformity is undefined for the retained instance subset "
+            "(fewer than 2 instances, or all retained instances coincide in "
+            "feature space); returning NaN.",
+        )
+        return float("nan")
+
+    return float(1 - (np.nanstd(nearest, ddof=1) / np.nanmean(nearest)))
 
 
 def do_filter(
