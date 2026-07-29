@@ -500,34 +500,70 @@ resolve via the GIL/CPU-bound test above rather than assuming thread-pool parity
 automatically correct just because Q6 exists.
 
 ### F3 — SIFTED refinements
-**Verified starting point:** MATLAB's "SIFTED promotion" specifically meant promoting an
-existing `SIFTED2.m` to canonical status plus four fixes: a thread-unsafe global `containers.Map`
-→ persistent variable; a nested-`parfor`-inside-GA bug; an `rng('default')` reset inside the
-per-candidate cost function (silently discarding any user seed); and vectorising the
-correlation-selection loop. Python has no `sifted.py`/`sifted2.py` duality, so this isn't a
-literal port — it's a checklist to audit Python's `sifted.py` against, since analogous smells are
-possible even in different form. Spot-checked one thing already: the module-level `rng =
-np.random.default_rng(seed=0)` I found is created once per stage call, not reset inside a
-per-candidate loop — so the MATLAB bug's exact shape doesn't appear to be present, but this was
-a single spot-check, not a full audit.
-**Files:** `stages/sifted.py`
-**Pathway:**
-1. Audit for MATLAB's four issues' Python-shape equivalents:
-   - Shared mutable cache: does anything cache GA fitness evaluations in a module-level or
-     class-level mutable structure (Python's GIL makes this less dangerous than MATLAB's
-     `parfor`, but a joblib/multiprocessing backend reintroduces the same class of hazard)?
-   - Nested parallelism: does `pygad`'s own parallelism option (if enabled) ever wrap a call that
-     also sets `n_jobs`/`ProcessPoolExecutor` internally?
-   - RNG reset inside a hot loop: confirmed not present at the one call site checked; check the
-     GA fitness function itself and any k-means/PCA calls inside SIFTED's per-candidate
-     evaluation path.
-   - Vectorisation: check whether the correlation-selection step is already vectorised (NumPy
-     code is more naturally vectorised by default than MATLAB loops, so this specific item may
-     already be moot in Python) or still loop-based.
-2. Fix whatever the audit actually finds — this step can't be scoped further until the audit
-   runs.
-**Decision needed:** none yet — this *is* the audit-first item the roadmap already flagged F3 as
-needing.
+**Audit complete (roadmap §6.2, v1.27).** Checked `stages/sifted.py` directly against MATLAB
+SIFTED promotion's four historical fixes. Result: 2 of 4 don't apply to Python at all (no
+module-level mutable state to have inherited the thread-unsafe-cache bug into; the per-candidate
+`rng` reuse is deliberate common-random-numbers, not an accidental MATLAB-style reset). 1 is a
+latent risk flagged forward to F2, not a fix for F3 itself (nested-`parfor`-inside-GA — currently
+safe only because `pilot.py` has no parallelism of its own yet). 1 is a real, confirmed,
+still-open gap: `_compute_correlation()` (lines 1031–1076) is an unvectorised nested Python loop
+calling `scipy.stats.pearsonr` once per (feature, algorithm) pair. **This section scopes that one
+gap's fix. Not implemented — scoping only, per explicit instruction; do not write this code
+without being separately asked.**
+
+**The gap, precisely.** For each of `rows` features × `cols` algorithms, `_compute_correlation`
+masks out rows where either column has a NaN (`valid_indices = ~np.isnan(x_col) & ~np.isnan(y_col)`,
+computed independently per `(i, j)` pair — genuinely ragged, not a single shared mask), then calls
+`pearsonr` on the filtered pair, or writes `(nan, nan)` if no valid rows remain. This ragged
+per-pair masking is exactly why a single `np.corrcoef`-style batch call doesn't drop in as a
+replacement — `np.corrcoef` needs one consistent set of valid rows for the whole matrix, not one
+per `(i, j)` cell.
+
+**Two candidate designs, in order of recommendation:**
+
+1. **Recommended: fast-path + fallback split, not full vectorisation.** Precompute
+   `x_nan = np.isnan(x)` (shape `(n, rows)`) and `y_nan = np.isnan(y)` (shape `(n, cols)`) once.
+   Any `(i, j)` pair where `x_nan[:, i].any()` and `y_nan[:, j].any()` are both `False` has no
+   ragged masking to do — for *that subset* of pairs, correlation and its p-value can be computed
+   for every `i` and every `j` in one vectorised pass (manual Pearson formula: means/stds/
+   covariance via broadcasting across the full `x`/`y` matrices, e.g. `np.corrcoef(x.T, y.T)`'s
+   cross-block, or the standard `((x - x.mean(0)) / x.std(0)).T @ ((y - y.mean(0)) / y.std(0)) / n`
+   form), then the matching p-value via `scipy.stats.t.sf` applied elementwise using the shared
+   degrees of freedom `n - 2` (valid because every pair in this subset uses the same `n`, all rows).
+   Any pair where either column actually has a NaN keeps calling the existing, already-verified
+   per-pair `pearsonr` loop unchanged — the exact code path that produces today's exact output for
+   the messy cases. This bounds the change's risk surface to the (likely common) all-valid case
+   while leaving the ragged-NaN case's proven-correct behaviour completely untouched — no new edge
+   cases to reconcile against `scipy.stats.pearsonr`'s own degenerate-input semantics (zero
+   variance, `n < 3`, etc.), since those inputs never leave the old loop.
+2. **Alternative: full vectorisation via masked pairwise sums.** Build the full 3D validity mask
+   `valid[n, i, j] = x_nan_free[:, i, None] & y_nan_free[:, None, j]`, then compute per-pair `n`,
+   sums, and sums-of-products via masked reductions (`np.where(valid, ..., 0).sum(axis=0)`), and
+   derive `rho`/`pval` from those. Fully vectorised, no fallback loop at all — but it means
+   re-deriving `pearsonr`'s exact degenerate-case behaviour by hand (what it returns for
+   zero-variance columns, `n_valid < 2`, `n_valid == 2` giving a defined-but-degenerate `p`, etc.)
+   and proving the hand-derivation matches `scipy`'s bit-for-bit or within float tolerance for
+   every one of those edge cases — meaningfully more verification surface for a function that,
+   per the audit, only runs once per `SiftedStage` call (not per-GA-candidate), so the performance
+   upside is smaller than the risk. Prefer option 1 unless profiling shows the fast-path/fallback
+   split still leaves a real hot spot (e.g. if most real datasets actually do have scattered NaNs
+   across most feature/algorithm pairs, defeating the fast path's coverage).
+
+**Files:** `instancespace/stages/sifted.py` (`_compute_correlation`, lines 1031–1076 as of this
+writing).
+
+**Test plan (either design):** `rho`/`pval` must match today's output exactly (or within a tight
+float tolerance, exact preferred since this is pairwise-deletion Pearson, not an approximation)
+across: no-NaN input (exercises the new fast path hardest), all-NaN-in-one-column, scattered NaN
+per pair, a constant-valued column (zero variance — check what `pearsonr` actually returns for
+this today before assuming), and a column pair with fewer than 3 valid rows after masking. Existing
+`tests/matlab_reference/` SIFTED validation fixtures plus new unit tests targeting these specific
+edge cases directly (mirroring the granular edge-case coverage already established for e.g. F14's
+warning tests) — don't rely on the MATLAB fixture alone to exercise every edge case above, since
+there's no guarantee that fixture's data happens to contain a zero-variance or all-NaN column.
+
+**Decision needed:** none blocking — option 1 above is the recommendation; revisit only if
+someone profiles this as an actual hot spot before implementing.
 
 ### F4 — `InstanceSpace` class & build/explore robustness
 Already has its own detailed audit (roadmap §5.1, 7 findings) — see F7/F8/F9 below, which are
