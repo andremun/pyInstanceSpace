@@ -164,9 +164,10 @@ The toolkit trains one [scikit-learn](https://scikit-learn.org/) `SVC` per algor
 
 - ```opts.pythia.cv_folds``` number of folds of the stratified cross-validation (CV) experiment used during hyperparameter tuning.
 - ```opts.pythia.is_poly_krnl``` determines whether to use a polynomial (set as ```TRUE```) or Gaussian/RBF (set as ```FALSE```, the default) kernel. The RBF kernel is usually significantly faster to compute and more accurate; however, it also has the disadvantage of producing discontinuous regions of good performance that may appear overfit. We tend to recommend a polynomial kernel if the dataset is higher than 1000 instances.
-- ```opts.pythia.use_grid_search``` selects the hyperparameter tuning strategy: a Sobol-sampled grid search (set as ```TRUE```) or Bayesian optimisation via [scikit-optimize](https://scikit-optimize.github.io/)'s `BayesSearchCV` (set as ```FALSE```, the default), both tuning the SVM's box constraint and kernel scale with stratified CV.
+- ```opts.pythia.tuning``` selects the hyperparameter tuning strategy for the SVM's box constraint and kernel scale: ```'sobol'``` (the default, matching the MATLAB toolkit) evaluates ```opts.pythia.n_tuning_iter``` scrambled Sobol quasi-random candidates via stratified CV and keeps the best; ```'bayes'``` uses Bayesian optimisation via [scikit-optimize](https://scikit-optimize.github.io/)'s `BayesSearchCV` instead; ```'none'``` skips tuning entirely and requires ```opts.pythia.params``` to already hold valid per-algorithm hyperparameters.
+- ```opts.pythia.n_tuning_iter``` number of Sobol candidates evaluated when ```opts.pythia.tuning``` is ```'sobol'``` (default 20).
 - ```opts.pythia.use_weights``` determines whether weighted (set as ```TRUE```) or unweighted (set as ```FALSE```, the default) classification is performed. The weights are calculated as <img src="https://render.githubusercontent.com/render/math?math=\left|y-\bar{y}\right|">, i.e. each instance's absolute deviation from the algorithm's mean performance.
-- ```opts.pythia.uselibsvm``` **(legacy)** accepted for backward compatibility with option files from the MATLAB toolkit; treated as an alias for ```opts.pythia.use_grid_search``` and does not select LIBSVM, which this implementation does not use.
+- ```opts.pythia.uselibsvm``` **(legacy)** accepted for backward compatibility with option files from the MATLAB toolkit, and genuinely ignored - does not select LIBSVM, which this implementation does not use.
 
 ### Footprint construction settings
 

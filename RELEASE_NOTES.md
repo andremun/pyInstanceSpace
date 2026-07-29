@@ -62,6 +62,26 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   (135°, upper-left), making similar datasets easier to visually compare across runs.
   Rotation is a rigid transform — pairwise distances, error, R², and footprint areas are
   unchanged either way (R1).
+- Added `TraceOptions.method` (only `'legacy'` is implemented; any other value raises
+  `NotImplementedError` rather than silently running legacy anyway) and
+  `TraceOptions.contra` (default `True`), which now actually gates TRACE's
+  contradiction-removal step instead of always running it unconditionally. Corrects a
+  documentation error along the way: `trace.py` has always been a port of MATLAB's
+  *legacy* DBSCAN-based TRACE algorithm, not `TRACE3` as previously (incorrectly)
+  recorded (F11).
+- **Behavior-changing:** `PythiaOptions.tuning` (`'sobol'`/`'bayes'`/`'none'`, default
+  `'sobol'`) selects PYTHIA's SVM hyperparameter search strategy, matching MATLAB's own
+  default. `'sobol'` evaluates `PythiaOptions.n_tuning_iter` (default 20) scrambled Sobol
+  quasi-random candidates via cross-validation and keeps the best — a direct, lighter-weight
+  port of MATLAB's `sobolSearch`, replacing the previous Bayes-only search as PYTHIA's
+  default behaviour. Set `tuning='bayes'` to keep the exact prior behaviour. `'none'` skips
+  tuning and requires `PythiaOptions.params` (F10).
+- **Breaking:** `PythiaOptions.use_grid_search` has been removed — Sobol tuning (above)
+  supersedes the `RandomizedSearchCV` "grid search" it used to select, matching MATLAB
+  (which has no grid-search tuning mode at all). Callers setting this field, or JSON option
+  files with a `usegridsearch`/`use_grid_search` key, need to switch to `tuning`. The
+  legacy `uselibsvm` JSON key (previously silently aliased onto `use_grid_search`) is now
+  genuinely ignored, matching its actual deprecated status (F10).
 
 ### Bug fixes
 
@@ -165,3 +185,7 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   build's and explore's incremental-iteration APIs now use the same vocabulary. Naming
   only: no computation changed. (Real code-sharing between build- and explore-time stage
   execution is separately tracked as F8, not done here.)
+- Added `pytest-cov`; CI and `poe test` now run with `--cov=instancespace
+  --cov-report=term-missing`, gated by a `fail_under = 75` threshold in `pyproject.toml`'s
+  `[tool.coverage.report]` — set a few points below a measured real baseline (79%, full
+  suite) rather than guessed (T1).

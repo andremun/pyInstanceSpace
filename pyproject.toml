@@ -54,7 +54,7 @@ check_black = "black ."
 
 test_ruff = "ruff check --no-fix"
 test_black = "black . --check"
-test_pytest = "pytest"
+test_pytest = "pytest --cov=instancespace --cov-report=term-missing"
 
 check.sequence = ["format_docstrings", "check_black", "check_ruff", "check_mypy"]
 check.ignore_fail = "return_non_zero"
@@ -205,3 +205,12 @@ module = [
     'joblib',
 ]
 ignore_missing_imports = 'True'
+
+[tool.coverage.run]
+source = ["instancespace"]
+
+[tool.coverage.report]
+# Measured baseline (v1.30, full suite): 79% - set a few points below so the
+# gate catches a real regression without being tripped by normal fluctuation.
+fail_under = 75
+show_missing = true

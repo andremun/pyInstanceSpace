@@ -8,6 +8,11 @@ of good, best, and beta performance based on the clustering of instance data. Th
 footprints are further evaluated for their density and purity in relation to the
 performance metrics of the algorithms.
 
+This is a port of MATLAB's `TRACE_legacy.m` (DBSCAN-based footprint construction) —
+`TraceOptions.method` accordingly only accepts `'legacy'`; MATLAB's newer default
+algorithm, `TRACE3` (alpha-shape-based, no DBSCAN), was never ported and is out of
+scope (see roadmap F11).
+
 The TRACE stage has several key steps:
 1. Cluster the instance data using DBSCAN to identify regions of interest.
 2. Generate geometric footprints representing algorithm performance.
@@ -429,6 +434,14 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             An instance of TraceOut containing the analysis results, including
             the calculated footprints and summary statistics.
         """
+        if self.opts.method != "legacy":
+            msg = (
+                f"TraceOptions.method={self.opts.method!r} is not implemented - "
+                "only 'legacy' (MATLAB's TRACE_legacy.m algorithm, the only "
+                "variant this port implements) is supported."
+            )
+            raise NotImplementedError(msg)
+
         # Create a boolean array to calculate the space footprint
 
         true_array: NDArray[np.bool_] = np.array(
@@ -454,54 +467,11 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         good, best = self.compute_algorithm_qualities(n_algos)
 
         # Detect and resolve contradictions between the best performance footprints
-        self._log(
-            "------------------------------------------------------------------------",
-        )
-        self._log(
-            "  -> TRACE is detecting and removing contradictory"
-            " sections of the footprints.",
-        )
-        for i in range(n_algos):
-            self._log(f"  -> Base algorithm '{self.algo_labels[i]}'")
-            start_base = (
-                time.time()
-            )  # Track the start time for processing this base algorithm
-
-            algo_1: NDArray[np.bool_] = np.array(
-                [int(v) == i for v in self.p],
-                dtype=np.bool_,
-            )
-
-            for j in range(i + 1, n_algos):
-                self._log_detail(
-                    f"      -> TRACE is comparing '"
-                    f"{self.algo_labels[i]}' with '{self.algo_labels[j]}'",
-                )
-                start_test = time.time()  # Track the start time for the comparison
-
-                # Create boolean arrays indicating which points correspond
-                # to each algorithm's best performance
-
-                algo_2: NDArray[np.bool_] = np.array(
-                    [int(v) == j for v in self.p],
-                    dtype=np.bool_,
-                )
-
-                # Resolve contradictions between the compared algorithms'  footprints
-                best[i], best[j] = self.contra(best[i], best[j], algo_1, algo_2)
-
-                # Print the elapsed time for the comparison
-                elapsed_test = time.time() - start_test
-                self._log_detail(
-                    f"      -> Test algorithm '{self.algo_labels[j]}' completed. "
-                    f"Elapsed time: {elapsed_test:.2f}s",
-                )
-
-            # Print the elapsed time for processing this base algorithm
-            elapsed_base = time.time() - start_base
+        if self.opts.contra:
+            self._remove_contradictions(best, n_algos)
+        else:
             self._log(
-                f"  -> Base algorithm '{self.algo_labels[i]}' completed. Elapsed time:"
-                f" {elapsed_base:.2f}s",
+                "  -> TRACE is skipping contradiction removal (trace.contra=False).",
             )
 
         # Calculate the footprint for the beta threshold,
@@ -569,6 +539,67 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             hard=hard,
             trace_summary=final_df,
         )
+
+    def _remove_contradictions(
+        self,
+        best: list[Footprint],
+        n_algos: int,
+    ) -> None:
+        """Detect and resolve contradictions between all pairs of best footprints.
+
+        Mutates `best` in place. Split out of `_trace()` so the `contra`
+        option (F11 - matches MATLAB legacy TRACE's `contra`, default `True`)
+        can skip this step entirely rather than branching around it inline.
+        """
+        self._log(
+            "------------------------------------------------------------------------",
+        )
+        self._log(
+            "  -> TRACE is detecting and removing contradictory"
+            " sections of the footprints.",
+        )
+        for i in range(n_algos):
+            self._log(f"  -> Base algorithm '{self.algo_labels[i]}'")
+            start_base = (
+                time.time()
+            )  # Track the start time for processing this base algorithm
+
+            algo_1: NDArray[np.bool_] = np.array(
+                [int(v) == i for v in self.p],
+                dtype=np.bool_,
+            )
+
+            for j in range(i + 1, n_algos):
+                self._log_detail(
+                    f"      -> TRACE is comparing '"
+                    f"{self.algo_labels[i]}' with '{self.algo_labels[j]}'",
+                )
+                start_test = time.time()  # Track the start time for the comparison
+
+                # Create boolean arrays indicating which points correspond
+                # to each algorithm's best performance
+
+                algo_2: NDArray[np.bool_] = np.array(
+                    [int(v) == j for v in self.p],
+                    dtype=np.bool_,
+                )
+
+                # Resolve contradictions between the compared algorithms'  footprints
+                best[i], best[j] = self.contra(best[i], best[j], algo_1, algo_2)
+
+                # Print the elapsed time for the comparison
+                elapsed_test = time.time() - start_test
+                self._log_detail(
+                    f"      -> Test algorithm '{self.algo_labels[j]}' completed. "
+                    f"Elapsed time: {elapsed_test:.2f}s",
+                )
+
+            # Print the elapsed time for processing this base algorithm
+            elapsed_base = time.time() - start_base
+            self._log(
+                f"  -> Base algorithm '{self.algo_labels[i]}' completed. Elapsed time:"
+                f" {elapsed_base:.2f}s",
+            )
 
     def build(self, y_bin: NDArray[np.bool_]) -> Footprint:
         """Construct a footprint polygon using DBSCAN clustering.

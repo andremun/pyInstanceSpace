@@ -41,7 +41,7 @@ Functions:
 
 from dataclasses import dataclass
 from time import perf_counter
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -55,16 +55,12 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
-from sklearn.model_selection import (
-    RandomizedSearchCV,
-    StratifiedKFold,
-    cross_val_predict,
-)
+from sklearn.model_selection import StratifiedKFold, cross_val_predict
 from skopt import BayesSearchCV
 
 from instancespace.data.options import GeneralOptions, ParallelOptions, PythiaOptions
 from instancespace.stages.stage import Stage
-from instancespace.utils.get_classifier_fcn import get_classifier_fcn
+from instancespace.utils.get_classifier_fcn import ClassifierSpec, get_classifier_fcn
 
 LARGE_NUM_INSTANCE: int = 1000
 
@@ -207,9 +203,9 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
     _fit_classifier(z: NDArray[np.double], y_bin: NDArray[np.bool_],
                 w: NDArray[np.double], skf: StratifiedKFold, classifier_name: str,
                 is_poly_kernel: bool, param_space: dict[str, list[float]] | None,
-                use_grid_search: bool, use_weights: bool,
-                parallel_options: ParallelOptions,
-                general_options: GeneralOptions) -> _ClassifierResult
+                use_weights: bool, parallel_options: ParallelOptions,
+                general_options: GeneralOptions,
+                n_tuning_iter: int) -> _ClassifierResult
         Train the classifier selected by PythiaOptions.classifier.
 
     _display_overall_perf(precision: list[float], accuracy: list[float]) -> None
@@ -228,8 +224,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                             NDArray[np.int_]]
         Determine the selections based on the precision metrics.
 
-    _generate_params(use_grid_search: bool, rng: np.random.Generator) ->
-                            dict[str, list[float]]
+    _generate_params(rng: np.random.Generator) -> dict[str, list[float]]
         Generate hyperparameters for the SVM models.
 
     _generate_summary(nalgos: int, algo_labels: list[str], y: NDArray[np.double],
@@ -367,6 +362,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         w = np.ones((z.shape[0], nalgos), dtype=np.double)
         rng = np.random.default_rng(seed=general_options.seed)
         classifier_spec = get_classifier_fcn(opts.classifier)
+        PythiaStage._validate_tuning(opts, precalcparams)
         logger.info(
             f"[PYTHIA]  -> PYTHIA is training a '{opts.classifier}' classifier.",
         )
@@ -377,22 +373,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             PythiaStage._log_kernel_choice(ninst, opts.is_poly_krnl)
 
         # Section 2: Configure hyperparameter optimization
-        if not classifier_spec.tunable:
-            logger.info(
-                f"[PYTHIA]  -> '{opts.classifier}' is fit with scikit-learn's own "
-                "default hyperparameters; PYTHIA's hyperparameter search only "
-                "applies to 'svm'.",
-            )
-        elif opts.use_grid_search:
-            logger.info(
-                "[PYTHIA]  -> PYTHIA is using grid search for hyper-parameter"
-                " optimization.",
-            )
-        else:
-            logger.info(
-                "[PYTHIA]  -> PYTHIA is using Bayesian optimization"
-                " for hyper-parameter optimization.",
-            )
+        PythiaStage._log_tuning_strategy(opts, precalcparams)
 
         # Cost-sensitive classification
         if opts.use_weights:
@@ -429,13 +410,23 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         for i in range(nalgos):
             algo_start_time = perf_counter()
-            param_space: dict[str, list[float]] | None = None
-            if classifier_spec.tunable:
-                param_space = (
-                    PythiaStage._generate_params(rng)
-                    if precalcparams is None
-                    else {"C": precalcparams[i][0], "gamma": precalcparams[i][1]}
+            param_space: dict[str, Any] | None = None
+            if precalcparams is not None:
+                # Pre-calculated hyperparameters always win, regardless of
+                # tuning strategy (matches MATLAB: precalcparams bypasses
+                # tuning entirely).
+                param_space = PythiaStage._precalc_param_space(
+                    classifier_spec,
+                    precalcparams[i],
                 )
+            elif opts.tuning == "bayes":
+                param_space = PythiaStage._bayes_param_space(
+                    opts.classifier,
+                    classifier_spec,
+                    rng,
+                )
+            # opts.tuning == "sobol": param_space stays None: _fit_classifier
+            # dispatches to _sobol_search, which draws its own candidates.
             res = PythiaStage._fit_classifier(
                 z=z,
                 y_bin=y_bin[:, i],
@@ -444,10 +435,10 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 classifier_name=opts.classifier,
                 is_poly_kernel=opts.is_poly_krnl,
                 param_space=param_space,
-                use_grid_search=opts.use_grid_search,
                 use_weights=opts.use_weights,
                 parallel_options=parallel_options,
                 general_options=general_options,
+                n_tuning_iter=opts.n_tuning_iter,
             )
 
             # Record performance metrics
@@ -524,6 +515,10 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             recall_record,
             box_consnt,
             k_scale,
+            classifier_spec.param1.label,
+            classifier_spec.param2.label
+            if classifier_spec.param2 is not None
+            else None,
         )
 
         return PythiaOutput(
@@ -548,6 +543,51 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         )
 
     @staticmethod
+    def _precalc_param_space(
+        spec: ClassifierSpec,
+        precalc_row: NDArray[np.double],
+    ) -> dict[str, float]:
+        """Build the forced single-point search space for pre-calculated params."""
+        space = {spec.param1.sklearn_name: float(precalc_row[0])}
+        if spec.param2 is not None:
+            space[spec.param2.sklearn_name] = float(precalc_row[1])
+        return space
+
+    @staticmethod
+    def _bayes_param_space(
+        classifier_name: str,
+        spec: ClassifierSpec,
+        rng: np.random.Generator,
+    ) -> dict[str, Any]:
+        """Build the `tuning='bayes'` search space for `BayesSearchCV`.
+
+        `'svm'` keeps its original LHS-sampled-candidate-list space
+        (`_generate_params`, unchanged pre-F10 behaviour, verified against
+        MATLAB-reference tests). Every other classifier gets a proper
+        continuous/integer/categorical `skopt` dimension per parameter,
+        matching MATLAB's `classifierBayesVars`.
+        """
+        if classifier_name == "svm":
+            return PythiaStage._generate_params(rng)
+        space: dict[str, Any] = {spec.param1.sklearn_name: spec.param1.dimension()}
+        if spec.param2 is not None:
+            space[spec.param2.sklearn_name] = spec.param2.dimension()
+        return space
+
+    @staticmethod
+    def _warn_unsupported_weights(
+        classifier_name: str,
+        use_weights: bool,
+        supports_sample_weight: bool,
+    ) -> None:
+        if use_weights and not supports_sample_weight:
+            logger.warning(
+                f"[PYTHIA] '{classifier_name}' does not support sample "
+                "weights - training without cost-sensitive classification "
+                "for this algorithm.",
+            )
+
+    @staticmethod
     def _fit_classifier(
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
@@ -555,18 +595,21 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         skf: StratifiedKFold,
         classifier_name: str,
         is_poly_kernel: bool,
-        param_space: dict[str, list[float]] | None,
-        use_grid_search: bool,
+        param_space: dict[str, Any] | None,
         use_weights: bool,
         parallel_options: ParallelOptions,
         general_options: GeneralOptions,
+        n_tuning_iter: int,
     ) -> _ClassifierResult:
         """Train one classifier (per `PythiaOptions.classifier`) for one algorithm.
 
-        Only `'svm'` is tuned via `param_space`/grid or Bayesian search - see
-        `instancespace.utils.get_classifier_fcn`. Every other registered
-        classifier is fit once with scikit-learn's own default
-        hyperparameters.
+        Every registered classifier is tunable (its own per-classifier
+        hyperparameter range, matching MATLAB's `classifierBayesVars`/
+        `sobolToParams`). The search strategy is `PythiaOptions.tuning`:
+        `param_space is None` means `tuning='sobol'` with no pre-calculated
+        params, dispatching to `_sobol_search`; a non-`None` `param_space`
+        (either pre-calculated params or `tuning='bayes'`'s search space)
+        uses `BayesSearchCV` below.
 
         Parameters
         ----------
@@ -583,9 +626,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         is_poly_kernel : bool
             Whether to use a polynomial kernel. Only meaningful for `'svm'`.
         param_space : dict | None
-            The hyperparameters to search, when the classifier is tunable.
-        use_grid_search : bool
-            Whether to use grid search (vs. Bayesian optimisation), when tunable.
+            The hyperparameters to search, when `PythiaOptions.tuning` isn't
+            `'sobol'` (see above).
         use_weights : bool
             Whether cost-sensitive classification was requested - honoured only
             for classifiers whose `fit()` accepts `sample_weight`.
@@ -593,6 +635,9 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             The parallel options, specifiy whether run in parallel and number of cores.
         general_options : GeneralOptions
             General options (e.g. the RNG seed), not specific to any one stage.
+        n_tuning_iter : int
+            `PythiaOptions.n_tuning_iter` - the Sobol search's evaluation budget.
+            Ignored unless dispatching to `_sobol_search`.
 
         Returns
         -------
@@ -601,67 +646,58 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         """
         spec = get_classifier_fcn(classifier_name)
         estimator = spec.build(general_options.seed, is_poly_kernel)
+        PythiaStage._warn_unsupported_weights(
+            classifier_name,
+            use_weights,
+            spec.supports_sample_weight,
+        )
 
-        if not spec.tunable:
-            if use_weights and not spec.supports_sample_weight:
-                logger.warning(
-                    f"[PYTHIA] '{classifier_name}' does not support sample "
-                    "weights - training without cost-sensitive classification "
-                    "for this algorithm.",
-                )
-            if spec.supports_sample_weight:
-                estimator.fit(z, y_bin, sample_weight=w)
-            else:
-                estimator.fit(z, y_bin)
-
-            y_sub = cross_val_predict(estimator, z, y_bin, cv=skf, method="predict")
-            p_sub = cross_val_predict(
+        if param_space is None:
+            # tuning='sobol' with no pre-calculated params.
+            return PythiaStage._sobol_search(
                 estimator,
+                spec,
+                use_weights,
                 z,
                 y_bin,
-                cv=skf,
-                method="predict_proba",
-            )[:, 1]
-            y_hat = estimator.predict(z)
-            p_hat = estimator.predict_proba(z)[:, 1]
-
-            return _ClassifierResult(
-                classifier=estimator,
-                Yhat=y_hat,
-                Ysub=y_sub,
-                Psub=p_sub,
-                Phat=p_hat,
-                c=float("nan"),
-                g=float("nan"),
+                w,
+                skf,
+                n_tuning_iter,
+                general_options.seed,
             )
 
-        if use_grid_search:
-            # Perform grid search for hyperparameter optimization
-            # The randomizedsearchCV is used to reduce the computational cost
-            # by considering a limited number combination of hyperparameters
-            optimization = RandomizedSearchCV(
-                estimator=estimator,
-                n_iter=30,
-                param_distributions=param_space,
-                cv=skf,
-                verbose=0,
-                random_state=general_options.seed,
-                n_jobs=(parallel_options.n_cores if parallel_options.flag else 1),
-            )
-        else:
-            optimization = BayesSearchCV(
-                estimator=estimator,
-                n_iter=30,
-                search_spaces=param_space,
-                cv=skf,
-                verbose=0,
-                random_state=general_options.seed,
-                n_jobs=(parallel_options.n_cores if parallel_options.flag else 1),
-            )
-        optimization.fit(z, y_bin, sample_weight=w)
+        # tuning='bayes' (or pre-calculated params forcing a degenerate
+        # single-point space): Bayesian optimisation over param_space. Sobol
+        # (F10's default) superseded the old RandomizedSearchCV ("grid
+        # search") alternative that used to sit here for 'svm' - it covered
+        # the same lightweight/random-ish search role, just done properly
+        # (space-filling quasi-random, not sklearn's uniform random).
+        optimization = BayesSearchCV(
+            estimator=estimator,
+            n_iter=30,
+            search_spaces=param_space,
+            cv=skf,
+            verbose=0,
+            random_state=general_options.seed,
+            n_jobs=(parallel_options.n_cores if parallel_options.flag else 1),
+            # A sampled candidate can be untrainable on a given fold (e.g.
+            # KNN's n_neighbors exceeding that fold's sample count); disqualify
+            # it with the worst possible score instead of crashing the whole
+            # search, mirroring _evaluate_sobol_candidates' per-candidate catch
+            # below. Unlike GridSearchCV, skopt's Bayesian optimiser feeds this
+            # score straight into its Gaussian-process surrogate, which can't
+            # handle NaN - so this must be a finite value, not `np.nan`.
+            error_score=0.0,
+        )
+        fit_kwargs = {"sample_weight": w} if spec.supports_sample_weight else {}
+        optimization.fit(z, y_bin, **fit_kwargs)
         best_estimator = optimization.best_estimator_
-        c = optimization.best_params_["C"]
-        g = optimization.best_params_["gamma"]
+        c = spec.param1.reported(optimization.best_params_[spec.param1.sklearn_name])
+        g = (
+            spec.param2.reported(optimization.best_params_[spec.param2.sklearn_name])
+            if spec.param2 is not None
+            else float("nan")
+        )
 
         # Perform cross-validated predictions using the best estimator
         y_sub = cross_val_predict(best_estimator, z, y_bin, cv=skf, method="predict")
@@ -678,6 +714,127 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         return _ClassifierResult(
             classifier=best_estimator,
+            Yhat=y_hat,
+            Ysub=y_sub,
+            Psub=p_sub,
+            Phat=p_hat,
+            c=c,
+            g=g,
+        )
+
+    @staticmethod
+    def _evaluate_sobol_candidates(
+        estimator: ClassifierMixin,
+        spec: ClassifierSpec,
+        points: NDArray[np.double],
+        z: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        skf: StratifiedKFold,
+    ) -> tuple[list[dict[str, float | int | str]], NDArray[np.double]]:
+        """Evaluate each Sobol candidate's CV misclassification error.
+
+        A candidate that fails to train (e.g. a degenerate bandwidth) is
+        disqualified with an infinite error rather than raising, mirroring
+        MATLAB's `evalFoldClassifier` catch/NaN-disqualify behaviour.
+        """
+        candidates: list[dict[str, float | int | str]] = []
+        errs = np.zeros(len(points))
+        for i, point in enumerate(points):
+            candidate: dict[str, float | int | str] = {
+                spec.param1.sklearn_name: spec.param1.sample(point[0]),
+            }
+            if spec.param2 is not None:
+                candidate[spec.param2.sklearn_name] = spec.param2.sample(point[1])
+            candidates.append(candidate)
+            try:
+                estimator.set_params(**candidate)
+                y_pred = cross_val_predict(
+                    estimator,
+                    z,
+                    y_bin,
+                    cv=skf,
+                    method="predict",
+                )
+                errs[i] = np.mean(y_pred != y_bin)
+            except ValueError as error:
+                logger.warning(
+                    f"[PYTHIA] Sobol candidate {candidate} failed to train: {error}",
+                )
+                errs[i] = np.inf
+        return candidates, errs
+
+    @staticmethod
+    def _sobol_search(
+        estimator: ClassifierMixin,
+        spec: ClassifierSpec,
+        use_weights: bool,
+        z: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        w: NDArray[np.double],
+        skf: StratifiedKFold,
+        n_iter: int,
+        seed: int | None,
+    ) -> _ClassifierResult:
+        """Lightweight quasi-random hyperparameter search (F10, `tuning='sobol'`).
+
+        Evaluates `n_iter` scrambled-Sobol candidates (one or two
+        hyperparameters, per `spec.param1`/`spec.param2`) via k-fold CV and
+        keeps the one with the lowest misclassification error - a direct,
+        much lighter-weight port of MATLAB's `sobolSearch`/`sobolToParams`
+        (`core/PYTHIA.m`), used in place of `skopt.BayesSearchCV`'s heavier
+        sequential-optimisation machinery. `w`/`use_weights` are honoured
+        only for the final full-data fit, matching how the Bayes search
+        above only passes weights to `optimization.fit()`, not to the
+        per-candidate `cross_val_predict` calls.
+        """
+        n_dims = 2 if spec.param2 is not None else 1
+        sampler = stats.qmc.Sobol(d=n_dims, scramble=True, seed=seed)
+        points = sampler.random(n_iter)
+
+        candidates, errs = PythiaStage._evaluate_sobol_candidates(
+            estimator,
+            spec,
+            points,
+            z,
+            y_bin,
+            skf,
+        )
+        if np.all(np.isinf(errs)):
+            logger.warning(
+                "[PYTHIA] All Sobol candidates failed to train; using the "
+                "first candidate.",
+            )
+            best_index = 0
+        else:
+            best_index = int(np.argmin(errs))
+        best_params = candidates[best_index]
+
+        estimator.set_params(**best_params)
+        if use_weights and spec.supports_sample_weight:
+            estimator.fit(z, y_bin, sample_weight=w)
+        else:
+            estimator.fit(z, y_bin)
+
+        y_sub = cross_val_predict(estimator, z, y_bin, cv=skf, method="predict")
+        p_sub = cross_val_predict(
+            estimator,
+            z,
+            y_bin,
+            cv=skf,
+            method="predict_proba",
+        )[:, 1]
+        y_hat = estimator.predict(z)
+        p_hat = estimator.predict_proba(z)[:, 1]
+
+        c = spec.param1.reported(best_params[spec.param1.sklearn_name])
+        g = (
+            spec.param2.reported(best_params[spec.param2.sklearn_name])
+            if spec.param2 is not None
+            else float("nan")
+        )
+
+        return _ClassifierResult(
+            classifier=estimator,
             Yhat=y_hat,
             Ysub=y_sub,
             Psub=p_sub,
@@ -798,6 +955,58 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         return params
 
     @staticmethod
+    def _validate_tuning(
+        opts: PythiaOptions,
+        precalcparams: NDArray[np.double] | None,
+    ) -> None:
+        """Validate `PythiaOptions.tuning`/`n_tuning_iter` (F10).
+
+        Fails loudly and early - before any training starts - rather than
+        letting a bad value surface as a confusing error deep inside a
+        search loop. Every registered classifier is tunable (F1's follow-on
+        registry extension), so this always applies.
+        """
+        if opts.tuning not in ("sobol", "bayes", "none"):
+            msg = (
+                f"PythiaOptions.tuning={opts.tuning!r} is not recognised; must "
+                "be one of 'sobol', 'bayes', 'none'."
+            )
+            raise ValueError(msg)
+        if opts.tuning == "none" and precalcparams is None:
+            msg = (
+                "PythiaOptions.tuning='none' requires PythiaOptions.params to be "
+                "a valid pre-calculated hyperparameters array. Either supply "
+                "params or set tuning to 'sobol' or 'bayes'."
+            )
+            raise ValueError(msg)
+        if opts.tuning == "sobol" and opts.n_tuning_iter < 1:
+            msg = (
+                "PythiaOptions.n_tuning_iter must be a positive integer (it is "
+                f"the Sobol search's evaluation budget); got {opts.n_tuning_iter}."
+            )
+            raise ValueError(msg)
+
+    @staticmethod
+    def _log_tuning_strategy(
+        opts: PythiaOptions,
+        precalcparams: NDArray[np.double] | None,
+    ) -> None:
+        """Log which hyperparameter search strategy this run will use."""
+        if precalcparams is not None:
+            return  # _check_precalcparams already logged this above.
+        if opts.tuning == "sobol":
+            logger.info(
+                f"[PYTHIA]  -> PYTHIA is using a Sobol quasi-random search "
+                f"({opts.n_tuning_iter} candidates) for hyper-parameter"
+                " optimization.",
+            )
+        else:
+            logger.info(
+                "[PYTHIA]  -> PYTHIA is using Bayesian optimization"
+                " for hyper-parameter optimization.",
+            )
+
+    @staticmethod
     def _determine_selections(
         nalgos: int,
         precision: list[float],
@@ -846,21 +1055,18 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
     def _generate_params(
         rng: np.random.Generator,
     ) -> dict[str, list[float]]:
-        """Generate hyperparameters for the SVM models.
+        """Generate hyperparameters for the SVM models (`tuning='bayes'`).
 
         Parameters
         ----------
-        use_grid_search : bool
-            Whether to use grid search for hyperparameter optimization.
         rng : np.random.Generator
             The random number generator.
         """
-        # if use_grid_search:
         maxgrid, mingrid = 4, -10
         # Number of samples
         nvals = 30
 
-        # Generate params space through latin hypercube samples for grid search
+        # Generate params space through latin hypercube samples for the search
         lhs = stats.qmc.LatinHypercube(d=2, seed=rng)
         samples = lhs.random(nvals)
         c = 2 ** ((maxgrid - mingrid) * samples[:, 0] + mingrid)
@@ -882,6 +1088,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         recall: list[float],
         box_consnt: list[float],
         k_scale: list[float],
+        param1_label: str,
+        param2_label: str | None,
     ) -> pd.DataFrame:
         """Generate a summary of the results.
 
@@ -910,9 +1118,17 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         recall : list[float]
             The recall metrics.
         box_consnt : list[float]
-            The box constraints.
+            Each algorithm's tuned first hyperparameter (`param1_label`'s units).
         k_scale : list[float]
-            The kernel scales.
+            Each algorithm's tuned second hyperparameter (`param2_label`'s
+            units), or NaN for classifiers with only one tunable parameter.
+        param1_label : str
+            Column header for `box_consnt`, matching `ISAgetClassifierFcn.m`'s
+            `p1label` for `PythiaOptions.classifier`.
+        param2_label : str | None
+            Column header for `k_scale`, or `None` for classifiers with only
+            one tunable parameter (`p2label = 'N/A'`), which drops the column
+            entirely - matching MATLAB's `buildSummary`.
         """
         logger.info("[PYTHIA]   -> PYTHIA is preparing the summary table.")
 
@@ -992,9 +1208,10 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 100 * np.append(recall, [np.nan, recallsel]),
                 3,
             ),
-            "BoxConstraint": np.round(np.append(box_consnt, [np.nan, np.nan]), 3),
-            "KernelScale": np.round(np.append(k_scale, [np.nan, np.nan]), 3),
+            param1_label: np.round(np.append(box_consnt, [np.nan, np.nan]), 3),
         }
+        if param2_label is not None:
+            data[param2_label] = np.round(np.append(k_scale, [np.nan, np.nan]), 3)
 
         df = pd.DataFrame(data).replace({np.nan: ""})
         logger.info(
