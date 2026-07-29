@@ -856,16 +856,19 @@ attachment_point_raises` and the RunAfter/RunBefore attachment tests added along
 further work needed here.
 
 ### T7 — Consolidate fragmented per-stage test files
-**Files:** `tests/test_pilot.py`, `tests/exploreIS/pilot/test_pilot_unit.py`, `tests/exploreIS/
-pilot/test_pilot_validation.py` (and the equivalent trio for sifted/trace/pythia/prelim)
-**Pathway:** decide a rule (see below), then apply it consistently — likely: top-level
-`test_<stage>.py` owns build-time unit tests, `exploreIS/<stage>/test_<stage>_unit.py` owns
-explore-time orchestration unit tests (stubbed dependencies), `..._validation.py` owns
-MATLAB-reference numerical validation — then merge anything that violates that rule into the
-right file, and delete now-empty files.
-**Decision needed:** confirm the three-way split rule above actually matches intent, or would
-two files (build-time / explore-time) be simpler than three? Lower stakes than the others in
-this document — noting it rather than escalating to the top-3 question list.
+**Implemented (roadmap v1.40).** Resolved as two files per stage, not three: `tests/
+test_build_<stage>.py` (unchanged, already top-level) and `tests/test_explore_<stage>.py` (a
+merge of the former `exploreIS/<stage>/test_<stage>_unit.py` and `..._validation.py`; TRACE's
+extra `test_trace_executor_reuse.py` folded in too, a 3-way merge for that stage only). The
+`exploreIS/` directory tree was removed entirely — every test file lives flat under `tests/`,
+disambiguated by filename prefix instead of directory. Non-stage explore files
+(`test_explore_stage_iter.py`, `test_extract_features.py` → `test_explore_extract_features.py`)
+and build-only files with no explore-time counterpart (`test_build_cloister.py`,
+`test_build_preprocessing.py`, `test_build_filter.py`) followed the same prefix convention.
+Multi-stage build-time integration files kept their existing name plus the `test_build_` prefix
+(`test_build_pilot_pythia.py`, `test_build_prepro_n_prelim.py`, `test_build_prelim_filter.py`).
+`tests/exploreIS/README.md`'s content moved to a new `tests/README.md`, updated for the flat
+layout. Full mapping and reasoning in the roadmap's own T7 section.
 
 ---
 
