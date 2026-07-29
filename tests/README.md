@@ -1,38 +1,29 @@
-# exploreIS Test Suite
+# Test Suite
 
-Validation and unit tests for the `explore()` pipeline implementation.
+Tests live flat under `tests/` (no per-stage subdirectories), disambiguated by filename
+prefix rather than directory: `test_build_<stage>.py` for a stage's training-time
+behaviour, `test_explore_<stage>.py` for its `explore()`-time inference counterpart.
+See the roadmap's T7 section (`docs/pyIS_docs_quality_roadmap.md`) for the full decision
+and file-by-file mapping.
 
-## Directory Structure
+## Naming Convention
 
-```
-tests/exploreIS/
-├── README.md
-├── __init__.py
-├── prelim/
-│   ├── __init__.py
-│   ├── test_prelim_unit.py
-│   └── test_prelim_validation.py
-├── sifted/
-│   ├── __init__.py
-│   ├── test_sifted_unit.py
-│   └── test_sifted_validation.py
-├── pilot/
-│   ├── __init__.py
-│   ├── test_pilot_unit.py
-│   └── test_pilot_validation.py
-├── pythia/
-│   ├── __init__.py
-│   ├── test_pythia_unit.py
-│   └── test_pythia_validation.py
-└── trace/
-    ├── __init__.py
-    ├── test_trace_unit.py
-    └── test_trace_validation.py
-```
+| Prefix | Covers | Example |
+|---|---|---|
+| `test_build_<stage>.py` | `build()`-time stage behaviour (training) | `test_build_pilot.py` |
+| `test_explore_<stage>.py` | `explore()`-time inference for that stage, unit + MATLAB validation merged into one file | `test_explore_pilot.py` |
 
-## Test Types
+Stages without an `explore()`-time counterpart (CLOISTER, preprocessing — neither appears
+in `ExploreStage`) only have a `test_build_*` file. Files spanning more than one stage
+(e.g. `test_build_pilot_pythia.py`, a PILOT+PYTHIA build-time integration test) keep a
+`test_build_`/`test_explore_` prefix but aren't folded into either stage's own file.
+Everything else (cross-cutting infrastructure: executor pooling, model save/load, option
+validation, plotting, etc.) has no single-stage distinction to make and keeps its
+existing name.
 
-### Validation Tests (`test_<stage>_validation.py`)
+## Test Types Within `test_explore_<stage>.py`
+
+### Validation tests
 
 Each stage is fed MATLAB's own inputs — the trained-model artifacts plus the previous
 stage's MATLAB output — and its result is compared against the MATLAB reference output
@@ -40,7 +31,7 @@ for that stage. This isolates per-stage port fidelity from error accumulated alo
 pipeline. Reference data lives in `tests/matlab_reference/` (see its README for the
 file inventory). Run with `-s` to see the comparison statistics each test prints.
 
-### Unit Tests (`test_<stage>_unit.py`)
+### Unit tests
 
 Edge cases and behavioural guarantees for each stage method, with synthetic inputs and
 no reference data: output shapes, single-instance and NaN inputs, bounding behaviour,
@@ -54,10 +45,10 @@ to it.
 
 ```bash
 # Full suite
-uv run pytest tests/exploreIS/ -v
+poetry run pytest -v
 
-# One stage, with validation statistics printed
-uv run pytest tests/exploreIS/trace/ -v -s
+# One stage's explore()-time tests, with validation statistics printed
+poetry run pytest tests/test_explore_trace.py -v -s
 ```
 
 ## Validation Criteria

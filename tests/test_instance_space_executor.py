@@ -4,7 +4,7 @@
 
 Exercises `_get_executor()`/`close()` directly against a bare `InstanceSpace`
 (`__new__` + only the attributes these methods touch), mirroring the stubbing
-style already used in `tests/exploreIS/test_explore_stage_iter.py` -
+style already used in `tests/test_explore_stage_iter.py` -
 constructing a full pipeline just to check pool-reuse bookkeeping would be
 disproportionate.
 """
