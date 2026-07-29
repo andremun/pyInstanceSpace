@@ -1309,6 +1309,76 @@ where a concretely-typed local object still needed one. Full `pytest` suite re-r
 fixes: 345 passed, 0 failed — confirms this was genuinely annotation/type-only with zero
 behavioural change, not just plausible.
 
+### T9 — ruff/black debt survey (added + partially fixed, v1.39)
+**[Additive]** — the 4 fixed rule categories are genuine bug-adjacent fixes with no behaviour
+change to any test assertion; the remaining, deliberately-undone categories are pure style/
+documentation debt with zero runtime effect either way.
+
+`poe test`'s `test_ruff` step (`ruff check --no-fix`) would fail today if actually run — CI
+(`validation-tests.yml`) doesn't run it at all (Q11's decision not to re-enable a lint gate), so
+nothing currently depends on this being zero. Surveyed the full `ruff check .` output (263 errors
+at the time of this survey, now lower after the fixes below) on direct instruction, to separate
+what's worth fixing from what's just volume. Verified via `git stash` during T8 that essentially
+all of it predates this session's work (409 errors in the untouched tree vs. 263 after T8's
+annotation fixes — T8's real type annotations incidentally resolved some of ruff's own weaker
+`ANN001` checks as a side effect, not a deliberate ruff-focused pass).
+
+**Fixed (cherry-picked as genuinely bug-adjacent, not cosmetic):**
+- **`NPY002`, 11 instances, all in `tests/`** — legacy `np.random.rand()`/global RNG state
+  replaced with `np.random.default_rng()` instances. Matters because Q9 already did real work
+  threading explicit seeds through PILOT/SIFTED/PYTHIA for reproducibility; a test still using
+  the legacy *shared, global* RNG is inconsistent with that guarantee and could behave
+  differently under parallel test execution, since the legacy RNG is process-wide mutable state
+  shared across every test that touches it.
+- **`DTZ005`, 2 instances, both in `instancespace/instance_space.py`** (`explore()`'s
+  `dataset_id`/`timestamp` generation) — naive `datetime.now()` replaced with
+  `datetime.now(tz=timezone.utc)`. A naive timestamp is a latent bug waiting for a multi-timezone
+  deployment (this ships behind a production server per CLAUDE.md) to make it visible as
+  inconsistent `dataset_id`s or misleading `ExploreResult.timestamp` ordering.
+- **`RUF100`, 3 instances, all in `tests/test_plotting.py`** — three `# noqa: E402` comments
+  (module-level imports after `matplotlib.use("Agg")`) that ruff's current version simply
+  doesn't flag for this pattern, so the suppressions were dead weight; confirmed by running
+  ruff against the file with the comments stripped before removing them, not assumed. Two
+  pre-dated this session (from before T8); one was T8's own addition, copied from the
+  surrounding (already-stale) convention without re-checking whether it was still needed —
+  a small instance of the same "copied an existing pattern without verifying its premise still
+  holds" risk this document warns about elsewhere.
+- **`F401`, 1 instance, `tests/exploreIS/pilot/test_pilot_unit.py`** — an unused `import pytest`
+  (the file has no `@pytest.fixture`/`pytest.raises` usage), removed as part of the same file's
+  T8 edit.
+
+**Documented, deliberately not fixed** (the remaining ~248 errors as of this entry):
+- **`SLF001`, 125 instances — the largest single category, entirely in `tests/`.** This is
+  private-attribute access (`instance_space._model`, `runner._available_arguments`,
+  `stage._inputs()`, etc.) from test code reaching into implementation internals to set up
+  fixtures or assert on internal state. This is *intentional* test design, not an accident —
+  these are unit tests deliberately checking internal bookkeeping (stage-rerun invalidation,
+  pool reuse, schedule ordering) that has no public API surface to assert on instead. "Fixing"
+  this would mean either ~125 individual `# noqa: SLF001` comments (pure busywork, no behaviour
+  or readability improvement) or restructuring tests to avoid touching internals (which would
+  make several of them *worse* tests — e.g. T2/Q8's stage-rerun tests specifically need to
+  inspect `StageRunner._available_arguments` to prove invalidation happened, there's no
+  public-API equivalent to check the same thing). If this is ever revisited, the right fix is a
+  `[tool.ruff.lint.per-file-ignores]` entry silencing `SLF001` for `tests/*`, not touching each
+  call site — recorded here as the recommended shape of a future fix, not implemented now.
+- **`D103`/`D104`, 62 instances** — missing docstrings on public test functions/`__init__.py`
+  packages. Low value here specifically: this suite's test names are already descriptive
+  (`test_prelim_ood_warning_fires_above_threshold`), so a docstring would mostly restate the
+  name rather than add information.
+- **`COM812` (15), `PT001` (7), `E501` (8), `PT018` (8), `ANN001` (3), `ICN001`/`RET504`/`F541`
+  (1 each)** — pure style/formatting (trailing commas, fixture-decorator parens, line length,
+  composite asserts, import alias convention, needless assign-then-return, f-string with no
+  placeholder). Cosmetic; most are auto-fixable (`ruff check --fix`) if this is ever revisited
+  wholesale, but nothing here indicates a behavioural risk.
+- **`PLR2004`, 15 instances** — bare literals (`2`, `10`) in test assertions instead of named
+  constants. Marginal value in test code where the literal is usually self-explanatory in
+  context (`assert x_transformed.shape == (5, 3)` after five rows were constructed two lines
+  above) — a named constant would mostly add indirection, not clarity, for most of these.
+
+**`black --check .`:** 9 files would be reformatted, all confirmed pre-existing (via the same
+`git stash` comparison used for the ruff survey) and not touched here — a separate, smaller
+formatting-only pass if this is ever prioritized.
+
 ### 8.2 Test debt tied to already-scoped items
 
 Specific tests each already-scoped item (Q, F, R) needs to actually be verified, not just built:
@@ -1427,3 +1497,4 @@ ships with its listed test, not just its implementation.
 | v1.36 | 2026-07-29 | Two decisions on direct instruction, following v1.35's scoping pass. **F3 closed, won't-fix** (#263, `state_reason: not_planned`): the one confirmed gap scoped in v1.35 runs once per `SiftedStage` call, not per-GA-candidate, so its performance upside doesn't justify the new edge-case test surface (zero-variance columns, `n_valid<3`) a safe fix needs — explained in the closing comment; the scoped pathway stays in the companion doc in case a future profiling run changes that calculus. No code changed. **F9 corrected from "queued" to deferred** (comment on #269): v1.35's "add F9 to the queue" framed it as next-up-after-F8, which understated the dependency — F9 only unblocks once F8 lands, and F8 is itself **[Behavior-changing risk]** with its own unresolved ambition-level decision (#268: lighter shared-function extraction vs. fuller `Stage` contract change), not a quick sequencing gap. F9 is not near-term work until F8 actually lands; roadmap §5 table and #269 both updated to say so. |
 | v1.37 | 2026-07-29 | Resolved #280's open "two-way or three-way split" question for T7 on direct instruction: two files per stage (`test_build_<stage>.py`/`test_explore_<stage>.py`), not three — today's `..._unit.py`/`..._validation.py` explore-time pair merges into one `test_explore_<stage>.py` file (TRACE's extra `test_trace_executor_reuse.py` folds in too, a 3-way merge for that stage only). Also resolves a question #280 didn't originally ask: the `exploreIS/` directory tree is removed entirely, every file living flat under `tests/`, disambiguated by filename prefix instead of directory. Confirmed via a clarifying question (not guessed): non-stage-specific explore files get an `explore_` prefix for consistency (`test_extract_features.py` → `test_explore_extract_features.py`); build-only stage files (`cloister`, `preprocessing`, `filter` — no explore-time counterpart in `ExploreStage`) get `test_build_` for the same reason; multi-stage build-time integration files (`test_pilot_pythia.py`, `test_prepro_n_prelim.py`, `test_prelim_filter.py`) keep their existing name and just gain the `test_build_` prefix rather than being folded into any single stage's file. Full file-by-file mapping recorded in T7's own section above. Decision only — no files moved or renamed yet; T7 stays gated behind T8 landing first (v1.33), and T8's own pytest verification was still running in the background when this was recorded. |
 | v1.38 | 2026-07-29 | **T8 implemented and verified** (#295): closed all 160 `mypy --strict` errors across `tests/` (21 files) plus `instancespace/plotting.py`'s one production-code error, down to zero. ~133 mechanical (missing `-> None`, bare `np.ndarray` → `NDArray[np.double]`) fixed via a script keyed off mypy's own suggested-fix text; the ~27 non-mechanical findings resolved individually rather than blanket-ignored. Introduced `typing.cast(RealType, SimpleNamespace(...))` as this suite's now-established pattern for duck-typed test doubles (no prior `cast()` usage existed). Found and root-cause-fixed one real production bug in the process, not just a test annotation: `InstanceSpace._explore_trace`'s return type carried a vestigial `tuple[...] \| None` that the function body could never produce and no caller ever checked for — removed the `\| None` at the source (`instance_space.py`) instead of adding `assert is not None` at each of the 3 affected call sites, per this document's own root-cause-not-alias rule. Two test files that deliberately monkeypatch bound methods with wrong-signature stand-ins (`test_explore_stage_iter.py`, `test_instance_space_executor.py`) kept one helper parameter intentionally unannotated, documented inline, so mypy doesn't check a body that's meant to violate the real signatures. Full `pytest` suite re-run after every fix: 345 passed, 0 failed, ~62 minutes — confirms zero behavioural change, matching the `[Additive]` tag. Committed in 3 parts (T7/F3/F9 doc-only decisions first, since they needed no runtime verification; the mypy/test-file diff held back until the full suite actually finished and confirmed green, per this document's own "never leave verification as a promise" rule). |
+| v1.39 | 2026-07-29 | Filed **T9**: surveyed the full `ruff check .` output (263 errors) on direct instruction, following a question about what the ruff/black debt actually means. Fixed 4 categories confirmed genuinely bug-adjacent rather than cosmetic: `NPY002` (11, legacy global-RNG calls in tests replaced with `np.random.default_rng()` instances, for consistency with Q9's seed-threading reproducibility work), `DTZ005` (2, in `instance_space.py`'s `explore()` — naive `datetime.now()` replaced with `datetime.now(tz=timezone.utc)`, a real latent bug for a multi-timezone server deployment), `RUF100` (3, unused `# noqa: E402` in `test_plotting.py`, verified unused by testing with the comments stripped before removing them), and `F401` (1, an unused `import pytest`). Documented, but deliberately left unfixed, the remaining ~248: `SLF001` (125, the largest category — private-attribute access from tests, which is intentional test design reaching into internals with no public-API equivalent to assert on instead, not a mistake; recommended fix if ever revisited is a `per-file-ignores` config entry for `tests/*`, not 125 individual suppressions) and the rest (`D103`/`D104`, `COM812`, `PLR2004`, `PT001`/`PT018`, `E501`, `ANN001`, `ICN001`/`RET504`/`F541`) as low-value cosmetic/documentation debt not worth the effort, per the same risk/reward logic used to close F3. `black --check .`: 9 files, all confirmed pre-existing, left untouched. Full detail in T9's own section (§8). |
