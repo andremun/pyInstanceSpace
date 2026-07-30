@@ -571,6 +571,13 @@ Order is a starting suggestion, not a commitment.
 
 ### 6.0 Consolidated execution order — remaining Q/S/F items (added v1.21)
 
+**Superseded at the top by §6.3, added v1.43, per direct instruction:** the 43-finding external
+audit batch (#297 and its 6 sub-issues, all UNVERIFIED) is now first in priority — ahead of every
+row in the table below. "First" there means *triage/independent verification first*, not
+"implement before F8" — see §6.3 for the full instruction and status. The ordering below is still
+the right sequencing for the F8 → F9 → F2 → F5 items themselves, once/if any of them end up
+following from the audit batch's verification.
+
 Q1–Q5, Q7, Q9–Q11, S1/S3, and — as of v1.22 — S2 and F1 and F6, and — as of v1.24 — Q6, F7, T2
 (Phase T), and Q8 are already implemented. What follows orders everything still pending — F8, F9,
 F2, F5, F3's audit — by actual dependency, not just by letter. Compiled from every cross-item
@@ -643,7 +650,7 @@ concrete derivatives and are already in the table.
 | F12 | — | `utils/filter.py` performance (naive `O(n²)` nested-loop with per-pair `scipy.spatial.distance.cdist` calls) and a missing degenerate-uniformity guard — added v1.25 | **Guard implemented and verified (v1.34)** — `compute_uniformity()`'s degenerate-case guard (`ISA:FILTER:degenerateUniformity`); the `O(n²)`→KD-tree performance rewrite is still not started, deliberately deferred (higher-risk, needs bit-identical verification, no correctness gain). | **[Additive]** for the guard (only changes previously-undefined `NaN`/`inf`-via-`RuntimeWarning` cases into a clean `NaN`+warning); the still-pending performance rewrite keeps its original **[Additive if implemented correctly]** tag. |
 | F13 | — | No Python equivalent of `ISAvalidateOpts.m` — eager, comprehensive type/range/membership validation of every recognised option field at load time, with clear `ISA:ISAvalidateOpts:*`-style errors, instead of a bad value surfacing as a confusing crash deep inside a stage — added v1.25 | **Implemented and verified (v1.34)** — `InstanceSpaceOptions.__post_init__()`; 14 new tests. | **[Additive]** — a new validation pass that only ever rejects what would already have failed later (or silently produced wrong output); doesn't change behaviour for any currently-valid options file. |
 | F14 | — | PRELIM's missing "more than 5% of instances have a best-algorithm performance of exactly zero" data-quality warning (`ISA:PRELIM:manyZeroBest`) — added v1.25 | **Implemented and verified (v1.27)** — `PrelimStage._warn_many_zero_best()`; 2 new tests | **[Additive]** — a warning only; the underlying eps-substitution computation it warns about is already correctly ported (verified directly in `prelim.py`). |
-| F15 | — (no MATLAB counterpart — production/infra capability) | Resumable `InstanceSpace` save/load (mid-pipeline checkpoint, not just F7's finished-`Model` snapshot) + stage-progress-reporting callbacks — added v1.31, found while auditing `feature/staged-matilda-support` for salvageable work | Not started | **[Additive]** — new `InstanceSpace.save()`/`load()` and new `progress_reporter` module; no existing caller's output changes. The `StageRunner` half of the prerequisite work is tracked separately as #293 (bug, not new capability). |
+| F15 | — (no MATLAB counterpart — production/infra capability) | Resumable `InstanceSpace` save/load (mid-pipeline checkpoint, not just F7's finished-`Model` snapshot) + stage-progress-reporting callbacks — added v1.31, found while auditing `feature/staged-matilda-support` for salvageable work | **Implemented and verified (v1.42)** — `instancespace/progress_reporter.py` (ported); `InstanceSpace.save()`/`load()` (signed `joblib`, mirrors F7); `__getstate__` on both `StageRunner` and `InstanceSpace` dropping the live cached executor before pickling; `run_stage()` auto-seeds initial inputs and reports progress/completion. 38 new tests; full suite (366, excluding the independently-slow pythia-tuning/T2 tests) passing. | **[Additive]** — new `InstanceSpace.save()`/`load()` and new `progress_reporter` module; no existing caller's output changes. The `StageRunner` half of the prerequisite work is tracked separately as #293 (bug, not new capability, closed). |
 
 **F15 finding (v1.31, tracked as #294, folds in #293):** while auditing `feature/staged-matilda-support`
 (2 commits ahead of `main`, otherwise stale — see the branch-audit note this same session) for
@@ -681,6 +688,51 @@ pickle — for both the per-stage checkpoint case (previously unaddressed by any
 and the final-completion case (previously addressed only for the narrower `Model`, not the full,
 resumable `InstanceSpace`). Port the reporter interface/HTTP-transport/JSON-metadata parts;
 replace its pickle-dumping paths with calls to this item's new `InstanceSpace.save()` instead.
+
+**F15 — Implemented and verified (v1.42).** Ported `progress_reporter.py` from
+`feature/staged-matilda-support` (`ProgressReporter` ABC, `Http`/`File`/`Composite`/
+`NullProgressReporter` implementations, same HTTP callback/payload shape as the source branch),
+adapted to this repo's conventions (`loguru`, `datetime.now(UTC)`, `mypy --strict` clean). Wired
+into `InstanceSpace.__init__` (new optional `progress_reporter` param, defaults to
+`NullProgressReporter()` — fully additive), `build()`, and `run_stage()`.
+
+Two things needed beyond a mechanical port, both because the source branch's single-process
+`build()`-loop design doesn't match the actual production usage this item exists to serve: a
+SLURM job runs **one stage per invocation**, triggered by a scheduler, with the next stage's job
+submitted separately and started at an unknown later time.
+
+1. **A real pickling gap, found and fixed.** `StageRunner`/`InstanceSpace` didn't previously
+   need to survive being pickled *after a stage had actually run* — Q6's cached `ThreadPoolExecutor`
+   ends up embedded in `StageRunner._available_arguments`/`_schedule_output_data` (via
+   `_InstanceSpaceInputs.executor`) and in `InstanceSpace._final_output` (an aliased reference to
+   the same dict, not a copy) as soon as any stage runs. Added `__getstate__` on both classes to
+   strip the live executor before pickling; `_get_executor()` recreates it lazily on the next call,
+   same as after `close()` (Q6's existing pattern). Confirmed via a real reproduction: checkpointing
+   an `InstanceSpace` after running just `PreprocessingStage`+`PrelimStage` crashed with
+   `TypeError: cannot pickle '_queue.SimpleQueue' object` before this fix.
+2. **`InstanceSpace.save()`/`load()`** — whole-class checkpoint via signed `joblib`, reusing F7's
+   exact HMAC-SHA256 scheme (`ModelSignatureError` reused directly rather than duplicated). This is
+   the actual, supported checkpoint/resume mechanism a driver script should call between SLURM
+   invocations — as opposed to `FileProgressReporter`'s own raw, unsigned per-stage pickle snapshots
+   (kept from the source branch, unchanged), which remain a debugging/observability convenience,
+   not the supported resume path.
+3. **`run_stage()` auto-seeds initial inputs on a truly fresh `InstanceSpace`** (checked via
+   `not self._runner._available_arguments`) — needed so a SLURM job's *first* invocation can call
+   `run_stage()` directly with no prior `build()`/`run_until_stage()` call to seed
+   `_InstanceSpaceInputs`. A checkpoint loaded partway through never hits this branch (its
+   `_available_arguments` is never empty). `run_stage()` also now reports `report_stage_completed`
+   per call and fires `report_job_completed` once the whole schedule finishes
+   (`_current_schedule_item >= len(_stage_order)`).
+
+Found one regression via the full test suite (364/366 passing on first run): `_stage_report_name()`
+assumed `stage.__name__` exists, but two pre-existing tests in `test_instance_space_executor.py`
+intentionally stub `stage` as a plain string. Fixed with `getattr(stage, "__name__", str(stage))`;
+updated those tests' bare `_runner` stub to also carry the fields `run_stage()` now reads
+(`_available_arguments`/`_current_schedule_item`/`_stage_order`) — both fixes verified by a second
+full run: 366 passed, 0 failed. 38 new tests total (progress-reporter unit tests against stubbed
+`InstanceSpace`s; a real 2-stage checkpoint round-trip against `test_data/preprocessing/`'s
+fixture, including signed/tamper/downgrade-attack cases mirroring F7's own suite; pickling
+regression tests for both `StageRunner` and `InstanceSpace`).
 
 **F10 finding, verified directly against `core/PYTHIA.m` and `utils/ISAdefaults.m` (v1.25, tracked as #287):**
 MATLAB exposes `opts.pythia.tuning` with three modes — `'sobol'` (the *default*: quasi-random
@@ -1008,6 +1060,49 @@ CLAUDE.md's F3 audit-first rule.
 **Net result:** 2 of 4 MATLAB issues don't apply to Python at all (items 1, 3); 1 is a real,
 scoped, low-urgency performance gap (item 4); 1 is a latent risk for a *different*, not-yet-done
 item to avoid reintroducing (item 2, flagged to F2).
+
+---
+
+### 6.3 External audit findings — PYTHIA/CLOISTER/SIFTED/PILOT/TRACE/PRELIM (UNVERIFIED, added v1.43)
+
+**Status: logged only, per direct instruction — nothing here has been implemented, and nothing
+here should be treated as verified.** A batch of 43 findings from an externally-sourced audit
+document was uploaded directly by the user on 2026-07-30, with an explicit instruction: log all
+of them, place them first in priority order, and do **not** act on any of them — they require
+independent assessment first. This is the same audit-first discipline already applied to F1–F9,
+F3, and F10–F14 in this document, extended to a source whose reliability/provenance is itself
+unestablished (unlike F10–F14, which a prior session verified directly against the MATLAB source
+before recording).
+
+Logged verbatim as GitHub issues rather than summarised here, so nothing is lost or paraphrased
+before an actual review happens: parent tracking issue **#297**, with one sub-issue per stage —
+**#298** (PYTHIA, 10 findings), **#299** (CLOISTER, 5 findings), **#300** (SIFTED, 9 findings),
+**#301** (PILOT, 7 findings), **#302** (TRACE, 7 findings), **#303** (PRELIM, 5 findings). Full
+original text preserved in each sub-issue body — see those issues, not this section, for the
+actual claims and proposed fixes.
+
+**Priority:** per direct instruction, this verification work is first in the queue — ahead of
+§6.0's previously-recorded F8 → F9 → F2 → F5 execution order. "First priority" means *triage and
+independent verification first*, not "implement the proposed fixes first."
+
+**Known overlaps flagged for the eventual verification pass (not resolved here):**
+- PYTHIA finding #4 (`n_tuning_iter` ignored for `tuning='bayes'`) may be partially stale —
+  F10 (v1.30) already added `PythiaOptions.n_tuning_iter`; unclear whether it reached the Bayes
+  branch specifically or only the new Sobol path.
+- SIFTED findings #1/#2 (correlation-threshold logic, hard-coded p-value) touch code adjacent to,
+  but distinct from, what F3's own audit (§6.2 above) already reviewed in `_compute_correlation`
+  — F3 only checked the unvectorised-loop performance question, not this threshold-logic claim.
+- CLOISTER has no existing F-item in this document at all (F1–F15) — if any of its 5 findings
+  verify as real, they need a brand-new F-item, not a slot in an existing one.
+- TRACE findings #1–#7 (`tight()`/`contra()`/`fit_poly()`/`build()`/`dist()`/`dbscan()`) are
+  distinct from F11 (v1.29), which only added the `method`/`contra` *option surface*, not the
+  internal correctness of `contra()`'s purity computation or the other methods this batch names.
+- PRELIM findings #1–#5 are distinct from F14 (v1.27), which only added the `manyZeroBest`
+  warning.
+
+None of the above resolves which side (this audit vs. this document's own prior audits) is
+correct where they might conflict — that's exactly what the independent assessment needs to
+determine, not something to guess at while logging.
 
 ---
 
@@ -1510,3 +1605,5 @@ ships with its listed test, not just its implementation.
 | v1.39 | 2026-07-29 | Filed **T9**: surveyed the full `ruff check .` output (263 errors) on direct instruction, following a question about what the ruff/black debt actually means. Fixed 4 categories confirmed genuinely bug-adjacent rather than cosmetic: `NPY002` (11, legacy global-RNG calls in tests replaced with `np.random.default_rng()` instances, for consistency with Q9's seed-threading reproducibility work), `DTZ005` (2, in `instance_space.py`'s `explore()` — naive `datetime.now()` replaced with `datetime.now(tz=timezone.utc)`, a real latent bug for a multi-timezone server deployment), `RUF100` (3, unused `# noqa: E402` in `test_plotting.py`, verified unused by testing with the comments stripped before removing them), and `F401` (1, an unused `import pytest`). Documented, but deliberately left unfixed, the remaining ~248: `SLF001` (125, the largest category — private-attribute access from tests, which is intentional test design reaching into internals with no public-API equivalent to assert on instead, not a mistake; recommended fix if ever revisited is a `per-file-ignores` config entry for `tests/*`, not 125 individual suppressions) and the rest (`D103`/`D104`, `COM812`, `PLR2004`, `PT001`/`PT018`, `E501`, `ANN001`, `ICN001`/`RET504`/`F541`) as low-value cosmetic/documentation debt not worth the effort, per the same risk/reward logic used to close F3. `black --check .`: 9 files, all confirmed pre-existing, left untouched. Full detail in T9's own section (§8). |
 | v1.40 | 2026-07-29 | **T7 implemented** (#280), per the v1.37-decided layout. All 5 per-stage trios collapsed to pairs (`test_build_<stage>.py` + a merged `test_explore_<stage>.py`; TRACE's extra `test_trace_executor_reuse.py` folded in as a 3-way merge); 2 non-stage explore files relocated/renamed; 3 build-only files and 3 multi-stage integration files gained the `test_build_` prefix; `tests/exploreIS/` (5 subfolders, 6 `__init__.py`, its own `README.md`) deleted entirely, its README content moved to a new `tests/README.md` rewritten for the flat layout. Fixed stale `tests/exploreIS/` path references discovered along the way in the root `README.md` (2 places), `tests/matlab_reference/README.md` (2 places), `test_instance_space_executor.py`'s docstring, and the companion pathways doc's own T7 entry — all found via a repo-wide grep before declaring the move complete, not assumed clean. Also cleaned up two small pieces of dead boilerplate uncovered while merging PRELIM's and SIFTED's `_unit.py` files: a `sys.path.insert` hack and an `if __name__ == "__main__": pytest.main(...)` block, both redundant since T3's `conftest.py` landed and not present in any sibling test file. Caught and fixed a `UP017` finding (`datetime.UTC` alias preferred over `timezone.utc`) introduced by T9's own `DTZ005` fix earlier this session — new debt from this session's own prior edit, not pre-existing, so fixed rather than left for T9. `mypy --strict .`: clean, 67 files (down from 79 — expected, trio merges reduce file count). `ruff check .`: 244 errors, consistent with T9's documented categories (no new findings beyond the transient `UP017` already fixed). `pytest --collect-only`: 345 tests, unchanged from before the move. Full suite re-run once, alone (a `--collect-only` check run concurrently against an earlier full-suite background run raced on `test_serialisers.py`'s module-level output-directory cleanup and caused a spurious `FileNotFoundError` — diagnosed as self-inflicted process interference, not a T7 regression, and re-run cleanly) before committing. |
 | v1.41 | 2026-07-29 | Bookkeeping sweep on direct instruction ("reevaluate all remaining tasks... complete any bookkeeping left"): pulled every open GitHub issue in the repo and cross-checked each against this document's actual status. Found and fixed three gaps. (1) **#248 (Phase Q parent) closed** — GitHub's own sub-issue tracker already showed 11/11 (100%) complete, but the parent issue itself had been left open; closed with `completed`, matching the precedent already set when Phase S's parent (#281) was closed the same way. (2) **T9 filed as #296** and immediately closed — every other roadmap item touched this session (F3, F9, T7) got a GitHub issue, but T9's survey-and-cherry-pick work (v1.39) never did; filed retroactively with the same fixed/documented breakdown already in this document, then closed since the fixable part is done and the rest is a deliberate won't-fix, same reasoning as F3. (3) **§6.0's "Recommended order" table corrected** — row 8 (F9) and the F3-audit row still read as if both were live, undecided pending items; both now show their actual v1.36 resolution (F9 deferred behind F8, F3 closed) with a strikethrough, matching the style already used for the table's other completed rows. No code changed. Confirmed via the same sweep that Phase F (#260, 5 real open items: F2, F5, F8, F9, F12's remaining perf-rewrite, F15) and Phase R (#270, 1 open: R2) parents are correctly still open — nothing else needed closing. |
+| v1.42 | 2026-07-30 | **F15 implemented and verified** (#294, closed): ported `progress_reporter.py` from `feature/staged-matilda-support` (`ProgressReporter` ABC, `Http`/`File`/`Composite`/`Null` implementations, same HTTP callback/payload shape), wired into `InstanceSpace.__init__`/`build()`/`run_stage()`. Beyond a mechanical port — needed for the real production usage (a SLURM job runs one stage per invocation, next stage triggered separately at an unknown later time), which the source branch's single-process `build()`-loop design didn't support: (1) found and fixed a real pickling gap — `StageRunner`/`InstanceSpace` didn't survive being pickled once a stage had actually run (Q6's cached `ThreadPoolExecutor` ends up embedded in `_available_arguments`/`_schedule_output_data` and in `InstanceSpace._final_output`, an aliased reference to the same dict); added `__getstate__` to both classes, dropping the live executor, recreated lazily via existing `_get_executor()`. (2) `InstanceSpace.save()`/`load()` — whole-class checkpoint via signed `joblib`, reusing F7's exact HMAC-SHA256 scheme (`ModelSignatureError` reused directly). (3) `run_stage()` now auto-seeds initial inputs on a truly fresh `InstanceSpace` (so a SLURM job's first invocation needs no prior `build()`/`run_until_stage()` call) and reports stage/job completion. Found and fixed one regression via the full suite: `_stage_report_name()` assumed `stage.__name__` exists, breaking two pre-existing tests that stub `stage` as a plain string — fixed with a `getattr` fallback, those tests' bare `_runner` stub updated to carry the fields `run_stage()` now reads. 38 new tests; full suite verified twice (364/366 then, after the fix, 366/366 — excluding the independently-slow pythia-tuning/T2 tests). Full detail in F15's own §6 write-up. Committed as `4be2332` on `v0.9.0/development-branch-QSF`. |
+| v1.43 | 2026-07-30 | Logged, but explicitly did **not** act on, a batch of 43 findings from an externally-sourced audit document uploaded directly by the user, per direct instruction ("log all of them and place them first... do not act upon them as they require independent assessment"). Filed as GitHub issue **#297** (parent) + 6 stage-specific sub-issues — **#298** PYTHIA (10), **#299** CLOISTER (5), **#300** SIFTED (9), **#301** PILOT (7), **#302** TRACE (7), **#303** PRELIM (5) — each preserving the original upload's text verbatim rather than summarising it, so nothing is lost or paraphrased before an actual review happens. New §6.3 added, cross-referencing all 6 sub-issues and flagging plausible overlaps with already-tracked items (F10's `n_tuning_iter`, F3's `_compute_correlation` audit, F11's TRACE option surface, F14's PRELIM warning) without resolving which side is correct — that's for the independent assessment, not this logging pass. §6.0 updated to note this batch now sits ahead of the F8→F9→F2→F5 order for priority purposes (triage first, not implementation first). No code changed — explicitly out of scope for this pass. Also closed out unrelated stale bookkeeping found in the same session: F15 (#294, see v1.42) marked implemented in its own table row and write-up. |

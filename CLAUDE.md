@@ -59,10 +59,19 @@ was stale bookkeeping the code had already outgrown; corrected and closed 2026-0
 
 Also done since the last time this section was written: P0, Q1–Q11, T1–T4, T6 (closed
 not-implemented — its subject matter was S2's own DAG resolver, which S2 deleted), F1, F6, F7,
-F10, F11, F14, Q6, Q8, R1, and the "extend real tuning to non-SVM classifiers" F1 follow-on.
+F10, F11, F14, F15 (progress reporting + `InstanceSpace` checkpoint/resume, roadmap v1.42), Q6,
+Q8, R1, and the "extend real tuning to non-SVM classifiers" F1 follow-on.
 Check `docs/pyIS_docs_quality_roadmap.md`'s document-history table (append-only, read newest
 entries first) for the actual current state before assuming anything below is still accurate —
 this file gets stale between sessions; that table doesn't.
+
+**Read this before picking up any F-item below: an external, unverified 43-finding audit batch
+(roadmap §6.3, GitHub #297 + sub-issues #298–#303, added 2026-07-30) now sits ahead of
+everything else in this section, per direct user instruction.** It is logged only — not
+implemented, not independently verified against this repo's code or against MATLAB. Don't
+implement any of it without first doing that verification and reporting back (same audit-first
+discipline as F3/F10–F14, extended to a source whose reliability isn't yet established). If
+you're picking the next thing to work on, that verification pass is it, not F8.
 
 **Full remaining order (every F item, T5/T7/T8) is worked out in roadmap §6.0** — don't
 re-derive it from scratch or guess an order from the phase letters. Short version, per the
