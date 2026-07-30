@@ -136,6 +136,31 @@ class StageRunner:
             initial_input_annotations,
         )
 
+    def __getstate__(self) -> dict[str, Any]:
+        """Drop the live `ThreadPoolExecutor` (if any) so this can be pickled.
+
+        `_available_arguments`/`_schedule_output_data` may hold a reference
+        to `InstanceSpace`'s cached executor (see `TraceInputs.executor`,
+        Q6) under the `"executor"` key - a `ThreadPoolExecutor` holds OS
+        thread/queue state `pickle` can't serialise. Every caller that runs
+        a stage (`InstanceSpace.run_stage()`/`build()`/`run_iter()`/
+        `run_until_stage()`) always re-supplies a fresh executor before
+        running anything, so dropping the stale reference here is safe -
+        nothing downstream ever reads it straight out of a restored
+        checkpoint without going through one of those call sites first.
+        """
+        state = self.__dict__.copy()
+        state["_available_arguments"] = {
+            key: value
+            for key, value in state["_available_arguments"].items()
+            if key != "executor"
+        }
+        state["_schedule_output_data"] = [
+            {key: value for key, value in schedule.items() if key != "executor"}
+            for schedule in state["_schedule_output_data"]
+        ]
+        return state
+
     def run_iter(
         self,
         additional_arguments: NamedTuple,

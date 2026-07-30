@@ -15,6 +15,7 @@ from typing import Any, cast
 
 from instancespace.data.options import InstanceSpaceOptions, ParallelOptions
 from instancespace.instance_space import InstanceSpace
+from instancespace.progress_reporter import NullProgressReporter
 from instancespace.stage_runner import StageRunner
 
 
@@ -28,7 +29,24 @@ def _bare_instance_space(n_cores: int) -> InstanceSpace:
     )
     space._executor = None
     space._executor_workers = None
+    space._progress_reporter = NullProgressReporter()
     return space
+
+
+def _fake_runner(fake_run_stage: object) -> StageRunner:
+    # run_stage() also reads these three fields (progress-reporting/seeding) -
+    # a non-empty `_available_arguments` means the fresh-runner seeding path
+    # is skipped, and `_current_schedule_item < len(_stage_order)` means the
+    # schedule isn't reported as complete.
+    return cast(
+        StageRunner,
+        SimpleNamespace(
+            run_stage=fake_run_stage,
+            _available_arguments={"already": "seeded"},
+            _current_schedule_item=0,
+            _stage_order=[["wave0"], ["wave1"]],
+        ),
+    )
 
 
 def test_get_executor_reuses_the_pool_when_worker_count_is_unchanged() -> None:
@@ -95,10 +113,7 @@ def test_run_stage_passes_the_cached_executor_by_default() -> None:
         captured.update(arguments)
         return "ran"
 
-    space._runner = cast(
-        StageRunner,
-        SimpleNamespace(run_stage=fake_run_stage),
-    )
+    space._runner = _fake_runner(fake_run_stage)
 
     result: str = space.run_stage("SomeStage")  # type: ignore[arg-type]
 
@@ -116,10 +131,7 @@ def test_run_stage_does_not_override_a_caller_supplied_executor() -> None:
         captured.update(arguments)
         return "ran"
 
-    space._runner = cast(
-        StageRunner,
-        SimpleNamespace(run_stage=fake_run_stage),
-    )
+    space._runner = _fake_runner(fake_run_stage)
 
     space.run_stage("SomeStage", executor=caller_executor)  # type: ignore[arg-type]
 

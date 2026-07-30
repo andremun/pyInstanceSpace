@@ -7,7 +7,10 @@ directory. The instance space is represented as a Model object, which encapsulat
 analytical results and metadata of the instance space analysis.
 """
 
+import hashlib
+import hmac
 import multiprocessing
+import time
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -15,6 +18,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, NamedTuple, TypeVar
 
+import joblib
 import numpy as np
 import pandas as pd
 from loguru import logger
@@ -42,13 +46,14 @@ from instancespace.data.options import (
     TraceOptions,
     from_json_file,
 )
-from instancespace.model import Model
+from instancespace.model import Model, ModelSignatureError
 from instancespace.plotting import (
     plot_footprint,
     plot_good,
     plot_portfolio,
     plot_sources,
 )
+from instancespace.progress_reporter import NullProgressReporter, ProgressReporter
 from instancespace.stage_runner import (
     AnnotatedStageOutput,
     StageRunner,
@@ -196,6 +201,7 @@ class InstanceSpace:
 
     _metadata: Metadata
     _options: InstanceSpaceOptions
+    _progress_reporter: ProgressReporter
 
     _model: Model | None
     _final_output: dict[str, Any] | None
@@ -221,6 +227,7 @@ class InstanceSpace:
             TraceStage,
         ],
         additional_initial_inputs_type: type[NamedTuple] | None = None,
+        progress_reporter: ProgressReporter | None = None,
     ) -> None:
         """Initialise the InstanceSpace.
 
@@ -234,10 +241,17 @@ class InstanceSpace:
                 A list of stages to be ran.
             additional_initial_inputs_type : type[NamedTuple] | None, optional
                 Extra initial inputs used by plugins.
+            progress_reporter : ProgressReporter | None, optional
+                Reporter for tracking build()/run_stage() progress - e.g.
+                `HttpProgressReporter` for a SLURM-triggered job to call back
+                to an orchestrator after each stage. Defaults to a no-op
+                reporter, so omitting this changes nothing about existing
+                behaviour.
         """
         self._metadata = metadata
         self._options = options
         self._stages = stages
+        self._progress_reporter = progress_reporter or NullProgressReporter()
 
         self._model: Model | None = None
         self._final_output: dict[str, Any] | None = None
@@ -297,6 +311,105 @@ class InstanceSpace:
             )
 
         return self._model
+
+    def __getstate__(self) -> dict[str, Any]:
+        """Drop the live `ThreadPoolExecutor` (if any) so this can be checkpointed.
+
+        A `ThreadPoolExecutor` holds OS thread/queue state that `pickle`
+        can't serialise, so it can't survive a `save()`/`load()` round trip
+        (or a progress reporter's `OutputDetail.FULL` snapshot, see
+        `progress_reporter.serialize_stage_output()`) as-is. Dropping it here
+        is safe: `_get_executor()` recreates it lazily on the next
+        `build()`/`run_stage()`/etc. call (Q6), the same as after `close()`.
+
+        `_final_output` needs the same treatment as `_runner`'s own state
+        (see `StageRunner.__getstate__()`): `build()`/`run_stage()` set it to
+        the *same* dict object as `_runner._available_arguments` (not a
+        copy), so it carries the same stale `"executor"` entry.
+        """
+        state = self.__dict__.copy()
+        state["_executor"] = None
+        state["_executor_workers"] = None
+        final_output = state["_final_output"]
+        if final_output is not None:
+            state["_final_output"] = {
+                key: value for key, value in final_output.items() if key != "executor"
+            }
+        return state
+
+    def save(self, path: Path | str, secret_key: bytes | None = None) -> None:
+        """Checkpoint this InstanceSpace to `path` via signed `joblib`.
+
+        Captures the entire pipeline state - not just a finished `Model` -
+        so a partially-built InstanceSpace (e.g. one stage run per SLURM
+        job, with the next stage triggered by a separate, later job) can be
+        reconstructed by `load()` and continue from exactly where it left
+        off via `run_stage()`. Signing follows the same scheme as
+        `Model.save()`/`Model.load()`: see that method's docstring for the
+        exact `secret_key` semantics and the production invariant (always
+        sign, never accept a user-supplied path server-side).
+        """
+        if isinstance(path, str):
+            path = Path(path)
+
+        joblib.dump(self, path)
+
+        sig_path = path.with_name(path.name + ".sig")
+        if secret_key is not None:
+            signature = hmac.new(secret_key, path.read_bytes(), hashlib.sha256)
+            sig_path.write_bytes(signature.digest())
+        elif sig_path.exists():
+            sig_path.unlink()
+
+    @classmethod
+    def load(
+        cls: type["InstanceSpace"],
+        path: Path | str,
+        secret_key: bytes | None = None,
+    ) -> "InstanceSpace":
+        """Restore an InstanceSpace checkpoint previously written by `save()`.
+
+        Same four verification cases as `Model.load()` (matched/mismatched/
+        missing/unexpected signature) - see that method's docstring.
+        """
+        if isinstance(path, str):
+            path = Path(path)
+
+        sig_path = path.with_name(path.name + ".sig")
+        sig_exists = sig_path.exists()
+
+        if secret_key is not None and not sig_exists:
+            raise ModelSignatureError(
+                f"secret_key was given but no signature file exists at "
+                f"{sig_path}; refusing to load an unverifiable file.",
+            )
+        if secret_key is None and sig_exists:
+            raise ModelSignatureError(
+                f"A signature file exists at {sig_path} but no secret_key "
+                "was given; refusing to load a signed file without "
+                "verification.",
+            )
+
+        if secret_key is not None:
+            expected_signature = sig_path.read_bytes()
+            actual_signature = hmac.new(
+                secret_key,
+                path.read_bytes(),
+                hashlib.sha256,
+            ).digest()
+            if not hmac.compare_digest(actual_signature, expected_signature):
+                raise ModelSignatureError(
+                    f"Signature verification failed for {path}; refusing to "
+                    "deserialise.",
+                )
+
+        instance_space = joblib.load(path)
+        if not isinstance(instance_space, cls):
+            raise TypeError(
+                f"{path} does not contain an {cls.__name__} (got "
+                f"{type(instance_space).__name__!r}).",
+            )
+        return instance_space
 
     def _get_executor(self) -> ThreadPoolExecutor:
         """Return a cached ThreadPoolExecutor, reused across staged calls (Q6).
@@ -359,26 +472,54 @@ class InstanceSpace:
         """
         return plot_footprint(self.model, algo, kind=kind, ax=ax)
 
+    @staticmethod
+    def _stage_report_name(stage: StageClass) -> str:
+        """Report name for a stage, e.g. `PrelimStage` -> `"prelim"`.
+
+        `getattr(..., "__name__", ...)` rather than `stage.__name__` directly:
+        existing tests (e.g. `test_instance_space_executor.py`) stub `stage`
+        as a plain string rather than a real `StageClass` when they only care
+        about argument pass-through, not stage identity.
+        """
+        name = getattr(stage, "__name__", str(stage))
+        return name.replace("Stage", "").lower()
+
     def build(
         self,
     ) -> Model:
-        """Build the instance space.
+        """Build the instance space, in one call, start to finish.
 
         Options will be broken down to sub fields to be passed to stages. You can
-        override inputs to stages.
+        override inputs to stages. Progress is reported via the configured
+        `progress_reporter` (a no-op by default - see `__init__`), the same as
+        `run_stage()`.
 
         Returns
         -------
-            tuple[Any]: The output of all stages
+            Model: The output of all stages.
 
         """
-        inputs = _InstanceSpaceInputs.from_metadata_and_options(
-            self.metadata,
-            self.options,
-        )._replace(executor=self._get_executor())
-        self._final_output = self._runner.run_all(inputs)
+        try:
+            inputs = _InstanceSpaceInputs.from_metadata_and_options(
+                self.metadata,
+                self.options,
+            )._replace(executor=self._get_executor())
 
-        return self.model
+            for stage_output in self._runner.run_iter(inputs):
+                self._progress_reporter.report_stage_completed(
+                    self._stage_report_name(stage_output.stage),
+                    instance_space=self,
+                )
+
+            self._final_output = self._runner._available_arguments  # noqa: SLF001
+
+            self._progress_reporter.report_job_completed(instance_space=self)
+
+            return self.model
+
+        except Exception as e:
+            self._progress_reporter.report_job_failed(str(e))
+            raise
 
     def run_iter(
         self,
@@ -408,6 +549,15 @@ class InstanceSpace:
         be given as arguments to this function. Arguments to this function have
         priority over outputs from previous stages.
 
+        Progress is reported via the configured `progress_reporter` (a no-op
+        by default - see `__init__`). This is the entry point a SLURM job
+        that runs one stage per invocation should call: load a checkpoint
+        with `InstanceSpace.load()` (or construct fresh for the first
+        stage), call `run_stage()` for the stage this invocation was told to
+        run, then `save()` the result so a later, separately-triggered job
+        can resume. `self.model` becomes available once the last stage in
+        the schedule has been run this way, exactly as after `build()`.
+
         Args
         ----
             stage : StageClass
@@ -422,7 +572,48 @@ class InstanceSpace:
             list[Any]: The output of the stage.
         """
         arguments.setdefault("executor", self._get_executor())
-        return self._runner.run_stage(stage, **arguments)
+        stage_name = self._stage_report_name(stage)
+        start = time.monotonic()
+
+        # A completely fresh InstanceSpace (as opposed to one restored via
+        # load()) has never had its initial inputs seeded - build()/run_iter()/
+        # run_until_stage() all do this themselves before running anything,
+        # but run_stage() is meant to be usable as the sole per-process entry
+        # point for a schedule split across separate invocations (e.g. one
+        # SLURM job per stage), so it has to do the same the first time it's
+        # called. A checkpoint loaded partway through never hits this branch:
+        # every prior stage's outputs (plus the original seed) are already in
+        # `_available_arguments`.
+        if not self._runner._available_arguments:  # noqa: SLF001
+            seed = _InstanceSpaceInputs.from_metadata_and_options(
+                self.metadata,
+                self.options,
+            )._replace(executor=self._get_executor())
+            self._runner._available_arguments = seed._asdict()  # noqa: SLF001
+
+        try:
+            output = self._runner.run_stage(stage, **arguments)
+        except Exception as e:
+            self._progress_reporter.report_stage_failed(stage_name, str(e))
+            self._progress_reporter.report_job_failed(str(e))
+            raise
+
+        self._final_output = self._runner._available_arguments  # noqa: SLF001
+        duration_seconds = time.monotonic() - start
+
+        self._progress_reporter.report_stage_completed(
+            stage_name,
+            duration_seconds=duration_seconds,
+            instance_space=self,
+        )
+
+        current_item = self._runner._current_schedule_item  # noqa: SLF001
+        stage_order = self._runner._stage_order  # noqa: SLF001
+        schedule_complete = current_item >= len(stage_order)
+        if schedule_complete:
+            self._progress_reporter.report_job_completed(instance_space=self)
+
+        return output
 
     def run_until_stage(
         self,
