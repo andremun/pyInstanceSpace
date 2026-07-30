@@ -315,3 +315,39 @@ def test_stage_runner_is_picklable_after_running_a_stage() -> None:
     # The restored defaultdict's factory must still work, not just its
     # already-populated entries.
     assert restored._stages_ran[StageC] is False  # noqa: SLF001
+
+
+def test_stage_runner_is_picklable_with_a_live_executor_in_arguments() -> None:
+    """`StageRunner.__getstate__()` must strip a live executor before pickling.
+
+    Unlike `test_run_stage_does_not_deepcopy_a_live_executor` (which only needs
+    pass-through-by-reference within one process), a `ThreadPoolExecutor` can't
+    be pickled at all once it lands in `_available_arguments`/
+    `_schedule_output_data` (Q6-style, see `InitialArgumentsWithExecutor`) - this
+    is what checkpointing an `InstanceSpace` mid-pipeline (`InstanceSpace.save()`)
+    relies on not crashing on. `run_all()` (rather than a direct `run_stage()`
+    call) is what actually seeds `"executor"` into `_available_arguments` - it
+    comes from the *initial* arguments NamedTuple, not from any stage's output.
+    Uses `StageA` (which never reads or outputs `"executor"`) rather than
+    `StageF`, since `_InstanceSpaceInputs.executor` similarly sits unread by
+    most real stages - only the ones that actually declare it as an input
+    (e.g. `TraceInputs.executor`) ever touch it.
+    """
+    executor = ThreadPoolExecutor(max_workers=1)
+    try:
+        stage_runner = build_stage_runner(
+            [[StageA]],
+            [],
+            InitialArgumentsWithExecutor,
+        )
+        stage_runner.run_all(InitialArgumentsWithExecutor(a=1, executor=executor))
+
+        restored = pickle.loads(pickle.dumps(stage_runner))
+
+        assert "executor" not in restored._available_arguments  # noqa: SLF001
+        assert all(
+            "executor" not in schedule
+            for schedule in restored._schedule_output_data  # noqa: SLF001
+        )
+    finally:
+        executor.shutdown(wait=True)
