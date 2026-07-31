@@ -122,8 +122,8 @@ class PrelimOutput(NamedTuple):
     y_best : NDArray[np.double]
         Best observed performance value for each instance across all algorithms.
     p : NDArray[np.int_]
-        Array of p-values for features based on statistical tests for feature
-          selection or ranking.
+        Index of the best-performing algorithm for each instance (1-based,
+          matching MATLAB).
     num_good_algos : NDArray[np.double]
         Number of algorithms per feature that meet a certain performance threshold.
     beta : NDArray[np.bool_]
@@ -420,7 +420,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
     def _select_best_algorithms(
         self,
         y_raw: NDArray[np.double],
-        y_best: NDArray[np.double],
+        y_best_tie: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         nalgos: int,
         beta_threshold: float,
@@ -431,7 +431,11 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         Args
         ----
             y_raw: Raw algorithm predictions.
-            y_best: Best algorithm predictions.
+            y_best_tie: Best-performance-per-instance, taken *before* the
+                zero-value eps substitution applied elsewhere in `_prelim`
+                (matches MATLAB's `YbestTie`) - using the eps-substituted
+                value here would make ties where the best performance is
+                exactly zero undetectable, since no raw value equals `eps`.
             y_bin: Binary labels.
             nalgos: Number of algorithms.
             betaThreshold: Beta threshold.
@@ -444,25 +448,32 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             p: Selected algorithms.
         """
         # testing for ties
-        # If there is a tie, we pick an algorithm at random
-        y_best = y_best[:, np.newaxis]
+        y_best_tie = y_best_tie[:, np.newaxis]
 
-        best_algos = np.equal(y_raw, y_best)
+        best_algos = np.equal(y_raw, y_best_tie)
         multiple_best_algos = np.sum(best_algos, axis=1) > 1
         aidx = np.arange(1, nalgos + 1)
 
-        for i in range(self.y.shape[0]):
+        for i in range(y_raw.shape[0]):
             if multiple_best_algos[i].any():
                 aux = aidx[best_algos[i]]
-                # changed to pick the first one for testing purposes
-                # will need to change it back to random after testing complete
+                # Ties are broken by picking the first tied algorithm, not a
+                # random one (MATLAB uses randi() here). This is a deliberate,
+                # temporary simplification: a future improvement should break
+                # ties using the algorithms' performance among the instance's
+                # K nearest neighbours instead of either "first" or "random"
+                # - i.e. prefer whichever tied algorithm is more consistently
+                # the strongest performer in that local neighbourhood, rather
+                # than an arbitrary pick. Worth raising on the MATLAB side too
+                # (github.com/andremun/InstanceSpace), since randi() has the
+                # same "arbitrary choice" property this is meant to improve on.
                 p[i] = aux[0]
 
         self._log(
             f"-> For {round(100 * np.mean(multiple_best_algos))}% of the instances "
             "there is more than one best algorithm.",
         )
-        self._log("Random selection is used to break ties.")
+        self._log("The first tied algorithm is used to break ties.")
 
         num_good_algos = np.sum(y_bin, axis=1)
         self._log_detail(f"beta_threshold: {beta_threshold}")
@@ -485,12 +496,18 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             lo_bound: The lower bound for the feature values.
         """
         self._log("-> Removing extreme outliers from the feature values.")
-        med_val = np.median(self.x, axis=0)
+        med_val = np.nanmedian(self.x, axis=0)
 
-        iq_range = stats.iqr(self.x, axis=0, interpolation="midpoint")
+        iq_range = stats.iqr(
+            self.x,
+            axis=0,
+            interpolation="midpoint",
+            nan_policy="omit",
+        )
 
-        hi_bound = med_val + 5 * iq_range
-        lo_bound = med_val - 5 * iq_range
+        multiplier = self.prelim_opts.iqr_multiplier
+        hi_bound = med_val + multiplier * iq_range
+        lo_bound = med_val - multiplier * iq_range
 
         hi_mask = self.x > hi_bound
         lo_mask = self.x < lo_bound
@@ -661,6 +678,10 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             y_aux[np.isnan(y_aux)] = -np.inf
 
             y_best = np.max(y_aux, axis=1)
+            # Snapshot before the zero-value eps substitution below, so tied
+            # instances whose best performance is exactly zero can still be
+            # detected as ties (matches MATLAB's YbestTie).
+            y_best_tie = y_best.copy()
             # add 1 to the index to match the MATLAB code
             p = np.argmax(y_aux, axis=1) + 1
 
@@ -686,6 +707,10 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             y_aux[np.isnan(y_aux)] = np.inf
 
             y_best = np.min(y_aux, axis=1)
+            # Snapshot before the zero-value eps substitution below, so tied
+            # instances whose best performance is exactly zero can still be
+            # detected as ties (matches MATLAB's YbestTie).
+            y_best_tie = y_best.copy()
             # add 1 to the index to match the MATLAB code
             p = np.argmin(y_aux, axis=1) + 1
 
@@ -696,30 +721,31 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
                 self._warn_many_zero_best(y_best)
                 y_best[y_best == 0] = np.finfo(float).eps
                 y[y == 0] = np.finfo(float).eps
-                y = 1 - y_best[:, np.newaxis] / y
-                y_bin = (1 - y_best[:, np.newaxis] / y_aux) <= prelim_opts.epsilon
+                y = y / y_best[:, np.newaxis] - 1
+                y_bin = (y_aux / y_best[:, np.newaxis] - 1) <= prelim_opts.epsilon
                 msg = (
                     msg
                     + "within "
                     + str(round(100 * prelim_opts.epsilon))
-                    + "% of the worst."
+                    + "% of the best."
                 )
 
         self._log(msg)
 
         num_good_algos, p, beta = self._select_best_algorithms(
             y_raw,
-            y_best,
+            y_best_tie,
             y_bin,
             nalgos,
             prelim_opts.beta_threshold,
             p,
         )
 
-        med_val = np.median(x, axis=0)
-        iq_range = stats.iqr(x, axis=0, interpolation="midpoint")
-        hi_bound = med_val + 5 * iq_range
-        lo_bound = med_val - 5 * iq_range
+        med_val = np.nanmedian(x, axis=0)
+        iq_range = stats.iqr(x, axis=0, interpolation="midpoint", nan_policy="omit")
+        multiplier = prelim_opts.iqr_multiplier
+        hi_bound = med_val + multiplier * iq_range
+        lo_bound = med_val - multiplier * iq_range
 
         if prelim_opts.bound:
             bound_out = self._bound()
@@ -731,11 +757,11 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
 
         nfeats = x.shape[1]
         nalgos = y.shape[1]
-        min_x = np.min(x, axis=0)
+        min_x = np.nanmin(x, axis=0)
         lambda_x = np.zeros(nfeats)
         mu_x = np.zeros(nfeats)
         sigma_x = np.zeros(nfeats)
-        min_y = float(np.min(y))
+        min_y = float(np.nanmin(y))
         lambda_y = np.zeros(nalgos)
         mu_y = np.zeros(nalgos)
         sigma_y = np.zeros(nalgos)

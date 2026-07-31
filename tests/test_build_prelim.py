@@ -12,6 +12,7 @@ Tests include:
 - Verifying the values of the data.model after running the Prelim class.
 """
 
+import dataclasses
 from collections.abc import Callable
 from pathlib import Path
 
@@ -403,3 +404,177 @@ def test_prelim_many_zero_best_warning_silent_below_threshold() -> None:
     messages = _collect_warnings(warn_many_zero_best, y_best)
 
     assert messages == []
+
+
+def _collect_info(fn: Callable[[], object]) -> list[str]:
+    """Run fn() and return the loguru INFO-level messages it emitted."""
+    from loguru import logger
+
+    messages: list[str] = []
+    sink_id = logger.add(
+        lambda msg: messages.append(msg.record["message"]),
+        level="INFO",
+    )
+    try:
+        fn()
+    finally:
+        logger.remove(sink_id)
+    return messages
+
+
+def test_prelim_minimisation_branch_matches_matlab_formula() -> None:
+    """Regression test: minimisation-branch relative performance is `y/best - 1`.
+
+    Previously computed `1 - best/y` (closeness to the *worst*, not the
+    *best*), which can flip an algorithm's "good"/"bad" classification
+    relative to MATLAB's `Y/Ybest - 1` for the same data.
+    """
+    y = np.array([[2.0, 4.0], [3.0, 3.0]])
+    x = np.ones((2, 1))
+    opts = PrelimOptions(
+        abs_perf=False,
+        beta_threshold=0.55,
+        epsilon=0.2,
+        max_perf=False,  # minimisation: lower is better
+        bound=False,
+        norm=False,
+    )
+
+    result = PrelimStage.prelim(
+        x,
+        y.copy(),
+        x.copy(),
+        y.copy(),
+        None,
+        pd.Series(["i1", "i2"]),
+        opts,
+        selvars_opts,
+        GeneralOptions.default(),
+    )
+    y_out = result[1]
+
+    # y_best per instance (minimising): row0 -> 2.0, row1 -> 3.0.
+    y_best = np.array([[2.0], [3.0]])
+    expected = y / y_best - 1
+    assert np.allclose(y_out, expected)
+    # The old (wrong) formula would have produced 1 - y_best/y instead.
+    wrong = 1 - y_best / y
+    assert not np.allclose(y_out, wrong)
+
+
+def test_prelim_nan_aware_statistics() -> None:
+    """Regression test: median/IQR/min ignore NaNs instead of propagating them.
+
+    A single NaN in a feature column must not turn that column's `med_val`/
+    `iq_range`/`hi_bound`/`lo_bound`/`min_x` into NaN for every instance.
+    """
+    x = np.array([[1.0, 10.0], [2.0, np.nan], [3.0, 30.0], [4.0, 40.0]])
+    y = np.array([[1.0], [2.0], [3.0], [4.0]])
+    opts = PrelimOptions(
+        abs_perf=True,
+        beta_threshold=0.55,
+        epsilon=0.2,
+        max_perf=True,
+        bound=False,
+        norm=False,
+    )
+
+    result = PrelimStage.prelim(
+        x,
+        y,
+        x.copy(),
+        y.copy(),
+        None,
+        pd.Series(["i1", "i2", "i3", "i4"]),
+        opts,
+        selvars_opts,
+        GeneralOptions.default(),
+    )
+    med_val, min_x = result[7], result[11]
+
+    assert not np.isnan(med_val).any()
+    assert not np.isnan(min_x).any()
+    assert med_val[1] == np.nanmedian(x[:, 1])
+    assert min_x[1] == np.nanmin(x[:, 1])
+
+
+def test_prelim_iqr_multiplier_option_scales_bounds() -> None:
+    """A non-default `iqr_multiplier` changes hi_bound/lo_bound proportionally."""
+    x = np.array([[1.0], [2.0], [3.0], [4.0], [5.0]])
+    y = np.ones((5, 1))
+    base_opts = PrelimOptions(
+        abs_perf=True,
+        beta_threshold=0.55,
+        epsilon=0.2,
+        max_perf=True,
+        bound=False,
+        norm=False,
+    )
+    wide_opts = dataclasses.replace(base_opts, iqr_multiplier=2.0)
+
+    default_result = PrelimStage.prelim(
+        x,
+        y.copy(),
+        x.copy(),
+        y.copy(),
+        None,
+        pd.Series(["i1", "i2", "i3", "i4", "i5"]),
+        base_opts,
+        selvars_opts,
+        GeneralOptions.default(),
+    )
+    wide_result = PrelimStage.prelim(
+        x,
+        y.copy(),
+        x.copy(),
+        y.copy(),
+        None,
+        pd.Series(["i1", "i2", "i3", "i4", "i5"]),
+        wide_opts,
+        selvars_opts,
+        GeneralOptions.default(),
+    )
+    default_hi_bound, default_lo_bound = default_result[9], default_result[10]
+    wide_hi_bound, wide_lo_bound = wide_result[9], wide_result[10]
+
+    med_val = default_result[7]
+    iq_range = default_result[8]
+    assert np.allclose(default_hi_bound, med_val + 5.0 * iq_range)
+    assert np.allclose(wide_hi_bound, med_val + 2.0 * iq_range)
+    assert np.allclose(default_lo_bound, med_val - 5.0 * iq_range)
+    assert np.allclose(wide_lo_bound, med_val - 2.0 * iq_range)
+
+
+def test_prelim_zero_value_ties_are_detected() -> None:
+    """Regression test: a tie at Ybest == 0 must register as a tie.
+
+    Previously, tie detection compared raw performance against the
+    *eps-substituted* best value, so a genuine zero-value tie between two
+    algorithms was silently never counted - even though the final `p` value
+    coincidentally comes out the same either way (both mechanisms pick the
+    first tied index), the tie must still be *reported* correctly, and this
+    is the plumbing a future (not-yet-implemented) smarter tie-break needs
+    to actually run on zero-value ties instead of silently skipping them.
+    """
+    prelim_stage = PrelimStage.__new__(PrelimStage)
+    prelim_stage.general_opts = GeneralOptions.default()
+    # Instance 0: algorithms 0 and 1 both score the (minimum) best of 0.0 - a
+    # zero-value tie. Instance 1: no tie.
+    y_raw = np.array([[0.0, 0.0, 5.0], [1.0, 2.0, 3.0]])
+    y_best_tie = np.array([0.0, 1.0])  # pre-eps-substitution snapshot
+    y_bin = np.zeros((2, 3), dtype=np.bool_)
+    p = np.array([1, 1])
+
+    messages = _collect_info(
+        lambda: prelim_stage._select_best_algorithms(  # noqa: SLF001
+            y_raw,
+            y_best_tie,
+            y_bin,
+            3,
+            0.55,
+            p,
+        ),
+    )
+
+    assert p[0] == 1  # first tied algorithm (1-based), unchanged either way
+    assert any("50" in m and "more than one best algorithm" in m for m in messages)
