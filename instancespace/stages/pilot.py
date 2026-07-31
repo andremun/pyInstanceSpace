@@ -253,6 +253,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                     _do_output,
                 )
                 alpha = options.alpha
+                idx = 0
             else:
                 if options.x0 is not None:
                     PilotStage._pilot_print(
@@ -295,7 +296,13 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             out_c = b[n + 1 : m, :].T
             out_b = b[:n, :]
             error = np.sum((x_bar - x_hat) ** 2)
-            r2 = np.diag(np.corrcoef(x_bar, x_hat) ** 2).astype(np.double)
+            # rowvar=False + the [:m, m:] block mirrors analytic_solve()'s (correct)
+            # R^2 computation: per-column correlation between x_bar and x_hat, not
+            # the row-wise (instance-to-instance) correlation corrcoef's default
+            # would otherwise compute.
+            r2 = (np.diag(np.corrcoef(x_bar, x_hat, rowvar=False)[:m, m:]) ** 2).astype(
+                np.double,
+            )
 
         if options.adjust_rotation:
             out_z, out_a = PilotStage._maybe_adjust_rotation(
@@ -528,7 +535,9 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
 
         x_transpose = x.T
         xx_transpose = np.dot(x, x.T)
-        xx_transpose_inverse = np.linalg.inv(xx_transpose)
+        # pinv (rather than inv) keeps this well-defined for rank-deficient X,
+        # matching inv's result whenever X is full rank.
+        xx_transpose_inverse = np.linalg.pinv(xx_transpose)
 
         x_r = np.dot(x_transpose, xx_transpose_inverse)
 
@@ -649,7 +658,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                 general_options,
             )
 
-            al: NDArray[np.float16] = alpha.astype(np.float16)
+            al: NDArray[np.double] = alpha
             ept: NDArray[np.double] = eoptim
             prf: NDArray[np.double] = perf
 

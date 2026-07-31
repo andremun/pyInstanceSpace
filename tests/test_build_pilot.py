@@ -343,3 +343,128 @@ def test_pilot_adjust_rotation_no_bad_instances_leaves_z_unchanged() -> None:
     )
 
     np.testing.assert_array_equal(plain.z, rotated.z)
+
+
+def test_pilot_precalculated_alpha_does_not_crash() -> None:
+    """A precomputed `alpha` solution must not hit an undefined `idx`.
+
+    Regression test: when `options.alpha` is provided with the expected
+    `(2*m + 2*n, 1)` shape, PILOT skipped setting `idx`, so the later
+    `alpha[:, idx]` indexing raised `UnboundLocalError`.
+    """
+    rng = np.random.default_rng(0)
+    x = rng.random((15, 3))
+    y = rng.random((15, 2))
+    feat_labels = ["f0", "f1", "f2"]
+    n = x.shape[1]
+    m = n + y.shape[1]
+    alpha = rng.random((2 * m + 2 * n, 1))
+    opts = PilotOptions(None, alpha, False, 1)
+
+    result = PilotStage.pilot(
+        x,
+        y,
+        feat_labels,
+        opts,
+        GeneralOptions(verbose=False, seed=0),
+        _do_output=False,
+    )
+
+    assert result.a.shape == (2, n)
+    assert result.z.shape == (15, 2)
+
+
+def test_pilot_analytic_handles_rank_deficient_x() -> None:
+    """The analytic branch must not crash on a rank-deficient feature matrix.
+
+    Regression test: `analytic_solve()` used `np.linalg.inv`, which raises
+    `LinAlgError` for a singular `X @ X.T`. Duplicating a column makes `X`
+    rank-deficient by construction.
+    """
+    rng = np.random.default_rng(1)
+    x_base = rng.random((20, 2))
+    x = np.column_stack([x_base, x_base[:, 0]])
+    y = rng.random((20, 2))
+    feat_labels = ["f0", "f1", "f2"]
+    opts = PilotOptions(None, None, True, 1)
+
+    result = PilotStage.pilot(
+        x,
+        y,
+        feat_labels,
+        opts,
+        GeneralOptions(verbose=False, seed=0),
+        _do_output=False,
+    )
+
+    assert np.all(np.isfinite(result.a))
+    assert np.all(np.isfinite(result.z))
+
+
+def test_pilot_numerical_r2_has_one_value_per_column() -> None:
+    """Numerical-branch R^2 must be per-column, matching the analytic branch.
+
+    Regression test: without `rowvar=False`, `corrcoef` treated each
+    *instance* (row) as a variable instead of each of the `m` (features +
+    algorithms) columns, producing a wrongly-shaped, wrongly-computed R^2.
+    """
+    rng = np.random.default_rng(2)
+    x = rng.random((25, 3))
+    y = rng.random((25, 2))
+    feat_labels = ["f0", "f1", "f2"]
+    opts = PilotOptions(None, None, False, 1)
+
+    result = PilotStage.pilot(
+        x,
+        y,
+        feat_labels,
+        opts,
+        GeneralOptions(verbose=False, seed=0),
+        _do_output=False,
+    )
+
+    tolerance = 1e-8
+    m = x.shape[1] + y.shape[1]
+    assert result.r2.shape == (m,)
+    assert np.all(result.r2 >= -tolerance)
+    assert np.all(result.r2 <= 1 + tolerance)
+
+
+def test_pilot_numerical_solve_keeps_full_precision() -> None:
+    """`numerical_solve()` must return `alpha` at float64, not truncated to float16.
+
+    Regression test: the solver previously downcast the whole `alpha` matrix
+    to `float16` before returning it, discarding precision that then fed
+    into the projection matrices A/B/C/Z computed from it. A *separate*,
+    intentional float16 cast still happens later in `pilot()`, only for the
+    copy stored in `PilotOutput.alpha`, and is unaffected by this fix.
+    """
+    rng = np.random.default_rng(3)
+    x = rng.random((15, 3))
+    y = rng.random((15, 2))
+    n = x.shape[1]
+    m = n + y.shape[1]
+    x_bar = np.concatenate((x, y), axis=1)
+    hd = pdist(x).T
+    x0 = 2 * rng.random((2 * m + 2 * n, 2)) - 1
+    alpha = np.zeros((2 * m + 2 * n, 2))
+    eoptim = np.zeros(2)
+    perf = np.zeros(2)
+    opts = PilotOptions(None, None, False, 2)
+
+    _idx, out_alpha, _eoptim, _perf = PilotStage.numerical_solve(
+        x,
+        hd,
+        x0,
+        x_bar,
+        n,
+        m,
+        alpha,
+        eoptim,
+        perf,
+        opts,
+        GeneralOptions(verbose=False, seed=0),
+        _do_output=False,
+    )
+
+    assert out_alpha.dtype == np.float64
