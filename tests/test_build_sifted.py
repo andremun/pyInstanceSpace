@@ -277,6 +277,17 @@ def test_run() -> None:
     correlation (>0.9) and other correlation values are low (<0.9)
     """
     inputs = SiftedMatlabInput()
+    # The GA's default budget (100 generations x 50 pop) takes ~5 minutes here;
+    # the correlation-matrix check below is a fuzzy high/normal/low comparison
+    # (not an exact-match assertion), so it doesn't depend on exactly how
+    # thoroughly the GA searched - a much smaller budget still converges on
+    # good-enough feature combinations and cuts this test to a few seconds.
+    fast_opts = dataclasses.replace(
+        inputs.opts,
+        num_generations=5,
+        sol_per_pop=6,
+        keep_elitism=1,
+    )
 
     sifted_input = SiftedInput(
         inputs.x,
@@ -291,7 +302,7 @@ def test_run() -> None:
         inputs.inst_labels,
         s=inputs.s,
         feat_labels=inputs.feat_labels,
-        sifted_options=inputs.opts,
+        sifted_options=fast_opts,
         selvars_options=inputs.opts_selvar,
         data_dense=inputs.data_dense,
         parallel_options=ParallelOptions.default(),
