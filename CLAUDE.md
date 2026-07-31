@@ -156,3 +156,10 @@ still broken without checking `pyproject.toml`'s `[tool.poe.tasks]` first.
 ruff + mypy (strict) + black, already configured. PolyForm Noncommercial 1.0.0 licence — match
 it in any new file headers (F6). Commit messages: conventional-commit style (`fix:`, `feat:`,
 `chore:`), matching what's already used in this repo's history.
+
+## Writing documentation and other prose
+
+Use the `ste-writing` skill (`.claude/skills/ste-writing/SKILL.md`) for prose you write in this
+repo — docs, READMEs, PR descriptions, error messages, release notes, and comments. It does not
+apply to code or commit messages. Use STE-flavored mode for docs/READMEs/PR text; use strict
+mode for procedures and error messages.
