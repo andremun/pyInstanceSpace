@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 from numpy.typing import NDArray
 from scipy.io import loadmat
 from sklearn.model_selection import StratifiedKFold
@@ -28,6 +29,17 @@ parallel_opts = ParallelOptions(
     flag=True,
     n_cores=8,
 )
+
+# `PythiaStage.LEGACY_BAYES_N_ITER` defaults to 30 real `BayesSearchCV`
+# iterations per classifier (10 classifiers x 5 CV folds each), which is
+# what makes the 4 `tuning='bayes'` tests below slow (~10-25 min each).
+# Monkeypatching it down here keeps them exercising the same legacy
+# `tuning='bayes'` code path against the same MATLAB fixtures, just with a
+# smaller search budget - the `compare_performance()` tolerance (90% of
+# accuracy/precision/recall metrics within 2.5 points of MATLAB) already
+# accounts for run-to-run tuning variance, so it isn't sensitive to exactly
+# how many search iterations produced the tuned model.
+BAYES_N_ITER_FOR_TESTS = 8
 
 script_dir = Path(__file__).parent
 
@@ -174,7 +186,7 @@ def compare_performance(
     assert correct / total >= threshold
 
 
-def test_pilot_num_pythia_bayes_gaussian() -> None:
+def test_pilot_num_pythia_bayes_gaussian(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test the integration of the Pilot and Pythia stages.
 
     The test will check the output of the Pythia stage with the expected output from the
@@ -182,6 +194,7 @@ def test_pilot_num_pythia_bayes_gaussian() -> None:
     This test is for Pilot stage using numerical option and Pythia stage using Bayesian
     optimization with Gaussian kernel.
     """
+    monkeypatch.setattr(PythiaStage, "LEGACY_BAYES_N_ITER", BAYES_N_ITER_FOR_TESTS)
     sample_data = SampleDataNum()
 
     x_sample = sample_data.x_sample
@@ -235,7 +248,7 @@ def test_pilot_num_pythia_bayes_gaussian() -> None:
     )
 
 
-def test_pilot_num_pythia_bayes_poly() -> None:
+def test_pilot_num_pythia_bayes_poly(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test the integration of the Pilot and Pythia stages.
 
     The test will check the output of the Pythia stage with the expected output from the
@@ -243,6 +256,7 @@ def test_pilot_num_pythia_bayes_poly() -> None:
     This test is for Pilot stage using numerical option and Pythia stage using Bayesian
     optimization with Polynomial kernel.
     """
+    monkeypatch.setattr(PythiaStage, "LEGACY_BAYES_N_ITER", BAYES_N_ITER_FOR_TESTS)
     sample_data = SampleDataNum()
 
     x_sample = sample_data.x_sample
@@ -296,7 +310,7 @@ def test_pilot_num_pythia_bayes_poly() -> None:
     )
 
 
-def test_pilot_analytic_pythia_bo_gaussian() -> None:
+def test_pilot_analytic_pythia_bo_gaussian(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test the integration of the Pilot and Pythia stages.
 
     The test will check the output of the Pythia stage with the expected output from the
@@ -304,6 +318,7 @@ def test_pilot_analytic_pythia_bo_gaussian() -> None:
     This test is for Pilot stage using analytical option and Pythia stage using Bayesian
     optimization with Gaussian kernel.
     """
+    monkeypatch.setattr(PythiaStage, "LEGACY_BAYES_N_ITER", BAYES_N_ITER_FOR_TESTS)
     sample_data = SampleData()
 
     x_sample = sample_data.x_sample
@@ -359,7 +374,7 @@ def test_pilot_analytic_pythia_bo_gaussian() -> None:
     )
 
 
-def test_pilot_analytic_pythia_bo_poly() -> None:
+def test_pilot_analytic_pythia_bo_poly(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test the integration of the Pilot and Pythia stages.
 
     The test will check the output of the Pythia stage with the expected output from the
@@ -367,6 +382,7 @@ def test_pilot_analytic_pythia_bo_poly() -> None:
     This test is for Pilot stage using analytical option and Pythia stage using Bayesian
     optimization with Polynomial kernel
     """
+    monkeypatch.setattr(PythiaStage, "LEGACY_BAYES_N_ITER", BAYES_N_ITER_FOR_TESTS)
     sample_data = SampleData()
 
     x_sample = sample_data.x_sample
