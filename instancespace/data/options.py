@@ -916,6 +916,11 @@ class PrelimOptions:
     beta_threshold: float
     bound: bool
     norm: bool
+    # Multiplier applied to the IQR when computing outlier bounds
+    # (hi_bound/lo_bound = med_val +/- iqr_multiplier * iq_range), matching
+    # MATLAB's opts.iqrMultiplier. Default matches the value this port
+    # previously hard-coded.
+    iqr_multiplier: float = 5.0
 
     @staticmethod
     def from_options(options: InstanceSpaceOptions) -> PrelimOptions:
