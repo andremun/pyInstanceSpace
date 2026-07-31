@@ -22,6 +22,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 from numpy.typing import NDArray
 
 from instancespace.data.model import DataDense
@@ -128,11 +129,13 @@ class SiftedMatlabInput:
                 script_dir / "test_data/sifted/input/input_dense_beta.csv",
                 delimiter=",",
             ),
-            inst_labels=np.genfromtxt(
-                script_dir / "test_data/sifted/input/input_dense_instlabels.csv",
-                delimiter=",",
-                dtype=str,
-            ).tolist(),
+            inst_labels=pd.Series(
+                np.genfromtxt(
+                    script_dir / "test_data/sifted/input/input_dense_instlabels.csv",
+                    delimiter=",",
+                    dtype=str,
+                ),
+            ),
             s=None,
         )
 
@@ -351,6 +354,263 @@ def test_sifted_seed_reproducibility() -> None:
 
     np.testing.assert_array_equal(selvars_a, selvars_b)
     assert not np.array_equal(selvars_a, selvars_c)
+
+
+def test_select_features_by_performance_uses_sorted_threshold_comparison() -> None:
+    """Threshold check must compare each rank's sorted value, not raw rho by index.
+
+    Regression test for a bug where `filtered_rho` aliased `rho` (so the returned
+    `rho`/`pval` outputs would have been corrupted by zeroing) and the `>= opts.rho`
+    threshold was applied to `rho[row]` (the *unsorted*, still-signed correlation at
+    the row's original feature index) instead of to the sorted, absolute value at
+    that rank -- silently dropping legitimate strong negative correlations and
+    comparing the wrong feature's coefficient against the threshold.
+    """
+    rng = np.random.default_rng(seed=0)
+    n_instances = 30
+    # feature 0: strongly *negatively* correlated with algorithm 0.
+    # feature 1: weakly correlated with everything (noise).
+    y0 = rng.normal(size=n_instances)
+    x0 = -y0 + rng.normal(scale=0.01, size=n_instances)
+    x1 = rng.normal(size=n_instances)
+    x = np.column_stack([x0, x1])
+    y = np.column_stack([y0])
+    y_bin = np.ones((n_instances, 1), dtype=bool)
+
+    opts = dataclasses.replace(SiftedOptions.default(), rho=0.3)
+    sifted = SiftedStage(
+        x,
+        y,
+        y_bin,
+        x,
+        y,
+        np.ones((n_instances, 1), dtype=bool),
+        np.ones(n_instances),
+        y0,
+        np.ones(n_instances, dtype=int),
+        pd.Series([str(i) for i in range(n_instances)]),
+        None,
+        ["feature_0", "feature_1"],
+        opts,
+        ParallelOptions.default(),
+        GeneralOptions.default(),
+    )
+
+    x_aux, rho, _pval, selvars = sifted.select_features_by_performance()
+
+    # the strongly (negatively) correlated feature must survive the filter
+    assert 0 in selvars
+    assert x_aux.shape[1] == len(selvars)
+    # rho returned to the caller must be the genuine, unmodified coefficients --
+    # not zeroed out by an in-place filter operating on an alias of `rho`.
+    strong_negative_correlation = -0.9
+    assert rho[0, 0] < strong_negative_correlation
+
+
+def test_find_best_combination_uses_filtered_feature_matrix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The GA must optimise over `x_aux`, not the full, unfiltered `self.x`.
+
+    Regression test: `_find_best_combination` previously assigned
+    `ga_instance.selfx = self.x` and `ga_instance.selffeat_labels = self.feat_labels`
+    (the full feature matrix/labels) instead of the correlation-filtered `x_aux` and
+    its corresponding labels, even though `clust` (also passed to the GA) is sized
+    and indexed for `x_aux`'s narrower column space -- silently defeating the
+    correlation-based feature filter for the clustering/GA step.
+    """
+    inputs = SiftedMatlabInput()
+    rng = np.random.default_rng(seed=0)
+    sifted = SiftedStage(
+        inputs.x,
+        inputs.y,
+        inputs.y_bin,
+        inputs.x_raw,
+        inputs.y_raw,
+        inputs.beta,
+        inputs.num_good_algos,
+        inputs.y_best,
+        inputs.p,
+        inputs.inst_labels,
+        inputs.s,
+        inputs.feat_labels,
+        dataclasses.replace(inputs.opts, k=2, rho=0.5),
+        ParallelOptions.default(),
+        GeneralOptions.default(),
+    )
+
+    x_aux, _, _, selvars = sifted.select_features_by_performance()
+    assert x_aux.shape[1] < inputs.x.shape[1], (
+        "precondition: the correlation filter must actually narrow the feature set "
+        "for this test to be able to distinguish the bug"
+    )
+
+    clust, _ = sifted.select_features_by_clustering(x_aux, rng)
+
+    class _FakeGAInstance:
+        selfx: NDArray[np.double]
+        selffeat_labels: NDArray[np.str_]
+
+        def __init__(self, **kwargs: object) -> None:
+            self._num_genes = int(kwargs["num_genes"])  # type: ignore[call-overload]
+
+        def run(self) -> None:
+            return None
+
+        def best_solution(self) -> tuple[NDArray[np.intc], float, int]:
+            return np.zeros(self._num_genes, dtype=int), 0.0, 0
+
+    captured: dict[str, _FakeGAInstance] = {}
+
+    def _fake_ga(**kwargs: object) -> _FakeGAInstance:
+        instance = _FakeGAInstance(**kwargs)
+        captured["instance"] = instance
+        return instance
+
+    monkeypatch.setattr("pygad.GA", _fake_ga)
+
+    sifted._find_best_combination(x_aux, clust, selvars, rng)  # noqa: SLF001
+
+    ga_instance = captured["instance"]
+    assert ga_instance.selfx.shape[1] == x_aux.shape[1]
+    np.testing.assert_array_equal(ga_instance.selfx, x_aux)
+    assert ga_instance.selffeat_labels.shape[0] == x_aux.shape[1]
+    np.testing.assert_array_equal(
+        ga_instance.selffeat_labels,
+        sifted.feat_labels[selvars],
+    )
+
+
+def test_evaluate_cluster_min_clusters_is_three() -> None:
+    """`evaluate_cluster` must start from 3 clusters, matching MATLAB's `KList`.
+
+    Regression test: the loop previously started at `min_clusters = 2`, but
+    MATLAB's `evalclusters(..., 'KList', 3:nfeats, ...)` starts at 3. With 2
+    clusters included, `silhouette_scores[0]` corresponded to K=2 instead of K=3,
+    which also fed into the (separately fixed) suggested-K indexing bug.
+    """
+    rng = np.random.default_rng(seed=0)
+    inputs = SiftedMatlabInput()
+    sifted = SiftedStage(
+        inputs.x,
+        inputs.y,
+        inputs.y_bin,
+        inputs.x_raw,
+        inputs.y_raw,
+        inputs.beta,
+        inputs.num_good_algos,
+        inputs.y_best,
+        inputs.p,
+        inputs.inst_labels,
+        inputs.s,
+        inputs.feat_labels,
+        inputs.opts,
+        ParallelOptions.default(),
+        GeneralOptions.default(),
+    )
+    x_aux, _, _, _ = sifted.select_features_by_performance()
+
+    silhouette_scores, _ = sifted.evaluate_cluster(x_aux, rng)
+
+    # K ranges from 3 to nfeats-1 inclusive => nfeats-3 scores, not nfeats-2.
+    assert len(silhouette_scores) == x_aux.shape[1] - 3
+
+
+def test_evaluate_cluster_suggested_k_logs_matching_score(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The suggested-K log message must report that K's own silhouette score.
+
+    Regression test: `silhouette_scores[max_k_silhoulette]` indexed the scores
+    list by the *cluster count* K instead of by `max_k_silhoulette_index` (the
+    list's position for that K, offset by `min_clusters`), so the logged score
+    belonged to a different K than the one being reported whenever
+    `min_clusters != 0`.
+    """
+    from loguru import logger
+
+    rng = np.random.default_rng(seed=0)
+    inputs = SiftedMatlabInput()
+    # force a k unlikely to equal the argmax, and well below max_clusters, so the
+    # "suggested k" branch actually logs.
+    opts = dataclasses.replace(inputs.opts, k=3)
+    sifted = SiftedStage(
+        inputs.x,
+        inputs.y,
+        inputs.y_bin,
+        inputs.x_raw,
+        inputs.y_raw,
+        inputs.beta,
+        inputs.num_good_algos,
+        inputs.y_best,
+        inputs.p,
+        inputs.inst_labels,
+        inputs.s,
+        inputs.feat_labels,
+        opts,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=True, seed=0),
+    )
+    x_aux, _, _, _ = sifted.select_features_by_performance()
+
+    messages: list[str] = []
+    sink_id = logger.add(messages.append, level="DEBUG")
+    try:
+        silhouette_scores, _ = sifted.evaluate_cluster(x_aux, rng)
+    finally:
+        logger.remove(sink_id)
+
+    max_index = int(np.argmax(silhouette_scores))
+    expected_score = silhouette_scores[max_index]
+    suggested = [m for m in messages if "Suggested k value" in m]
+    if suggested:
+        logged_score = float(suggested[0].strip().split(" of")[-1])
+        assert logged_score == pytest.approx(expected_score, abs=1e-4)
+
+
+def test_density_filtered_output_x_has_correct_shape() -> None:
+    """Density-filtered output must select rows *and* columns, not misuse a slice.
+
+    Regression test: the `bydensity` return path built its `x` output with
+    `data_dense.x[subset_index][:selvars]`, which uses `selvars` (an array of
+    several feature indices) as a slice *stop* bound on the row axis instead of
+    indexing the column axis -- either raising a `TypeError` (numpy refuses to
+    use a multi-element array as a slice bound) or, if it happened to have a
+    single element, silently truncating rows instead of selecting columns.
+    """
+    inputs = SiftedMatlabInput()
+    fast_opts = dataclasses.replace(
+        inputs.opts,
+        k=3,
+        num_generations=2,
+        sol_per_pop=4,
+        keep_elitism=1,
+    )
+
+    out = SiftedStage.sifted(
+        inputs.x,
+        inputs.y,
+        inputs.y_bin,
+        inputs.x_raw,
+        inputs.y_raw,
+        inputs.beta,
+        inputs.num_good_algos,
+        inputs.y_best,
+        inputs.p,
+        inputs.inst_labels,
+        inputs.s,
+        inputs.feat_labels,
+        fast_opts,
+        inputs.opts_selvar_filter,
+        inputs.data_dense,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    expected_ndim = 2
+    assert out.x.ndim == expected_ndim
+    assert out.x.shape[1] == len(out.selvars)
+    assert out.x.shape[0] == out.y.shape[0]
 
 
 def compute_correlation(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
