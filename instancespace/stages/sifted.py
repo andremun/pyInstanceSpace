@@ -688,7 +688,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             if data_dense.s is not None:
                 s = data_dense.s[subset_index]
             return SiftedOutput(
-                data_dense.x[subset_index][:selvars],
+                data_dense.x[subset_index][:, selvars],
                 data_dense.y[subset_index][:],
                 data_dense.y_bin[subset_index][:],
                 data_dense.x_raw[subset_index][:],
@@ -756,14 +756,24 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         # Create a boolean mask where calculated pval exceeds threshold
         insignificant_pval = pval > self.PVAL_THRESHOLD
 
-        # Filter out insignificant correlations and take absolute values of correlations
-        filtered_rho = rho
+        # Filter out insignificant correlations and take absolute values of
+        # correlations. Not aliased to `rho` itself (unlike the previous
+        # `filtered_rho = rho` here) so the correlation coefficients returned
+        # in SiftedOutput.rho stay the genuine, unmodified values.
+        filtered_rho = np.abs(rho)
         filtered_rho[np.isnan(rho) | insignificant_pval] = 0
-        filtered_rho = np.abs(filtered_rho)
 
-        # Sort the correlations in descending order
+        # Sort by descending absolute correlation - both the sorted values
+        # and the feature indices that produced them. The threshold below
+        # must compare against the *sorted* value at each rank, not the
+        # unsorted, still-signed correlation of whichever feature happens to
+        # share that row's original index (row[i, :] are rank-i feature
+        # indices, so indexing rho by i directly compared the wrong feature's
+        # correlation against opts.rho, and thresholding the signed rho
+        # instead of its absolute value dropped legitimate strong negative
+        # correlations too).
+        sorted_rho = np.sort(filtered_rho, axis=0)[::-1, :]
         row = np.argsort(-filtered_rho, axis=0)
-        # sorted_rho = np.take_along_axis(rho, row, axis=0)
 
         nfeats = self.x.shape[1]
         selvars = np.zeros(nfeats, dtype=bool)
@@ -772,8 +782,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         selvars[np.unique(row[0, :])] = True
 
         # Take any feature that has correlation at least equal to opts.rho
-        for i in range(nfeats):
-            selvars[np.unique(row[i, rho[i, :] >= self.opts.rho])] = True
+        selvars[np.unique(row[sorted_rho >= self.opts.rho])] = True
 
         # Get indices of selected features
         selvars = np.where(selvars)[0]
@@ -936,12 +945,12 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             ),
         )
 
-        ga_instance.selfx = self.x
+        ga_instance.selfx = x_aux
         ga_instance.selfy = self.y
         ga_instance.selfy_bin = self.y_bin
         ga_instance.cv_partition = cv_partition
         ga_instance.clust = clust
-        ga_instance.selffeat_labels = self.feat_labels
+        ga_instance.selffeat_labels = self.feat_labels[selvars]
         ga_instance.general_options = self.general_opts
 
         ga_instance.run()
@@ -988,12 +997,18 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         cluster_labels : NDArray[np.intc]
             Labels for the selected cluster configuration.
         """
-        min_clusters = 2
+        min_clusters = 3
         max_clusters = x_aux.shape[1]
 
         silhouette_scores: list[float] = []
         labels: dict[int, NDArray[np.intc]] = {}
 
+        # MATLAB's KList is 3:nfeats (inclusive of nfeats), but sklearn's
+        # silhouette_score hard-errors when n_clusters == n_samples (nfeats
+        # here, since features are the points being clustered) instead of
+        # tolerating the singleton-cluster boundary the way MATLAB's
+        # evalclusters does. Matching that upper bound exactly would require
+        # a from-scratch silhouette implementation; kept exclusive for now.
         for n in range(min_clusters, max_clusters):
             kmeans = KMeans(
                 n_clusters=n,
@@ -1018,7 +1033,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         if max_k_silhoulette not in (self.opts.k, max_clusters):
             self._log_detail(
                 f"    Suggested k value {max_k_silhoulette} with silhoulette score of"
-                f" {silhouette_scores[max_k_silhoulette]:.4f}",
+                f" {silhouette_scores[max_k_silhoulette_index]:.4f}",
             )
 
         # matlab returning numOfObservation, inspected K value, criterion values,
