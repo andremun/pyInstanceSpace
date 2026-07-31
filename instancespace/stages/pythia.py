@@ -238,6 +238,13 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         Generate a summary of the results.
     """
 
+    # Evaluation budget for the legacy `tuning='bayes'` path's `BayesSearchCV`
+    # (superseded by F10's `tuning='sobol'` default, whose own budget comes
+    # from `PythiaOptions.n_tuning_iter` instead). A class attribute, not a
+    # literal, purely so tests can monkeypatch it down for speed without
+    # changing what a real `tuning='bayes'` run does.
+    LEGACY_BAYES_N_ITER = 30
+
     def __init__(
         self,
         z: NDArray[np.double],
@@ -753,7 +760,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         # (space-filling quasi-random, not sklearn's uniform random).
         optimization = BayesSearchCV(
             estimator=estimator,
-            n_iter=30,
+            n_iter=PythiaStage.LEGACY_BAYES_N_ITER,
             search_spaces=param_space,
             cv=skf,
             verbose=0,
