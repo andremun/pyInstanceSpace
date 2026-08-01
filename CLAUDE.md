@@ -67,12 +67,13 @@ this file gets stale between sessions; that table doesn't.
 
 **Read this before picking up any F-item below: an external 43-finding audit batch (roadmap §6.3,
 GitHub #297 + sub-issues #298–#303, added 2026-07-30) sits ahead of everything else in this
-section, per direct user instruction.** As of roadmap v1.44 (2026-07-31): PRELIM (#303), SIFTED
-(#300), PILOT (#301), and PYTHIA (#298) are all verified and triaged — confirmed findings fixed
-and shipped (commits `7b96097`, `a3e2859`, `f29dbbe`, `b6508cb`), the rest explicitly deferred
-with a stated reason on each stage's GitHub issue, never silently dropped. **CLOISTER (#299) and
-TRACE (#302) are still unverified** — that verification pass (document findings only for TRACE,
-per direct instruction; do not implement) is the next thing to pick up here, not F8.
+section, per direct user instruction.** As of roadmap v1.45 (2026-07-31): PRELIM (#303), SIFTED
+(#300), PILOT (#301), PYTHIA (#298), and CLOISTER (#299) are all verified and triaged — confirmed
+findings fixed and shipped (commits `7b96097`, `a3e2859`, `f29dbbe`, `b6508cb`, `8cf1d1a`), the
+rest explicitly deferred with a stated reason on each stage's GitHub issue, never silently
+dropped. **TRACE (#302) is the only stage still unverified** — that verification pass (document
+findings only, per direct instruction; do not implement) is the next thing to pick up here, not
+F8.
 
 **Full remaining order (every F item, T5/T7/T8) is worked out in roadmap §6.0** — don't
 re-derive it from scratch or guess an order from the phase letters. Short version, per the
