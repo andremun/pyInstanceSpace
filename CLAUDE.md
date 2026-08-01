@@ -77,12 +77,14 @@ separately as **#304**, not silently absorbed. **TRACE (#302) is the only stage 
 — that verification pass (document findings only, per direct instruction; do not implement) is the
 next thing to pick up here, not F8.
 
-Note: issue #298's original body (the verbatim 10-finding PYTHIA audit text) was accidentally
-overwritten by a `mcp__github__issue_write` `update` call on 2026-08-01 (that method replaces the
-issue body, not adds a comment — `add_issue_comment` is the right tool for a follow-up). Recovery
-failed (GitHub edit-history API blocked for this session; no git-tracked copy exists by design).
-Disclosed immediately; the user has the original source document and will restore it. If you land
-here before that happens, don't treat #298's current body as the real finding text.
+Note (resolved): issue #298's original body (the verbatim 10-finding PYTHIA audit text) was
+accidentally overwritten by a `mcp__github__issue_write` `update` call on 2026-08-01 (that method
+replaces the issue body, not adds a comment — `add_issue_comment` is the right tool for a
+follow-up). GitHub-side recovery failed (edit-history API blocked for this session; no git-tracked
+copy exists by design), but the user had the original source document and repasted it into #298's
+body the same session — the record is intact again. Lesson for future sessions: use
+`add_issue_comment` for follow-ups, never `issue_write update`'s `body` field unless intentionally
+replacing an issue's own content.
 
 **Full remaining order (every F item, T5/T7/T8) is worked out in roadmap §6.0** — don't
 re-derive it from scratch or guess an order from the phase letters. Short version, per the
