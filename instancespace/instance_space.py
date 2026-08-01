@@ -963,9 +963,10 @@ class InstanceSpace:
         """Get algorithm predictions using PYTHIA's trained classifiers.
 
         Ports MATLAB PYTHIAtest.m: z-score normalises the 2D coordinates using the
-        training projection's own mean/std (PYTHIA's own stored ``mu``/``sigma`` are
-        the post-normalisation statistics of its already-normalised training data,
-        not the pre-normalisation ones explore-time inputs need), applies each
+        training projection's own mean/std, recomputed here from ``model.pilot.z``
+        rather than read back from the stored ``PythiaOutput.mu``/``sigma`` (the
+        two are equal - both are simple mean/std of the same raw training
+        coordinates - this just avoids the extra indirection), applies each
         per-algorithm classifier natively via scikit-learn's own ``predict``/
         ``predict_proba`` (an ``SVC`` unless ``PythiaOptions.classifier`` selected
         a different registered type - S1 made this classifier-agnostic before F1

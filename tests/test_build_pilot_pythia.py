@@ -35,11 +35,12 @@ parallel_opts = ParallelOptions(
 # what makes the 4 `tuning='bayes'` tests below slow (~10-25 min each).
 # Monkeypatching it down here keeps them exercising the same legacy
 # `tuning='bayes'` code path against the same MATLAB fixtures, just with a
-# smaller search budget - the `compare_performance()` tolerance (90% of
-# accuracy/precision/recall metrics within 2.5 points of MATLAB) already
-# accounts for run-to-run tuning variance, so it isn't sensitive to exactly
-# how many search iterations produced the tuned model.
-BAYES_N_ITER_FOR_TESTS = 8
+# smaller search budget. 15 was chosen empirically: `compare_performance()`'s
+# tolerance (90% of accuracy/precision/recall metrics within 2.5 points of
+# MATLAB) does have real headroom against tuning variance, but not unlimited
+# - 8 iterations measurably under-tunes a couple of algorithms often enough
+# to fail the threshold; 15 passes with margin in repeated local runs.
+BAYES_N_ITER_FOR_TESTS = 15
 
 script_dir = Path(__file__).parent
 
