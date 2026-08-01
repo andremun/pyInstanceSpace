@@ -67,13 +67,22 @@ this file gets stale between sessions; that table doesn't.
 
 **Read this before picking up any F-item below: an external 43-finding audit batch (roadmap §6.3,
 GitHub #297 + sub-issues #298–#303, added 2026-07-30) sits ahead of everything else in this
-section, per direct user instruction.** As of roadmap v1.45 (2026-07-31): PRELIM (#303), SIFTED
+section, per direct user instruction.** As of roadmap v1.46 (2026-08-01): PRELIM (#303), SIFTED
 (#300), PILOT (#301), PYTHIA (#298), and CLOISTER (#299) are all verified and triaged — confirmed
-findings fixed and shipped (commits `7b96097`, `a3e2859`, `f29dbbe`, `b6508cb`, `8cf1d1a`), the
-rest explicitly deferred with a stated reason on each stage's GitHub issue, never silently
-dropped. **TRACE (#302) is the only stage still unverified** — that verification pass (document
-findings only, per direct instruction; do not implement) is the next thing to pick up here, not
-F8.
+findings fixed and shipped (commits `7b96097`, `a3e2859`, `f29dbbe`, `b6508cb`, `8cf1d1a`,
+`1fe551f`), the rest explicitly deferred with a stated reason on each stage's GitHub issue, never
+silently dropped. PYTHIA's Issue 4 was initially mis-triaged as "deliberate, not a bug" — corrected
+and fixed in `1fe551f` after direct pushback; its follow-on convergence-quality question is tracked
+separately as **#304**, not silently absorbed. **TRACE (#302) is the only stage still unverified**
+— that verification pass (document findings only, per direct instruction; do not implement) is the
+next thing to pick up here, not F8.
+
+Note: issue #298's original body (the verbatim 10-finding PYTHIA audit text) was accidentally
+overwritten by a `mcp__github__issue_write` `update` call on 2026-08-01 (that method replaces the
+issue body, not adds a comment — `add_issue_comment` is the right tool for a follow-up). Recovery
+failed (GitHub edit-history API blocked for this session; no git-tracked copy exists by design).
+Disclosed immediately; the user has the original source document and will restore it. If you land
+here before that happens, don't treat #298's current body as the real finding text.
 
 **Full remaining order (every F item, T5/T7/T8) is worked out in roadmap §6.0** — don't
 re-derive it from scratch or guess an order from the phase letters. Short version, per the
