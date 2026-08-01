@@ -7,7 +7,6 @@ from the MATLAB implementation with diffcult kernel and optimisation.
 
 Tests includes:
     - test_compute_znorm: Test that the output of the compute_znorm.
-    - test_generate_params: Test that the generated param space is expected for BO
     - test_bayes_opt_gaussian: Test that the output of the function is as expected
         when BO is required.
     - test_bayes_opt_poly: Test that the output of the function is as expected
@@ -61,11 +60,10 @@ parallel_opts = ParallelOptions(
 
 # See test_build_pilot_pythia.py's BAYES_N_ITER_FOR_TESTS for why (same
 # value, same reasoning - empirically verified against the MATLAB fixtures
-# this file's test_bayes_opt_gaussian/_poly compare against): the legacy
-# `tuning='bayes'` path's `BayesSearchCV` ignores `PythiaOptions.n_tuning_iter`
-# and always uses `PythiaStage.LEGACY_BAYES_N_ITER` (30 by default), which is
-# what makes those two tests and the "bayes"-parametrized cases of
-# test_pythia_trains_each_registered_classifier slow.
+# this file's test_bayes_opt_gaussian/_poly compare against): a real
+# `tuning='bayes'` run defaults to `DEFAULT_PYTHIA_N_TUNING_ITER=20`
+# `BayesSearchCV` iterations per classifier (10 classifiers x 5 CV folds
+# each), which is what makes those two tests slow if left at the default.
 BAYES_N_ITER_FOR_TESTS = 15
 
 
@@ -164,26 +162,15 @@ def test_pythia_seed_reproducibility() -> None:
     assert not np.array_equal(pr0_hat_a, pr0_hat_c)
 
 
-def test_generate_params() -> None:
-    """Test that the range of generated param space is expected."""
-    min_value = 2**-10
-    max_value = 2**4
-    rng = np.random.default_rng(seed=0)
-
-    params = PythiaStage._generate_params(rng)  # noqa: SLF001
-    assert all(min_value <= param <= max_value for param in params["C"])
-    assert all(min_value <= param <= max_value for param in params["gamma"])
-
-
-def test_bayes_opt_gaussian(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_bayes_opt_gaussian() -> None:
     """Test that the output of the function is as expected when BO is required."""
-    monkeypatch.setattr(PythiaStage, "LEGACY_BAYES_N_ITER", BAYES_N_ITER_FOR_TESTS)
     opts = PythiaOptions(
         cv_folds=5,
         is_poly_krnl=False,
         use_weights=False,
         params=None,
-        tuning="bayes",  # exercise the pre-F10 Bayes-search path, not sobol
+        tuning="bayes",  # exercise the Bayes-search path, not sobol
+        n_tuning_iter=BAYES_N_ITER_FOR_TESTS,
     )
     pythia = PythiaStage(z, y, y_bin, y_best, algo)
     pythia_out = pythia.pythia(
@@ -227,15 +214,15 @@ def test_bayes_opt_gaussian(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_bayes_opt_poly(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_bayes_opt_poly() -> None:
     """Test that the output of the function is as expected when BO and polykernal is required."""  # noqa: E501
-    monkeypatch.setattr(PythiaStage, "LEGACY_BAYES_N_ITER", BAYES_N_ITER_FOR_TESTS)
     opts = PythiaOptions(
         cv_folds=5,
         is_poly_krnl=True,
         use_weights=False,
         params=None,
-        tuning="bayes",  # exercise the pre-F10 Bayes-search path, not sobol
+        tuning="bayes",  # exercise the Bayes-search path, not sobol
+        n_tuning_iter=BAYES_N_ITER_FOR_TESTS,
     )
     pythia = PythiaStage(z, y, y_bin, y_best, algo)
     pythia_out = pythia.pythia(
@@ -354,7 +341,6 @@ def _small_pythia_dataset() -> tuple[
 def test_pythia_trains_each_registered_classifier(
     classifier: str,
     tuning: str,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """PYTHIA can train and tune every registered non-SVM classifier (#65).
 
@@ -365,10 +351,8 @@ def test_pythia_trains_each_registered_classifier(
     numeric parity with MATLAB, since these five classifiers have no
     MATLAB-verified reference to compare against.
     """
-    # `n_tuning_iter=4` below only reaches 'sobol'; 'bayes' ignores it (see
-    # BAYES_N_ITER_FOR_TESTS above), so this keeps the 'bayes'-tuning cases
-    # equally fast without weakening the 'sobol' ones.
-    monkeypatch.setattr(PythiaStage, "LEGACY_BAYES_N_ITER", BAYES_N_ITER_FOR_TESTS)
+    # `n_tuning_iter=4` now reaches both 'sobol' and 'bayes' identically,
+    # keeping every parametrized case fast.
     z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
     opts = PythiaOptions(
         cv_folds=2,

@@ -35,7 +35,6 @@ Functions:
 - _compute_znorm: Compute normalized instance space.
 - _check_precalcparams: Check pre-calculated hyper-parameters.
 - _determine_selections: Determine the selections based on the precision metrics.
-- _generate_params: Generate hyperparameters for the SVM models.
 - _generate_summary: Generate a summary of the results.
 """
 
@@ -254,9 +253,6 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                             NDArray[np.int_]]
         Determine the selections based on the precision metrics.
 
-    _generate_params(rng: np.random.Generator) -> dict[str, list[float]]
-        Generate hyperparameters for the SVM models.
-
     _generate_summary(nalgos: int, algo_labels: list[str], y: NDArray[np.double],
                         y_hat: NDArray[np.bool_], y_bin: NDArray[np.bool_],
                         y_best: NDArray[np.double],
@@ -267,13 +263,6 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                         k_scale: list[float]) -> pd.DataFrames
         Generate a summary of the results.
     """
-
-    # Evaluation budget for the legacy `tuning='bayes'` path's `BayesSearchCV`
-    # (superseded by F10's `tuning='sobol'` default, whose own budget comes
-    # from `PythiaOptions.n_tuning_iter` instead). A class attribute, not a
-    # literal, purely so tests can monkeypatch it down for speed without
-    # changing what a real `tuning='bayes'` run does.
-    LEGACY_BAYES_N_ITER = 30
 
     def __init__(
         self,
@@ -403,7 +392,6 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         recall_record = []
 
         w = np.ones((z.shape[0], nalgos), dtype=np.double)
-        rng = np.random.default_rng(seed=general_options.seed)
         PythiaStage._validate_tuning(opts, precalcparams)
         logger.info(
             f"[PYTHIA]  -> PYTHIA is training a '{opts.classifier}' classifier.",
@@ -486,11 +474,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                         precalcparams[i],
                     )
                 elif opts.tuning == "bayes":
-                    param_space = PythiaStage._bayes_param_space(
-                        opts.classifier,
-                        classifier_spec,
-                        rng,
-                    )
+                    param_space = PythiaStage._bayes_param_space(classifier_spec)
                 # opts.tuning == "sobol": param_space stays None:
                 # _fit_classifier dispatches to _sobol_search, which draws
                 # its own candidates.
@@ -634,21 +618,21 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         return space
 
     @staticmethod
-    def _bayes_param_space(
-        classifier_name: str,
-        spec: ClassifierSpec,
-        rng: np.random.Generator,
-    ) -> dict[str, Any]:
+    def _bayes_param_space(spec: ClassifierSpec) -> dict[str, Any]:
         """Build the `tuning='bayes'` search space for `BayesSearchCV`.
 
-        `'svm'` keeps its original LHS-sampled-candidate-list space
-        (`_generate_params`, unchanged pre-F10 behaviour, verified against
-        MATLAB-reference tests). Every other classifier gets a proper
-        continuous/integer/categorical `skopt` dimension per parameter,
-        matching MATLAB's `classifierBayesVars`.
+        Every classifier - including `'svm'` - gets a proper continuous/
+        integer/categorical `skopt` dimension per parameter, matching
+        MATLAB's `classifierBayesVars` (`core/PYTHIA.m`): every case there,
+        `'svm'` included, is an `optimizableVariable` over a continuous
+        (log-transformed where relevant) range, the same range as
+        `spec.param1`/`spec.param2`. There is no MATLAB precedent for a
+        discrete pre-sampled candidate list - `'svm'` used to get one here
+        (`_generate_params`, a pre-F10 leftover), which both discretised its
+        continuous range and, since `BayesSearchCV` treats a list as a
+        `Categorical` dimension per-parameter independently, silently
+        dropped the paired 2D coverage that sampling was meant to give.
         """
-        if classifier_name == "svm":
-            return PythiaStage._generate_params(rng)
         space: dict[str, Any] = {spec.param1.sklearn_name: spec.param1.dimension()}
         if spec.param2 is not None:
             space[spec.param2.sklearn_name] = spec.param2.dimension()
@@ -828,8 +812,10 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         general_options : GeneralOptions
             General options (e.g. the RNG seed), not specific to any one stage.
         n_tuning_iter : int
-            `PythiaOptions.n_tuning_iter` - the Sobol search's evaluation budget.
-            Ignored unless dispatching to `_sobol_search`.
+            `PythiaOptions.n_tuning_iter` - the search's evaluation budget,
+            for both `_sobol_search` and `BayesSearchCV` below (matching
+            MATLAB's `opts.nTuningIter`, used identically for `'sobol'` and
+            `'bayes'` - see `core/PYTHIA.m`'s `sobolSearch`/`bayesSearch`).
 
         Returns
         -------
@@ -877,7 +863,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         # (space-filling quasi-random, not sklearn's uniform random).
         optimization = BayesSearchCV(
             estimator=estimator,
-            n_iter=PythiaStage.LEGACY_BAYES_N_ITER,
+            n_iter=n_tuning_iter,
             search_spaces=param_space,
             cv=skf,
             verbose=0,
@@ -1201,10 +1187,15 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 "params or set tuning to 'sobol' or 'bayes'."
             )
             raise ValueError(msg)
-        if opts.tuning == "sobol" and opts.n_tuning_iter < 1:
+        # n_tuning_iter is only ever consumed by the Sobol/Bayes search paths
+        # (precalcparams bypasses tuning entirely) - matching MATLAB's own
+        # nIter check (core/PYTHIA.m), which applies identically to both
+        # tuning strategies rather than singling one out.
+        if opts.tuning in ("sobol", "bayes") and opts.n_tuning_iter < 1:
             msg = (
                 "PythiaOptions.n_tuning_iter must be a positive integer (it is "
-                f"the Sobol search's evaluation budget); got {opts.n_tuning_iter}."
+                "the Sobol/Bayes search's evaluation budget); got "
+                f"{opts.n_tuning_iter}."
             )
             raise ValueError(msg)
 
@@ -1224,8 +1215,9 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             )
         else:
             logger.info(
-                "[PYTHIA]  -> PYTHIA is using Bayesian optimization"
-                " for hyper-parameter optimization.",
+                f"[PYTHIA]  -> PYTHIA is using Bayesian optimization "
+                f"({opts.n_tuning_iter} evaluations) for hyper-parameter"
+                " optimization.",
             )
 
     @staticmethod
@@ -1280,28 +1272,6 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         selection0[best <= 0] = -1
         selection1[best <= 0] = default
         return (selection0, selection1)
-
-    @staticmethod
-    def _generate_params(
-        rng: np.random.Generator,
-    ) -> dict[str, list[float]]:
-        """Generate hyperparameters for the SVM models (`tuning='bayes'`).
-
-        Parameters
-        ----------
-        rng : np.random.Generator
-            The random number generator.
-        """
-        maxgrid, mingrid = 4, -10
-        # Number of samples
-        nvals = 30
-
-        # Generate params space through latin hypercube samples for the search
-        lhs = stats.qmc.LatinHypercube(d=2, seed=rng)
-        samples = lhs.random(nvals)
-        c = 2 ** ((maxgrid - mingrid) * samples[:, 0] + mingrid)
-        gamma = 2 ** ((maxgrid - mingrid) * samples[:, 1] + mingrid)
-        return {"C": list(c), "gamma": list(gamma)}
 
     @staticmethod
     def _generate_summary(
