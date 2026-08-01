@@ -10,7 +10,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pytest
 from numpy.typing import NDArray
 from scipy.io import loadmat
 from sklearn.model_selection import StratifiedKFold
@@ -30,17 +29,27 @@ parallel_opts = ParallelOptions(
     n_cores=8,
 )
 
-# `PythiaStage.LEGACY_BAYES_N_ITER` defaults to 30 real `BayesSearchCV`
-# iterations per classifier (10 classifiers x 5 CV folds each), which is
-# what makes the 4 `tuning='bayes'` tests below slow (~10-25 min each).
-# Monkeypatching it down here keeps them exercising the same legacy
-# `tuning='bayes'` code path against the same MATLAB fixtures, just with a
-# smaller search budget. 15 was chosen empirically: `compare_performance()`'s
-# tolerance (90% of accuracy/precision/recall metrics within 2.5 points of
-# MATLAB) does have real headroom against tuning variance, but not unlimited
-# - 8 iterations measurably under-tunes a couple of algorithms often enough
-# to fail the threshold; 15 passes with margin in repeated local runs.
-BAYES_N_ITER_FOR_TESTS = 15
+# `PythiaOptions.n_tuning_iter` defaults to
+# `DEFAULT_PYTHIA_N_TUNING_ITER=20` real `BayesSearchCV` iterations per
+# classifier (10 classifiers x 5 CV folds each), which is what makes the 4
+# `tuning='bayes'` tests below slow if left too high. Passing a smaller
+# `n_tuning_iter` here keeps them exercising the same `tuning='bayes'` code
+# path against the same MATLAB fixtures, just with a smaller search budget.
+#
+# 40 was chosen empirically, and is *not* interchangeable with
+# test_build_pythia.py's BAYES_N_ITER_FOR_TESTS (15): giving every
+# registered classifier - including 'svm' - a proper continuous/log-scaled
+# skopt search space (see pythia.py's `_bayes_param_space`, which used to
+# special-case 'svm' onto a discrete 30-point LHS-sampled candidate list)
+# needs more iterations to converge than the old discrete list did, and
+# this file's fixtures go through PILOT's numeric projection first, which
+# empirically converges slower than the raw Z.csv fixture
+# test_build_pythia.py's tests use. Measured directly against this file's
+# MATLAB fixtures: 20 iterations gives only 24/30 metrics within
+# `compare_performance()`'s tolerance (below the 90% threshold); 30 gives
+# 26/30; 40 gives 28/30 with margin, confirmed across all four `'bayes'`
+# tests below.
+BAYES_N_ITER_FOR_TESTS = 40
 
 script_dir = Path(__file__).parent
 
@@ -187,7 +196,7 @@ def compare_performance(
     assert correct / total >= threshold
 
 
-def test_pilot_num_pythia_bayes_gaussian(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pilot_num_pythia_bayes_gaussian() -> None:
     """Test the integration of the Pilot and Pythia stages.
 
     The test will check the output of the Pythia stage with the expected output from the
@@ -195,7 +204,6 @@ def test_pilot_num_pythia_bayes_gaussian(monkeypatch: pytest.MonkeyPatch) -> Non
     This test is for Pilot stage using numerical option and Pythia stage using Bayesian
     optimization with Gaussian kernel.
     """
-    monkeypatch.setattr(PythiaStage, "LEGACY_BAYES_N_ITER", BAYES_N_ITER_FOR_TESTS)
     sample_data = SampleDataNum()
 
     x_sample = sample_data.x_sample
@@ -217,7 +225,8 @@ def test_pilot_num_pythia_bayes_gaussian(monkeypatch: pytest.MonkeyPatch) -> Non
         is_poly_krnl=False,
         use_weights=False,
         params=None,
-        tuning="bayes",  # exercise the pre-F10 grid/Bayes search, not the sobol default
+        tuning="bayes",  # exercise the Bayes-search path, not the sobol default
+        n_tuning_iter=BAYES_N_ITER_FOR_TESTS,
     )
     pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
     pythia_result = pythia.pythia(
@@ -249,7 +258,7 @@ def test_pilot_num_pythia_bayes_gaussian(monkeypatch: pytest.MonkeyPatch) -> Non
     )
 
 
-def test_pilot_num_pythia_bayes_poly(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pilot_num_pythia_bayes_poly() -> None:
     """Test the integration of the Pilot and Pythia stages.
 
     The test will check the output of the Pythia stage with the expected output from the
@@ -257,7 +266,6 @@ def test_pilot_num_pythia_bayes_poly(monkeypatch: pytest.MonkeyPatch) -> None:
     This test is for Pilot stage using numerical option and Pythia stage using Bayesian
     optimization with Polynomial kernel.
     """
-    monkeypatch.setattr(PythiaStage, "LEGACY_BAYES_N_ITER", BAYES_N_ITER_FOR_TESTS)
     sample_data = SampleDataNum()
 
     x_sample = sample_data.x_sample
@@ -279,7 +287,8 @@ def test_pilot_num_pythia_bayes_poly(monkeypatch: pytest.MonkeyPatch) -> None:
         is_poly_krnl=True,
         use_weights=False,
         params=None,
-        tuning="bayes",  # exercise the pre-F10 grid/Bayes search, not the sobol default
+        tuning="bayes",  # exercise the Bayes-search path, not the sobol default
+        n_tuning_iter=BAYES_N_ITER_FOR_TESTS,
     )
     pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
     pythia_result = pythia.pythia(
@@ -311,7 +320,7 @@ def test_pilot_num_pythia_bayes_poly(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_pilot_analytic_pythia_bo_gaussian(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pilot_analytic_pythia_bo_gaussian() -> None:
     """Test the integration of the Pilot and Pythia stages.
 
     The test will check the output of the Pythia stage with the expected output from the
@@ -319,7 +328,6 @@ def test_pilot_analytic_pythia_bo_gaussian(monkeypatch: pytest.MonkeyPatch) -> N
     This test is for Pilot stage using analytical option and Pythia stage using Bayesian
     optimization with Gaussian kernel.
     """
-    monkeypatch.setattr(PythiaStage, "LEGACY_BAYES_N_ITER", BAYES_N_ITER_FOR_TESTS)
     sample_data = SampleData()
 
     x_sample = sample_data.x_sample
@@ -341,7 +349,8 @@ def test_pilot_analytic_pythia_bo_gaussian(monkeypatch: pytest.MonkeyPatch) -> N
         is_poly_krnl=False,
         use_weights=False,
         params=None,
-        tuning="bayes",  # exercise the pre-F10 grid/Bayes search, not the sobol default
+        tuning="bayes",  # exercise the Bayes-search path, not the sobol default
+        n_tuning_iter=BAYES_N_ITER_FOR_TESTS,
     )
 
     pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
@@ -375,7 +384,7 @@ def test_pilot_analytic_pythia_bo_gaussian(monkeypatch: pytest.MonkeyPatch) -> N
     )
 
 
-def test_pilot_analytic_pythia_bo_poly(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_pilot_analytic_pythia_bo_poly() -> None:
     """Test the integration of the Pilot and Pythia stages.
 
     The test will check the output of the Pythia stage with the expected output from the
@@ -383,7 +392,6 @@ def test_pilot_analytic_pythia_bo_poly(monkeypatch: pytest.MonkeyPatch) -> None:
     This test is for Pilot stage using analytical option and Pythia stage using Bayesian
     optimization with Polynomial kernel
     """
-    monkeypatch.setattr(PythiaStage, "LEGACY_BAYES_N_ITER", BAYES_N_ITER_FOR_TESTS)
     sample_data = SampleData()
 
     x_sample = sample_data.x_sample
@@ -405,7 +413,8 @@ def test_pilot_analytic_pythia_bo_poly(monkeypatch: pytest.MonkeyPatch) -> None:
         is_poly_krnl=True,
         use_weights=False,
         params=None,
-        tuning="bayes",  # exercise the pre-F10 grid/Bayes search, not the sobol default
+        tuning="bayes",  # exercise the Bayes-search path, not the sobol default
+        n_tuning_iter=BAYES_N_ITER_FOR_TESTS,
     )
 
     pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
