@@ -59,12 +59,14 @@ parallel_opts = ParallelOptions(
     n_cores=2,
 )
 
-# See test_build_pilot_pythia.py's BAYES_N_ITER_FOR_TESTS for why: the legacy
+# See test_build_pilot_pythia.py's BAYES_N_ITER_FOR_TESTS for why (same
+# value, same reasoning - empirically verified against the MATLAB fixtures
+# this file's test_bayes_opt_gaussian/_poly compare against): the legacy
 # `tuning='bayes'` path's `BayesSearchCV` ignores `PythiaOptions.n_tuning_iter`
 # and always uses `PythiaStage.LEGACY_BAYES_N_ITER` (30 by default), which is
-# what makes `test_bayes_opt_gaussian`/`_poly` and the "bayes"-parametrized
-# cases of `test_pythia_trains_each_registered_classifier` slow.
-BAYES_N_ITER_FOR_TESTS = 8
+# what makes those two tests and the "bayes"-parametrized cases of
+# test_pythia_trains_each_registered_classifier slow.
+BAYES_N_ITER_FOR_TESTS = 15
 
 
 def test_compute_znorm() -> None:
@@ -589,7 +591,16 @@ def test_pythia_precalc_params_does_not_crash(classifier: str) -> None:
     branch (a direct `crossValPredict`/`trainFinalClassifier` call).
     """
     z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
-    params = np.array([[5.0, 2.0], [3.0, 1.0]])
+    # Column count must match this classifier's own tunable-parameter count
+    # (1 for tree/nb/linear, 2 for svm/knn/ensemble) - PythiaStage._check_
+    # precalcparams now rejects a mismatched shape instead of silently
+    # accepting a 2-column array for every classifier regardless of how
+    # many parameters it actually has.
+    params = (
+        np.array([[5.0, 2.0], [3.0, 1.0]])
+        if get_classifier_fcn(classifier).param2 is not None
+        else np.array([[5.0], [3.0]])
+    )
     opts = PythiaOptions(
         cv_folds=2,
         is_poly_krnl=False,
@@ -656,3 +667,236 @@ def test_pythia_precalc_params_knn_distance_round_trips_through_category_index()
     np.testing.assert_allclose(out.k_scale, [2.0, 2.0])
     for clf in out.svm:
         assert clf.metric == "cityblock"
+
+
+def test_compute_znorm_mu_sigma_are_from_raw_z() -> None:
+    """mu/sigma must describe the *raw* z, not the already-normalised z.
+
+    Regression test: `_compute_znorm` previously computed `mu`/`sigma` from
+    its own already-normalised `z` (giving `mu ~= 0`, `sigma ~= 1`
+    regardless of the original feature scale), instead of from the raw
+    input, matching MATLAB's `zscore`. `Z.csv` (used by `test_compute_znorm`
+    above) happens to already be ~zero-mean itself, so that test can't tell
+    the two apart; this one uses data with an obviously non-zero mean/scale.
+    """
+    rng = np.random.default_rng(0)
+    z_raw = rng.normal(loc=50.0, scale=10.0, size=(30, 3))
+
+    mu, sigma, z_norm = PythiaStage._compute_znorm(z_raw)  # noqa: SLF001
+
+    np.testing.assert_allclose(mu, np.mean(z_raw, axis=0))
+    np.testing.assert_allclose(sigma, np.std(z_raw, ddof=1, axis=0))
+    np.testing.assert_allclose(z_norm, (z_raw - mu) / sigma)
+    assert not np.allclose(mu, 0.0, atol=1.0)
+    assert not np.allclose(sigma, 1.0, atol=0.5)
+
+
+def test_pythia_use_weights_degenerate_falls_back_to_uniform(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Constant/all-NaN performance data must not crash use_weights=True.
+
+    Regression test: `w[w == 0] = np.min(w[w != 0])` raised `ValueError`
+    (`zero-size array to reduction operation minimum`) when every weight
+    was 0 or NaN - matching MATLAB's own fallback (`W = ones(ninst,
+    nalgos)` with a warning) instead of crashing.
+    """
+    from loguru import logger
+
+    z_small, _y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    constant_y = np.full((20, 2), 3.0)
+    opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=True,
+        params=None,
+    )
+
+    messages: list[str] = []
+    sink_id = logger.add(messages.append, level="WARNING")
+    try:
+        out = PythiaStage.pythia(
+            z_small,
+            constant_y,
+            y_bin_small,
+            y_best_small,
+            algo_small,
+            opts,
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=0),
+        )
+    finally:
+        logger.remove(sink_id)
+
+    np.testing.assert_array_equal(out.w, np.ones_like(out.w))
+    assert any("degenerate" in m.lower() or "uniform" in m.lower() for m in messages)
+
+
+def test_pythia_degenerate_label_does_not_crash() -> None:
+    """An always-good/always-bad algorithm must not crash StratifiedKFold.
+
+    Regression test: `StratifiedKFold` cannot stratify a single-class label
+    and raised immediately, aborting the whole run - not just this one
+    algorithm - even though this is a legitimate case (e.g. an algorithm
+    that is always "good" under an absolute threshold). Matches MATLAB's
+    constant-prediction fallback (`core/PYTHIA.m`).
+    """
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    y_bin_degenerate = y_bin_small.copy()
+    y_bin_degenerate[:, 0] = True  # algorithm 0 is "good" for every instance
+    opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        params=None,
+    )
+
+    out = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_degenerate,
+        y_best_small,
+        algo_small,
+        opts,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    assert np.all(out.y_sub[:, 0])
+    assert np.all(out.y_hat[:, 0])
+    np.testing.assert_allclose(out.pr0_sub[:, 0], 0.0)
+    np.testing.assert_allclose(out.pr0_hat[:, 0], 0.0)
+    assert np.isnan(out.box_consnt[0])
+    # The sentinel classifier must still behave like a real classifier for
+    # any downstream consumer (e.g. InstanceSpace._explore_pythia) that
+    # calls predict/predict_proba/classes_ on it without special-casing.
+    sentinel = out.svm[0]
+    probe = np.zeros((5, 2))
+    np.testing.assert_array_equal(sentinel.predict(probe), np.full(5, True))
+    proba = sentinel.predict_proba(probe)
+    assert proba.shape == (5, 2)
+    np.testing.assert_allclose(proba[:, 1], 1.0)
+
+
+def test_pythia_reported_metrics_use_cross_validated_predictions() -> None:
+    """Reported accuracy/precision/recall must come from Ysub, not Yhat.
+
+    Regression test: the confusion matrix used `res.Ysub` (cross-validated
+    predictions) but the scalar accuracy/precision/recall lines used
+    `res.Yhat` (fit-on-everything, evaluated-on-everything predictions) -
+    an inconsistent, overly optimistic mix. All four must now agree on the
+    same source: verify the reported accuracy matches an independent
+    `accuracy_score(y_bin, y_sub)` computed from the stage's own returned
+    `y_sub`, and (generally) differs from one computed against `y_hat`.
+    """
+    from sklearn.metrics import accuracy_score
+
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        params=None,
+    )
+
+    out = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        opts,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    for i in range(len(algo_small)):
+        expected = accuracy_score(y_bin_small[:, i], out.y_sub[:, i])
+        assert out.accuracy[i] == pytest.approx(expected)
+
+
+def test_pythia_pr0_is_probability_of_bad_class() -> None:
+    """pr0_sub/pr0_hat must be P(class 0 = "bad"), matching MATLAB's Pr0.
+
+    Regression test: these fields were filled with `predict_proba(...)[:, 1]`
+    (P(class 1 = "good")) despite being named/documented as `Pr0`. Uses a
+    classifier trained on a target that's a near-deterministic function of
+    a single feature, so a fitted model's predictions are confident enough
+    to tell the two conventions apart (a well-separated "good" region
+    should show pr0 close to 0, not close to 1).
+    """
+    rng = np.random.default_rng(0)
+    ninst = 40
+    z_1d = rng.normal(size=(ninst, 2))
+    # "good" whenever the first coordinate is large and positive - clearly
+    # separable, so the fitted SVM's predictions are confident.
+    y_bin_col = (z_1d[:, 0] > 1.0)[:, np.newaxis]
+    y_small = rng.random((ninst, 1))
+    y_best_small = rng.random(ninst)
+    opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        params=None,
+    )
+
+    out = PythiaStage.pythia(
+        z_1d,
+        y_small,
+        y_bin_col,
+        y_best_small,
+        ["a0"],
+        opts,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    good_instances = y_bin_col[:, 0]
+    # Instances confidently predicted "good" must show a *low* P(bad).
+    assert np.mean(out.pr0_hat[good_instances, 0]) < np.mean(
+        out.pr0_hat[~good_instances, 0],
+    )
+
+
+def test_determine_selections_uses_negative_one_for_no_selection() -> None:
+    """`_determine_selections` must use -1, not 0, for "no algorithm selected".
+
+    Regression test: 0 was used for both "algorithm index 0 was selected"
+    and "nothing was selected", an unresolvable ambiguity -
+    `InstanceSpace._explore_pythia` already established -1 as the "no
+    selection" sentinel independently; `_determine_selections` now matches
+    it, leaving 0 free to mean "algorithm 0".
+    """
+    nalgos = 3
+    precision = [0.9, 0.5, 0.1]
+    # Row 0: only algorithm 0 predicted good -> selection0 must be 0, not -1.
+    # Row 1: nothing predicted good -> selection0 must be -1.
+    # Row 2: only present so algorithm 1 has the highest mean y_bin (making
+    # "default" unambiguous), matching selection1's fallback for row 1.
+    y_hat = np.array(
+        [
+            [True, False, False],
+            [False, False, False],
+            [False, True, False],
+        ],
+        dtype=bool,
+    )
+    y_bin = np.array(
+        [
+            [True, False, False],
+            [False, True, False],
+            [False, True, False],
+        ],
+        dtype=bool,
+    )
+
+    selection0, selection1 = PythiaStage._determine_selections(  # noqa: SLF001
+        nalgos,
+        precision,
+        y_hat,
+        y_bin,
+    )
+
+    assert selection0[0] == 0
+    assert selection0[1] == -1
+    assert selection1[1] == 1  # falls back to the algorithm with best mean y_bin

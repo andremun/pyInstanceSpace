@@ -78,6 +78,34 @@ class _ClassifierResult:
     g: float
 
 
+class _ConstantClassifier:
+    """Sklearn-classifier-shaped sentinel for a degenerate (single-class) label.
+
+    Mirrors MATLAB's `struct('constant', true, 'value', yi(1))` sentinel,
+    used when an algorithm is good (or bad) for every training instance, so
+    `StratifiedKFold` cannot stratify a single-class label and
+    cross-validation/tuning is skipped entirely. Implements just enough of
+    scikit-learn's classifier interface (`classes_`, `predict`,
+    `predict_proba`) that every consumer of `PythiaOutput.svm` - including
+    `InstanceSpace._explore_pythia` - can call it exactly like a real fitted
+    classifier, without special-casing it.
+    """
+
+    def __init__(self, value: bool) -> None:
+        self.value = value
+        self.classes_ = np.array([False, True])
+
+    def predict(self, x: NDArray[np.double]) -> NDArray[np.bool_]:
+        """Predict the constant label for every row of `x`."""
+        return np.full(x.shape[0], self.value, dtype=bool)
+
+    def predict_proba(self, x: NDArray[np.double]) -> NDArray[np.double]:
+        """Predict [P(class 0), P(class 1)] as [0, 1] or [1, 0] for every row."""
+        proba = np.zeros((x.shape[0], 2), dtype=np.double)
+        proba[:, int(self.value)] = 1.0
+        return proba
+
+
 class PythiaInput(NamedTuple):
     """Inputs for the Pythia stage.
 
@@ -137,9 +165,11 @@ class PythiaOutput(NamedTuple):
     y_hat : NDArray[np.bool_]
         The final predicted labels for each algorithm.
     pr0_sub : NDArray[np.double]
-        The predicted cross-validated probabilities of the positive class.
+        The predicted cross-validated probabilities of class 0 ("bad"),
+        matching MATLAB's `Pr0sub` convention.
     pr0_hat : NDArray[np.double]
-        The predicted probabilities of the positive class on the full data.
+        The predicted probabilities of class 0 ("bad") on the full data,
+        matching MATLAB's `Pr0hat` convention.
     box_consnt : list[float]
         Regularization parameters `C`.
     k_scale : list[float]
@@ -352,7 +382,13 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         pr0sub = np.zeros(y_bin.shape, dtype=np.double)
         pr0hat = np.zeros(y_bin.shape, dtype=np.double)
 
-        precalcparams = PythiaStage._check_precalcparams(opts.params, nalgos)
+        classifier_spec = get_classifier_fcn(opts.classifier)
+        precalcparams = PythiaStage._check_precalcparams(
+            opts.params,
+            nalgos,
+            classifier_spec,
+            opts.classifier,
+        )
         cp = StratifiedKFold(
             n_splits=opts.cv_folds,
             shuffle=True,
@@ -368,7 +404,6 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         w = np.ones((z.shape[0], nalgos), dtype=np.double)
         rng = np.random.default_rng(seed=general_options.seed)
-        classifier_spec = get_classifier_fcn(opts.classifier)
         PythiaStage._validate_tuning(opts, precalcparams)
         logger.info(
             f"[PYTHIA]  -> PYTHIA is training a '{opts.classifier}' classifier.",
@@ -386,8 +421,20 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         if opts.use_weights:
             logger.info("[PYTHIA]  -> PYTHIA is using cost-sensitive classification.")
             w = np.abs(y - np.nanmean(y))
-            w[w == 0] = np.min(w[w != 0])
-            w[np.isnan(w)] = np.max(w[~np.isnan(w)])
+            finite_nonzero = w[(w != 0) & ~np.isnan(w)]
+            if finite_nonzero.size == 0:
+                # Degenerate case: y is constant or entirely NaN, so every
+                # weight is 0 or NaN. Fall back to uniform weighting rather
+                # than erroring on min([])/max([]).
+                logger.warning(
+                    "[PYTHIA] use_weights=True but performance data yields "
+                    "all-zero/NaN weights (constant or all-NaN y). Falling "
+                    "back to uniform weights.",
+                )
+                w = np.ones((ninst, nalgos), dtype=np.double)
+            else:
+                w[w == 0] = np.min(w[w != 0])
+                w[np.isnan(w)] = np.max(w[~np.isnan(w)])
         else:
             logger.info(
                 "[PYTHIA]  -> PYTHIA is not using cost-sensitive classification.",
@@ -417,39 +464,50 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         for i in range(nalgos):
             algo_start_time = perf_counter()
-            precalc_params: dict[str, float | int | str] | None = None
-            param_space: dict[str, Any] | None = None
-            if precalcparams is not None:
-                # Pre-calculated hyperparameters always win, regardless of
-                # tuning strategy, and bypass search entirely - matching
-                # MATLAB's precalcparams branch (a direct crossValPredict/
-                # trainFinalClassifier call, no bayesSearch/sobolSearch).
-                precalc_params = PythiaStage._precalc_param_space(
-                    classifier_spec,
-                    precalcparams[i],
+            yi = y_bin[:, i]
+            # `np.any`/`np.all` (not `~yi`) since some callers still pass
+            # y_bin as 0.0/1.0 floats rather than true booleans; both read
+            # identically for "all true"/"all false" either way.
+            if bool(np.all(yi)) or not bool(np.any(yi)):
+                # StratifiedKFold cannot stratify a single-class label and
+                # raises immediately; skip CV/tuning for this algorithm
+                # entirely rather than crash the whole run over it.
+                res = PythiaStage._fit_degenerate(yi, algo_labels[i])
+            else:
+                precalc_params: dict[str, float | int | str] | None = None
+                param_space: dict[str, Any] | None = None
+                if precalcparams is not None:
+                    # Pre-calculated hyperparameters always win, regardless of
+                    # tuning strategy, and bypass search entirely - matching
+                    # MATLAB's precalcparams branch (a direct crossValPredict/
+                    # trainFinalClassifier call, no bayesSearch/sobolSearch).
+                    precalc_params = PythiaStage._precalc_param_space(
+                        classifier_spec,
+                        precalcparams[i],
+                    )
+                elif opts.tuning == "bayes":
+                    param_space = PythiaStage._bayes_param_space(
+                        opts.classifier,
+                        classifier_spec,
+                        rng,
+                    )
+                # opts.tuning == "sobol": param_space stays None:
+                # _fit_classifier dispatches to _sobol_search, which draws
+                # its own candidates.
+                res = PythiaStage._fit_classifier(
+                    z=z,
+                    y_bin=yi,
+                    w=w[:, i].flatten(),
+                    skf=cp,
+                    classifier_name=opts.classifier,
+                    is_poly_kernel=opts.is_poly_krnl,
+                    precalc_params=precalc_params,
+                    param_space=param_space,
+                    use_weights=opts.use_weights,
+                    parallel_options=parallel_options,
+                    general_options=general_options,
+                    n_tuning_iter=opts.n_tuning_iter,
                 )
-            elif opts.tuning == "bayes":
-                param_space = PythiaStage._bayes_param_space(
-                    opts.classifier,
-                    classifier_spec,
-                    rng,
-                )
-            # opts.tuning == "sobol": param_space stays None: _fit_classifier
-            # dispatches to _sobol_search, which draws its own candidates.
-            res = PythiaStage._fit_classifier(
-                z=z,
-                y_bin=y_bin[:, i],
-                w=w[:, i].flatten(),
-                skf=cp,
-                classifier_name=opts.classifier,
-                is_poly_kernel=opts.is_poly_krnl,
-                precalc_params=precalc_params,
-                param_space=param_space,
-                use_weights=opts.use_weights,
-                parallel_options=parallel_options,
-                general_options=general_options,
-                n_tuning_iter=opts.n_tuning_iter,
-            )
 
             # Record performance metrics
             y_sub[:, [i]] = res.Ysub.reshape(-1, 1)
@@ -460,12 +518,18 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             k_scale.append(res.g)
             svm.append(res.classifier)
 
-            cm = confusion_matrix(y_bin[:, i], res.Ysub)
+            # Reported metrics must reflect cross-validated performance
+            # (Ysub), not training-set performance (Yhat fit on, and
+            # evaluated on, all the data) - matching MATLAB, which derives
+            # accuracy/precision/recall from the same confusion matrix as
+            # Ysub. labels=[False, True] pins the matrix to 2x2 even for a
+            # degenerate algorithm whose Ysub/y_bin only ever take one value.
+            cm = confusion_matrix(y_bin[:, i], res.Ysub, labels=[False, True])
             tn, fp, fn, tp = cm.ravel()
 
-            accuracy = accuracy_score(y_bin[:, i], res.Yhat)
-            precision = precision_score(y_bin[:, i], res.Yhat)
-            recall = recall_score(y_bin[:, i], res.Yhat)
+            accuracy = accuracy_score(y_bin[:, i], res.Ysub)
+            precision = precision_score(y_bin[:, i], res.Ysub)
+            recall = recall_score(y_bin[:, i], res.Ysub)
 
             cvcmat[i, :] = [tn, fp, fn, tp]
             accuracy_record.append(accuracy)
@@ -591,6 +655,27 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         return space
 
     @staticmethod
+    def _bad_class_proba(
+        estimator: ClassifierMixin,
+        proba: NDArray[np.double],
+    ) -> NDArray[np.double]:
+        """Extract P(class 0 = "bad") from a fitted classifier's predict_proba output.
+
+        Matches MATLAB's `Pr0sub`/`Pr0hat` convention (P(class 0), not P(class
+        1)) and `InstanceSpace._explore_pythia`'s already-correct lookup:
+        don't assume column 0 is "bad" - look up `estimator.classes_`
+        explicitly, since `predict_proba`'s column order follows whatever
+        order the estimator recorded its classes in. `estimator` must already
+        be fitted (its `classes_` populated) before calling this.
+        """
+        # np.logical_not (not `~`) since some callers still pass y_bin as
+        # 0.0/1.0 floats rather than true booleans, and bitwise invert isn't
+        # defined for float dtypes.
+        classes = np.asarray(estimator.classes_)
+        bad_idx = int(np.where(np.logical_not(classes))[0][0])
+        return proba[:, bad_idx]
+
+    @staticmethod
     def _warn_unsupported_weights(
         classifier_name: str,
         use_weights: bool,
@@ -602,6 +687,41 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 "weights - training without cost-sensitive classification "
                 "for this algorithm.",
             )
+
+    @staticmethod
+    def _fit_degenerate(
+        y_bin_i: NDArray[np.bool_],
+        algo_label: str,
+    ) -> _ClassifierResult:
+        """Build a constant-prediction result for an all-good/all-bad algorithm.
+
+        `StratifiedKFold` cannot stratify a single-class label and raises
+        immediately; MATLAB has the same problem with `cvpartition(...,
+        'Stratify', true)` and handles it by skipping cross-validation/tuning
+        entirely for that algorithm and using a constant prediction instead
+        (`core/PYTHIA.m`). Ysub/Yhat both equal the constant label; Psub/Phat
+        are the deterministic P(class 0 = "bad") that implies (1.0 when
+        always-bad, 0.0 when always-good).
+        """
+        value = bool(y_bin_i[0])
+        label_word = "good" if value else "bad"
+        logger.warning(
+            f"[PYTHIA] Algorithm '{algo_label}' is {label_word} for every "
+            "instance; skipping cross-validation/tuning and using a "
+            "constant prediction instead.",
+        )
+        n = y_bin_i.shape[0]
+        y_const = np.full(n, value, dtype=bool)
+        p_bad = np.full(n, 0.0 if value else 1.0, dtype=np.double)
+        return _ClassifierResult(
+            classifier=_ConstantClassifier(value),
+            Ysub=y_const,
+            Psub=p_bad,
+            Yhat=y_const,
+            Phat=p_bad,
+            c=float("nan"),
+            g=float("nan"),
+        )
 
     @staticmethod
     def _fit_precalculated(
@@ -630,15 +750,12 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             estimator.fit(z, y_bin)
 
         y_sub = cross_val_predict(estimator, z, y_bin, cv=skf, method="predict")
-        p_sub = cross_val_predict(
+        p_sub = PythiaStage._bad_class_proba(
             estimator,
-            z,
-            y_bin,
-            cv=skf,
-            method="predict_proba",
-        )[:, 1]
+            cross_val_predict(estimator, z, y_bin, cv=skf, method="predict_proba"),
+        )
         y_hat = estimator.predict(z)
-        p_hat = estimator.predict_proba(z)[:, 1]
+        p_hat = PythiaStage._bad_class_proba(estimator, estimator.predict_proba(z))
 
         c = spec.param1.reported(precalc_params[spec.param1.sklearn_name])
         g = (
@@ -787,16 +904,22 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         # Perform cross-validated predictions using the best estimator
         y_sub = cross_val_predict(best_estimator, z, y_bin, cv=skf, method="predict")
-        p_sub = cross_val_predict(
+        p_sub = PythiaStage._bad_class_proba(
             best_estimator,
-            z,
-            y_bin,
-            cv=skf,
-            method="predict_proba",
-        )[:, 1]
+            cross_val_predict(
+                best_estimator,
+                z,
+                y_bin,
+                cv=skf,
+                method="predict_proba",
+            ),
+        )
         # Predict the labels and probabilities for the entire dataset
         y_hat = best_estimator.predict(z)
-        p_hat = best_estimator.predict_proba(z)[:, 1]
+        p_hat = PythiaStage._bad_class_proba(
+            best_estimator,
+            best_estimator.predict_proba(z),
+        )
 
         return _ClassifierResult(
             classifier=best_estimator,
@@ -902,15 +1025,12 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             estimator.fit(z, y_bin)
 
         y_sub = cross_val_predict(estimator, z, y_bin, cv=skf, method="predict")
-        p_sub = cross_val_predict(
+        p_sub = PythiaStage._bad_class_proba(
             estimator,
-            z,
-            y_bin,
-            cv=skf,
-            method="predict_proba",
-        )[:, 1]
+            cross_val_predict(estimator, z, y_bin, cv=skf, method="predict_proba"),
+        )
         y_hat = estimator.predict(z)
-        p_hat = estimator.predict_proba(z)[:, 1]
+        p_hat = PythiaStage._bad_class_proba(estimator, estimator.predict_proba(z))
 
         c = spec.param1.reported(best_params[spec.param1.sklearn_name])
         g = (
@@ -1002,15 +1122,22 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         tuple[list[float], list[float], NDArray[np.double]]
         The mean, standard deviation and normalized feature coordinates.
         """
-        z = stats.zscore(z, ddof=1)
+        # mu/sigma must describe the *raw* z (matching MATLAB's zscore, which
+        # returns them alongside its normalised output) so a later caller can
+        # normalise new data as (z_new - mu) / sigma. Computing them from the
+        # already-normalised z (the previous order here) gave mu ~= 0, sigma
+        # ~= 1 regardless of the original feature scale.
         mu = np.mean(z, axis=0)
         sigma = np.std(z, ddof=1, axis=0)
+        z = stats.zscore(z, ddof=1)
         return (mu, sigma, z)
 
     @staticmethod
     def _check_precalcparams(
         params: NDArray[np.double] | None,
         nalgos: int,
+        spec: ClassifierSpec,
+        classifier_name: str,
     ) -> NDArray[np.double] | None:
         """Check pre-calculated hyper-parameters.
 
@@ -1018,10 +1145,14 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         ----------
         params : NDArray | None
             The pre-calculated hyper-parameters.
-            nalgos : int
-            The number of algorithms.
         nalgos : int
             The number of algorithms.
+        spec : ClassifierSpec
+            The registered classifier (`PythiaOptions.classifier`) - determines
+            the expected column count: 1 for single-parameter classifiers
+            (tree/nb/linear), 2 for two-parameter ones (svm/knn/ensemble).
+        classifier_name : str
+            `PythiaOptions.classifier`, for the log message only.
 
         Returns
         -------
@@ -1030,14 +1161,19 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         """
         if params is None:
             return None
+        n_params = 1 + int(spec.param2 is not None)
         # Check if the shape of hyper-parameters is correct
-        if params.shape != (nalgos, 2):
+        if params.shape != (nalgos, n_params):
             logger.warning(
-                "[PYTHIA] -> Incorrect number of hyper-parameters. "
+                f"[PYTHIA] -> Incorrect number of hyper-parameters (expected "
+                f"({nalgos}, {n_params}) for '{classifier_name}'). "
                 "Hyper-parameters will be auto-generated.",
             )
             return None
-        logger.info("[PYTHIA] -> Using pre-calculated hyper-parameters for the SVM.")
+        logger.info(
+            f"[PYTHIA] -> Using pre-calculated hyper-parameters for the "
+            f"'{classifier_name}' classifier.",
+        )
         return params
 
     @staticmethod
@@ -1129,11 +1265,19 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             # Get the index of the maximum value in each row
             selection0 = np.argmax(weighted_yhat, axis=1)
         else:
-            best = y_hat
-            selection0 = y_hat.astype(np.int_)
+            # y_hat is (ninst, 1) here; flatten to 1D to match the nalgos > 1
+            # branch's shape - `_generate_summary`'s `best <= 0` mask and
+            # `selection0[:, np.newaxis] == np.arange(nalgos)` both assume a
+            # 1D selection0, not a (ninst, 1) column.
+            best = y_hat.flatten()
+            selection0 = y_hat.flatten().astype(np.int_)
 
+        # -1 (not 0) marks "no selection", matching
+        # `InstanceSpace._explore_pythia`'s already-established convention -
+        # 0 must stay free to mean "algorithm index 0 was genuinely
+        # selected", which it cannot also do if reused as the sentinel.
         selection1 = np.copy(selection0)
-        selection0[best <= 0] = 0
+        selection0[best <= 0] = -1
         selection1[best <= 0] = default
         return (selection0, selection1)
 
@@ -1219,8 +1363,11 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         logger.info("[PYTHIA]   -> PYTHIA is preparing the summary table.")
 
         # Obtain the corresponding selection matrix for the two selections.
-        sel0 = selection0[:, np.newaxis] == np.arange(1, nalgos + 1)
-        sel1 = selection1[:, np.newaxis] == np.arange(1, nalgos + 1)
+        # selection0/1 are 0-based algorithm indices (-1 in selection0 means
+        # "no algorithm selected", which np.arange(nalgos) never matches, so
+        # it naturally drops out of sel0 here).
+        sel0 = selection0[:, np.newaxis] == np.arange(nalgos)
+        sel1 = selection1[:, np.newaxis] == np.arange(nalgos)
 
         # Compute the average performance of the selected algorithms
         avgperf = np.round(np.nanmean(y, axis=0), 3)
@@ -1244,14 +1391,18 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         # Compute the probability of "good"
         pgood = np.mean(np.any(np.logical_and(y_bin, sel1), axis=1))
 
-        ybin_flat = y_bin.flatten()
-        sel0_flat = sel0.flatten()
-
-        # Compute the precision of selected algorithms
-        precisionsel = precision_score(ybin_flat, sel0_flat)
-
-        # Compute the recall of selected algorithms
-        recallsel = recall_score(ybin_flat, sel0_flat)
+        # Selector precision/recall, matching MATLAB's per-instance `any(...)`
+        # definition (core/PYTHIA.m) rather than sklearn's flattened
+        # (instance x algorithm)-pair precision_score/recall_score, which
+        # answers a different question (agreement per pair, not "was the
+        # selected algorithm good for this instance").
+        not_y_bin = np.logical_not(y_bin)
+        not_sel0 = np.logical_not(sel0)
+        tg = np.sum(np.any(np.logical_and(y_bin, sel0), axis=1))  # selected, good
+        fg = np.sum(np.any(np.logical_and(not_y_bin, sel0), axis=1))  # selected, bad
+        fb = np.sum(np.any(np.logical_and(y_bin, not_sel0), axis=1))  # good, unselected
+        precisionsel = tg / (tg + fg)
+        recallsel = tg / (tg + fb)
 
         # Prepare the data for the summary table
         data = {
