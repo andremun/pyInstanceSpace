@@ -18,6 +18,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from loguru import logger
 from numpy.typing import NDArray
 
 from instancespace.data.options import CloisterOptions
@@ -263,3 +264,166 @@ class TestCloister:
         remove_matlab = output_data.remove
 
         assert np.all(remove_matlab == remove)
+
+    def test_max_features_guard_uses_convex_hull_fallback(
+        self,
+        input_data: CloisterMatlabInputs,
+    ) -> None:
+        """Above `max_features`, CLOISTER must skip corner enumeration entirely.
+
+        Regression test: `CloisterOptions` had no `max_features` field at
+        all, and `_generate_boundaries` unconditionally enumerated
+        `2**nfeats` corners - intractable for any realistic feature count
+        above ~25, unlike MATLAB's `opts.maxFeatures` guard (default 20),
+        which falls back to a plain convex hull of the projected instances.
+        """
+        input_x = input_data.input_x
+        input_a = input_data.input_a
+        options = CloisterOptions(p_val=0.05, c_thres=0.7, max_features=5)
+
+        messages: list[str] = []
+        sink_id = logger.add(messages.append, level="WARNING")
+        try:
+            z_edge, z_ecorr = CloisterStage.cloister(input_x, input_a, options)
+        finally:
+            logger.remove(sink_id)
+
+        assert z_edge.shape[0] > 0
+        # The fallback uses the same convex hull for both outputs.
+        np.testing.assert_array_equal(z_edge, z_ecorr)
+        assert any("skipped" in m and "convex hull" in m for m in messages)
+
+    def test_correlation_ignores_sparse_nan(
+        self,
+        input_data: CloisterMatlabInputs,
+    ) -> None:
+        """A sparse NaN in one feature column must not corrupt its correlations.
+
+        Regression test: `pearsonr` on a NaN-containing pair silently
+        returns `(nan, nan)` for the *whole* pair instead of computing over
+        the valid overlap - and that NaN then survived the significance
+        filter (`nan > p_val` is `False`), leaking into the returned `rho`
+        matrix, unlike MATLAB's NaN-tolerant design.
+        """
+        input_x = input_data.input_x.copy()
+        options = CloisterOptions.default()
+
+        rho_before = CloisterStage._compute_correlation(  # noqa: SLF001
+            input_x,
+            options,
+        )
+
+        input_x[3, 0] = np.nan  # sparse NaN in one feature column
+        rho_after = CloisterStage._compute_correlation(input_x, options)  # noqa: SLF001
+
+        assert not np.any(np.isnan(rho_after))
+        # Only column 0's correlations can have shifted (fewer valid rows);
+        # every other pair's correlation is unaffected by that NaN.
+        untouched = [i for i in range(input_x.shape[1]) if i != 0]
+        for i in untouched:
+            for j in untouched:
+                assert rho_after[i, j] == pytest.approx(rho_before[i, j])
+
+    def test_generate_boundaries_bounds_are_nan_aware(
+        self,
+        input_data: CloisterMatlabInputs,
+    ) -> None:
+        """A sparse NaN must not turn a feature's bounds into NaN.
+
+        Regression test: `_generate_boundaries` used plain `np.min`/`np.max`
+        (NaN-propagating) instead of `np.nanmin`/`np.nanmax`, so a single
+        NaN in a feature column would make that whole column's bounds NaN,
+        propagating into `x_edge` and then failing `ConvexHull` outright.
+        """
+        input_x = input_data.input_x.copy()
+        input_x[3, 0] = np.nan
+        rho = CloisterStage._compute_correlation(  # noqa: SLF001
+            input_x,
+            CloisterOptions.default(),
+        )
+
+        x_edge, _ = CloisterStage._generate_boundaries(  # noqa: SLF001
+            input_x,
+            rho,
+            CloisterOptions.default(),
+        )
+
+        assert not np.any(np.isnan(x_edge))
+
+    def test_cloister_handles_sparse_nan_without_crashing(
+        self,
+        input_data: CloisterMatlabInputs,
+    ) -> None:
+        """End-to-end: a sparse NaN must not silently empty out the boundary.
+
+        Regression test: the NaN propagated through bounds -> x_edge ->
+        `ConvexHull`, which raises on NaN input; `_compute_convex_hull`
+        caught that and returned an empty array for *both* z_edge and
+        z_ecorr, with no indication anything had gone wrong beyond the
+        (wrong, in this case) "correlation threshold too strict" message.
+        """
+        input_x = input_data.input_x.copy()
+        input_x[3, 0] = np.nan
+        input_a = input_data.input_a
+        options = CloisterOptions.default()
+
+        z_edge, z_ecorr = CloisterStage.cloister(input_x, input_a, options)
+
+        assert z_edge.shape[0] > 0
+        assert z_ecorr.shape[0] > 0
+
+    def test_cloister_z_edge_failure_logs_distinct_error(
+        self,
+        input_data: CloisterMatlabInputs,
+    ) -> None:
+        """A genuinely-failed z_edge must log its own error, not be silent.
+
+        Regression test: `cloister()` only special-cased an empty
+        `z_ecorr` (interpreting it as "correlation threshold too strict");
+        an empty `z_edge` - which MATLAB lets fail loudly rather than
+        silently return - had no handling at all, and would have gotten
+        the same (wrong) "threshold too strict" message if it reached that
+        check by coincidence, or none at all as originally written.
+        """
+        input_x = input_data.input_x
+        options = CloisterOptions.default()
+        # Projects every instance to the same point - genuinely degenerate,
+        # not a correlation-threshold issue.
+        degenerate_a = np.zeros((2, input_x.shape[1]))
+
+        messages: list[str] = []
+        sink_id = logger.add(messages.append, level="ERROR")
+        try:
+            z_edge, z_ecorr = CloisterStage.cloister(input_x, degenerate_a, options)
+        finally:
+            logger.remove(sink_id)
+
+        assert z_edge.size == 0
+        assert z_ecorr.size == 0
+        assert any("Could not construct a boundary polygon" in m for m in messages)
+
+    def test_cloister_threshold_message_only_for_genuine_threshold_failure(
+        self,
+        input_data: CloisterMatlabInputs,
+    ) -> None:
+        """The "threshold too strict" message must not fire for a z_edge failure.
+
+        Regression test companion to the above: when z_edge itself is
+        empty, the misleading "correlation threshold was too strict"
+        message (plus its "weakely" typo) must not appear at all - that
+        message is reserved for when z_edge succeeds but z_ecorr's
+        correlation-filtered corner set doesn't.
+        """
+        input_x = input_data.input_x
+        options = CloisterOptions.default()
+        degenerate_a = np.zeros((2, input_x.shape[1]))
+
+        messages: list[str] = []
+        sink_id = logger.add(messages.append, level="INFO")
+        try:
+            CloisterStage.cloister(input_x, degenerate_a, options)
+        finally:
+            logger.remove(sink_id)
+
+        assert not any("threshold" in m.lower() for m in messages)
+        assert not any("weakely" in m for m in messages)

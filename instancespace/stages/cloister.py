@@ -185,18 +185,50 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
             " for the space.",
         )
 
+        nfeats = x.shape[1]
+        if nfeats > options.max_features:
+            # Corner enumeration below is 2**nfeats - intractable past a
+            # point. Matches MATLAB's opts.maxFeatures fallback: skip
+            # enumeration entirely and use a plain convex hull of the
+            # projected instances as the boundary instead.
+            logger.warning(
+                f"[CLOISTER]   -> CLOISTER skipped: {nfeats} features exceeds "
+                f"limit of {options.max_features}. Using convex hull as boundary.",
+            )
+            z_all = CloisterStage._compute_convex_hull(np.dot(x, a.T))
+            logger.info("[CLOISTER] " + "-" * 65)
+            logger.info("[CLOISTER]   -> CLOISTER has completed.")
+            return CloisterOutput(z_all, z_all)
+
         rho = CloisterStage._compute_correlation(x, options)
         x_edge, remove = CloisterStage._generate_boundaries(x, rho, options)
         z_edge = CloisterStage._compute_convex_hull(np.dot(x_edge, a.T))
-        z_ecorr = CloisterStage._compute_convex_hull(np.dot(x_edge[~remove, :], a.T))
 
-        if z_ecorr.size == 0:
-            logger.info(
-                "[CLOISTER]   -> The acceptable correlation threshold was too strict.",
+        if z_edge.size == 0:
+            # Unlike a too-strict correlation threshold (below), an empty
+            # z_edge means the boundary polygon itself couldn't be built at
+            # all (degenerate points, NaN propagation, etc.) - MATLAB lets
+            # this fail loudly rather than silently returning an empty
+            # boundary, so this is logged as an error, not folded into the
+            # "threshold too strict" message below.
+            logger.error(
+                "[CLOISTER]   -> Could not construct a boundary polygon from "
+                "the feature bounds - check for degenerate or NaN-heavy "
+                "input data.",
             )
-            logger.info("[CLOISTER]   -> The features are weakely correlated.")
-            logger.info("[CLOISTER]   -> Please consider increasing it.")
             z_ecorr = z_edge
+        else:
+            z_ecorr = CloisterStage._compute_convex_hull(
+                np.dot(x_edge[~remove, :], a.T),
+            )
+            if z_ecorr.size == 0:
+                logger.info(
+                    "[CLOISTER]   -> The acceptable correlation threshold was too"
+                    " strict.",
+                )
+                logger.info("[CLOISTER]   -> The features are weakly correlated.")
+                logger.info("[CLOISTER]   -> Please consider increasing it.")
+                z_ecorr = z_edge
 
         logger.info("[CLOISTER] " + "-" * 65)
         logger.info("[CLOISTER]   -> CLOISTER has completed.")
@@ -223,14 +255,27 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
             A matrix of Pearson correlation coefficients between each pair of features.
         """
         nfeats = x.shape[1]
+        min_valid_pairs = 2
 
         rho = np.zeros((nfeats, nfeats))
         pval = np.zeros((nfeats, nfeats))
 
+        # A feature column can carry sparse NaNs here (matching MATLAB's own
+        # documented "sparse NaNs reach CLOISTER" design) - pearsonr on raw
+        # columns silently returns (nan, nan) for a NaN-containing pair
+        # instead of computing over the valid overlap, which then flows
+        # through unfiltered (nan > p_val is False, so insignificant_pvals
+        # never catches it). Mask each pair's rows to the ones where both
+        # columns are valid instead.
         for i in range(nfeats):
             for j in range(nfeats):
                 if i != j:
-                    rho[i, j], pval[i, j] = pearsonr(x[:, i], x[:, j])
+                    valid = ~(np.isnan(x[:, i]) | np.isnan(x[:, j]))
+                    if np.sum(valid) < min_valid_pairs:
+                        rho[i, j] = 0.0
+                        pval[i, j] = 1.0
+                    else:
+                        rho[i, j], pval[i, j] = pearsonr(x[valid, i], x[valid, j])
                 else:
                     rho[i, j] = 0
                     pval[i, j] = 1
@@ -317,15 +362,20 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
             A tuple containing the boundary coordinates (x_edge) and a boolean array
             indicating which boundaries should be removed.
         """
-        # if no feature selection. then make a note in the boundary construction
-        # that it won't work, because nfeats is so large that decimal to binary matrix
-        # conversion wont be able to make a matrix.
+        # Caller (cloister()) already guards nfeats > options.max_features
+        # before reaching here, so 2**nfeats corner enumeration below stays
+        # tractable.
         nfeats = x.shape[1]
 
         idx = CloisterStage._decimal_to_binary_matrix(nfeats)
         ncomb = idx.shape[0]
 
-        x_bnds = np.array([np.min(x, axis=0), np.max(x, axis=0)])
+        # nanmin/nanmax (not min/max): a feature column can carry sparse
+        # NaNs (matching MATLAB's documented "sparse NaNs reach CLOISTER"
+        # design, via its own omitnan bounds) - plain min/max would return
+        # NaN for that column and propagate through x_edge into
+        # ConvexHull, which errors on NaN input.
+        x_bnds = np.array([np.nanmin(x, axis=0), np.nanmax(x, axis=0)])
         x_edge = np.zeros((ncomb, nfeats))
         remove = np.zeros(ncomb, dtype=bool)
 
