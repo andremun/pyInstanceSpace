@@ -21,6 +21,7 @@ from instancespace.data.default_options import (
     DEFAULT_AUTO_PREPROC,
     DEFAULT_BOUND_FLAG,
     DEFAULT_CLOISTER_C_THRES,
+    DEFAULT_CLOISTER_MAX_FEATURES,
     DEFAULT_CLOISTER_P_VAL,
     DEFAULT_GENERAL_SEED,
     DEFAULT_GENERAL_VERBOSE,
@@ -350,16 +351,23 @@ class CloisterOptions:
 
     p_val: float
     c_thres: float
+    # Feature-count guard before corner enumeration (2**nfeats corners)
+    # becomes intractable, matching MATLAB's opts.maxFeatures. Above this,
+    # CLOISTER skips enumeration and uses a plain convex hull of the
+    # projected instances as the boundary instead.
+    max_features: int = DEFAULT_CLOISTER_MAX_FEATURES
 
     @staticmethod
     def default(
         p_val: float = DEFAULT_CLOISTER_P_VAL,
         c_thres: float = DEFAULT_CLOISTER_C_THRES,
+        max_features: int = DEFAULT_CLOISTER_MAX_FEATURES,
     ) -> CloisterOptions:
         """Instantiate with default values."""
         return CloisterOptions(
             p_val=p_val,
             c_thres=c_thres,
+            max_features=max_features,
         )
 
 
