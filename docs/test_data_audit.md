@@ -257,7 +257,7 @@ Remediation is tracked under Phase T, as sub-issues of the Phase T parent (#273)
 | #308 | T10c — Fix `serialisers/actual_output/` scratch-output leak | Step 3 | Done — see commit history |
 | #309 | T10d — Relocate `test_data/demo/` out of `test_data/` | Step 4 | Done — see commit history |
 | #310 | T10e — Migrate onto the unified layout (§7) | Step 5 | Open, blocked on #278 |
-| #311 | `examples/data/options.json`'s `selvars.type` invalid value | Found verifying Step 4 | Open — pre-existing bug, not caused by the move |
+| #311 | `examples/data/options.json`'s `selvars.type` invalid value | Found verifying Step 4 | Done — see commit history |
 
 Pick up a step by reading its GitHub issue first, then the corresponding section above —
 the issue records scope and compat tags, this document records the evidence.
