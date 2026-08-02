@@ -210,12 +210,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
     ----------
     MIN_FEAT_REQUIRED : int
         Minimum number of features required for selection (default is 3).
-    PVAL_THRESHOLD : float
-        P-value threshold for feature selection (default is 0.05).
     KFOLDS : int
         Number of folds for cross-validation (default is 5).
-    K_NEIGHBORS : int
-        Number of neighbors for k-NN classification (default is 3).
     parallel_options : ParallelOptions
         Options for parallel processing.
 
@@ -282,9 +278,13 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
     """
 
     MIN_FEAT_REQUIRED: int = 3
-    PVAL_THRESHOLD: float = 0.05
     KFOLDS: int = 5
-    K_NEIGHBORS: int = 3
+    # GA fitness function's internal PILOT call mirrors MATLAB's own hardcoded
+    # costfcn constants (core/SIFTED.m) - analytic solve for speed (this runs
+    # once per GA candidate, hundreds of times per SIFTED call) and ntries=5,
+    # independent of whatever PilotOptions the outer pipeline actually uses.
+    _GA_FITNESS_PILOT_ANALYTIC: bool = True
+    _GA_FITNESS_PILOT_NTRIES: int = 5
     parallel_options: ParallelOptions
 
     def __init__(
@@ -754,7 +754,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         rho, pval = self._compute_correlation(self.x, self.y)
 
         # Create a boolean mask where calculated pval exceeds threshold
-        insignificant_pval = pval > self.PVAL_THRESHOLD
+        insignificant_pval = pval > self.opts.pval
 
         # Filter out insignificant correlations and take absolute values of
         # correlations. Not aliased to `rho` itself (unlike the previous
@@ -857,20 +857,41 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             selected = aux[value % aux.size]
             idx[selected] = True
 
+        # Cache fitness by feature-selection bitmask, matching MATLAB's own
+        # costfcn (core/SIFTED.m: a persistent containers.Map keyed the same
+        # way) - the GA re-visits the same combination many times across
+        # generations. Scoped to this ga_instance (fresh dict per SIFTED
+        # call, attached alongside selfx/selfy_bin/etc. below), so unlike
+        # MATLAB's persistent variable there is no risk of stale results
+        # leaking in from an unrelated prior SIFTED call. Under
+        # parallel_processing, pygad pickles a separate ga_instance per
+        # worker process, so each worker's cache is its own - matching
+        # MATLAB's own per-worker persistent-state behaviour, not a gap
+        # relative to it.
+        cache_key = idx.tobytes()
+        if cache_key in instance.cost_cache:
+            return instance.cost_cache[cache_key]
+
         out = PilotStage.pilot(
             instance.selfx[:, idx],
             instance.selfy,
             instance.selffeat_labels[idx].tolist(),
-            PilotOptions.default(),
+            PilotOptions.default(
+                analytic=SiftedStage._GA_FITNESS_PILOT_ANALYTIC,
+                n_tries=SiftedStage._GA_FITNESS_PILOT_NTRIES,
+            ),
             instance.general_options,
             _do_output=False,
         )
 
         z = out.z
 
+        # dims + 1 neighbours (D+1, generalised from 2D), matching MATLAB's
+        # kneighbours = dims + 1 (core/SIFTED.m).
+        kneighbours = instance.dims + 1
         y = -np.inf
         for i in range(instance.selfy.shape[1]):
-            knn = KNeighborsClassifier(n_neighbors=SiftedStage.K_NEIGHBORS)
+            knn = KNeighborsClassifier(n_neighbors=kneighbours)
             scores: NDArray[np.double] = cross_val_score(
                 knn,
                 z,
@@ -880,6 +901,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             )
             y = max(y, -scores.mean())
 
+        instance.cost_cache[cache_key] = y
         return y
 
     def _find_best_combination(
@@ -952,6 +974,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         ga_instance.clust = clust
         ga_instance.selffeat_labels = self.feat_labels[selvars]
         ga_instance.general_options = self.general_opts
+        ga_instance.dims = self.opts.dims
+        ga_instance.cost_cache = {}
 
         ga_instance.run()
 
