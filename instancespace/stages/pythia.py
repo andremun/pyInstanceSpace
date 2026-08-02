@@ -63,6 +63,26 @@ from instancespace.utils.get_classifier_fcn import ClassifierSpec, get_classifie
 
 LARGE_NUM_INSTANCE: int = 1000
 
+# BayesSearchCV's own defaults (unset optimizer_kwargs) give skopt's Optimizer
+# n_initial_points=10, acq_func='gp_hedge' - a 10-random/10-guided split of a
+# 20-evaluation budget and a bandit-style hedge across EI/PI/LCB. MATLAB's
+# bayesopt defaults to NumSeedPoints=4 (a 4-random/16-guided split at the same
+# budget) and AcquisitionFunctionName='expected-improvement-per-second-plus'
+# (no skopt equivalent for the "per-second" runtime-cost weighting; 'EI' is
+# the closest analog for the base strategy). Root-caused and verified
+# directly against the PILOT-numeric/PYTHIA-Bayes-gaussian MATLAB fixture
+# (#304): at the shared n_tuning_iter=20 default, matching just the seed-
+# point count (n_initial_points=4) raised the tolerance-gate pass rate from
+# 24/30 to 26/30; layering acq_func='EI' on top made no further measured
+# difference on that fixture (still 26/30) but is kept anyway as the
+# principled choice - it is the closest available match to MATLAB's actual
+# acquisition strategy, not an arbitrary pick, even though this fixture
+# didn't happen to show a gain from it.
+_BAYES_OPTIMIZER_KWARGS: dict[str, object] = {
+    "n_initial_points": 4,
+    "acq_func": "EI",
+}
+
 
 @dataclass(frozen=True)
 class _ClassifierResult:
@@ -865,6 +885,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             estimator=estimator,
             n_iter=n_tuning_iter,
             search_spaces=param_space,
+            optimizer_kwargs=_BAYES_OPTIMIZER_KWARGS,
             cv=skf,
             verbose=0,
             random_state=general_options.seed,
