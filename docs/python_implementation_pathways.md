@@ -571,14 +571,20 @@ the concrete work items this audit produced. No further pathway needed here; F4 
 "audited," not "not started."
 
 ### F5 — Output consolidation / 3D visualisation parity
-**Files:** `instancespace/scripting/script_fcn.py`, `instancespace/scripting/script_disc.py`
+**Files:** `instancespace/_serialisers.py` (the audit this pathway called for happened during a
+dead-code cleanup pass: `instancespace/scripting/script_fcn.py`/`script_disc.py`, previously named
+here, were deleted — every function in `script_fcn.py` was a `raise NotImplementedError` stub with
+0% test coverage, and `_serialisers.py` already has working private equivalents, e.g. `_draw_
+scatter`/`_draw_binary_performance`/`_draw_good_bad_footprint`/`_write_array_to_csv`, that
+superseded them long before the stubs were removed. `script_disc.py`'s citation/disclaimer printer
+was likewise unreferenced anywhere — that role is now served by `CITATION.cff`/`README.md`.)
 **Pathway:**
-1. Audit-first (like F1/F2): check whether `script_fcn.py` already branches on projection
-   dimensionality anywhere, or is 2D-only throughout — not yet checked in this pass.
-2. Once F2 (3D PILOT) exists, this becomes the consumer: 3D scatter/footprint rendering
-   (matplotlib's `mplot3d`, or a 2D camera-angle-projected render using F2's viewpoint output —
-   decide which matches the "spirit" of MATLAB's `scriptpng` 3D handling more usefully for a
-   Python audience).
+1. Audit-first finding (resolved): `_serialisers.py`'s drawing functions are 2D-only throughout —
+   no branch on projection dimensionality anywhere.
+2. Once F2 (3D PILOT) exists, `_serialisers.py` becomes the consumer: 3D scatter/footprint
+   rendering (matplotlib's `mplot3d`, or a 2D camera-angle-projected render using F2's viewpoint
+   output — decide which matches the "spirit" of MATLAB's `scriptpng` 3D handling more usefully for
+   a Python audience).
 3. This is the natural home for R1's rotation output too, once both exist — the 3D/2D rendering
    layer is where a canonicalised orientation actually gets *used* to make plots comparable.
 **Decision needed:** genuinely blocked on F2 landing first — no further detail useful until
