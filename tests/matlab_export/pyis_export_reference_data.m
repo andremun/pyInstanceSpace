@@ -105,12 +105,23 @@ exportCloisterArtifacts(obj.model.cloist, [outputRoot 'training_artifacts/cloist
 % PYTHIA/TRACE variants -- mirrors the option cases test_integration.m
 % already exercises for its own regression suite (classifier_svm,
 % tuning_bayes, ...), reused here for fixture generation instead of
-% pass/fail checking. Add more entries here as Python's test suite grows
-% new classifier/tuning/kernel combinations it needs MATLAB numbers for.
+% pass/fail checking. 'default' (MATLAB's own untouched opts -- KNN
+% classifier, Sobol tuning, TRACE3) comes first so the flat, backward-
+% compatible tests/matlab_reference/ layout is still produced exactly as
+% before; the svm-forced variants add new coverage alongside it, not in
+% place of it. EVERY variant gets both a build() pass (training_artifacts/)
+% and an explore() pass (explore_outputs/) on the model it just trained --
+% earlier drafts of this script only ran explore() for the default case,
+% leaving the other three build-only. Add more variants here as Python's
+% test suite grows new classifier/tuning/kernel combinations it needs
+% MATLAB numbers for.
 % =========================================================================
 variants = { ...
+    struct('name', 'default', ...
+           'desc', 'MATLAB''s own untouched defaults: KNN classifier, Sobol tuning, TRACE3.', ...
+           'pythia', struct(), 'ispolykrnl', false), ...
     struct('name', 'sobol_svm', ...
-           'desc', 'Default: SVM classifier, Sobol quasi-random tuning, gaussian kernel.', ...
+           'desc', 'SVM classifier (pyInstanceSpace''s own default), Sobol tuning, gaussian kernel.', ...
            'pythia', struct('classifier', 'svm', 'tuning', 'sobol'), 'ispolykrnl', false), ...
     struct('name', 'bayes_svm_gaussian', ...
            'desc', 'Legacy Bayesian-optimisation tuning, gaussian kernel.', ...
@@ -131,25 +142,29 @@ for v = 1:numel(variants)
     end
     obj.opts.pythia.ispolykrnl = variant.ispolykrnl;
 
+    % ---- Build path (training) ----
     obj = obj.build('stages', {'pythia', 'trace'});
+    exportPythiaArtifacts(obj.model.pythia, obj.model.data.algolabels, ...
+        [outputRoot 'training_artifacts/pythia/' variant.name '/']);
+    exportTraceArtifacts(obj.model.trace, obj.model.data.algolabels, ...
+        [outputRoot 'training_artifacts/trace/' variant.name '/']);
 
-    destPythia = [outputRoot 'training_artifacts/pythia/' variant.name '/'];
-    destTrace  = [outputRoot 'training_artifacts/trace/' variant.name '/'];
-    exportPythiaArtifacts(obj.model.pythia, obj.model.data.algolabels, destPythia);
-    exportTraceArtifacts(obj.model.trace, obj.model.data.algolabels, destTrace);
+    % ---- Explore path (test-set inference on the model just trained) ----
+    obj = obj.explore(datasetRoot);
+    testOut = obj.getResults(1);
+    exportPythiaTraceExploreArtifacts(testOut, [outputRoot 'explore_outputs/' variant.name '/']);
+
+    if v == 1
+        % step1-3 (prelim/sifted/pilot's test-set transform) don't depend
+        % on opts.pythia/opts.trace, so they're identical across every
+        % variant here -- write them once, at explore_outputs/ *and*
+        % reproduce the flat step4/step5 filenames tests/matlab_reference/
+        % already documents there too, so this default variant stays a
+        % byte-for-byte drop-in for that existing fixture set rather than
+        % a same-data-different-name reshuffle of it.
+        exportLegacyExploreLayout(testOut, [outputRoot 'explore_outputs/']);
+    end
 end
-
-% =========================================================================
-% Full pipeline + explore(): matches tests/matlab_reference/'s existing
-% layout exactly, so this reproduces (not replaces) that fixture set's
-% five explore_outputs/step*.csv files plus its training_artifacts/.
-% Uses default options throughout, same as the current fixtures.
-% =========================================================================
-fprintf('[EXPORT] === Full pipeline + explore() (matches tests/matlab_reference/ layout) ===\n');
-fullObj = InstanceSpace(datasetRoot);
-fullObj = fullObj.build();
-fullObj = fullObj.explore(datasetRoot);
-exportExploreArtifacts(fullObj, outputRoot);
 
 writeProvenance(toolkitRoot, outputRoot);
 
@@ -295,21 +310,47 @@ if isfield(traceOut, 'hard') && ~isempty(traceOut.hard)
 end
 end
 
-function exportExploreArtifacts(fullObj, outputRoot)
-% Reproduces tests/matlab_reference/'s existing layout exactly (see that
-% directory's own README.md for the full field-by-field description) --
-% training_artifacts/ from fullObj.model, explore_outputs/ from
-% fullObj.getResults(1).
-model = fullObj.getResults();
-testOut = fullObj.getResults(1);
+function exportPythiaTraceExploreArtifacts(testOut, destDir)
+% Per-variant explore-path export: PYTHIA/TRACE's test-set inference
+% output for whichever variant trained this testOut. Distinct from
+% exportPythiaArtifacts/exportTraceArtifacts (the *build*-path export,
+% training_artifacts/) -- explore-mode PYTHIA runs a genuinely different
+% code path internally (PYTHIAevalMode in core/PYTHIA.m: no hyperparameter
+% search, just applying the already-trained classifiers/reconciling
+% test-only algorithms), so its own summary table has fewer columns (no
+% param1/param2/param2Label) -- exported here under its own name
+% (eval_summary.csv) rather than overwriting/conflated with the training
+% summary.csv this same variant's training_artifacts/ already has.
+mkdirIfMissing(destDir);
+writeMatrixCSV(double(testOut.pythia.Yhat), testOut.data.algolabels, testOut.data.instlabels(:), ...
+    [destDir 'predictions.csv']);
+writeMatrixCSV(testOut.pythia.Pr0hat, testOut.data.algolabels, testOut.data.instlabels(:), ...
+    [destDir 'probabilities.csv']);
+if isfield(testOut.pythia, 'summary') && ~isempty(testOut.pythia.summary)
+    writeCellCSV(testOut.pythia.summary(2:end, 2:end), testOut.pythia.summary(1, 2:end), ...
+        testOut.pythia.summary(2:end, 1), [destDir 'pythia_eval_summary.csv']);
+end
+if isfield(testOut.trace, 'summary') && ~isempty(testOut.trace.summary)
+    writeCellCSV(testOut.trace.summary(2:end, 2:end), testOut.trace.summary(1, 2:end), ...
+        testOut.trace.summary(2:end, 1), [destDir 'trace_eval_summary.csv']);
+end
 
-exportPrelimArtifacts(model.prelim, model.data, [outputRoot 'training_artifacts/prelim/']);
-exportSiftedArtifacts(model.sifted, [outputRoot 'training_artifacts/sifted/']);
-exportPilotArtifacts(model.pilot, [outputRoot 'training_artifacts/pilot/']);
-exportPythiaArtifacts(model.pythia, model.data.algolabels, [outputRoot 'training_artifacts/pythia/default/']);
-exportTraceArtifacts(model.trace, model.data.algolabels, [outputRoot 'training_artifacts/trace/default/']);
+membershipCols = [strcat('in_good_', testOut.data.algolabels(:)'), ...
+    strcat('in_best_', testOut.data.algolabels(:)')];
+membership = [footprintMembership(testOut.trace.good, testOut.pilot.Z), ...
+    footprintMembership(testOut.trace.best, testOut.pilot.Z)];
+writeMatrixCSV(double(membership), membershipCols, testOut.data.instlabels(:), ...
+    [destDir 'trace_membership.csv']);
+end
 
-destExplore = [outputRoot 'explore_outputs/'];
+function exportLegacyExploreLayout(testOut, destExplore)
+% Reproduces tests/matlab_reference/explore_outputs/'s existing flat
+% layout exactly (see that directory's own README.md for the full
+% field-by-field description) -- called once, for the 'default' variant
+% only, so this script's output stays a byte-for-byte drop-in replacement
+% for that existing fixture set rather than a same-data-different-name
+% reshuffle of it.
+mkdirIfMissing(destExplore);
 writeMatrixCSV(testOut.data.X, testOut.data.featlabels, testOut.data.instlabels(:), ...
     [destExplore 'step1_after_prelim.csv']);
 % SIFTED's selection is already applied to testOut.data.X via
