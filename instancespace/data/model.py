@@ -92,25 +92,6 @@ class DataDense:
 
 
 @dataclass(frozen=True)
-class PreprocessingOut:
-    """Holds preprocessed data."""
-
-    pass
-
-
-@dataclass(frozen=True)
-class PreprocessingDataChanged:
-    """The fields of Data that the preprocessing stage changes."""
-
-    inst_labels: pd.Series  # type: ignore[type-arg]
-    feat_labels: list[str]
-    algo_labels: list[str]
-    x: NDArray[np.double]
-    y: NDArray[np.double]
-    s: pd.Series | None  # type: ignore[type-arg]
-
-
-@dataclass(frozen=True)
 class PrelimOut:
     """Contains preliminary output metrics calculated from the data."""
 

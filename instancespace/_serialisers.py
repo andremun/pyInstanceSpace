@@ -408,18 +408,6 @@ def _write_array_to_csv(
     )
 
 
-def _write_cell_to_csv(
-    data: pd.Series[Any],
-    column_names: pd.Series[str],
-    row_names: pd.Series[str],
-    filename: Path,
-) -> None:
-    pd.DataFrame(data, index=row_names, columns=column_names).to_csv(
-        filename,
-        index_label="Row",
-    )
-
-
 def _make_bind_labels(
     data: NDArray[Any],
 ) -> pd.Series[str]:

@@ -78,15 +78,6 @@ class Metadata:
             instance_labels=instance_labels,
         )
 
-    def to_file(self) -> str:
-        """Store metadata in a file from a Metadata object.
-
-        Returns
-        -------
-        The metadata object serialised into a string.
-        """
-        raise NotImplementedError
-
 
 def from_csv_file(file_path: Path | str) -> Metadata | None:
     """Parse metadata from a CSV file and construct a Metadata object.

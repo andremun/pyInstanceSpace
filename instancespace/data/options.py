@@ -78,16 +78,6 @@ from instancespace.data.default_options import (
 )
 
 
-class MissingOptionsError(Exception):
-    """A required option wasn't set.
-
-    An error raised when a stage is ran that requires an option to be set, and the
-    option isn't present.
-    """
-
-    pass
-
-
 @dataclass(frozen=True)
 class GeneralOptions:
     """General options not specific to any one stage.
@@ -759,16 +749,6 @@ class InstanceSpaceOptions:
                 file_contents.get("general", {}),
             ),
         )
-
-    def to_file(self: Self, filepath: Path) -> None:
-        """Store options in a file from an InstanceSpaceOptions object.
-
-        Returns
-        -------
-        The options object serialised into a string.
-
-        """
-        raise NotImplementedError
 
     @staticmethod
     def default(
