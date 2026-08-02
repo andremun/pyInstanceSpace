@@ -2,9 +2,11 @@
 
 **Status:** Audit complete. §7's decision is made: single unified layout (Option A),
 documented only for now — the migration itself waits on GitHub issue #278 (the export
-script needs a real MATLAB run before any fixture moves onto its shape). Step 1
-(delete confirmed-dead data) is done. Steps 2-5 are open, tracked as GitHub issues under
-Phase T — see §9.
+script needs a real MATLAB run before any fixture moves onto its shape). Steps 1
+(delete confirmed-dead data), 2 (resolve the `prelim/run/output/` partial-orphan), 3
+(fix the `serialisers/actual_output/` scratch leak), and 4 (relocate `test_data/demo/`)
+are done. Step 5 (the unified-layout migration itself) remains open, blocked on #278 —
+tracked as GitHub issue T10e (#310); full status in §9.
 **Scope:** every file under `tests/` in this repository, not only
 `tests/matlab_reference/`. Companion to `docs/pyIS_docs_quality_roadmap.md` §8.3 and
 `tests/matlab_export/README.md`.
@@ -171,28 +173,38 @@ would foreclose the "add the missing assertions" fix before anyone decided again
 **[Additive] if the fix is a new assertion, [Behavior-changing] if the fix changes what
 the fixture generator writes.**
 
-Read `test_build_prepro_n_prelim.py` to decide whether `output_Xraw.csv`,
-`output_Yraw.csv`, and `output_instlabels.csv` are dead files or a missing assertion.
-Fix whichever it is. Do this before Step 1's cleanup in the same directory, so the
-decision is made deliberately rather than swept up in a bulk delete.
+**Done (T10b, #307).** Resolved as "missing assertions," not "dead fixture" — read
+`test_build_prepro_n_prelim.py` directly and confirmed `PrelimOutput` has real
+`x_raw`/`y_raw`/`beta`/`num_good_algos`/`instlabels` fields, all five verified to match
+their corresponding MATLAB CSV exactly before writing any assertion. 5 more `assert`
+calls added to `test_integrated_prepro_n_prelim`, mirroring the existing pattern.
 
 ### Step 3 — Fix the serialisers scratch-output leak (§4.1, third bullet)
 **[Additive]** — tooling only.
 
-Check why `.gitignore` inside `serialisers/actual_output/` does not stop `output.zip`
-from being tracked. Either the pattern is wrong, or the file was committed once before
-the `.gitignore` existed and now needs `git rm --cached`. Confirm `expected_output/` (not
-`actual_output/`) is the one under version control as a real fixture.
+**Done (T10c, #308).** Root cause confirmed: `output.zip` was committed before
+`actual_output/.gitignore`'s `*.zip` pattern existed, so the pattern never actually
+applied to it (`.gitignore` has no retroactive effect on already-tracked files).
+`git rm --cached` untracked it; verified `git status` stays clean across a fresh
+`test_serialisers.py` run, and confirmed `expected_output/` is the one under normal
+version control as the real fixture.
 
 ### Step 4 — Rename or relocate the non-parity categories (§4.2)
 **[Additive]** — path changes to non-MATLAB-comparison data only, with every reader
 updated in the same commit.
 
-Move `tests/test_data/demo/` to something outside `test_data/` entirely — for example
-`examples/data/`, next to `integration_demo.py` — so its name stops implying it is a
-test fixture. Leave `tests/test_data/load_file/` where it is, since "test data for
-loading tests" is an accurate name for exactly what it is. No numeric fixture moves in
-this step, only the demo directory and its two readers' path strings.
+**Done for `test_data/demo/` (T10d, #309).** Moved to `examples/data/` via `git mv`
+(content unchanged, git history preserved); `integration_demo.py` and
+`example_plugin.py` — the two real readers, not `liveDemoIS.ipynb` as this document's
+first pass assumed; that notebook actually reads `tests/matlab_reference/input/`, not
+`test_data/demo/`, confirmed by grep before relying on the earlier claim — both updated
+in the same commit. Verified the move itself works (both scripts resolve and read the
+new path successfully); running them further surfaced a genuine, pre-existing bug
+unrelated to the move — `examples/data/options.json`'s `selvars.type` is `"Ftr&&Good"`
+(double ampersand), present at the same value before the move too — filed separately as
+#311, not fixed here since this step is relocation-only, no fixture content changes.
+`tests/test_data/load_file/` left where it is, since "test data for loading tests" is an
+accurate name for exactly what it is.
 
 ### Step 5 — Decide the target layout for MATLAB-parity data (open decision, see §7)
 **[Behavior-changing] if it moves any fixture a currently-passing test reads** — needs
@@ -241,10 +253,11 @@ Remediation is tracked under Phase T, as sub-issues of the Phase T parent (#273)
 |---|---|---|---|
 | #305 | T10 — Test data audit remediation | This document (parent tracking issue) | Open |
 | #306 | T10a — Delete confirmed-dead test data | Step 1 | Done — see commit history |
-| #307 | T10b — Resolve `prelim/run/output/` partial-orphan | Step 2 | Open |
-| #308 | T10c — Fix `serialisers/actual_output/` scratch-output leak | Step 3 | Open |
-| #309 | T10d — Relocate `test_data/demo/` out of `test_data/` | Step 4 | Open |
+| #307 | T10b — Resolve `prelim/run/output/` partial-orphan | Step 2 | Done — see commit history |
+| #308 | T10c — Fix `serialisers/actual_output/` scratch-output leak | Step 3 | Done — see commit history |
+| #309 | T10d — Relocate `test_data/demo/` out of `test_data/` | Step 4 | Done — see commit history |
 | #310 | T10e — Migrate onto the unified layout (§7) | Step 5 | Open, blocked on #278 |
+| #311 | `examples/data/options.json`'s `selvars.type` invalid value | Found verifying Step 4 | Open — pre-existing bug, not caused by the move |
 
 Pick up a step by reading its GitHub issue first, then the corresponding section above —
 the issue records scope and compat tags, this document records the evidence.

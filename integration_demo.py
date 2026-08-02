@@ -13,7 +13,7 @@ from instancespace.stages.pythia import PythiaStage
 from instancespace.stages.sifted import SiftedStage
 from instancespace.stages.trace import TraceStage
 
-script_dir = Path(__file__).parent / "tests" / "test_data" / "demo"
+script_dir = Path(__file__).parent / "examples" / "data"
 # script_dir / "test_data/serialisers/actual_output" / directory
 
 metadata_path = script_dir / "metadata.csv"

@@ -81,7 +81,7 @@ class ExamplePlugin(Stage[ExamplePluginInput, ExamplePluginOutput]):  # noqa: D1
         return ExamplePluginOutput(blank="")
 
 
-script_dir = Path(__file__).parent / "tests" / "test_data" / "demo"
+script_dir = Path(__file__).parent / "examples" / "data"
 
 metadata_path = script_dir / "metadata.csv"
 options_path = script_dir / "options.json"
