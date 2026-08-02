@@ -18,9 +18,15 @@ import numpy as np
 import pandas as pd
 import pytest
 from loguru import logger
+from numpy.typing import NDArray
 
 from instancespace.data.options import SelvarsOptions
-from instancespace.utils.filter import compute_uniformity, do_filter, filter_instance
+from instancespace.utils.filter import (
+    MIN_KEPT_INSTANCES_FOR_UNIFORMITY,
+    compute_uniformity,
+    do_filter,
+    filter_instance,
+)
 
 script_dir = Path(__file__).parent
 
@@ -460,3 +466,168 @@ def test_uniformity_is_nan_when_all_kept_instances_coincide() -> None:
 
     assert np.isnan(compute_uniformity(x, subset_index))
     assert any("Uniformity is undefined" in m for m in messages)
+
+
+def _brute_force_filter_instance(
+    x: NDArray[np.double],
+    y: NDArray[np.double],
+    y_bin: NDArray[np.bool_],
+    selvars_type: str,
+    min_distance: float,
+) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]]:
+    """Independent O(n^2) reference oracle for `filter_instance`.
+
+    A plain double loop over every pair, computing each distance directly
+    with `cdist` rather than a KD-tree - kept only in this test file as a
+    ground-truth to check the KD-tree-based production code against on edge
+    cases a KD-tree can behave subtly differently on (exact-boundary
+    distances, coincident points), not as a second production
+    implementation.
+    """
+    from scipy.spatial.distance import cdist as _cdist
+
+    n_insts, n_algos = y.shape
+    n_feats = x.shape[1]
+    subset_index = np.zeros(n_insts, dtype=bool)
+    is_dissimilar = np.ones(n_insts, dtype=bool)
+    is_visa = np.zeros(n_insts, dtype=bool)
+    gamma = np.sqrt(n_algos / n_feats) * min_distance
+
+    for i in range(n_insts):
+        if subset_index[i]:
+            continue
+        for j in range(i + 1, n_insts):
+            if subset_index[j]:
+                continue
+            dx = _cdist([x[i, :]], [x[j, :]]).item()
+            if dx > min_distance:
+                continue
+            dy = _cdist([y[i, :]], [y[j, :]]).item()
+            db = np.all(np.logical_and(y_bin[i, :], y_bin[j, :]))
+            is_dissimilar[j] = False
+            if selvars_type == "Ftr":
+                subset_index[j] = True
+            elif selvars_type == "Ftr&AP":
+                subset_index[j], is_visa[j] = (
+                    (True, False) if dy <= gamma else (False, True)
+                )
+            elif selvars_type == "Ftr&Good":
+                subset_index[j], is_visa[j] = (True, False) if db else (False, True)
+            elif selvars_type == "Ftr&AP&Good":
+                if db:
+                    subset_index[j], is_visa[j] = (
+                        (True, False) if dy <= gamma else (False, True)
+                    )
+                else:
+                    is_visa[j] = True
+    return subset_index, is_dissimilar, is_visa
+
+
+def _brute_force_uniformity(
+    x: NDArray[np.double],
+    subset_index: NDArray[np.bool_],
+) -> float:
+    """Independent O(n^2) reference oracle for `compute_uniformity`."""
+    from scipy.spatial.distance import pdist as _pdist
+    from scipy.spatial.distance import squareform as _squareform
+
+    x_kept = x[~subset_index, :]
+    if x_kept.shape[0] < MIN_KEPT_INSTANCES_FOR_UNIFORMITY:
+        return float("nan")
+    d = _squareform(_pdist(x_kept))
+    np.fill_diagonal(d, np.nan)
+    nearest = np.nanmin(d, axis=0)
+    if np.all(np.isnan(nearest)) or np.nanmean(nearest) == 0:
+        return float("nan")
+    return float(1 - (np.nanstd(nearest, ddof=1) / np.nanmean(nearest)))
+
+
+@pytest.mark.parametrize(
+    "selvars_type",
+    ["Ftr", "Ftr&AP", "Ftr&Good", "Ftr&AP&Good"],
+)
+@pytest.mark.parametrize(
+    ("name", "x", "y", "y_bin"),
+    [
+        (
+            "coincident_points",
+            np.array([[1.0, 1.0], [1.0, 1.0], [5.0, 5.0], [1.0, 1.0]]),
+            np.array([[0.1, 0.2], [0.1, 0.2], [0.9, 0.8], [0.15, 0.25]]),
+            np.array(
+                [[True, False], [True, False], [False, True], [True, True]],
+            ),
+        ),
+        (
+            "exact_boundary_distance",
+            np.array([[0.0, 0.0], [0.5, 0.0], [2.0, 2.0]]),
+            np.array([[0.1, 0.2], [0.3, 0.4], [0.9, 0.8]]),
+            np.array([[True, False], [True, False], [False, True]]),
+        ),
+        (
+            "dense_cluster",
+            np.array([[0.0, 0.0], [0.01, 0.0], [0.0, 0.01], [0.01, 0.01]]),
+            np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6], [0.7, 0.8]]),
+            np.array(
+                [
+                    [True, False],
+                    [True, True],
+                    [False, True],
+                    [True, False],
+                ],
+            ),
+        ),
+        (
+            "no_neighbours_at_all",
+            np.array([[0.0, 0.0], [100.0, 0.0], [0.0, 100.0]]),
+            np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]]),
+            np.array([[True, False], [False, True], [True, True]]),
+        ),
+        (
+            "very_small_n",
+            np.array([[0.0, 0.0], [0.05, 0.0]]),
+            np.array([[0.1, 0.2], [0.3, 0.4]]),
+            np.array([[True, False], [True, True]]),
+        ),
+    ],
+)
+def test_kd_tree_matches_brute_force(
+    name: str,
+    x: NDArray[np.double],
+    y: NDArray[np.double],
+    y_bin: NDArray[np.bool_],
+    selvars_type: str,
+) -> None:
+    """F12: the KD-tree rewrite must match the old O(n^2) algorithm exactly.
+
+    Covers the edge cases a KD-tree can plausibly behave differently on:
+    exact-coincident points, a pair exactly at the min_distance boundary, a
+    dense cluster where every pair is within min_distance, instances with no
+    neighbours at all, and n too small to matter either way.
+    """
+    min_distance = 0.5
+
+    expected_subset, expected_dissimilar, expected_visa = _brute_force_filter_instance(
+        x,
+        y,
+        y_bin,
+        selvars_type,
+        min_distance,
+    )
+    subset_index, is_dissimilar, is_visa = filter_instance(
+        x,
+        y,
+        y_bin,
+        selvars_type,
+        min_distance,
+    )
+
+    assert np.array_equal(subset_index, expected_subset), name
+    assert np.array_equal(is_dissimilar, expected_dissimilar), name
+    assert np.array_equal(is_visa, expected_visa), name
+
+    expected_uniformity = _brute_force_uniformity(x, expected_subset)
+    uniformity = compute_uniformity(x, subset_index)
+    if np.isnan(expected_uniformity):
+        assert np.isnan(uniformity), name
+    else:
+        assert np.allclose(uniformity, expected_uniformity), name
