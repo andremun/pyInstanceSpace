@@ -154,6 +154,32 @@ object. These aren't actually alternatives — they compose:
   direct-call path is documented as the pattern to follow for anyone adding a
   hand-crafted-edge-case fixture later, not implemented as its own dataset here.
 
+## Build path and explore path — both, for every variant
+
+An earlier draft of this script only called `.explore()` once, for a separate
+default-options-only pass, leaving the three `svm`/Bayes/kernel PYTHIA/TRACE variants
+build-only. Fixed: every variant in the loop above now gets **both**:
+
+- **Build path** (training): `obj.build('stages', {'pythia','trace'})`, exported to
+  `training_artifacts/pythia/<variant>/` and `training_artifacts/trace/<variant>/` —
+  `PythiaOutput`/`TraceOutput`'s training-mode shape (hyperparameters included).
+- **Explore path** (test-set inference on the model *that variant* just trained):
+  `obj.explore(datasetRoot)`, exported to `explore_outputs/<variant>/` — MATLAB's own
+  distinct eval-mode code path (`PYTHIAevalMode` in `core/PYTHIA.m`; TRACE's
+  `trainedTrace`-argument branch), which has a different output shape (no
+  hyperparameter columns in PYTHIA's eval-mode summary, since eval mode doesn't retrain)
+  exported under its own name (`pythia_eval_summary.csv`) rather than conflated with the
+  training-mode `summary.csv` sitting next to it in `training_artifacts/`.
+
+The `default` variant additionally gets the flat, backward-compatible
+`explore_outputs/step1_after_prelim.csv`-style layout `tests/matlab_reference/` already
+documents (`exportLegacyExploreLayout`) — so this script's `default`-variant output is a
+byte-for-byte drop-in replacement for the existing fixture set, not a same-data,
+different-name reshuffle of it. `step1`–`step3` (PRELIM/SIFTED/PILOT's test-set
+transform) don't depend on `opts.pythia`/`opts.trace`, so they're only written once
+(at the `default` variant, not duplicated per variant) rather than four times over with
+identical content.
+
 ## Provenance (T5's actual ask)
 
 Every run writes `provenance.json` alongside the exported fixtures:
@@ -180,23 +206,31 @@ way the numeric CSVs get diffed.
 <outputRoot>/
 ├── provenance.json
 ├── training_artifacts/
-│   ├── prelim/   sifted/   pilot/   cloister/   pythia/<variant>/   trace/<variant>/
+│   ├── prelim/   sifted/   pilot/   cloister/         (option-invariant, written once)
+│   ├── pythia/<variant>/                              (one per variant, build-time)
+│   └── trace/<variant>/                                (one per variant, build-time)
 ├── explore_outputs/
-│   └── step1_after_prelim.csv ... step5_trace_membership.csv   (same names as today)
+│   ├── step1_after_prelim.csv ... step5_trace_membership.csv   (default variant only,
+│   │                                                    same flat names as today)
+│   └── <variant>/
+│       ├── predictions.csv, probabilities.csv          (explore-time, per variant)
+│       ├── pythia_eval_summary.csv, trace_eval_summary.csv
+│       └── trace_membership.csv
 └── input/
     ├── metadata.csv           (copied from the toolkit's test/data/, unchanged)
     └── metadata_test.csv
 ```
 
-`<variant>` for PYTHIA/TRACE is one of `sobol_svm`, `bayes_svm_gaussian`,
-`bayes_svm_poly` (from the base prelim/sifted/pilot/cloister run) plus `default` (from the
-separate, default-options full-pipeline + `explore()` run that reproduces
-`tests/matlab_reference/`'s existing layout) — matching the option cases already named in
+`<variant>` is one of `default` (MATLAB's own untouched options), `sobol_svm`,
+`bayes_svm_gaussian`, `bayes_svm_poly` — matching the option cases already named in
 `test_integration.m` / `tests/test_data/pythia/output/`'s existing `BO_gaussian`/`BO_poly`
 naming, so a future migration of the ad hoc `tests/test_data/` fixtures onto this script's
-output can reuse the same directory names rather than inventing new ones. Migrating the
-*existing* committed fixtures onto this new layout is a separate decision for a future
-session, not done here — this script only defines what a *regeneration* would look like.
+output can reuse the same directory names rather than inventing new ones. Every variant
+gets both `training_artifacts/{pythia,trace}/<variant>/` (build path) and
+`explore_outputs/<variant>/` (explore path) — see **Build path and explore path** above.
+Migrating the *existing* committed fixtures onto this new layout is a separate decision
+for a future session, not done here — this script only defines what a *regeneration*
+would look like.
 
 ## Running it
 
