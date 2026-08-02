@@ -693,6 +693,28 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             )
 
     @staticmethod
+    def _cv_fit_params(
+        use_weights: bool,
+        supports_sample_weight: bool,
+        w: NDArray[np.double],
+    ) -> dict[str, NDArray[np.double]] | None:
+        """`cross_val_predict`'s `params`, weighting each fold's fit.
+
+        #298 audit finding, issue 6: MATLAB threads `Wtrain` into every CV
+        fold's fit (`evalFoldClassifier` -> `fitOneClassifier`, `core/
+        PYTHIA.m`) for both Sobol- and Bayes-candidate ranking and the final
+        full-data fit; Python previously weighted only the final fit,
+        leaving candidate ranking's cross-validated predictions unweighted
+        even when `use_weights=True`. Matches MATLAB precisely: only the fit
+        is weighted, not the resulting misclassification-rate/error metric
+        itself (verified directly against `sobolSearch`'s `errs = mean(...)`,
+        which stays a plain unweighted rate even in MATLAB).
+        """
+        if use_weights and supports_sample_weight:
+            return {"sample_weight": w}
+        return None
+
+    @staticmethod
     def _fit_degenerate(
         y_bin_i: NDArray[np.bool_],
         algo_label: str,
@@ -753,10 +775,29 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         else:
             estimator.fit(z, y_bin)
 
-        y_sub = cross_val_predict(estimator, z, y_bin, cv=skf, method="predict")
+        fit_params = PythiaStage._cv_fit_params(
+            use_weights,
+            spec.supports_sample_weight,
+            w,
+        )
+        y_sub = cross_val_predict(
+            estimator,
+            z,
+            y_bin,
+            cv=skf,
+            method="predict",
+            params=fit_params,
+        )
         p_sub = PythiaStage._bad_class_proba(
             estimator,
-            cross_val_predict(estimator, z, y_bin, cv=skf, method="predict_proba"),
+            cross_val_predict(
+                estimator,
+                z,
+                y_bin,
+                cv=skf,
+                method="predict_proba",
+                params=fit_params,
+            ),
         )
         y_hat = estimator.predict(z)
         p_hat = PythiaStage._bad_class_proba(estimator, estimator.predict_proba(z))
@@ -910,7 +951,19 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         )
 
         # Perform cross-validated predictions using the best estimator
-        y_sub = cross_val_predict(best_estimator, z, y_bin, cv=skf, method="predict")
+        bayes_fit_params = PythiaStage._cv_fit_params(
+            use_weights,
+            spec.supports_sample_weight,
+            w,
+        )
+        y_sub = cross_val_predict(
+            best_estimator,
+            z,
+            y_bin,
+            cv=skf,
+            method="predict",
+            params=bayes_fit_params,
+        )
         p_sub = PythiaStage._bad_class_proba(
             best_estimator,
             cross_val_predict(
@@ -919,6 +972,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 y_bin,
                 cv=skf,
                 method="predict_proba",
+                params=bayes_fit_params,
             ),
         )
         # Predict the labels and probabilities for the entire dataset
@@ -946,15 +1000,25 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         skf: StratifiedKFold,
+        use_weights: bool,
+        w: NDArray[np.double],
     ) -> tuple[list[dict[str, float | int | str]], NDArray[np.double]]:
         """Evaluate each Sobol candidate's CV misclassification error.
 
         A candidate that fails to train (e.g. a degenerate bandwidth) is
         disqualified with an infinite error rather than raising, mirroring
-        MATLAB's `evalFoldClassifier` catch/NaN-disqualify behaviour.
+        MATLAB's `evalFoldClassifier` catch/NaN-disqualify behaviour. Each
+        fold's fit is weighted when requested (#298 audit finding, issue 6 -
+        see `_cv_fit_params`); the error rate itself stays an unweighted
+        misclassification rate, matching MATLAB's own `sobolSearch`.
         """
         candidates: list[dict[str, float | int | str]] = []
         errs = np.zeros(len(points))
+        fit_params = PythiaStage._cv_fit_params(
+            use_weights,
+            spec.supports_sample_weight,
+            w,
+        )
         for i, point in enumerate(points):
             candidate: dict[str, float | int | str] = {
                 spec.param1.sklearn_name: spec.param1.sample(point[0]),
@@ -970,6 +1034,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                     y_bin,
                     cv=skf,
                     method="predict",
+                    params=fit_params,
                 )
                 errs[i] = np.mean(y_pred != y_bin)
             except ValueError as error:
@@ -998,10 +1063,11 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         keeps the one with the lowest misclassification error - a direct,
         much lighter-weight port of MATLAB's `sobolSearch`/`sobolToParams`
         (`core/PYTHIA.m`), used in place of `skopt.BayesSearchCV`'s heavier
-        sequential-optimisation machinery. `w`/`use_weights` are honoured
-        only for the final full-data fit, matching how the Bayes search
-        above only passes weights to `optimization.fit()`, not to the
-        per-candidate `cross_val_predict` calls.
+        sequential-optimisation machinery. `w`/`use_weights` weight every CV
+        fold's fit, both during candidate ranking (`_evaluate_sobol_
+        candidates`) and the final full-data fit - matching MATLAB's own
+        `Wtrain` threading through `evalFoldClassifier` (#298 audit finding,
+        issue 6; see `_cv_fit_params`).
         """
         n_dims = 2 if spec.param2 is not None else 1
         sampler = stats.qmc.Sobol(d=n_dims, scramble=True, seed=seed)
@@ -1014,6 +1080,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             z,
             y_bin,
             skf,
+            use_weights,
+            w,
         )
         if np.all(np.isinf(errs)):
             logger.warning(
@@ -1031,10 +1099,29 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         else:
             estimator.fit(z, y_bin)
 
-        y_sub = cross_val_predict(estimator, z, y_bin, cv=skf, method="predict")
+        sobol_fit_params = PythiaStage._cv_fit_params(
+            use_weights,
+            spec.supports_sample_weight,
+            w,
+        )
+        y_sub = cross_val_predict(
+            estimator,
+            z,
+            y_bin,
+            cv=skf,
+            method="predict",
+            params=sobol_fit_params,
+        )
         p_sub = PythiaStage._bad_class_proba(
             estimator,
-            cross_val_predict(estimator, z, y_bin, cv=skf, method="predict_proba"),
+            cross_val_predict(
+                estimator,
+                z,
+                y_bin,
+                cv=skf,
+                method="predict_proba",
+                params=sobol_fit_params,
+            ),
         )
         y_hat = estimator.predict(z)
         p_hat = PythiaStage._bad_class_proba(estimator, estimator.predict_proba(z))
