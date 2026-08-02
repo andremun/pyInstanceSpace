@@ -29,6 +29,15 @@ function pyis_export_reference_data(toolkitRoot, outputRoot, varargin)
 %   (obj.model.<stage>) to CSV using the same writeArray2CSV/writeCell2CSV
 %   conventions output/scriptcsv.m already uses -- not a new format.
 %
+%   Output layout is uniformly build_data/<stage>/<variant>/ and
+%   explore_data/<stage>/<variant>/ -- same shape, same top-level naming
+%   convention, on both sides. Stages whose output does not depend on
+%   opts.pythia/opts.trace (prelim, sifted, pilot, cloister on the build
+%   side) still get a <variant>/ level, always named 'default', so every
+%   consumer can rely on the same path depth regardless of stage --
+%   deliberately not left stage-only just because there is currently only
+%   one variant to put there.
+%
 %   NOT executed against real MATLAB before being committed to
 %   pyInstanceSpace -- written from direct inspection of this toolkit's
 %   source (InstanceSpace.m, core/*.m, output/scriptcsv.m, scriptfcn.m,
@@ -79,8 +88,8 @@ addpath(toolkitRoot);
 
 mkdirIfMissing(outputRoot);
 mkdirIfMissing([outputRoot 'input/']);
-mkdirIfMissing([outputRoot 'training_artifacts/']);
-mkdirIfMissing([outputRoot 'explore_outputs/']);
+mkdirIfMissing([outputRoot 'build_data/']);
+mkdirIfMissing([outputRoot 'explore_data/']);
 
 copyfile([datasetRoot 'metadata.csv'], [outputRoot 'input/metadata.csv']);
 copyfile([datasetRoot 'metadata_test.csv'], [outputRoot 'input/metadata_test.csv']);
@@ -96,10 +105,14 @@ fprintf('[EXPORT] Building base pipeline (prelim -> sifted -> pilot -> cloister)
 obj = InstanceSpace(datasetRoot);
 obj = obj.build('stages', {'prelim', 'sifted', 'pilot', 'cloister'});
 
-exportPrelimArtifacts(obj.model.prelim, obj.model.data, [outputRoot 'training_artifacts/prelim/']);
-exportSiftedArtifacts(obj.model.sifted, [outputRoot 'training_artifacts/sifted/']);
-exportPilotArtifacts(obj.model.pilot, [outputRoot 'training_artifacts/pilot/']);
-exportCloisterArtifacts(obj.model.cloist, [outputRoot 'training_artifacts/cloister/']);
+% 'default/' is the only variant these four stages ever have (their output
+% doesn't depend on opts.pythia/opts.trace) -- written anyway, rather than
+% left stage-only, so every stage sits at the same build_data/<stage>/
+% <variant>/ depth as pythia/trace below.
+exportPrelimArtifacts(obj.model.prelim, obj.model.data, [outputRoot 'build_data/prelim/default/']);
+exportSiftedArtifacts(obj.model.sifted, [outputRoot 'build_data/sifted/default/']);
+exportPilotArtifacts(obj.model.pilot, [outputRoot 'build_data/pilot/default/']);
+exportCloisterArtifacts(obj.model.cloist, [outputRoot 'build_data/cloister/default/']);
 
 % =========================================================================
 % PYTHIA/TRACE variants -- mirrors the option cases test_integration.m
@@ -108,10 +121,13 @@ exportCloisterArtifacts(obj.model.cloist, [outputRoot 'training_artifacts/cloist
 % pass/fail checking. 'default' (MATLAB's own untouched opts -- KNN
 % classifier, Sobol tuning, TRACE3) comes first so the flat, backward-
 % compatible tests/matlab_reference/ layout is still produced exactly as
-% before; the svm-forced variants add new coverage alongside it, not in
-% place of it. EVERY variant gets both a build() pass (training_artifacts/)
-% and an explore() pass (explore_outputs/) on the model it just trained --
-% earlier drafts of this script only ran explore() for the default case,
+% before (see exportLegacyExploreLayout, written to its own
+% legacy_explore_outputs/ root so it can't be confused with this script's
+% unified build_data/ + explore_data/ layout below); the svm-forced
+% variants add new coverage alongside it, not in place of it. EVERY
+% variant gets both a build() pass (build_data/) and an explore() pass
+% (explore_data/) on the model it just trained -- earlier drafts of this
+% script only ran explore() for the default case,
 % leaving the other three build-only. Add more variants here as Python's
 % test suite grows new classifier/tuning/kernel combinations it needs
 % MATLAB numbers for.
@@ -145,24 +161,30 @@ for v = 1:numel(variants)
     % ---- Build path (training) ----
     obj = obj.build('stages', {'pythia', 'trace'});
     exportPythiaArtifacts(obj.model.pythia, obj.model.data.algolabels, ...
-        [outputRoot 'training_artifacts/pythia/' variant.name '/']);
+        [outputRoot 'build_data/pythia/' variant.name '/']);
     exportTraceArtifacts(obj.model.trace, obj.model.data.algolabels, ...
-        [outputRoot 'training_artifacts/trace/' variant.name '/']);
+        [outputRoot 'build_data/trace/' variant.name '/']);
 
     % ---- Explore path (test-set inference on the model just trained) ----
+    % Same build_data/<stage>/<variant>/ shape as the build path above --
+    % split by stage (pythia, trace) rather than one flat per-variant
+    % folder, so build_data/ and explore_data/ are structurally identical
+    % and neither name has to be remembered as the "odd one out".
     obj = obj.explore(datasetRoot);
     testOut = obj.getResults(1);
-    exportPythiaTraceExploreArtifacts(testOut, [outputRoot 'explore_outputs/' variant.name '/']);
+    exportPythiaExploreArtifacts(testOut, [outputRoot 'explore_data/pythia/' variant.name '/']);
+    exportTraceExploreArtifacts(testOut, [outputRoot 'explore_data/trace/' variant.name '/']);
 
     if v == 1
         % step1-3 (prelim/sifted/pilot's test-set transform) don't depend
         % on opts.pythia/opts.trace, so they're identical across every
-        % variant here -- write them once, at explore_outputs/ *and*
-        % reproduce the flat step4/step5 filenames tests/matlab_reference/
-        % already documents there too, so this default variant stays a
-        % byte-for-byte drop-in for that existing fixture set rather than
-        % a same-data-different-name reshuffle of it.
-        exportLegacyExploreLayout(testOut, [outputRoot 'explore_outputs/']);
+        % variant here -- write them once, reproducing the flat step1-5
+        % filenames tests/matlab_reference/ already documents, under a
+        % clearly-separate legacy_explore_outputs/ root (not explore_data/)
+        % so this default variant stays a byte-for-byte drop-in for that
+        % existing fixture set without colliding with the new unified
+        % layout's own naming.
+        exportLegacyExploreLayout(testOut, [outputRoot 'legacy_explore_outputs/']);
     end
 end
 
@@ -310,17 +332,17 @@ if isfield(traceOut, 'hard') && ~isempty(traceOut.hard)
 end
 end
 
-function exportPythiaTraceExploreArtifacts(testOut, destDir)
-% Per-variant explore-path export: PYTHIA/TRACE's test-set inference
-% output for whichever variant trained this testOut. Distinct from
-% exportPythiaArtifacts/exportTraceArtifacts (the *build*-path export,
-% training_artifacts/) -- explore-mode PYTHIA runs a genuinely different
-% code path internally (PYTHIAevalMode in core/PYTHIA.m: no hyperparameter
-% search, just applying the already-trained classifiers/reconciling
-% test-only algorithms), so its own summary table has fewer columns (no
-% param1/param2/param2Label) -- exported here under its own name
-% (eval_summary.csv) rather than overwriting/conflated with the training
-% summary.csv this same variant's training_artifacts/ already has.
+function exportPythiaExploreArtifacts(testOut, destDir)
+% Per-variant explore-path export: PYTHIA's test-set inference output for
+% whichever variant trained this testOut. Sibling of exportPythiaArtifacts
+% (the *build*-path export, build_data/pythia/<variant>/) at the matching
+% explore_data/pythia/<variant>/ path -- explore-mode PYTHIA runs a
+% genuinely different code path internally (PYTHIAevalMode in
+% core/PYTHIA.m: no hyperparameter search, just applying the
+% already-trained classifiers/reconciling test-only algorithms), so its own
+% summary table has fewer columns (no param1/param2/param2Label) -- kept as
+% its own eval_summary.csv rather than overwriting/conflated with
+% build_data/pythia/<variant>/summary.csv.
 mkdirIfMissing(destDir);
 writeMatrixCSV(double(testOut.pythia.Yhat), testOut.data.algolabels, testOut.data.instlabels(:), ...
     [destDir 'predictions.csv']);
@@ -328,11 +350,20 @@ writeMatrixCSV(testOut.pythia.Pr0hat, testOut.data.algolabels, testOut.data.inst
     [destDir 'probabilities.csv']);
 if isfield(testOut.pythia, 'summary') && ~isempty(testOut.pythia.summary)
     writeCellCSV(testOut.pythia.summary(2:end, 2:end), testOut.pythia.summary(1, 2:end), ...
-        testOut.pythia.summary(2:end, 1), [destDir 'pythia_eval_summary.csv']);
+        testOut.pythia.summary(2:end, 1), [destDir 'eval_summary.csv']);
 end
+end
+
+function exportTraceExploreArtifacts(testOut, destDir)
+% Per-variant explore-path export: TRACE's test-set footprint membership
+% for whichever variant trained this testOut. Sibling of
+% exportTraceArtifacts (the *build*-path export,
+% build_data/trace/<variant>/) at the matching
+% explore_data/trace/<variant>/ path.
+mkdirIfMissing(destDir);
 if isfield(testOut.trace, 'summary') && ~isempty(testOut.trace.summary)
     writeCellCSV(testOut.trace.summary(2:end, 2:end), testOut.trace.summary(1, 2:end), ...
-        testOut.trace.summary(2:end, 1), [destDir 'trace_eval_summary.csv']);
+        testOut.trace.summary(2:end, 1), [destDir 'eval_summary.csv']);
 end
 
 membershipCols = [strcat('in_good_', testOut.data.algolabels(:)'), ...
@@ -340,7 +371,7 @@ membershipCols = [strcat('in_good_', testOut.data.algolabels(:)'), ...
 membership = [footprintMembership(testOut.trace.good, testOut.pilot.Z), ...
     footprintMembership(testOut.trace.best, testOut.pilot.Z)];
 writeMatrixCSV(double(membership), membershipCols, testOut.data.instlabels(:), ...
-    [destDir 'trace_membership.csv']);
+    [destDir 'membership.csv']);
 end
 
 function exportLegacyExploreLayout(testOut, destExplore)
