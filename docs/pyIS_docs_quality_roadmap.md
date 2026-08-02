@@ -1078,9 +1078,10 @@ item to avoid reintroducing (item 2, flagged to F2).
 
 ---
 
-### 6.3 External audit findings — PYTHIA/CLOISTER/SIFTED/PILOT/TRACE/PRELIM (added v1.43, updated v1.44-v1.45, v1.53)
+### 6.3 External audit findings — PYTHIA/CLOISTER/SIFTED/PILOT/TRACE/PRELIM (added v1.43, updated v1.44-v1.45, v1.53, v1.58)
 
-**Status as of v1.53: all six stages verified.** PRELIM, SIFTED, PILOT, PYTHIA, and CLOISTER were
+**Status as of v1.58: all six stages verified; CLOISTER (#299) fully resolved, no findings
+remain open.** PRELIM, SIFTED, PILOT, PYTHIA, and CLOISTER were
 triaged in v1.44-v1.45 — confirmed findings either fixed and shipped, or explicitly deferred with
 a stated reason (never silently dropped). **TRACE (#302) is now verified too** — per direct
 instruction, documented only (all 7 findings confirmed or confirmed-with-correction against
@@ -1099,17 +1100,28 @@ source before recording).
   *not* implemented — the audit's own tie-break fix was rescoped to detection-only per direct
   instruction, keeping "pick first") is tracked as a documented future-feature note, flagged as
   potentially relevant to the MATLAB repo too.
-- **SIFTED (#300, 9 findings)** — verified; fixes shipped (see commit `a3e2859`). 4 fixed (issues
-  1, 3, 8 partial, 9); 5 deferred (issues 2, 4, 5, 6, 7 — p-value option, KNN `dims+1`/analytic
-  PILOT call, GA fitness metric, fitness caching, correlation-distance clustering). Full
-  breakdown in the GitHub comment on #300.
+- **SIFTED (#300, 9 findings)** — verified; fixes shipped (see commit `a3e2859`, then issues 2/4/6
+  in a follow-up commit `6731aa6` + `feat(options)` commit `6eab45b`). 7 fixed (issues 1, 2, 3, 4,
+  6, 8 partial, 9): issue 2 (`opts.pval` now a real `SiftedOptions.pval` field, previously a
+  hardcoded `PVAL_THRESHOLD` constant), issue 4 (GA fitness's internal PILOT call now uses
+  `analytic=True, ntries=5` matching MATLAB's hardcoded `costfcn` constants — a genuine bug fix,
+  since `PilotOptions.default()`'s own default is `analytic=False`; KNN neighbour count is now
+  `dims + 1` via the new `SiftedOptions.dims` field), issue 6 (GA fitness now caches by
+  feature-selection bitmask, scoped per-`ga_instance`/per-SIFTED-call, correctly isolated per
+  worker under `parallel_processing`). 2 deferred (issues 5, 7 — GA fitness metric (MSE vs.
+  classification loss) and clustering distance metric (Euclidean vs. correlation), explicitly held
+  back for a separate design decision per direct instruction, not mechanical fixes). Full
+  breakdown in the GitHub comments on #300.
 - **PILOT (#301, 7 findings)** — verified; fixes shipped (see commit `f29dbbe`). 4 fixed (issues
   2, 4 partial, 5, 6); 3 deferred as one coherent `cost_weight`/`alpha` semantics chunk (issues 1,
   3, 7), overlapping F2. Full breakdown in the GitHub comment on #301.
-- **PYTHIA (#298, 10 findings)** — verified; fixes shipped (see commits `b6508cb`, `1fe551f`). 8
-  fixed (issues 1, 2, 3, 4, 5, 7, 8, 9); 2 deferred (issue 6 — sample weights in CV tuning, needs
-  its own verification pass; issue 10 — eval/skip mode, overlaps F8/F9). Full breakdown in the
-  GitHub comments on #298.
+- **PYTHIA (#298, 10 findings)** — verified; fixes shipped (see commits `b6508cb`, `1fe551f`, then
+  issue 6 in a follow-up commit `b43b71e`). 9 fixed (issues 1, 2, 3, 4, 5, 6, 7, 8, 9): issue 6
+  (sample weights now thread into every CV fold's fit during Sobol/Bayes candidate ranking, not
+  just the final full-data fit, via a new `_cv_fit_params` helper — matches MATLAB's `Wtrain`
+  threading through `evalFoldClassifier`, confirmed the ranking metric itself stays unweighted in
+  both MATLAB and Python). 1 deferred (issue 10 — eval/skip mode, overlaps F8/F9). Full breakdown
+  in the GitHub comments on #298.
   - Issue 4 (`n_tuning_iter` ignored for `tuning='bayes'`; SVM's discrete Bayes search space) was
     initially triaged as "deliberate prior design decisions, not bugs" — that framing was wrong,
     corrected in a follow-up comment on #298 and fixed in commit `1fe551f`: MATLAB's
@@ -1123,13 +1135,16 @@ source before recording).
     Python's default, since 20 is MATLAB's own default too. Test-level impact contained (raised
     `test_build_pilot_pythia.py`'s `BAYES_N_ITER_FOR_TESTS` 15 → 40); the production-default
     question remains open on #304.
-- **CLOISTER (#299, 5 findings)** — verified; fixes shipped (see commit `8cf1d1a`). 4 fixed
-  (issues 1-4: `max_features` guard + convex-hull fallback, NaN-robust correlation/bounds,
-  correct convex-hull failure semantics distinguishing a genuine `z_edge` failure from a
-  threshold-driven `z_ecorr` one, plus the "weakely"→"weakly" typo that shared issue 3's root
-  cause); 1 deferred (issue 5 — configurable hull dimensionality, confirmed as described but
-  currently dormant since PILOT's projection matrix is hard-coded to 2 rows everywhere in this
-  repo; F2, unshipped, would change that). Full breakdown in the GitHub comment on #299.
+- **CLOISTER (#299, 5 findings)** — verified; fixes shipped (see commit `8cf1d1a`, then issue 5 in
+  a follow-up commit `fb4ad1c`). All 5 fixed (issues 1-5: `max_features` guard + convex-hull
+  fallback, NaN-robust correlation/bounds, correct convex-hull failure semantics distinguishing a
+  genuine `z_edge` failure from a threshold-driven `z_ecorr` one, the "weakely"→"weakly" typo that
+  shared issue 3's root cause, and issue 5's new `CloisterOptions.hull_dims` option letting
+  `_compute_convex_hull` restrict its geometry computation to the first N projected columns while
+  still returning full-dimensional vertices — currently dormant in practice since PILOT's
+  projection matrix is hard-coded to 2 rows everywhere in this repo, so `hull_dims="all"` and
+  `hull_dims=2` are equivalent until F2 (unshipped) changes that). **#299 has no remaining open
+  findings** and can be closed. Full breakdown in the GitHub comments on #299.
 - **TRACE (#302, 7 findings)** — verified, per direct instruction **documented only, not
   implemented** (stopping one step earlier than the stages above). Against
   `instancespace/stages/trace.py` and MATLAB's `core/TRACE_legacy.m` (the only TRACE variant this
@@ -1169,9 +1184,10 @@ actual claims and proposed fixes.
 §6.0's previously-recorded F8 → F9 → F2 → F5 execution order. "First priority" meant *triage and
 independent verification first*, not "implement the proposed fixes first." As of v1.53 all six
 stages are verified, so this batch no longer blocks §6.0's order — but the confirmed-and-deferred
-findings above (PYTHIA issue 6/10, SIFTED issues 2/4/5/6/7, PILOT issues 1/3/7, CLOISTER issue 5,
-and all 7 of TRACE's, none yet implemented) remain a real backlog, tracked on their respective
-GitHub issues, not silently closed out by "verification is done."
+findings above (PYTHIA issue 10, SIFTED issues 5/7, PILOT issues 1/3/7, and all 7 of TRACE's, none
+yet implemented) remain a real backlog, tracked on their respective GitHub issues, not silently
+closed out by "verification is done." CLOISTER's #299 has no remaining deferred findings — see the
+CLOISTER bullet above.
 
 **Known overlaps flagged for the eventual verification pass (not resolved here):**
 - PYTHIA finding #4 (`n_tuning_iter` ignored for `tuning='bayes'`) — resolved, not stale: F10
@@ -1739,3 +1755,5 @@ ships with its listed test, not just its implementation.
 | v1.54 | 2026-08-02 | Following a priority-reassessment request, worked T10c, T10b, and F12's remaining performance rewrite in that order (F3 was initially proposed too, but correctly caught before starting - it's closed, won't-fix as of v1.36, not a live item; re-confirmed via GitHub issue #263 directly). **T10c (#308, closed):** root-caused, not just patched - `serialisers/actual_output/output.zip` was committed before its own `.gitignore`'s `*.zip` pattern existed, so `.gitignore` (which has no retroactive effect on already-tracked files) never actually excluded it; `git rm --cached` untracked it, verified `git status` stays clean across a fresh `test_serialisers.py` run. **T10b (#307, closed):** confirmed "missing assertions," not "dead fixture" - `PrelimOutput` has real `x_raw`/`y_raw`/`beta`/`num_good_algos`/`instlabels` fields, all five ran and matched their corresponding MATLAB CSVs exactly before any assertion was written; added 5 more `assert` calls to `test_integrated_prepro_n_prelim`. **F12 (#289, fully implemented):** `filter.py`'s `O(n²)` per-pair `cdist()` loop replaced with `scipy.spatial.cKDTree` (`query_ball_point` for `filter_instance`'s neighbour lookup, `query(k=2)` for `compute_uniformity`'s nearest-other-point distance), mirroring MATLAB's own `rangesearch`/`knnsearch` KD-tree approach exactly - the greedy elimination loop itself stays sequential (not vectorised away), matching `core/FILTER.m`'s own comment on why that part can't be parallelised either. Verified with 20 new differential tests (KD-tree output vs. the old `O(n²)` algorithm, kept only as a test-file reference oracle) across 5 edge cases × all 4 `selvars_type` values, plus all 10 pre-existing MATLAB-reference golden tests passing unchanged. Measured, not assumed: ~980x speedup at n=2000 (7.87s→0.008s). Full suite: 416 passed (396 baseline + 20 new), 91.37% coverage, `filter.py` itself 98% covered (up from 42%). Each item verified and committed separately (`b14c279`, `cd0ed0b`, plus F12's own commit) rather than batched, so a full-suite failure in one wouldn't block identifying which change caused it. Separately, on request: investigated (not yet fixed at commit time - see next entry) **#304** (PYTHIA Bayes-tuning convergence gap) - root-caused via source inspection (`pythia.py`'s `BayesSearchCV` call never sets `optimizer_kwargs`, so skopt's `Optimizer` defaults to `n_initial_points=10`/`acq_func='gp_hedge'`) cross-referenced against MATLAB's actual `bayesopt` defaults (`NumSeedPoints=4`, `AcquisitionFunctionName='expected-improvement-per-second-plus'`, confirmed via web search, not assumed from memory). Empirically tested against the exact MATLAB fixture #304 cites: `n_initial_points=4` alone raised the tolerance-gate pass rate from 24/30 (80.0%, matching #304's own reported baseline exactly) to 26/30 (86.7%) at the same `n_tuning_iter=20` budget - the same improvement #304's own table showed from raising the iteration count 20→30, achieved here without spending extra evaluations. A follow-up acquisition-function test (`acq_func='EI'`, the closest analog to MATLAB's default since skopt has no equivalent to the "per-second" runtime-cost weighting) made no further measured difference on this fixture (still 26/30) - a clean negative result, not a gap in the experiment. |
 | v1.55 | 2026-08-02 | Implemented #304's fix, per direct instruction ("fix 304 with findings. change to ei with 4 starts"). `instancespace/stages/pythia.py`'s `BayesSearchCV(...)` call now passes `optimizer_kwargs={"n_initial_points": 4, "acq_func": "EI"}` (new `_BAYES_OPTIMIZER_KWARGS` module constant, documented inline with the v1.54 investigation's findings) instead of leaving skopt's own defaults (`n_initial_points=10`, `acq_func='gp_hedge'`) in place. **[Behavior-changing]** - changes every `tuning='bayes'` caller's actual search trajectory, not just test fixtures. Verified, not just implemented: all 9 Bayes-tuning MATLAB-reference tests across `test_build_pythia.py`/`test_build_pilot_pythia.py` pass unchanged (407.76s, no regressions - the pre-existing KNN `n_neighbors > n_samples_fit` and skopt duplicate-point warnings are unrelated to this change, already present before it). Full suite re-run: 416 passed (unchanged from F12's own v1.54 run), 91.37% coverage. Note for a future session: this fix closes most but not all of #304's gap (26/30 measured in the v1.54 investigation, still short of the 27/30/90% bar at the production default `n_tuning_iter=20`) - #304 stays open, not closed, since the existing tests' `BAYES_N_ITER_FOR_TESTS` overrides (40 and 15) still carry the remaining margin; revisit whether those can now be lowered given the improved per-iteration convergence, as a separate follow-up, not assumed here. |
 | v1.56 | 2026-08-02 | T10d (#309) implemented: `tests/test_data/demo/` moved to `examples/data/` via `git mv` (content and git history preserved). Corrected the issue's own premise before executing it - grepped the repo first rather than trusting the issue text, and found `liveDemoIS.ipynb` does not read `test_data/demo/` at all (it reads `tests/matlab_reference/input/`); the two real readers are `integration_demo.py` and `example_plugin.py`, both updated in the same commit. Verified, not just moved: ran both scripts against the relocated path - both resolve and read `examples/data/options.json` successfully (proving the move itself is mechanically correct), then both fail at options validation on a genuine, pre-existing bug unrelated to the move (`selvars.type: "Ftr&&Good"`, a double-ampersand typo, confirmed present at the same value in `git show HEAD:tests/test_data/demo/options.json` before this commit) - filed separately as **#311** rather than silently fixed, since T10d's own scope is relocation-only, no fixture content changes. `pytest --collect-only` confirmed unaffected (416 tests, unchanged). `README.md`'s repository-layout section and `docs/test_data_audit.md` (header status, Steps 2-4 marked done with detail, §9's tracking table, new #311 row) updated. |
+| v1.57 | 2026-08-02 | Following a priority-reassessment request ("relist open issues" then "fix #311, 300, 301 298 299"), fixed #311 (commit `35105a0`): `examples/data/options.json`'s `selvars.type` corrected from `"Ftr&&Good"` (double-ampersand typo) to `"Ftr&Good"`, matching `DEFAULT_SELVARS_TYPE`/`_check_member`'s valid-value list. Verified both example scripts (`integration_demo.py`, `example_plugin.py`) run past options validation against the corrected file. Before touching #298/#299/#300/#301, fetched each issue's full text and found #301's only remaining items (issues 1/3/7, a `cost_weight`/`alpha` semantics chunk) and #298's issue 10 (eval/skip mode) both overlap unstarted bigger architecture work (F2, F8/F9) - used `AskUserQuestion` to clarify scope rather than guessing. **Decisions:** #301 left entirely untouched, deferred to F2 (user's explicit choice); #300's issues 5 (GA fitness metric, MSE vs. classification loss) and 7 (clustering distance, Euclidean vs. correlation) held back for a separate design decision, user chose to implement only issues 2/4/6 now. |
+| v1.58 | 2026-08-02 | Implemented the scope settled in v1.57: SIFTED #300 issues 2/4/6 (commits `6eab45b` options-layer, `6731aa6` stage logic), PYTHIA #298 issue 6 (commit `b43b71e`), CLOISTER #299 issue 5 (commit `fb4ad1c`) - #299's only remaining finding, so it has no findings left open. **SIFTED:** `SiftedOptions.pval`/`dims` are now real fields (previously a hardcoded `PVAL_THRESHOLD` class constant and no `dims` at all); `cost_fcn`'s internal PILOT call was found to have a genuine bug while fixing issue 4 (not something the audit itself flagged) - it called `PilotOptions.default()`, whose own default is `analytic=False`, while MATLAB's `costfcn` hardcodes `analytic=true, ntries=5` specifically for this hot path (root-caused by reading `core/SIFTED.m` directly, not inferred); KNN neighbour count is now `dims + 1` instead of a fixed `K_NEIGHBORS = 3`; a fitness cache keyed by feature-selection bitmask (`idx.tobytes()`) now avoids redundant PILOT+KNN evaluations across GA generations, scoped per-`ga_instance`/per-SIFTED-call rather than a MATLAB-style cross-call `persistent` map - reasoned through the `parallel_processing=["process", n]` multiprocessing case explicitly (pygad pickles a separate `ga_instance` per worker, so each worker's cache is correctly isolated, matching MATLAB's own documented per-worker persistent-state limitation rather than regressing from it). **[Behavior-changing]**: the analytic-PILOT and `dims+1` fixes change what the GA fitness function computes, so SIFTED's selected feature set can change; verified via the full SIFTED/PYTHIA/CLOISTER suites and existing seed-reproducibility tests (all passing, no flakiness across repeated runs), not against a MATLAB reference run (none available this session). **PYTHIA:** added `_cv_fit_params`, threading `sample_weight` into every `cross_val_predict` fold-fit during Sobol/Bayes candidate ranking, not just the final full-data fit - verified against MATLAB's `sobolSearch` directly that only the fit is weighted, never the aggregated misclassification-rate ranking metric itself, before implementing (avoiding an unrequested weighted-error-metric interpretation the audit's own suggested fix text left ambiguous). Surfaced sklearn 1.5.2's `fit_params=` deprecation (removed in 1.6) the moment these call sites started passing it; renamed all four usages to the newer `params=` kwarg, empirically confirmed to work without `sklearn.set_config(enable_metadata_routing=True)`. **[Behavior-changing]**, gated to `use_weights=True` callers only. **CLOISTER:** `_compute_convex_hull` gained an optional `hull_dims` parameter (geometry computed on a truncated view, full-dimensional vertices still returned) wired through the new `CloisterOptions.hull_dims` field (`"all"` default, unrestricted - matches today's behaviour exactly, so **[Additive]**) into all three hull call sites in `cloister()`; `hull_dims` exceeding the point set's column count degrades gracefully (NumPy slicing past an array's width is a no-op) rather than raising. 4 new tests added per the issue's own acceptance criteria (`hull_dims="all"` matches default, `hull_dims=2` restricts geometry, exceeding-columns edge case, end-to-end run against the MATLAB reference fixture). Verified: `test_build_sifted.py` (9 passed), `test_build_pythia.py` (36 passed, confirmed the `FutureWarning` about `fit_params` is gone via `-W error::FutureWarning`), `test_build_cloister.py` (19 passed), then the full project suite (420 passed, 91.33% coverage, no regressions) after all three changes landed together. Each fix committed separately (options-layer plumbing, then per-stage logic) so a full-suite failure in one wouldn't obscure which change caused it. GitHub comments posted on #298/#299/#300 with the fixed/deferred breakdown; #299 closed (no findings remain); #298/#300 stay open with their explicitly-deferred items (PYTHIA issue 10; SIFTED issues 5/7) unchanged from v1.57's scope decision. |
