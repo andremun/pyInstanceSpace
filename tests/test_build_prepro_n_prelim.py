@@ -52,6 +52,21 @@ def test_integrated_prepro_n_prelim() -> None:
     )
     csv_output_prelim_x_run = script_dir / "test_data/prelim/run/output/output_X.csv"
     csv_output_prelim_y_run = script_dir / "test_data/prelim/run/output/output_Y.csv"
+    csv_output_prelim_xraw_run = (
+        script_dir / "test_data/prelim/run/output/output_Xraw.csv"
+    )
+    csv_output_prelim_yraw_run = (
+        script_dir / "test_data/prelim/run/output/output_Yraw.csv"
+    )
+    csv_output_prelim_beta_run = (
+        script_dir / "test_data/prelim/run/output/output_beta.csv"
+    )
+    csv_output_prelim_instlabels_run = (
+        script_dir / "test_data/prelim/run/output/output_instlabels.csv"
+    )
+    csv_output_prelim_num_good_algos_run = (
+        script_dir / "test_data/prelim/run/output/output_numGoodAlgos.csv"
+    )
 
     p_output_run = (
         pd.read_csv(csv_output_prelim_p_run, sep=",", header=None).iloc[:, 0].values
@@ -62,6 +77,19 @@ def test_integrated_prepro_n_prelim() -> None:
     ybin_output_run = pd.read_csv(csv_output_prelim_ybin_run, sep=",", header=None)
     x_output_run = pd.read_csv(csv_output_prelim_x_run, header=None).to_numpy()
     y_output_run = pd.read_csv(csv_output_prelim_y_run, header=None).to_numpy()
+    xraw_output_run = pd.read_csv(csv_output_prelim_xraw_run, header=None).to_numpy()
+    yraw_output_run = pd.read_csv(csv_output_prelim_yraw_run, header=None).to_numpy()
+    beta_output_run = (
+        pd.read_csv(csv_output_prelim_beta_run, header=None).iloc[:, 0].values
+    )
+    instlabels_output_run = (
+        pd.read_csv(csv_output_prelim_instlabels_run, header=None).iloc[:, 0].values
+    )
+    num_good_algos_output_run = (
+        pd.read_csv(csv_output_prelim_num_good_algos_run, header=None)
+        .iloc[:, 0]
+        .values
+    )
 
     prelim_opts = PrelimOptions(
         max_perf=instance_space.options.perf.max_perf,
@@ -97,3 +125,15 @@ def test_integrated_prepro_n_prelim() -> None:
         np.array(ybest_output_run, dtype=np.float64),
     )
     assert np.allclose(prelim_output.p, np.array(p_output_run, dtype=np.float64))
+    assert np.allclose(prelim_output.x_raw, xraw_output_run)
+    assert np.allclose(prelim_output.y_raw, yraw_output_run)
+    assert np.array_equal(
+        np.asarray(prelim_output.beta, dtype=bool),
+        beta_output_run.astype(bool),
+    )
+    assert np.allclose(
+        np.array(prelim_output.num_good_algos).flatten(),
+        np.array(num_good_algos_output_run, dtype=np.float64),
+    )
+    assert prelim_output.instlabels is not None
+    assert list(prelim_output.instlabels) == list(instlabels_output_run)
