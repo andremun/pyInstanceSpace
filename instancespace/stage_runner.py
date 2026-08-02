@@ -246,26 +246,6 @@ class StageRunner:
 
         return outputs
 
-    def run_many_stages_parallel(
-        self,
-        stages: list[StageClass],
-        additional_arguments: NamedTuple,
-    ) -> dict[str, Any]:
-        """Run multiple stages in parallel.
-
-        All prerequisite stages must have already been ran. The stages cannot be a
-        prerequisite for other stages being ran at the same time.
-
-        Args
-        ----
-            stages list[StageClass]: A list of stages to run.
-
-        Returns
-        -------
-            tuple[tuple[Any]]: _description_
-        """
-        raise NotImplementedError
-
     def run_all(self, additional_arguments: NamedTuple) -> dict[str, Any]:
         """Run all stages from start to finish.
 

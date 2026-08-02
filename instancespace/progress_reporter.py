@@ -16,7 +16,6 @@ import pickle
 import urllib.error
 import urllib.request
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
@@ -117,30 +116,6 @@ def serialize_stage_output(
         result["serialization_error"] = str(e)
 
     return result
-
-
-@dataclass
-class StageProgress:
-    """Progress information for a single stage."""
-
-    stage_name: str
-    status: StageStatus
-    timestamp: str
-    error: str | None = None
-    duration_seconds: float | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        result: dict[str, Any] = {
-            "stage_name": self.stage_name,
-            "status": self.status.value,
-            "timestamp": self.timestamp,
-        }
-        if self.error:
-            result["error"] = self.error
-        if self.duration_seconds is not None:
-            result["duration_seconds"] = self.duration_seconds
-        return result
 
 
 class ProgressReporter(ABC):
