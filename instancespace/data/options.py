@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field, fields
 from pathlib import Path
-from typing import Any, Self, TypeVar
+from typing import Any, Literal, Self, TypeVar
 
 import numpy as np
 from loguru import logger
@@ -21,6 +21,7 @@ from instancespace.data.default_options import (
     DEFAULT_AUTO_PREPROC,
     DEFAULT_BOUND_FLAG,
     DEFAULT_CLOISTER_C_THRES,
+    DEFAULT_CLOISTER_HULL_DIMS,
     DEFAULT_CLOISTER_MAX_FEATURES,
     DEFAULT_CLOISTER_P_VAL,
     DEFAULT_GENERAL_SEED,
@@ -53,6 +54,7 @@ from instancespace.data.default_options import (
     DEFAULT_SELVARS_TYPE,
     DEFAULT_SIFTED_CROSSOVER_PROBABILITY,
     DEFAULT_SIFTED_CROSSOVER_TYPE,
+    DEFAULT_SIFTED_DIMS,
     DEFAULT_SIFTED_FLAG,
     DEFAULT_SIFTED_K,
     DEFAULT_SIFTED_K_TOURNAMENT,
@@ -64,6 +66,7 @@ from instancespace.data.default_options import (
     DEFAULT_SIFTED_NUM_GENERATION,
     DEFAULT_SIFTED_NUM_PARENTS_MATING,
     DEFAULT_SIFTED_PARENT_SELECTION_TYPE,
+    DEFAULT_SIFTED_PVAL,
     DEFAULT_SIFTED_REPLICATES,
     DEFAULT_SIFTED_RHO,
     DEFAULT_SIFTED_SOL_PER_POP,
@@ -274,6 +277,14 @@ class SiftedOptions:
     mutation_type: str
     mutation_probability: float
     stop_criteria: str
+    # Significance threshold for the correlation filter, matching MATLAB's
+    # opts.pval (core/SIFTED.m) - was a hardcoded class constant.
+    pval: float = DEFAULT_SIFTED_PVAL
+    # Projection dimensionality for the GA fitness function's internal KNN
+    # neighbour count (dims + 1), matching MATLAB's opts.dims. PILOT itself
+    # is 2D-only in this port, so 3 is accepted but currently has no effect
+    # on PILOT's actual output - see default_options.py's DEFAULT_SIFTED_DIMS.
+    dims: int = DEFAULT_SIFTED_DIMS
 
     @staticmethod
     def default(
@@ -294,6 +305,8 @@ class SiftedOptions:
         mutation_type: str = DEFAULT_SIFTED_MUTATION_TYPE,
         mutation_probability: float = DEFAULT_SIFTED_MUTATION_PROBABILITY,
         stop_criteria: str = DEFAULT_SIFTED_STOP_CRITERIA,
+        pval: float = DEFAULT_SIFTED_PVAL,
+        dims: int = DEFAULT_SIFTED_DIMS,
     ) -> SiftedOptions:
         """Instantiate with default values."""
         return SiftedOptions(
@@ -314,6 +327,8 @@ class SiftedOptions:
             mutation_type=mutation_type,
             mutation_probability=mutation_probability,
             stop_criteria=stop_criteria,
+            pval=pval,
+            dims=dims,
         )
 
 
@@ -356,18 +371,26 @@ class CloisterOptions:
     # CLOISTER skips enumeration and uses a plain convex hull of the
     # projected instances as the boundary instead.
     max_features: int = DEFAULT_CLOISTER_MAX_FEATURES
+    # "all" (default) uses every projected dimension for the convex hull;
+    # 2 mimics MATLAB's always-2D-on-the-first-two-columns hull (core/
+    # CLOISTER.m) while still returning full-dimensional vertices. #299
+    # audit finding, issue 5 - see default_options.py for why "all" and 2
+    # are currently equivalent in practice (PILOT is 2D-only in this port).
+    hull_dims: int | Literal["all"] = DEFAULT_CLOISTER_HULL_DIMS
 
     @staticmethod
     def default(
         p_val: float = DEFAULT_CLOISTER_P_VAL,
         c_thres: float = DEFAULT_CLOISTER_C_THRES,
         max_features: int = DEFAULT_CLOISTER_MAX_FEATURES,
+        hull_dims: int | Literal["all"] = DEFAULT_CLOISTER_HULL_DIMS,
     ) -> CloisterOptions:
         """Instantiate with default values."""
         return CloisterOptions(
             p_val=p_val,
             c_thres=c_thres,
             max_features=max_features,
+            hull_dims=hull_dims,
         )
 
 
@@ -486,6 +509,20 @@ def _check_member(name: str, value: str, valid: tuple[str, ...]) -> None:
         raise ValueError(msg)
 
 
+def _check_sifted_dims(name: str, value: int) -> None:
+    if value not in (2, 3):
+        msg = f"opts.{name} must be 2 or 3; got {value!r}."
+        raise ValueError(msg)
+
+
+def _check_cloister_hull_dims(name: str, value: int | str) -> None:
+    if value == "all":
+        return
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        msg = f"opts.{name} must be 'all' or a positive integer; got {value!r}."
+        raise ValueError(msg)
+
+
 def _check_text_list(name: str, value: list[str] | None) -> None:
     if value is not None and not all(isinstance(v, str) for v in value):
         msg = f"opts.{name} must be a list of strings, or None; got {value!r}."
@@ -523,9 +560,11 @@ class InstanceSpaceOptions:
         numerically-valid-looking but wrong result. Only checks fields that
         exist in this port today; MATLAB fields with no Python equivalent
         yet (`pilot.method`/`dims`/`topoWeight`/`viewGroups`, `pythia.skip`/
-        `ensembleMethod`, `trace.minInstances`/`minAreaFrac`, `sifted.pval`,
-        `cloister.maxFeatures`, `outputs.fig`) are out of scope until those
-        options themselves are ported (see F2/F5/F8/F9).
+        `ensembleMethod`, `trace.minInstances`/`minAreaFrac`,
+        `outputs.fig`) are out of scope until those options themselves are
+        ported (see F2/F5/F8/F9). `sifted.pval`/`sifted.dims` (#300 audit
+        findings, issues 2 and 4) and `cloister.hullDims` (#299 audit
+        finding, issue 5) are now real fields, validated below.
         """
         _check_logical("general.verbose", self.general.verbose)
         if self.general.seed is not None:
@@ -561,12 +600,15 @@ class InstanceSpaceOptions:
         _check_pos_int("sifted.K", self.sifted.k)
         _check_pos_int("sifted.MaxIter", self.sifted.max_iter)
         _check_pos_int("sifted.Replicates", self.sifted.replicates)
+        _check_unit_range("sifted.pval", self.sifted.pval)
+        _check_sifted_dims("sifted.dims", self.sifted.dims)
 
         _check_logical("pilot.analytic", self.pilot.analytic)
         _check_pos_int("pilot.ntries", self.pilot.n_tries)
 
         _check_unit_range("cloister.pval", self.cloister.p_val)
         _check_unit_range("cloister.corrThreshold", self.cloister.c_thres)
+        _check_cloister_hull_dims("cloister.hullDims", self.cloister.hull_dims)
 
         _check_member(
             "pythia.classifier",

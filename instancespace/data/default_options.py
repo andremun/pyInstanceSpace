@@ -2,6 +2,8 @@
 # Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Contains default values for options as constants."""
 
+from typing import Literal
+
 DEFAULT_GENERAL_VERBOSE = True
 DEFAULT_GENERAL_SEED = 0
 
@@ -31,6 +33,17 @@ DEFAULT_SELVARS_TYPE = "Ftr&Good"
 DEFAULT_SIFTED_FLAG = True
 DEFAULT_SIFTED_RHO = 0.1
 DEFAULT_SIFTED_K = 6
+# Significance threshold for the correlation filter, matching MATLAB's
+# opts.pval (core/SIFTED.m). Was a hardcoded SiftedStage.PVAL_THRESHOLD
+# class constant; now a real option (#300 audit finding, issue 2).
+DEFAULT_SIFTED_PVAL = 0.05
+# Projection dimensionality the GA fitness function's internal PILOT call
+# uses for its KNN neighbour count (kneighbours = dims + 1), matching
+# MATLAB's opts.dims (core/SIFTED.m, restricted to {2, 3}). PILOT itself is
+# 2D-only in this port (3D projection is F2's unshipped future work), so
+# dims=3 is accepted for forward API compatibility but has no effect on
+# PILOT's actual output yet - same caveat as CloisterOptions.hull_dims.
+DEFAULT_SIFTED_DIMS = 2
 DEFAULT_SIFTED_NTREES = 50
 DEFAULT_SIFTED_MAX_ITER = 1000
 DEFAULT_SIFTED_REPLICATES = 100
@@ -53,6 +66,14 @@ DEFAULT_PILOT_ADJUST_ROTATION = False
 DEFAULT_CLOISTER_P_VAL = 0.05
 DEFAULT_CLOISTER_C_THRES = 0.7
 DEFAULT_CLOISTER_MAX_FEATURES = 20
+# "all" uses every projected dimension for the convex hull (this port's own
+# default; scipy.spatial.ConvexHull handles n-D natively). MATLAB always
+# builds a 2D hull on the first two projected columns regardless of how
+# many columns A has (core/CLOISTER.m) - set to 2 for that behaviour.
+# #299 audit finding, issue 5. PILOT's projection is 2D-only in this port
+# (3D is F2's unshipped future work), so "all" and 2 are currently
+# equivalent in practice - documented, not silently assumed obvious.
+DEFAULT_CLOISTER_HULL_DIMS: Literal["all"] = "all"
 
 DEFAULT_PYTHIA_CV_FOLDS = 5
 DEFAULT_PYTHIA_IS_POLY_KRNL = False
