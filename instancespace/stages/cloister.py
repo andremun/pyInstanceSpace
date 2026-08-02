@@ -185,6 +185,8 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
             " for the space.",
         )
 
+        hull_dims = None if options.hull_dims == "all" else options.hull_dims
+
         nfeats = x.shape[1]
         if nfeats > options.max_features:
             # Corner enumeration below is 2**nfeats - intractable past a
@@ -195,14 +197,14 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
                 f"[CLOISTER]   -> CLOISTER skipped: {nfeats} features exceeds "
                 f"limit of {options.max_features}. Using convex hull as boundary.",
             )
-            z_all = CloisterStage._compute_convex_hull(np.dot(x, a.T))
+            z_all = CloisterStage._compute_convex_hull(np.dot(x, a.T), hull_dims)
             logger.info("[CLOISTER] " + "-" * 65)
             logger.info("[CLOISTER]   -> CLOISTER has completed.")
             return CloisterOutput(z_all, z_all)
 
         rho = CloisterStage._compute_correlation(x, options)
         x_edge, remove = CloisterStage._generate_boundaries(x, rho, options)
-        z_edge = CloisterStage._compute_convex_hull(np.dot(x_edge, a.T))
+        z_edge = CloisterStage._compute_convex_hull(np.dot(x_edge, a.T), hull_dims)
 
         if z_edge.size == 0:
             # Unlike a too-strict correlation threshold (below), an empty
@@ -220,6 +222,7 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
         else:
             z_ecorr = CloisterStage._compute_convex_hull(
                 np.dot(x_edge[~remove, :], a.T),
+                hull_dims,
             )
             if z_ecorr.size == 0:
                 logger.info(
@@ -312,21 +315,34 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
         return binary_matrix[:, ::-1]
 
     @staticmethod
-    def _compute_convex_hull(points: NDArray[np.double]) -> NDArray[np.double]:
+    def _compute_convex_hull(
+        points: NDArray[np.double],
+        hull_dims: int | None = None,
+    ) -> NDArray[np.double]:
         """Calculate the convex hull of a set of points.
 
         Parameters
         ----------
         points : NDArray[np.double]
             A 2D array of points (instances x features).
+        hull_dims : int | None
+            Restrict the hull geometry to the first `hull_dims` columns of
+            `points` (matching MATLAB's `core/CLOISTER.m`, which always
+            builds a 2D hull on the first two projected columns). `None`
+            (this port's own default) uses every column, letting
+            `scipy.spatial.ConvexHull` build the hull in its native
+            dimensionality. #299 audit finding, issue 5. Either way, the
+            returned vertices keep every column of `points` - only the hull
+            geometry itself is computed on the restricted view.
 
         Returns
         -------
         NDArray[np.double]
             The vertices of the convex hull or an empty array if an error occurs.
         """
+        hull_points = points if hull_dims is None else points[:, :hull_dims]
         try:
-            hull = ConvexHull(points)
+            hull = ConvexHull(hull_points)
             return points[hull.vertices, :]
         except QhullError as qe:
             logger.warning(

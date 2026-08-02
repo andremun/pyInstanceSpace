@@ -402,6 +402,83 @@ class TestCloister:
         assert z_ecorr.size == 0
         assert any("Could not construct a boundary polygon" in m for m in messages)
 
+    def test_compute_convex_hull_hull_dims_all_matches_default(self) -> None:
+        """`hull_dims=None` (i.e. `options.hull_dims="all"`) is a no-op restriction.
+
+        #299 audit finding, issue 5, acceptance criterion: `hull_dims="all"`
+        must produce identical output to today's unrestricted behaviour.
+        """
+        rng = np.random.default_rng(0)
+        points = rng.random((20, 3))
+
+        unrestricted = CloisterStage._compute_convex_hull(points)  # noqa: SLF001
+        explicit_all = CloisterStage._compute_convex_hull(points, None)  # noqa: SLF001
+
+        np.testing.assert_array_equal(unrestricted, explicit_all)
+
+    def test_compute_convex_hull_hull_dims_restricts_geometry_not_output_columns(
+        self,
+    ) -> None:
+        """`hull_dims=2` computes the hull on the first 2 columns only.
+
+        #299 audit finding, issue 5, acceptance criterion: restricting
+        `hull_dims` changes which points are selected as vertices (by
+        computing hull geometry over fewer dimensions) but the returned
+        vertices still carry every column of the input, matching MATLAB's
+        `core/CLOISTER.m` (always a 2D hull, full-dimensional output points).
+        """
+        rng = np.random.default_rng(1)
+        # Third column is pure noise uncorrelated with the first two, so
+        # restricting to 2 dims can plausibly change which rows are on the
+        # hull boundary.
+        points = rng.random((30, 3))
+
+        hull_2d = CloisterStage._compute_convex_hull(points, 2)  # noqa: SLF001
+        hull_full = CloisterStage._compute_convex_hull(points)  # noqa: SLF001
+
+        assert hull_2d.shape[1] == points.shape[1]
+        assert hull_full.shape[1] == points.shape[1]
+
+    def test_compute_convex_hull_hull_dims_exceeding_columns_does_not_crash(
+        self,
+    ) -> None:
+        """`hull_dims` larger than the point set's column count must not crash.
+
+        #299 audit finding, issue 5, acceptance criterion: NumPy's slicing
+        (`points[:, :hull_dims]`) is a no-op past the array's own width, so
+        this degrades gracefully to using every available column rather
+        than raising.
+        """
+        rng = np.random.default_rng(2)
+        points = rng.random((10, 2))
+
+        output = CloisterStage._compute_convex_hull(points, 5)  # noqa: SLF001
+
+        assert output.shape[1] == points.shape[1]
+        assert output.shape[0] > 0
+
+    def test_cloister_run_with_hull_dims_two_matches_default(
+        self,
+        input_data: CloisterMatlabInputs,
+        output_data: CloisterMatlabOutput,
+    ) -> None:
+        """End-to-end: `hull_dims=2` matches MATLAB's reference output.
+
+        #299 audit finding, issue 5. `input_a` projects to exactly 2 columns
+        already, so `hull_dims=2` and the default `hull_dims="all"` are
+        equivalent here - this is the currently-shipped, PILOT-is-2D-only
+        case, not a claim that `hull_dims` has no effect in general.
+        """
+        input_x = input_data.input_x
+        input_a = input_data.input_a
+        options = CloisterOptions.default(hull_dims=2)
+
+        inputs = CloisterInput(input_x, input_a, options)
+        z_edge_python, z_ecorr_python = CloisterStage._run(inputs)  # noqa: SLF001
+
+        _assert_same_hull_cycle(output_data.z_edge, z_edge_python)
+        _assert_same_hull_cycle(output_data.z_ecorr, z_ecorr_python)
+
     def test_cloister_threshold_message_only_for_genuine_threshold_failure(
         self,
         input_data: CloisterMatlabInputs,
