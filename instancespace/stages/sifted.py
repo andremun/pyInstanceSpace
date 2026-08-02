@@ -870,7 +870,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         # relative to it.
         cache_key = idx.tobytes()
         if cache_key in instance.cost_cache:
-            return instance.cost_cache[cache_key]
+            cached: float = instance.cost_cache[cache_key]
+            return cached
 
         out = PilotStage.pilot(
             instance.selfx[:, idx],
