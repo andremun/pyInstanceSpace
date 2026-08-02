@@ -1,8 +1,0 @@
-{
-    "MaxPerf": 0,
-    "AbsPerf": 1,
-    "epsilon": 0.2000,
-    "betaThreshold": 0.5500,
-    "bound": 1,
-    "norm": 1  
-}
