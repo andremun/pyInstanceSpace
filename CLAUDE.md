@@ -92,9 +92,12 @@ roadmap's own dependency notes: F8 → F9 (F9 mirrors a pattern F8's own decisio
 then F2 → F5 (F5 is hard-blocked on F2), with F3's one remaining confirmed gap
 (`_compute_correlation`'s unvectorized loop) and F12's remaining `O(n²)`→KD-tree performance
 rewrite runnable independently. T8 is mechanical and low-risk; T7 is sequenced after T8 (T8's
-file-by-file breakdown would go stale if T7's consolidation landed first). T5 is blocked on a
-MATLAB-side script that doesn't exist yet. If you're about to start any of these and haven't
-read §6.0's actual reasoning, read it before picking an order.
+file-by-file breakdown would go stale if T7's consolidation landed first). T5's export
+script now exists (`tests/matlab_export/`, roadmap v1.49) but is **unverified** — it has
+never been run against real MATLAB (none available in the session that wrote it) — so
+don't treat T5 as done; #278 stays open until someone actually runs it and confirms its
+output. If you're about to start any of these and haven't read §6.0's actual reasoning,
+read it before picking an order.
 
 F-phase items are long-term beyond that dependency too — several are explicitly "audit first,
 no implementation until the audit resolves what's actually there" (F3 especially) — don't
