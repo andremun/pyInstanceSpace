@@ -16,7 +16,7 @@
     "fileidx": "",
     "densityflag": false,
     "mindistance": 0.1,
-    "type": "Ftr&&Good"
+    "type": "Ftr&Good"
   },
   "sifted": {
     "flag": true,
