@@ -67,15 +67,21 @@ this file gets stale between sessions; that table doesn't.
 
 **Read this before picking up any F-item below: an external 43-finding audit batch (roadmap §6.3,
 GitHub #297 + sub-issues #298–#303, added 2026-07-30) sits ahead of everything else in this
-section, per direct user instruction.** As of roadmap v1.46 (2026-08-01): PRELIM (#303), SIFTED
-(#300), PILOT (#301), PYTHIA (#298), and CLOISTER (#299) are all verified and triaged — confirmed
-findings fixed and shipped (commits `7b96097`, `a3e2859`, `f29dbbe`, `b6508cb`, `8cf1d1a`,
-`1fe551f`), the rest explicitly deferred with a stated reason on each stage's GitHub issue, never
-silently dropped. PYTHIA's Issue 4 was initially mis-triaged as "deliberate, not a bug" — corrected
-and fixed in `1fe551f` after direct pushback; its follow-on convergence-quality question is tracked
-separately as **#304**, not silently absorbed. **TRACE (#302) is the only stage still unverified**
-— that verification pass (document findings only, per direct instruction; do not implement) is the
-next thing to pick up here, not F8.
+section, per direct user instruction.** As of roadmap v1.53 (2026-08-02), all six stages are
+verified and triaged: PRELIM (#303), SIFTED (#300), PILOT (#301), PYTHIA (#298), and CLOISTER
+(#299) had confirmed findings fixed and shipped (commits `7b96097`, `a3e2859`, `f29dbbe`,
+`b6508cb`, `8cf1d1a`, `1fe551f`), the rest explicitly deferred with a stated reason on each stage's
+GitHub issue, never silently dropped. PYTHIA's Issue 4 was initially mis-triaged as "deliberate, not
+a bug" — corrected and fixed in `1fe551f` after direct pushback; its follow-on convergence-quality
+question is tracked separately as **#304**, not silently absorbed. **TRACE (#302) is now verified
+too, documented only per direct instruction** — 6 of 7 findings confirmed (several reproduced
+empirically, not taken on the audit's word), 1 confirmed as a real live defect but with the wrong
+claimed symptom (no `ZeroDivisionError` — NumPy silently warns and returns `nan`/`inf`), plus a
+cross-cutting finding that `tight()` and `contra()`'s differing-purity branches have 0% test
+coverage in the existing suite. No TRACE fixes implemented yet — that backlog (all 7 findings) is
+open on #302, same as the deferred items on the other five stages' issues. This audit batch no
+longer blocks §6.0's F8 → F9 → F2 → F5 order, but its confirmed-and-deferred backlog is not
+resolved by "verification is done" — see roadmap §6.3 for the full per-stage breakdown.
 
 Note (resolved): issue #298's original body (the verbatim 10-finding PYTHIA audit text) was
 accidentally overwritten by a `mcp__github__issue_write` `update` call on 2026-08-01 (that method
