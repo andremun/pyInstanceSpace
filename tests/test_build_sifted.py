@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from numpy.typing import NDArray
+from sklearn.cluster import KMeans
 
 from instancespace.data.model import DataDense
 from instancespace.data.options import (
@@ -622,6 +623,150 @@ def test_density_filtered_output_x_has_correct_shape() -> None:
     assert out.x.ndim == expected_ndim
     assert out.x.shape[1] == len(out.selvars)
     assert out.x.shape[0] == out.y.shape[0]
+
+
+def test_standardize_for_correlation_distance_is_zero_mean_unit_variance() -> None:
+    """Each standardized feature vector must be zero-mean, unit-variance.
+
+    This is the mathematical property #300 issue 7's fix relies on:
+    Euclidean distance between two population-z-scored vectors of the same
+    length is a positive monotonic transform of their Pearson correlation
+    distance, so clustering the standardized vectors with ordinary
+    (Euclidean) k-means reproduces the nearest-centroid assignment a
+    correlation-distance k-means would give, matching MATLAB's
+    `kmeans(...,'Distance','correlation')`.
+    """
+    rng = np.random.default_rng(0)
+    x_aux = rng.random((20, 4))
+
+    standardized = SiftedStage._standardize_for_correlation_distance(  # noqa: SLF001
+        x_aux,
+    )
+
+    assert standardized.shape == (4, 20)
+    np.testing.assert_allclose(standardized.mean(axis=1), 0.0, atol=1e-10)
+    np.testing.assert_allclose(standardized.std(axis=1), 1.0, atol=1e-10)
+
+
+def test_standardize_for_correlation_distance_handles_constant_feature() -> None:
+    """A zero-variance feature must not raise or produce NaN/inf."""
+    x_aux = np.column_stack([np.full(10, 5.0), np.arange(10, dtype=float)])
+
+    standardized = SiftedStage._standardize_for_correlation_distance(  # noqa: SLF001
+        x_aux,
+    )
+
+    assert np.all(np.isfinite(standardized))
+    np.testing.assert_allclose(standardized[0], 0.0)
+
+
+def test_select_features_by_clustering_uses_standardized_input(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`select_features_by_clustering` must cluster standardized vectors.
+
+    Regression test for #300 issue 7: previously clustered raw feature
+    vectors with Euclidean-distance k-means; MATLAB uses correlation
+    distance. Real feature data from the MATLAB reference fixture is not
+    already zero-mean/unit-variance, so if the clustering input were still
+    raw, this would fail.
+    """
+    inputs = SiftedMatlabInput()
+    rng = np.random.default_rng(seed=0)
+    sifted = SiftedStage(
+        inputs.x,
+        inputs.y,
+        inputs.y_bin,
+        inputs.x_raw,
+        inputs.y_raw,
+        inputs.beta,
+        inputs.num_good_algos,
+        inputs.y_best,
+        inputs.p,
+        inputs.inst_labels,
+        inputs.s,
+        inputs.feat_labels,
+        dataclasses.replace(inputs.opts, k=2, rho=0.5),
+        ParallelOptions.default(),
+        GeneralOptions.default(),
+    )
+    x_aux, _, _, _ = sifted.select_features_by_performance()
+
+    captured: dict[str, NDArray[np.double]] = {}
+    original_fit_predict = KMeans.fit_predict
+
+    def _capturing_fit_predict(
+        self: KMeans,
+        x: NDArray[np.double],
+        *args: object,
+        **kwargs: object,
+    ) -> NDArray[np.intc]:
+        captured["x"] = x
+        result: NDArray[np.intc] = original_fit_predict(self, x, *args, **kwargs)
+        return result
+
+    monkeypatch.setattr(KMeans, "fit_predict", _capturing_fit_predict)
+
+    sifted.select_features_by_clustering(x_aux, rng)
+
+    np.testing.assert_allclose(captured["x"].mean(axis=1), 0.0, atol=1e-10)
+    np.testing.assert_allclose(captured["x"].std(axis=1), 1.0, atol=1e-10)
+
+
+def test_cost_fcn_uses_classification_accuracy_loss(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`cost_fcn`'s fitness must be a classification loss, not MSE.
+
+    Regression test for #300 issue 5: previously scored k-NN cross-
+    validation with `neg_mean_squared_error` on the binary good/bad
+    labels (a regression metric applied to a classification target)
+    instead of a real classification loss, matching MATLAB's
+    `fitcknn`/`kfoldLoss`.
+    """
+
+    class _FakePilotOutput:
+        z = np.zeros((6, 2))
+
+    monkeypatch.setattr(
+        "instancespace.stages.sifted.PilotStage.pilot",
+        lambda *_a, **_k: _FakePilotOutput(),
+    )
+
+    captured_scoring: list[str] = []
+
+    def _fake_cross_val_score(
+        _estimator: object,
+        _x: NDArray[np.double],
+        _y: NDArray[np.intc],
+        *,
+        cv: object,
+        scoring: str,
+    ) -> NDArray[np.double]:
+        captured_scoring.append(scoring)
+        return np.array([0.7, 0.9])
+
+    monkeypatch.setattr(
+        "instancespace.stages.sifted.cross_val_score",
+        _fake_cross_val_score,
+    )
+
+    class _FakeInstance:
+        selfx = np.zeros((6, 3))
+        selfy = np.zeros((6, 1))
+        selfy_bin = np.zeros((6, 1), dtype=int)
+        selffeat_labels = np.array(["f0", "f1", "f2"])
+        clust = np.ones((3, 1), dtype=bool)
+        cv_partition = None
+        general_options = GeneralOptions.default()
+        dims = 2
+        cost_cache: dict[bytes, float] = {}  # noqa: RUF012
+
+    instance = _FakeInstance()
+    fitness = SiftedStage.cost_fcn(instance, np.array([0]), 0)
+
+    assert captured_scoring == ["accuracy"]
+    assert fitness == pytest.approx(1.0 - 0.8)
 
 
 def compute_correlation(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
