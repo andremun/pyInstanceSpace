@@ -995,6 +995,120 @@ of this repo's other behavior changes there is no MATLAB-fixture-verified bar to
 F8's shared-extraction pattern exists means writing it once now and reconciling it into that
 pattern later, the same rework risk already documented for F8-before-F9.
 
+### F17 — Fix `_explore_trace()`'s `.covers()` to `.contains()`, matching MATLAB's `isinterior`/`TRACErescore`
+**Origin:** surfaced by F8's (v1.66) TRACE audit as a real, separate inconsistency between build
+and explore membership tests over the same footprint polygons - `Footprint.from_polygon()` and
+`contra()` (training, `trace.py`) use Shapely's `.contains()` (boundary-exclusive); `InstanceSpace.
+_explore_trace()` (explore, `instance_space.py`) uses `.covers()` (boundary-inclusive). F8's own
+write-up originally recorded the fix direction backwards (assumed training's `.contains()` was the
+bug, explore's `.covers()` the reference to match) - **corrected this session** by reading MATLAB's
+actual source rather than trusting that prior note: both `TRACE_legacy.m` (training) and
+`TRACErescore` (`core/TRACE.m:309-344`, MATLAB's *explore*-mode re-scoring function, used for both
+`legacy` and `trace3` models since it's dispatched before the `useLegacy` branch) call `isinterior`
+throughout, never `inpolygon`. `isinterior` is boundary-exclusive (matches Shapely's `.contains()`
+exactly); `inpolygon` is the boundary-inclusive one. So MATLAB's build and explore paths agree with
+each other, and *always* exclude the boundary - meaning explore's `.covers()` is the one that
+diverges from MATLAB, not training's `.contains()`.
+
+**Files:** `instancespace/instance_space.py` (`_explore_trace()`'s membership checks).
+**Pathway:**
+1. Locate every `.covers()` call in `_explore_trace()` (footprint-membership checks against
+   `in_good`/`in_best`) and change each to `.contains()`.
+2. Add a boundary-exact regression test - construct a footprint polygon and a query point placed
+   exactly on its boundary, assert the explore-time result now matches training's `.contains()`
+   convention (`False`, not `True`) instead of the current `.covers()` behaviour.
+3. Re-run the full TRACE + explore reference-test suite (`tests/test_build_trace.py`,
+   `tests/test_explore_trace.py`) to confirm no boundary-exact point exists in the current fixture
+   set that would silently flip an assertion - if one does, that's the verification the
+   `[Behavior-changing]` tag calls for, not a reason to skip the check.
+4. Update `ExploreResult`'s `in_good`/`in_best` docstrings if they mention `.covers()`'s
+   boundary-inclusive convention anywhere (check before assuming they don't).
+
+**Test:** the new boundary-exact regression test above, plus unchanged passing of every existing
+TRACE/explore reference test (interior and clearly-exterior points aren't affected by this change
+either way - only the exact-boundary case is).
+**Decision needed:** none - this is a straightforward correction to match MATLAB's own,
+internally-consistent convention (`isinterior` everywhere), not a design choice between two valid
+options.
+**Compat:** `[Behavior-changing]` - changes which explore-time query points exactly on a footprint
+boundary count as "in good"/"in best". Needs its own before/after verification against the
+existing TRACE reference tests once implemented (per this repo's compatibility-tagging rule), not
+assumed safe from the diff's small size.
+
+### F18 — Unify build/explore into single-body stage methods (all stages)
+**Origin:** proposed on direct request, filed as a future item, not scoped for implementation now.
+Framed explicitly as "how someone would actually implement this from scratch" - i.e., if nobody
+had ever written `InstanceSpace`'s `_explore_*` method family, would today's split (`stages/*.py`
+owning `build()`, `instance_space.py` separately re-deriving each stage's inference-time behaviour
+in a parallel `_explore_*` method) be the design chosen? The proposal's answer is no: instead,
+extend the `Stage` contract itself so each stage owns both training and inference in one place
+(e.g. a `predict()` method alongside `build()`), and have `InstanceSpace.explore_stage_iter()` call
+`predict()` directly rather than maintaining a second, separately-written method per stage.
+
+**Why this isn't just F8/F17 again:** F8 already unified PYTHIA's *formula* duplication via a
+shared static method (`_weighted_selection`), called from both `_determine_selections` (training)
+and `_explore_pythia` (explore) - but those remain two separate methods in two separate files, each
+calling into the shared piece. F18 proposes going further: collapsing the two methods themselves,
+not just their shared arithmetic, so there is exactly one method body per stage that both `build()`
+and `explore()` invoke, eliminating the *possibility* of the two ever drifting apart structurally
+(new fields, new branches) even if every individual formula inside them is already deduplicated.
+
+**MATLAB precedent, checked directly rather than assumed - partial, not universal:** `core/
+PYTHIA.m` and `core/TRACE.m` already dispatch on a single function for both training and
+`isEvalMode`/explore branches (confirmed while researching F8 and F17). `core/PRELIM.m`, `core/
+SIFTED.m`, and `core/PILOT.m` do **not** - `InstanceSpace.m`'s `evaluateTestSet` hand-duplicates
+PRELIM's bound/normalise logic inline instead of calling `PRELIM()` again, and never calls
+`SIFTED()`/`PILOT()` at explore time at all (it reuses stored `model.featsel.idx`/`model.pilot.A`
+directly). So this proposal is not "port MATLAB's own architecture" - it goes further than MATLAB
+does, generalizing PYTHIA/TRACE's own precedent to every stage on the reasoning that a single-body
+design is more maintainable regardless of what MATLAB happens to do.
+
+**Benefits:**
+- Removes the entire class of bug F8/F17 exist to fix (build/explore drift) at the structural
+  level, not just for the two stages audited so far - no `_explore_*` method can silently omit a
+  branch `build()` has, because there would be only one method.
+- New stage authors (via the existing `RunBefore`/`RunAfter` plugin mechanism, post-S2) get
+  train/predict symmetry "for free" from the base contract, rather than needing to separately
+  remember to add an `_explore_*` counterpart on `InstanceSpace` itself.
+- Matches PYTHIA/TRACE's own already-proven pattern (single dispatcher function), rather than
+  leaving them as the only two stages built that way while everything else stays split.
+
+**Costs/risks:**
+- Large blast radius: touches `stages/stage.py`'s `Stage` contract itself and `stage_runner.py`'s
+  orchestration, not just individual stage files - every existing stage (`PrelimStage`,
+  `SiftedStage`, `PilotStage`, `PythiaStage`, `CloisterStage`, `TraceStage`) would need a `predict()`
+  method added, and every corresponding `_explore_*` method on `InstanceSpace` retired.
+- PRELIM's `predict()` needs read-access to parameters only known after `build()` fits them
+  (`lambda_x`/`mu_x`/`sigma_x`/bounds) - the contract would need a way to expose "the fitted state
+  a later `predict()` call needs" that doesn't exist today (today's split sidesteps this by having
+  `InstanceSpace` read `Model.prelim.*` directly).
+- SIFTED and PILOT's current `_explore_*` counterparts are already thin passthroughs (reusing
+  stored `idx`/`A` with no independent logic) - folding them into a `predict()` method is close to
+  mechanical, low risk, but also low value compared to PYTHIA/TRACE/PRELIM.
+- Multi-session migration effort - this is not a single-sitting change across 6+ stages plus the
+  contract and runner; likely needs its own phased sub-items if ever prioritised, not one shot.
+
+**Recommended order if ever prioritised:** PYTHIA/TRACE first (F8 already did the hard part of
+separating the shared formula out - folding the remaining method-level split closes the loop it
+started), then PRELIM (needs the fitted-state-access design question resolved - the hardest part of
+this proposal), then SIFTED/PILOT last (already-trivial passthroughs, safest to defer since there's
+little drift risk to eliminate there in the first place).
+
+**Files:** `instancespace/stages/stage.py` (the `Stage[IN, OUT]` contract), `instancespace/
+stage_runner.py` (orchestration), every `instancespace/stages/*.py` file, `instancespace/
+instance_space.py` (retiring the `_explore_*` family as each stage's `predict()` lands).
+**Pathway:** not scoped in detail - this filing is intentionally an architecture proposal, not an
+implementation plan. A real pathway would need its own design pass per the "PRELIM's fitted-state
+access" open question above before any code is written.
+**Test:** not scoped - would follow whatever test pattern is already established per stage
+(reference-test parity for existing `build()`/`_explore_*` behaviour, unchanged by the refactor).
+**Decision needed:** whether to prioritise this at all, and if so, whether to design the fitted-
+state-access mechanism PRELIM's `predict()` would need before or after PYTHIA/TRACE's
+lower-risk fold. Not decided - explicitly deferred per how this item was filed.
+**Compat:** `[Unknown until scoped]` - a structural rewrite of the stage contract touching every
+stage's public surface; blast radius and compatibility tag can't be assessed until the `predict()`
+contract itself is designed, which this filing deliberately doesn't do.
+
 ---
 
 ## Phase R — ideas from PyISpace/PyHard
