@@ -716,7 +716,7 @@ def test_select_features_by_clustering_uses_standardized_input(
 def test_cost_fcn_uses_classification_accuracy_loss(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`cost_fcn`'s fitness must be a classification loss, not MSE.
+    """`cost_fcn`'s fitness must be a classification accuracy, not MSE.
 
     Regression test for #300 issue 5: previously scored k-NN cross-
     validation with `neg_mean_squared_error` on the binary good/bad
@@ -734,6 +734,8 @@ def test_cost_fcn_uses_classification_accuracy_loss(
     )
 
     captured_scoring: list[str] = []
+    per_algo_scores = [np.array([0.9, 0.9]), np.array([0.7, 0.7])]
+    calls = iter(per_algo_scores)
 
     def _fake_cross_val_score(
         _estimator: object,
@@ -744,7 +746,7 @@ def test_cost_fcn_uses_classification_accuracy_loss(
         scoring: str,
     ) -> NDArray[np.double]:
         captured_scoring.append(scoring)
-        return np.array([0.7, 0.9])
+        return next(calls)
 
     monkeypatch.setattr(
         "instancespace.stages.sifted.cross_val_score",
@@ -753,8 +755,8 @@ def test_cost_fcn_uses_classification_accuracy_loss(
 
     class _FakeInstance:
         selfx = np.zeros((6, 3))
-        selfy = np.zeros((6, 1))
-        selfy_bin = np.zeros((6, 1), dtype=int)
+        selfy = np.zeros((6, 2))
+        selfy_bin = np.zeros((6, 2), dtype=int)
         selffeat_labels = np.array(["f0", "f1", "f2"])
         clust = np.ones((3, 1), dtype=bool)
         cv_partition = None
@@ -765,8 +767,12 @@ def test_cost_fcn_uses_classification_accuracy_loss(
     instance = _FakeInstance()
     fitness = SiftedStage.cost_fcn(instance, np.array([0]), 0)
 
-    assert captured_scoring == ["accuracy"]
-    assert fitness == pytest.approx(1.0 - 0.8)
+    assert captured_scoring == ["accuracy", "accuracy"]
+    # pygad maximizes fitness, so this must be the *worst* (minimum)
+    # per-algorithm accuracy (0.7), not the best (0.9) and not a loss
+    # value - maximizing the minimum accuracy directly is what makes the
+    # GA search for feature sets where every algorithm classifies well.
+    assert fitness == pytest.approx(0.7)
 
 
 def compute_correlation(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
