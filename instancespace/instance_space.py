@@ -25,6 +25,12 @@ from loguru import logger
 from matplotlib.axes import Axes
 from numpy.typing import NDArray
 from shapely.geometry import Point
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    precision_score,
+    recall_score,
+)
 
 from instancespace.data.metadata import Metadata, from_csv_file
 from instancespace.data.model import ExploreResult
@@ -64,7 +70,7 @@ from instancespace.stage_runner import (
 )
 from instancespace.stages.cloister import CloisterStage
 from instancespace.stages.pilot import PilotStage
-from instancespace.stages.prelim import PrelimStage
+from instancespace.stages.prelim import PrelimStage, compute_binary_performance
 from instancespace.stages.preprocessing import PreprocessingStage
 from instancespace.stages.pythia import PythiaStage
 from instancespace.stages.sifted import SiftedStage
@@ -163,6 +169,7 @@ class ExploreStage(Enum):
     PILOT = "pilot"
     PYTHIA = "pythia"
     TRACE = "trace"
+    EVALUATION = "evaluation"
 
 
 class AnnotatedExploreOutput(NamedTuple):
@@ -173,6 +180,22 @@ class AnnotatedExploreOutput(NamedTuple):
 
     stage: ExploreStage
     output: Any
+
+
+class _EvaluationResult(NamedTuple):
+    """PYTHIA-vs-ground-truth evaluation fields (F9).
+
+    Yielded for `ExploreStage.EVALUATION`.
+    """
+
+    y_actual: NDArray[np.bool_]
+    y_best_actual: NDArray[np.double]
+    p_actual: NDArray[np.int_]
+    beta_actual: NDArray[np.bool_]
+    accuracy_actual: NDArray[np.double]
+    precision_actual: NDArray[np.double]
+    recall_actual: NDArray[np.double]
+    cvcmat_actual: NDArray[np.double]
 
 
 class InstanceSpace:
@@ -707,6 +730,7 @@ class InstanceSpace:
         inst_labels = self._extract_instance_labels(test_metadata)
         pythia_result = stages[ExploreStage.PYTHIA]
         trace_result = stages[ExploreStage.TRACE]
+        evaluation_result = stages.get(ExploreStage.EVALUATION)
 
         result = ExploreResult(
             dataset_id=dataset_id,
@@ -719,6 +743,24 @@ class InstanceSpace:
             in_good=trace_result[0] if trace_result else None,
             in_best=trace_result[1] if trace_result else None,
             inst_labels=inst_labels,
+            y_actual=evaluation_result.y_actual if evaluation_result else None,
+            y_best_actual=(
+                evaluation_result.y_best_actual if evaluation_result else None
+            ),
+            p_actual=evaluation_result.p_actual if evaluation_result else None,
+            beta_actual=evaluation_result.beta_actual if evaluation_result else None,
+            accuracy_actual=(
+                evaluation_result.accuracy_actual if evaluation_result else None
+            ),
+            precision_actual=(
+                evaluation_result.precision_actual if evaluation_result else None
+            ),
+            recall_actual=(
+                evaluation_result.recall_actual if evaluation_result else None
+            ),
+            cvcmat_actual=(
+                evaluation_result.cvcmat_actual if evaluation_result else None
+            ),
         )
 
         self._explore_results.append(result)
@@ -737,7 +779,12 @@ class InstanceSpace:
         intermediate result of every stage can be inspected or plotted before the next
         one runs. In order: ``ExploreStage.PRELIM``/``SIFTED``/``PILOT`` yield the
         transformed feature or coordinate array, ``PYTHIA`` yields ``(y_hat, pr0_hat,
-        selection0)`` and ``TRACE`` yields ``(in_good, in_best)``.
+        selection0)``, ``TRACE`` yields ``(in_good, in_best)``, and - only when
+        ``test_metadata`` carries algorithm performance columns (F9) -
+        ``EVALUATION`` yields the ground-truth-vs-prediction evaluation fields
+        as an ``_EvaluationResult``. ``EVALUATION`` is omitted entirely (not
+        yielded at all) when the test set has no ground truth, matching
+        ``explore()``'s own conditional field population.
 
         Args
         ----
@@ -764,8 +811,16 @@ class InstanceSpace:
         yield AnnotatedExploreOutput(ExploreStage.SIFTED, x)
         z = self._explore_pilot(x)
         yield AnnotatedExploreOutput(ExploreStage.PILOT, z)
-        yield AnnotatedExploreOutput(ExploreStage.PYTHIA, self._explore_pythia(z))
+        pythia_result = self._explore_pythia(z)
+        yield AnnotatedExploreOutput(ExploreStage.PYTHIA, pythia_result)
         yield AnnotatedExploreOutput(ExploreStage.TRACE, self._explore_trace(z))
+
+        if len(test_metadata.algorithm_names) > 0:
+            y_hat = pythia_result[0]
+            yield AnnotatedExploreOutput(
+                ExploreStage.EVALUATION,
+                self._explore_evaluate(test_metadata, y_hat),
+            )
 
     def _require_model(self) -> Model:
         """Return the trained model, raising if build() hasn't been called yet."""
@@ -964,14 +1019,19 @@ class InstanceSpace:
 
         Ports MATLAB PYTHIAtest.m: z-score normalises the 2D coordinates using the
         training projection's own mean/std, recomputed here from ``model.pilot.z``
-        rather than read back from the stored ``PythiaOutput.mu``/``sigma`` (the
-        two are equal - both are simple mean/std of the same raw training
-        coordinates - this just avoids the extra indirection), applies each
-        per-algorithm classifier natively via scikit-learn's own ``predict``/
-        ``predict_proba`` (an ``SVC`` unless ``PythiaOptions.classifier`` selected
-        a different registered type - S1 made this classifier-agnostic before F1
-        added the registry, so no change was needed here), and picks the algorithm
-        with the highest precision-weighted positive prediction per instance.
+        via ``PythiaStage._compute_znorm`` (F8 - the same formula
+        ``PythiaStage._run()`` itself uses, rather than a separately
+        maintained copy) instead of reading back the stored
+        ``PythiaOutput.mu``/``sigma`` (the two are equal - both are simple
+        mean/std of the same raw training coordinates - this just avoids the
+        extra indirection), applies each per-algorithm classifier natively via
+        scikit-learn's own ``predict``/``predict_proba`` (an ``SVC`` unless
+        ``PythiaOptions.classifier`` selected a different registered type - S1
+        made this classifier-agnostic before F1 added the registry, so no
+        change was needed here), and picks the algorithm with the highest
+        precision-weighted positive prediction per instance via
+        ``PythiaStage._weighted_selection`` (F8 - the same selection formula
+        ``PythiaStage._determine_selections`` uses at training time).
 
         Args
         ----
@@ -990,8 +1050,7 @@ class InstanceSpace:
         model = self._require_model()
         pythia = model.pythia
         train_z = np.asarray(model.pilot.z, dtype=np.double)
-        mu = train_z.mean(axis=0)
-        sigma = train_z.std(axis=0, ddof=1)
+        mu, sigma, _ = PythiaStage._compute_znorm(train_z)  # noqa: SLF001
         precision = np.asarray(pythia.precision, dtype=np.double)
         svms = pythia.svm
 
@@ -1008,9 +1067,11 @@ class InstanceSpace:
             pr0_hat[:, i] = proba[:, bad_idx]
             y_hat[:, i] = svc.predict(z_norm)
 
-        weighted = y_hat.astype(np.double) * precision
-        best = weighted.max(axis=1)
-        selection0 = weighted.argmax(axis=1).astype(np.int_)
+        best, selection0 = PythiaStage._weighted_selection(  # noqa: SLF001
+            n_algos,
+            precision,
+            y_hat,
+        )
         selection0[best <= 0] = -1
 
         return y_hat, pr0_hat, selection0
@@ -1059,6 +1120,139 @@ class InstanceSpace:
                 in_best[:, j] = [best_poly.covers(p) for p in points]
 
         return in_good, in_best
+
+    def _build_test_algo_matrix(
+        self,
+        test_metadata: Metadata,
+        algo_labels: list[str],
+    ) -> tuple[NDArray[np.double], NDArray[np.bool_]]:
+        """Reindex test_metadata's raw performance columns to the trained algo order.
+
+        Case-insensitive name matching (mirrors MATLAB's ``strcmpi``). An
+        algorithm present in training but absent from the test set becomes an
+        all-NaN column - `compute_binary_performance`'s existing
+        `max_perf`/`abs_perf` NaN handling then treats it as never the best
+        for any instance (matching MATLAB's convention for missing ground
+        truth), so no separate branch is needed for that case there. The
+        returned mask records which columns have real ground truth, so
+        `_explore_evaluate` can report `NaN` accuracy/precision/recall/
+        confusion-matrix for an algorithm rather than compute one against a
+        fabricated all-bad label.
+
+        "New" algorithms present in the test set but absent from training are
+        dropped entirely - deferred, see roadmap F9.
+
+        Args
+        ----
+            test_metadata : Metadata
+                Test metadata, possibly carrying `algo_*` performance columns.
+            algo_labels : list[str]
+                The trained algorithm order (`Model.data.algo_labels`).
+
+        Returns
+        -------
+            tuple[NDArray[np.double], NDArray[np.bool_]]
+                - y_raw_test: (n_instances, n_algorithms) raw performance,
+                  reindexed to `algo_labels`' order, NaN where absent.
+                - has_ground_truth: (n_algorithms,) mask of which columns are real.
+        """
+        test_cols = {
+            name.lower(): i for i, name in enumerate(test_metadata.algorithm_names)
+        }
+        ninst = test_metadata.algorithms.shape[0]
+        n_algos = len(algo_labels)
+        y_raw_test = np.full((ninst, n_algos), np.nan, dtype=np.double)
+        has_ground_truth = np.zeros(n_algos, dtype=np.bool_)
+
+        for i, label in enumerate(algo_labels):
+            col = test_cols.get(label.lower())
+            if col is not None:
+                y_raw_test[:, i] = test_metadata.algorithms[:, col]
+                has_ground_truth[i] = True
+
+        return y_raw_test, has_ground_truth
+
+    def _explore_evaluate(
+        self,
+        test_metadata: Metadata,
+        y_hat: NDArray[np.bool_],
+    ) -> _EvaluationResult:
+        """Evaluate PYTHIA's predictions against ground truth (F9).
+
+        Ports MATLAB's `InstanceSpace.evaluateTestSet` (`InstanceSpace.m:736`),
+        which calls the training-time `PYTHIA()` function itself, switched
+        into `PYTHIAevalMode` by a 7th (trained-model) argument: computes the
+        same PRELIM-equivalent ground-truth fields (`y_bin`/`y_best`/`p`/
+        `beta`) for the test set via `compute_binary_performance` (F9's
+        extraction, shared with `PrelimStage._prelim()`), then derives
+        per-algorithm `accuracy`/`precision`/`recall`/confusion-matrix from
+        the already-trained classifiers' predictions (`y_hat`, already
+        computed by `_explore_pythia` - not recomputed here) against that
+        ground truth, matching MATLAB's exact formulas (`tp/(tp+fp)`,
+        `tp/(tp+fn)`, `(tp+tn)/ninst`, `core/PYTHIA.m:379-381`).
+
+        Algorithms absent from the test set's ground truth (see
+        `_build_test_algo_matrix`) report `NaN` metrics rather than a
+        confusion matrix computed against a fabricated label.
+
+        Args
+        ----
+            test_metadata : Metadata
+                Test metadata carrying `algo_*` performance columns (the
+                caller - `explore_stage_iter` - only calls this when at least
+                one is present).
+            y_hat : NDArray[np.bool_]
+                PYTHIA's binary predictions, already computed by
+                `_explore_pythia`. Shape: (n_instances, n_algorithms).
+
+        Returns
+        -------
+            _EvaluationResult
+                The ground-truth-vs-prediction evaluation fields.
+        """
+        model = self._require_model()
+        algo_labels = model.data.algo_labels
+
+        y_raw_test, has_ground_truth = self._build_test_algo_matrix(
+            test_metadata,
+            algo_labels,
+        )
+
+        perf = compute_binary_performance(
+            y_raw_test,
+            self._options.perf,
+            self._options.general,
+            log_prefix="EXPLORE",
+        )
+
+        n_algos = len(algo_labels)
+        accuracy = np.full(n_algos, np.nan, dtype=np.double)
+        precision = np.full(n_algos, np.nan, dtype=np.double)
+        recall = np.full(n_algos, np.nan, dtype=np.double)
+        cvcmat = np.full((n_algos, 4), np.nan, dtype=np.double)
+
+        for i in range(n_algos):
+            if not has_ground_truth[i]:
+                continue
+            y_true = perf.y_bin[:, i]
+            y_pred = y_hat[:, i]
+            cm = confusion_matrix(y_true, y_pred, labels=[False, True])
+            tn, fp, fn, tp = cm.ravel()
+            cvcmat[i, :] = [tn, fp, fn, tp]
+            accuracy[i] = accuracy_score(y_true, y_pred)
+            precision[i] = precision_score(y_true, y_pred)
+            recall[i] = recall_score(y_true, y_pred)
+
+        return _EvaluationResult(
+            y_actual=perf.y_bin,
+            y_best_actual=perf.y_best,
+            p_actual=perf.p,
+            beta_actual=perf.beta,
+            accuracy_actual=accuracy,
+            precision_actual=precision,
+            recall_actual=recall,
+            cvcmat_actual=cvcmat,
+        )
 
 
 def instance_space_from_files(

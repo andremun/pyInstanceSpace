@@ -1329,6 +1329,50 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             )
 
     @staticmethod
+    def _weighted_selection(
+        nalgos: int,
+        precision: list[float] | NDArray[np.double],
+        y_hat: NDArray[np.bool_],
+    ) -> tuple[NDArray[np.double], NDArray[np.int_]]:
+        """Precision-weighted per-instance best score and its raw algorithm index.
+
+        The numerical core shared by `_determine_selections` (training - also
+        needs `y_bin` for the `selection1` default-fallback below) and
+        `InstanceSpace._explore_pythia` (F8 - only ever needs `selection0`,
+        which doesn't depend on `y_bin` at all). `best <= 0` marks "no
+        algorithm was selected"; callers apply their own sentinel/default
+        substitution on top of this shared core, since what replaces "no
+        selection" differs between the two (training's `selection0`/
+        `selection1` pair vs. `explore()`'s `selection0`-only path).
+
+        Parameters
+        ----------
+        nalgos : int
+            The number of algorithms.
+        precision : list[float] | NDArray[np.double]
+            The precision metrics (per algorithm).
+        y_hat : NDArray[np.bool_]
+            The predicted labels.
+        """
+        if nalgos > 1:
+            # Boardcast corresponding col of y_hat with precision
+            precision_array = np.asarray(precision, dtype=np.double)
+            weighted_yhat = y_hat * precision_array[np.newaxis, :]
+            # Find the maximum value for each row in weighted_yhat
+            best = np.max(weighted_yhat, axis=1)
+            # Get the index of the maximum value in each row
+            raw_selection = np.argmax(weighted_yhat, axis=1).astype(np.int_)
+        else:
+            # y_hat is (ninst, 1) here; flatten to 1D to match the nalgos > 1
+            # branch's shape - callers' `best <= 0` mask and
+            # `selection[:, np.newaxis] == np.arange(nalgos)` both assume a
+            # 1D selection, not a (ninst, 1) column.
+            best = y_hat.flatten().astype(np.double)
+            raw_selection = y_hat.flatten().astype(np.int_)
+
+        return best, raw_selection
+
+    @staticmethod
     def _determine_selections(
         nalgos: int,
         precision: list[float],
@@ -1336,6 +1380,14 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         y_bin: NDArray[np.bool_],
     ) -> tuple[NDArray[np.int_], NDArray[np.int_]]:
         """Determine the selections based on the predicted labels and precision.
+
+        Selects the best-performing algorithm for each instance using
+        precision-weighted predictions (`_weighted_selection`). If no
+        algorithm is selected (i.e., all scores are non-positive),
+        `selection1` defaults to the algorithm with the best average
+        performance; `selection0` uses -1 instead (see
+        `_weighted_selection`'s docstring for why the two callers need
+        different "no selection" conventions).
 
         Parameters
         ----------
@@ -1351,32 +1403,15 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         # Stores the index of the column with the highest mean value.
         # Index starts from 0
         default = np.argmax(np.mean(y_bin, axis=0))
-        """Selects the best-performing algorithm for each instance using
-        precision-weighted predictions. If no algorithm is selected (i.e., all
-        scores are non-positive), it defaults to the algorithm with the best
-        average performance
-        """
-        if nalgos > 1:
-            # Boardcast corresponding col of y_hat with precision
-            precision_array = np.array(precision)
-            weighted_yhat = y_hat * precision_array[np.newaxis, :]
-            # Find the maximum value for each row in weighted_yhat
-            best = np.max(weighted_yhat, axis=1)
-            # Get the index of the maximum value in each row
-            selection0 = np.argmax(weighted_yhat, axis=1)
-        else:
-            # y_hat is (ninst, 1) here; flatten to 1D to match the nalgos > 1
-            # branch's shape - `_generate_summary`'s `best <= 0` mask and
-            # `selection0[:, np.newaxis] == np.arange(nalgos)` both assume a
-            # 1D selection0, not a (ninst, 1) column.
-            best = y_hat.flatten()
-            selection0 = y_hat.flatten().astype(np.int_)
+
+        best, raw_selection = PythiaStage._weighted_selection(nalgos, precision, y_hat)
 
         # -1 (not 0) marks "no selection", matching
         # `InstanceSpace._explore_pythia`'s already-established convention -
         # 0 must stay free to mean "algorithm index 0 was genuinely
         # selected", which it cannot also do if reused as the sentinel.
-        selection1 = np.copy(selection0)
+        selection0 = np.copy(raw_selection)
+        selection1 = np.copy(raw_selection)
         selection0[best <= 0] = -1
         selection1[best <= 0] = default
         return (selection0, selection1)

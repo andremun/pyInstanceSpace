@@ -30,11 +30,13 @@ from unittest.mock import Mock
 
 import numpy as np
 import pandas as pd
+import pytest
 from numpy.typing import NDArray
 from sklearn.svm import SVC
 
 from instancespace.data.model import PythiaOut
 from instancespace.instance_space import InstanceSpace
+from instancespace.stages.pythia import PythiaStage
 
 REFERENCE_DIR = Path("tests/matlab_reference")
 ARTIFACTS_DIR = REFERENCE_DIR / "training_artifacts" / "pythia"
@@ -198,6 +200,98 @@ def test_pythia_selection0_none_when_no_positive() -> None:
     y_hat, _, selection0 = InstanceSpace._explore_pythia(space, z)
     assert not y_hat[0, 0] and not y_hat[0, 1]
     assert selection0[0] == -1
+
+
+def test_pythia_selection0_nalgos_equals_one() -> None:
+    """F8: the nalgos==1 explore-path case, previously untested.
+
+    (See F8's own scope note: `_explore_pythia`'s pre-F8 inline version
+    never exercised this because it didn't need to match
+    `_determine_selections`'s branching at all.)
+
+    This pins down *current, shared* behaviour, not necessarily *correct*
+    behaviour: `_weighted_selection`'s `nalgos == 1` branch returns `1` (not
+    `0`) for a "good" prediction (`y_hat.flatten().astype(np.int_)` on
+    `[True]`), so a single-algorithm portfolio's "selected" index is `1`,
+    which is out of range for a 0-based, one-algorithm index space. This is
+    a pre-existing bug (present before F8's extraction, in the original
+    `_determine_selections`, and now shared identically by both call sites)
+    - flagged, not fixed here, since fixing it changes existing output for
+    both `build()` and `explore()` and needs its own compatibility-tagged
+    fix. See the F8/F9 follow-up GitHub issue.
+    """
+    rng = np.random.default_rng(0)
+    svc = _fit_svc(rng)
+    pilot_z = _two_point_pilot_z(np.array([0.0, 0.0]), np.array([1.0, 1.0]))
+    space = make_instance_space(
+        pilot_z=pilot_z,
+        svms=[svc],
+        precision=np.array([1.0]),
+    )
+
+    z_good = np.array([[3.0, 3.0]])  # deep in the "good" cluster
+    y_hat_good, _, selection0_good = InstanceSpace._explore_pythia(space, z_good)
+    assert y_hat_good[0, 0]
+    assert selection0_good[0] == 1  # see docstring - not a valid 0-based index
+
+    z_bad = np.array([[-3.0, -3.0]])  # deep in the "bad" cluster
+    y_hat_bad, _, selection0_bad = InstanceSpace._explore_pythia(space, z_bad)
+    assert not y_hat_bad[0, 0]
+    assert selection0_bad[0] == -1  # "no selection" sentinel, unaffected by the above
+
+
+def test_pythia_weighted_selection_is_shared_by_build_and_explore(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F8 drift-detection: both paths call the same `_weighted_selection`.
+
+    Deliberately breaks the shared formula (always "select" algorithm index
+    0, ignoring precision entirely) and confirms *both* `_determine_selections`
+    (the training-time path, exercised directly here - `test_build_pythia.py`
+    exercises it through the full `pythia()` pipeline) and `_explore_pythia`
+    (the explore-time path) immediately reflect the broken result - proving
+    they can no longer silently diverge, since there is only one formula
+    left to break.
+    """
+    calls: list[int] = []
+
+    def broken_weighted_selection(
+        nalgos: int,
+        precision: object,
+        y_hat: NDArray[np.bool_],
+    ) -> tuple[NDArray[np.double], NDArray[np.int_]]:
+        calls.append(nalgos)
+        n_inst = y_hat.shape[0]
+        return np.ones(n_inst), np.zeros(n_inst, dtype=np.int_)
+
+    monkeypatch.setattr(
+        PythiaStage,
+        "_weighted_selection",
+        staticmethod(broken_weighted_selection),
+    )
+
+    # Training path: real precision favours algorithm 1, but the broken
+    # formula always "selects" algorithm 0 regardless.
+    y_hat = np.array([[True, True]])
+    y_bin = np.array([[False, True]])
+    selection0, _ = PythiaStage._determine_selections(2, [0.1, 0.9], y_hat, y_bin)
+    assert selection0[0] == 0
+
+    # Explore path: same broken formula, same wrong answer.
+    rng = np.random.default_rng(0)
+    svc = _fit_svc(rng)
+    pilot_z = _two_point_pilot_z(np.array([0.0, 0.0]), np.array([1.0, 1.0]))
+    space = make_instance_space(
+        pilot_z=pilot_z,
+        svms=[svc, svc],
+        precision=np.array([0.1, 0.9]),
+    )
+    z = np.array([[3.0, 3.0]])  # deep in the "good" cluster
+    _, _, selection0_explore = InstanceSpace._explore_pythia(space, z)
+    assert selection0_explore[0] == 0
+
+    expected_call_count = 2  # training path + explore path
+    assert len(calls) == expected_call_count
 
 
 class _MatlabArtifactSvm:

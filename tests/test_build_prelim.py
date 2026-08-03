@@ -20,8 +20,17 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from instancespace.data.options import GeneralOptions, PrelimOptions, SelvarsOptions
-from instancespace.stages.prelim import PrelimInput, PrelimStage
+from instancespace.data.options import (
+    GeneralOptions,
+    PerformanceOptions,
+    PrelimOptions,
+    SelvarsOptions,
+)
+from instancespace.stages.prelim import (
+    PrelimInput,
+    PrelimStage,
+    compute_binary_performance,
+)
 
 script_dir = Path(__file__).parent
 
@@ -555,26 +564,34 @@ def test_prelim_zero_value_ties_are_detected() -> None:
     first tied index), the tie must still be *reported* correctly, and this
     is the plumbing a future (not-yet-implemented) smarter tie-break needs
     to actually run on zero-value ties instead of silently skipping them.
+
+    Exercises `compute_binary_performance()` (F9's extraction, shared with
+    `explore()`'s evaluation path) rather than the training-only method it
+    replaced, since the tie-breaking logic now lives there.
     """
-    prelim_stage = PrelimStage.__new__(PrelimStage)
-    prelim_stage.general_opts = GeneralOptions.default()
     # Instance 0: algorithms 0 and 1 both score the (minimum) best of 0.0 - a
     # zero-value tie. Instance 1: no tie.
     y_raw = np.array([[0.0, 0.0, 5.0], [1.0, 2.0, 3.0]])
-    y_best_tie = np.array([0.0, 1.0])  # pre-eps-substitution snapshot
-    y_bin = np.zeros((2, 3), dtype=np.bool_)
-    p = np.array([1, 1])
-
-    messages = _collect_info(
-        lambda: prelim_stage._select_best_algorithms(  # noqa: SLF001
-            y_raw,
-            y_best_tie,
-            y_bin,
-            3,
-            0.55,
-            p,
-        ),
+    perf_opts = PerformanceOptions(
+        max_perf=False,
+        abs_perf=True,
+        epsilon=0.0,
+        beta_threshold=0.55,
     )
 
-    assert p[0] == 1  # first tied algorithm (1-based), unchanged either way
+    messages: list[str] = []
+    result = None
+
+    def _run() -> None:
+        nonlocal result
+        result = compute_binary_performance(
+            y_raw,
+            perf_opts,
+            GeneralOptions.default(),
+        )
+
+    messages = _collect_info(_run)
+
+    assert result is not None
+    assert result.p[0] == 1  # first tied algorithm (1-based), unchanged either way
     assert any("50" in m and "more than one best algorithm" in m for m in messages)

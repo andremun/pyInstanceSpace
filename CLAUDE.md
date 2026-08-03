@@ -60,7 +60,17 @@ was stale bookkeeping the code had already outgrown; corrected and closed 2026-0
 Also done since the last time this section was written: P0, Q1–Q11, T1–T4, T6 (closed
 not-implemented — its subject matter was S2's own DAG resolver, which S2 deleted), F1, F6, F7,
 F10, F11, F14, F15 (progress reporting + `InstanceSpace` checkpoint/resume, roadmap v1.42), Q6,
-Q8, R1, and the "extend real tuning to non-SVM classifiers" F1 follow-on.
+Q8, R1, and the "extend real tuning to non-SVM classifiers" F1 follow-on. **F8 and F9 are now
+implemented and verified (roadmap v1.66)** — PYTHIA's real build/explore duplication
+(`_determine_selections`/`_compute_znorm`) unified via a shared `_weighted_selection` function;
+TRACE audited and found to need no such unification (`_explore_trace` already reuses the trained
+polygon); `explore()` now computes real ground-truth accuracy/precision/recall/confusion-matrix
+via `compute_binary_performance` (extracted from `PrelimStage`) when test metadata carries
+algorithm performance columns. Two new pre-existing bugs surfaced by this work, filed not fixed
+(both `[Behavior-changing]`, need their own verification): #314 (`nalgos==1` selection index is
+1, not 0) and #315 (TRACE's training-time footprint metrics use boundary-exclusive `.contains()`
+while explore-time membership uses boundary-inclusive `.covers()`). PILOT also gained a `method`
+option (`"standard"`/`"pls"`, roadmap v1.65) as part of F2's non-3D-blocked scope.
 Check `docs/pyIS_docs_quality_roadmap.md`'s document-history table (append-only, read newest
 entries first) for the actual current state before assuming anything below is still accurate —
 this file gets stale between sessions; that table doesn't.
@@ -79,9 +89,10 @@ empirically, not taken on the audit's word), 1 confirmed as a real live defect b
 claimed symptom (no `ZeroDivisionError` — NumPy silently warns and returns `nan`/`inf`), plus a
 cross-cutting finding that `tight()` and `contra()`'s differing-purity branches have 0% test
 coverage in the existing suite. No TRACE fixes implemented yet — that backlog (all 7 findings) is
-open on #302, same as the deferred items on the other five stages' issues. This audit batch no
-longer blocks §6.0's F8 → F9 → F2 → F5 order, but its confirmed-and-deferred backlog is not
-resolved by "verification is done" — see roadmap §6.3 for the full per-stage breakdown.
+open on #302, same as the deferred items on the other five stages' issues. This audit batch never
+blocked §6.0's F8 → F9 → F2 → F5 order (both F8 and F9 are now done, per above) — its
+confirmed-and-deferred backlog is not resolved by "verification is done" — see roadmap §6.3 for
+the full per-stage breakdown.
 
 Note (resolved): issue #298's original body (the verbatim 10-finding PYTHIA audit text) was
 accidentally overwritten by a `mcp__github__issue_write` `update` call on 2026-08-01 (that method
@@ -94,8 +105,9 @@ replacing an issue's own content.
 
 **Full remaining order (every F item, T5/T7/T8) is worked out in roadmap §6.0** — don't
 re-derive it from scratch or guess an order from the phase letters. Short version, per the
-roadmap's own dependency notes: F8 → F9 (F9 mirrors a pattern F8's own decision establishes),
-then F2 → F5 (F5 is hard-blocked on F2), with F3's one remaining confirmed gap
+roadmap's own dependency notes: F8 → F9 (**both done, roadmap v1.66**; F9 mirrored the pattern
+F8's own decision established, as expected), then F2 → F5 (F5 is hard-blocked on F2), with F3's
+one remaining confirmed gap
 (`_compute_correlation`'s unvectorized loop) and F12's remaining `O(n²)`→KD-tree performance
 rewrite runnable independently. T8 is mechanical and low-risk; T7 is sequenced after T8 (T8's
 file-by-file breakdown would go stale if T7's consolidation landed first). T5's export

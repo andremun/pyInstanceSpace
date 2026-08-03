@@ -671,7 +671,20 @@ Not a code-design question — a deployment/ops one, flag it rather than guessin
 path's `secret_key=None` default needs no equivalent decision.
 
 ### F8 — Unify `explore()` with build-time stage code
-**Scope correction (added this pass, verified directly against current code, not assumed):**
+**Implemented and verified (v1.66) — see roadmap's F8 row for the full summary.** The
+"lighter" approach (recommended below) was taken for the PYTHIA half: `PythiaStage.
+_determine_selections`'s weighting math split into a new shared `_weighted_selection`
+static method, called by both `_determine_selections` (training) and `_explore_pythia`
+(explore); `_explore_pythia` also switched to calling `PythiaStage._compute_znorm()`
+instead of recomputing the same mu/sigma formula inline. The TRACE half turned out to
+need no extraction at all - `_explore_trace()` was already correctly reusing the trained
+`Footprint.polygon` rather than re-deriving footprint math, so there was no live
+duplication to unify (see below for what the audit found instead). The `nalgos == 1`
+explore-path gap this section flagged as "the likeliest place a real divergence already
+exists" was real: it reproduces a separate, pre-existing bug (filed as #314), not fixed
+as part of this item since it's its own `[Behavior-changing]` fix.
+
+**Scope correction (added earlier pass, verified directly against current code, not assumed):**
 this item's existing text claimed S1 "resolves the PYTHIA half of this item as a side effect...
 there is no second implementation left to reconcile" and that "`_explore_pythia` is retired
 entirely once S1 lands, not folded into this item." **Both claims are wrong as of the current
@@ -699,6 +712,20 @@ confirmed places:
 
 TRACE's own scope (below) is unaffected by this correction - it was always real, independent of
 the PYTHIA finding.
+
+**Second correction (implementation pass, v1.66): the TRACE claim above turned out to be
+wrong too, on direct inspection.** Reading `TraceStage.build()`/`contra()`/`fit_poly()` side by
+side with `_explore_trace()` shows explore-time correctly reuses the already-trained
+`Footprint.polygon` (built once, at training time, via DBSCAN + alpha-shape fitting) and only
+performs a point-in-polygon membership test against it - there is no second implementation of
+the footprint-construction math to reconcile, unlike PYTHIA's genuine formula duplication above.
+The audit did find a real, separate issue while checking this: training's `Footprint.
+from_polygon`/`contra()` use `.contains()` (boundary-exclusive) for their own point-in-polygon
+tests, while `_explore_trace()` uses `.covers()` (boundary-inclusive, matching MATLAB's
+`inpolygon`) - the same conceptual test, two different answers at the boundary. Filed as #315,
+not fixed here: changing `Footprint.from_polygon`'s semantics would alter existing training-time
+`density`/`purity` output for every run, a `[Behavior-changing]` fix needing its own verification,
+not a side effect of F8's audit.
 
 **Files:** `instancespace/stages/stage.py` (possibly extending the `Stage` contract),
 `instancespace/instance_space.py` (`_explore_trace` *and* `_explore_pythia`, per the correction
@@ -734,6 +761,19 @@ drift" benefit for much less architectural risk, and the fuller redesign remains
 if the lighter version proves insufficient in practice.
 
 ### F9 — Expand `explore()` to full evaluation scope
+**Implemented and verified (v1.66) — see roadmap's F9 row for the full summary.** All 7
+pathway steps below landed as scoped: `compute_binary_performance` extracted to `prelim.py`
+(step 2, also serving F8's PYTHIA-adjacent de-duplication goal as intended), case-insensitive
+algorithm reconciliation via `InstanceSpace._build_test_algo_matrix` (step 3, NaN-padding a
+training algorithm absent from the test set rather than a separate branch), real accuracy/
+precision/recall/confusion-matrix computation via `InstanceSpace._explore_evaluate` against
+PYTHIA's already-computed `y_hat` (step 4), `ExploreResult`'s 8 new fields (step 5, plus the
+"[EXPLORE] Calculating the binary measure of performance" log line coming for free from
+`compute_binary_performance`'s `log_prefix` parameter, satisfying step 5's visibility
+requirement), and `ExploreStage.EVALUATION`'s conditional yield in `explore_stage_iter()`
+(step 7). The "new algorithm absent from training" edge case (decision point below) was
+deferred exactly as recommended - not implemented.
+
 **Decision made: Option 1 — extend `explore()` itself** (not a new method; silent branching
 based on whether ground truth is present in the input).
 
