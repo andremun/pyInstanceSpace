@@ -10,6 +10,9 @@ from one edge of the space to the opposite.
 
 """
 
+import multiprocessing
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -21,7 +24,7 @@ from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
 from scipy.stats import mode, pearsonr
 
-from instancespace.data.options import GeneralOptions, PilotOptions
+from instancespace.data.options import GeneralOptions, ParallelOptions, PilotOptions
 from instancespace.stages.stage import Stage
 
 
@@ -38,6 +41,10 @@ class PilotInput(NamedTuple):
         List feature names.
     options: PilotOptions
         The options enabled for the Pilot Class
+    parallel_options : ParallelOptions
+        The parallel options, specifying whether to run in parallel and the
+        number of cores - used to parallelise the numerical solver's `ntries`
+        restart loop.
     general_options : GeneralOptions
         General options (e.g. the RNG seed), not specific to any one stage.
     y_bin : NDArray[np.bool_]
@@ -49,6 +56,7 @@ class PilotInput(NamedTuple):
     y: NDArray[np.double]
     feat_labels: list[str]
     pilot_options: PilotOptions
+    parallel_options: ParallelOptions
     general_options: GeneralOptions
     y_bin: NDArray[np.bool_]
 
@@ -173,6 +181,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             inputs.pilot_options,
             general_options=inputs.general_options,
             y_bin=inputs.y_bin,
+            parallel_options=inputs.parallel_options,
         )
 
     @staticmethod
@@ -201,6 +210,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         general_options: GeneralOptions,
         y_bin: NDArray[np.bool_] | None = None,
         _do_output: bool = True,
+        parallel_options: ParallelOptions | None = None,
     ) -> PilotOutput:
         """Run the PILOT dimensionality reduction algorithm.
 
@@ -217,6 +227,11 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         y_bin : NDArray[np.bool_] | None
             Binary matrix (instances x algorithms) indicating good algorithm
             performance. Required only when `options.adjust_rotation` is set.
+        parallel_options : ParallelOptions | None
+            Whether (and how much) to parallelise the numerical solver's
+            `ntries` restart loop. `None` (the default for direct callers
+            that don't pass one) runs the restarts sequentially, same as
+            `flag=False`.
 
         Return
         -------
@@ -243,16 +258,20 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                 x_bar,
                 n,
                 m,
+                options.cost_weight,
             )
 
         # Numerical solution
         else:
-            if options.alpha is not None and options.alpha.shape == (2 * m + 2 * n, 1):
+            if options.precalc_alpha is not None and options.precalc_alpha.shape == (
+                2 * m + 2 * n,
+                1,
+            ):
                 PilotStage._pilot_print(
                     " -> PILOT is using a pre-calculated solution.",
                     _do_output,
                 )
-                alpha = options.alpha
+                alpha = options.precalc_alpha
                 idx = 0
             else:
                 if options.x0 is not None:
@@ -287,6 +306,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                     options,
                     general_options,
                     _do_output,
+                    parallel_options,
                 )
 
             out_a = alpha[: 2 * n, idx].reshape(2, n)
@@ -466,6 +486,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         x_bar: NDArray[np.double],
         n: int,
         m: int,
+        cost_weight: float = 1.0,
         _do_output: bool = True,
     ) -> tuple[
         NDArray[np.double],
@@ -487,6 +508,11 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             Number of original features.
         m : int
             Total number of features including appended Y.
+        cost_weight : float
+            Scalar performance-reconstruction weight (MATLAB's costWeight).
+            Scales the performance block relative to the feature block
+            before the eigendecomposition; 1.0 weights both equally and
+            reproduces the pre-cost_weight behaviour exactly.
 
         Returns:
         -------
@@ -521,7 +547,15 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
 
         x = x.T
 
-        covariance_matrix = np.dot(x_bar, x_bar.T)
+        # Scale the performance block (rows n:m, since x_bar is m x instances
+        # here) by sqrt(cost_weight) before the eigendecomposition, matching
+        # MATLAB's Xbarw(:,n+1:m) = sqrt(costWeight) * Xbarw(:,n+1:m) - a
+        # separate weighted copy, not a mutation of x_bar itself, since the
+        # unweighted x_bar is still needed below for A/B/Z/error/R2.
+        x_bar_weighted = x_bar.copy()
+        x_bar_weighted[n:m, :] = np.sqrt(cost_weight) * x_bar_weighted[n:m, :]
+
+        covariance_matrix = np.dot(x_bar_weighted, x_bar_weighted.T)
 
         d, v = la.eig(covariance_matrix)
 
@@ -531,7 +565,9 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
 
         out_b = v[:n, :]
 
-        out_c = v[n:m, :].T
+        # Undo the weighting so C is expressed in the original Y units,
+        # matching MATLAB's out.C = V(n+1:m,:)./sqrt(costWeight).
+        out_c = v[n:m, :].T / np.sqrt(cost_weight)
 
         x_transpose = x.T
         xx_transpose = np.dot(x, x.T)
@@ -577,6 +613,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         opts: PilotOptions,
         general_options: GeneralOptions,
         _do_output: bool = True,
+        parallel_options: ParallelOptions | None = None,
     ) -> tuple[int, NDArray[np.double], NDArray[np.double], NDArray[np.double]]:
         """Solve the projection problem numerically.
 
@@ -602,6 +639,19 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             Optimized performance matrix.
         opts : PilotOptions
             Configuration options for PILOT.
+        parallel_options : ParallelOptions | None
+            Whether (and how much) to parallelise the `ntries` restarts
+            across OS processes (matching MATLAB's `parfor`). `None` or
+            `flag=False` runs the restarts sequentially. Ignored - falls
+            back to sequential - when already running inside another
+            process pool's worker (see `multiprocessing.parent_process()`
+            check below): SIFTED's GA fitness function calls into `pilot()`
+            from inside its own `ProcessPoolExecutor` workers, and opening a
+            second, nested pool there would reintroduce MATLAB's
+            nested-parfor-inside-GA bug. In practice this never triggers
+            today, since SIFTED always calls `pilot()` with `analytic=True`
+            (bypassing this numerical branch entirely) - this check guards
+            against that invariant ever changing silently.
 
         Returns:
         -------
@@ -632,37 +682,98 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             _do_output,
         )
 
-        for i in range(opts.n_tries):
-            initial_guess = x0[:, i]
-            result = optim.fmin_bfgs(
-                PilotStage.error_function,
-                initial_guess,
-                args=(x_bar, n, m),
-                full_output=True,
-                disp=False,
+        use_pool = (
+            parallel_options is not None
+            and parallel_options.flag
+            and opts.n_tries > 1
+            and multiprocessing.parent_process() is None
+        )
+
+        if use_pool:
+            # Narrows for mypy; use_pool being True already implies this.
+            assert parallel_options is not None
+            n_workers = max(
+                1,
+                min(parallel_options.n_cores, opts.n_tries, os.cpu_count() or 1),
             )
+            with ProcessPoolExecutor(max_workers=n_workers) as executor:
+                futures = {
+                    executor.submit(
+                        PilotStage._solve_one_trial,
+                        x0[:, i],
+                        x,
+                        hd,
+                        x_bar,
+                        n,
+                        m,
+                        opts.cost_weight,
+                    ): i
+                    for i in range(opts.n_tries)
+                }
+                for future in as_completed(futures):
+                    i = futures[future]
+                    xopts, fopts, perf_i = future.result()
+                    alpha[:, i] = xopts
+                    eoptim[i] = fopts
+                    perf[i] = perf_i
+                    PilotStage._pilot_print_detail(
+                        f"Pilot has completed trial {i + 1}",
+                        _do_output,
+                        general_options,
+                    )
+        else:
+            for i in range(opts.n_tries):
+                xopts, fopts, perf_i = PilotStage._solve_one_trial(
+                    x0[:, i],
+                    x,
+                    hd,
+                    x_bar,
+                    n,
+                    m,
+                    opts.cost_weight,
+                )
+                alpha[:, i] = xopts
+                eoptim[i] = fopts
+                perf[i] = perf_i
+                PilotStage._pilot_print_detail(
+                    f"Pilot has completed trial {i + 1}",
+                    _do_output,
+                    general_options,
+                )
 
-            xopts, fopts, _, _, _, _, _ = result
-            alpha[:, i] = xopts
-            eoptim[i] = fopts
+        idx = int(np.argmax(perf))
+        return idx, alpha, eoptim, perf
 
-            aux = alpha[:, i].astype(np.float64)
-            a = aux[0 : 2 * n].reshape(2, n)
-            z = np.dot(x, a.T)
+    @staticmethod
+    def _solve_one_trial(
+        initial_guess: NDArray[np.double],
+        x: NDArray[np.double],
+        hd: NDArray[np.double],
+        x_bar: NDArray[np.double],
+        n: int,
+        m: int,
+        cost_weight: float,
+    ) -> tuple[NDArray[np.double], float, float]:
+        """Run one BFGS restart of the numerical PILOT solver.
 
-            perf[i], _ = pearsonr(hd, pdist(z))
-            idx = np.argmax(perf).astype(int)
-            PilotStage._pilot_print_detail(
-                f"Pilot has completed trial {i + 1}",
-                _do_output,
-                general_options,
-            )
-
-            al: NDArray[np.double] = alpha
-            ept: NDArray[np.double] = eoptim
-            prf: NDArray[np.double] = perf
-
-        return idx, al, ept, prf
+        Split out of `numerical_solve()` so a single restart is a
+        self-contained, picklable unit of work that can be submitted to a
+        `ProcessPoolExecutor` - each restart only depends on its own
+        starting point, not on any other restart's progress, so which one
+        "wins" (highest `perf`) doesn't depend on run order.
+        """
+        result = optim.fmin_bfgs(
+            PilotStage.error_function,
+            initial_guess,
+            args=(x_bar, n, m, cost_weight),
+            full_output=True,
+            disp=False,
+        )
+        xopts, fopts, _, _, _, _, _ = result
+        a = xopts[: 2 * n].reshape(2, n).astype(np.float64)
+        z = np.dot(x, a.T)
+        perf_i, _ = pearsonr(hd, pdist(z))
+        return xopts, float(fopts), float(perf_i)
 
     @staticmethod
     def error_function(
@@ -670,6 +781,8 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         x_bar: NDArray[np.float64],
         n: int,
         m: int,
+        cost_weight: float = 1.0,
+        d: int = 2,
     ) -> float:
         """Error function used for numerical optimization in the PILOT algorithm.
 
@@ -684,6 +797,14 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             Number of original features.
         m : int
             Total number of features including appended Y.
+        cost_weight : float
+            Scalar weight applied to the performance columns' squared error
+            (MATLAB's `pilotErrorFcn` costWeight). 1.0 weights every column
+            equally, reproducing the pre-cost_weight behaviour exactly.
+        d : int
+            Output projection dimensionality. Always 2 today (Python's
+            PILOT is 2D-only) - parameterised rather than hard-coded so a
+            future 3D projection doesn't have to touch this function.
 
         Returns:
         -------
@@ -691,13 +812,17 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             The mean squared error between x_bar and its
             low-dimensional approximation.
         """
-        a = alpha[: 2 * n].reshape(2, n)
-        b = alpha[2 * n :].reshape(m, 2)
+        a = alpha[: d * n].reshape(d, n)
+        b = alpha[d * n :].reshape(m, d)
 
         # Compute the approximation of x_bar
         x_bar_approx = x_bar[:, :n].T
         x_bar_approx = (b @ a @ x_bar_approx).T
 
+        sq_err = (x_bar - x_bar_approx) ** 2
+        weights = np.ones(m, dtype=np.double)
+        weights[n:m] = cost_weight
+
         return float(
-            np.nanmean(np.nanmean((x_bar - x_bar_approx) ** 2, axis=1), axis=0),
+            np.nanmean(np.nanmean(sq_err * weights, axis=1), axis=0),
         )

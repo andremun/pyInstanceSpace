@@ -14,13 +14,14 @@ Tests include:
 """
 
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pytest
 from scipy.io import loadmat
 from scipy.spatial.distance import pdist
 
-from instancespace.data.options import GeneralOptions, PilotOptions
+from instancespace.data.options import GeneralOptions, ParallelOptions, PilotOptions
 from instancespace.stages.pilot import PilotStage
 
 script_dir = Path(__file__).parent
@@ -468,3 +469,218 @@ def test_pilot_numerical_solve_keeps_full_precision() -> None:
     )
 
     assert out_alpha.dtype == np.float64
+
+
+def test_pilot_options_precalc_alpha_is_keyword_settable() -> None:
+    """`precalc_alpha` (renamed from `alpha`, #301 issue 1) is a distinct field.
+
+    Regression test: previously `PilotOptions.alpha` was overloaded to mean
+    both a precomputed solution vector and (nowhere, since it didn't exist)
+    a scalar performance-reconstruction weight. They're now separate fields.
+    """
+    rng = np.random.default_rng(29)
+    vector = rng.random((10, 1))
+    opts = PilotOptions.default(precalc_alpha=vector)
+
+    assert opts.precalc_alpha is vector
+    assert opts.cost_weight == 1.0
+
+
+def test_analytic_solve_default_cost_weight_is_unweighted() -> None:
+    """`cost_weight` defaults to 1.0, reproducing the pre-`cost_weight` output.
+
+    This is what makes adding `cost_weight` an additive change rather than a
+    behaviour change for any existing caller: weighting the performance
+    block by `sqrt(1.0)` before the eigendecomposition, then dividing by
+    `sqrt(1.0)` afterwards, is a no-op.
+    """
+    rng = np.random.default_rng(13)
+    x = rng.random((20, 3))
+    y = rng.random((20, 2))
+    n = x.shape[1]
+    x_bar = np.concatenate((x, y), axis=1)
+    m = x_bar.shape[1]
+
+    a_default, z_default, c_default, b_default, _err_d, _r2_d = (
+        PilotStage.analytic_solve(x, x_bar, n, m)
+    )
+    a_explicit, z_explicit, c_explicit, b_explicit, _err_e, _r2_e = (
+        PilotStage.analytic_solve(x, x_bar, n, m, cost_weight=1.0)
+    )
+
+    np.testing.assert_array_equal(a_default, a_explicit)
+    np.testing.assert_array_equal(z_default, z_explicit)
+    np.testing.assert_array_equal(c_default, c_explicit)
+    np.testing.assert_array_equal(b_default, b_explicit)
+
+
+def test_analytic_solve_cost_weight_changes_projection() -> None:
+    """A non-default `cost_weight` must change `C` (#301 issues 1/3).
+
+    Regression test: previously MATLAB's `costWeight` had no Python
+    equivalent at all, so emphasising the performance block relative to the
+    feature block was impossible.
+    """
+    rng = np.random.default_rng(17)
+    x = rng.random((20, 3))
+    y = rng.random((20, 2))
+    n = x.shape[1]
+    x_bar = np.concatenate((x, y), axis=1)
+    m = x_bar.shape[1]
+
+    _a1, _z1, c1, _b1, _err1, _r2_1 = PilotStage.analytic_solve(
+        x,
+        x_bar,
+        n,
+        m,
+        cost_weight=1.0,
+    )
+    _a2, _z2, c2, _b2, _err2, _r2_2 = PilotStage.analytic_solve(
+        x,
+        x_bar,
+        n,
+        m,
+        cost_weight=4.0,
+    )
+
+    assert not np.allclose(c1, c2)
+
+
+def test_error_function_default_cost_weight_matches_unweighted() -> None:
+    """`error_function`'s `cost_weight` defaults to 1.0, an exact no-op."""
+    rng = np.random.default_rng(19)
+    x = rng.random((15, 3))
+    y = rng.random((15, 2))
+    n = x.shape[1]
+    x_bar = np.concatenate((x, y), axis=1)
+    m = x_bar.shape[1]
+    alpha = rng.random(2 * (n + m))
+
+    err_default = PilotStage.error_function(alpha, x_bar, n, m)
+    err_explicit = PilotStage.error_function(alpha, x_bar, n, m, cost_weight=1.0, d=2)
+
+    assert err_default == err_explicit
+
+
+def test_error_function_cost_weight_reweights_performance_columns() -> None:
+    """A non-default `cost_weight` must change the reported error (#301 issue 7)."""
+    rng = np.random.default_rng(23)
+    x = rng.random((15, 3))
+    y = rng.random((15, 2))
+    n = x.shape[1]
+    x_bar = np.concatenate((x, y), axis=1)
+    m = x_bar.shape[1]
+    alpha = rng.random(2 * (n + m))
+
+    err_unweighted = PilotStage.error_function(alpha, x_bar, n, m, cost_weight=1.0)
+    err_weighted = PilotStage.error_function(alpha, x_bar, n, m, cost_weight=10.0)
+
+    assert err_unweighted != err_weighted
+
+
+def test_numerical_solve_parallel_matches_sequential() -> None:
+    """Parallelising the `ntries` restart loop must not change the result.
+
+    Regression test for F2's ntries-parallelism work (roadmap #301 issues
+    overlap, docs/python_implementation_pathways.md F2): each restart is
+    independent (different starting point, same cost function), so which
+    one "wins" (highest `perf`) must be identical whether the restarts run
+    sequentially or across a process pool.
+    """
+    rng = np.random.default_rng(7)
+    x = rng.random((20, 3))
+    y = rng.random((20, 2))
+    n = x.shape[1]
+    x_bar = np.concatenate((x, y), axis=1)
+    m = x_bar.shape[1]
+    hd = pdist(x).T
+    n_tries = 3
+    x0 = 2 * rng.random((2 * m + 2 * n, n_tries)) - 1
+    opts = PilotOptions(None, None, False, n_tries)
+    general_options = GeneralOptions(verbose=False, seed=0)
+
+    idx_seq, alpha_seq, eoptim_seq, perf_seq = PilotStage.numerical_solve(
+        x,
+        hd,
+        x0.copy(),
+        x_bar,
+        n,
+        m,
+        np.zeros((2 * m + 2 * n, n_tries)),
+        np.zeros(n_tries),
+        np.zeros(n_tries),
+        opts,
+        general_options,
+        _do_output=False,
+        parallel_options=ParallelOptions(flag=False, n_cores=2),
+    )
+    idx_par, alpha_par, eoptim_par, perf_par = PilotStage.numerical_solve(
+        x,
+        hd,
+        x0.copy(),
+        x_bar,
+        n,
+        m,
+        np.zeros((2 * m + 2 * n, n_tries)),
+        np.zeros(n_tries),
+        np.zeros(n_tries),
+        opts,
+        general_options,
+        _do_output=False,
+        parallel_options=ParallelOptions(flag=True, n_cores=2),
+    )
+
+    assert idx_seq == idx_par
+    np.testing.assert_array_equal(alpha_seq, alpha_par)
+    np.testing.assert_array_equal(eoptim_seq, eoptim_par)
+    np.testing.assert_array_equal(perf_seq, perf_par)
+
+
+def test_numerical_solve_skips_pool_when_already_in_worker_process() -> None:
+    """Guard against reintroducing MATLAB's nested-parfor-inside-GA bug.
+
+    If PILOT's own `ntries` pool ever opened while already running inside
+    another process pool's worker (e.g. SIFTED's GA fitness function calling
+    `pilot()` from inside `pygad`'s own `ProcessPoolExecutor` workers), it
+    would reintroduce that bug (roadmap F2 pathway, #301). This never
+    triggers in practice today - SIFTED always calls `pilot()` with
+    `analytic=True`, which bypasses this numerical branch entirely - but
+    `multiprocessing.parent_process()` is checked as a cheap circuit
+    breaker regardless, in case that invariant ever changes silently.
+    """
+    rng = np.random.default_rng(11)
+    x = rng.random((15, 2))
+    y = rng.random((15, 1))
+    n = x.shape[1]
+    x_bar = np.concatenate((x, y), axis=1)
+    m = x_bar.shape[1]
+    hd = pdist(x).T
+    n_tries = 2
+    x0 = 2 * rng.random((2 * m + 2 * n, n_tries)) - 1
+    opts = PilotOptions(None, None, False, n_tries)
+    general_options = GeneralOptions(verbose=False, seed=0)
+
+    with (
+        patch(
+            "instancespace.stages.pilot.multiprocessing.parent_process",
+            return_value=object(),
+        ),
+        patch("instancespace.stages.pilot.ProcessPoolExecutor") as mock_pool,
+    ):
+        PilotStage.numerical_solve(
+            x,
+            hd,
+            x0,
+            x_bar,
+            n,
+            m,
+            np.zeros((2 * m + 2 * n, n_tries)),
+            np.zeros(n_tries),
+            np.zeros(n_tries),
+            opts,
+            general_options,
+            _do_output=False,
+            parallel_options=ParallelOptions(flag=True, n_cores=2),
+        )
+
+    mock_pool.assert_not_called()
