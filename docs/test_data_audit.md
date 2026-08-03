@@ -6,7 +6,9 @@ script needs a real MATLAB run before any fixture moves onto its shape). Steps 1
 (delete confirmed-dead data), 2 (resolve the `prelim/run/output/` partial-orphan), 3
 (fix the `serialisers/actual_output/` scratch leak), and 4 (relocate `test_data/demo/`)
 are done. Step 5 (the unified-layout migration itself) remains open, blocked on #278 —
-tracked as GitHub issue T10e (#310); full status in §9.
+tracked as GitHub issue T10e (#310); full status in §9. **§7.1 (added on request,
+2026-08-03) extends the target layout with a cross-stage/shared-input rule**,
+documented now so T10e's migration only has to move fixtures once, not twice.
 **Scope:** every file under `tests/` in this repository, not only
 `tests/matlab_reference/`. Companion to `docs/pyIS_docs_quality_roadmap.md` §8.3 and
 `tests/matlab_export/README.md`.
@@ -237,6 +239,63 @@ the new layout. This is real work across a large number of test files, not a sin
 mechanical rename, since the old and new layouts group the same data differently
 (stage-first versus phase-first) rather than just renaming directories in place.
 
+## 7.1 Addendum: cross-stage and shared-input data (added 2026-08-03)
+
+§7's target shape fixes the build-vs-explore naming split, but says nothing about a
+second, independent duplication pattern this section found by hashing every file
+under `tests/test_data/` and `tests/matlab_reference/` and grouping by identical
+content rather than by name. Two distinct patterns, two distinct fixes — folded into
+the target layout now, before Step 5 (T10e) executes, so fixtures move once, not
+twice.
+
+### Pattern A — pipeline-chained data (a downstream stage's input is an upstream
+stage's output)
+
+PRELIM's output (`X`, `Y`, `Ybin`, `Ybest`, `beta`, `instlabels`, `num_good_algos`) is
+byte-identical across as many as nine separate files, each held as its own private
+copy: `prelim/fileidx|fractional|split/{before,after}/*_split.txt`,
+`prelim/run/{input,output}/*.csv`, `sifted/input/input_dense_*.csv`,
+`pythia/input/{y,ybin,ybest}.csv`, and `trace_csvs/{beta,dataP}.csv`. Confirmed each
+copy has its own distinct reader — `test_build_prelim.py`/
+`test_build_prepro_n_prelim.py` (PRELIM), `test_build_sifted.py` (SIFTED),
+`test_build_pythia.py`/`test_build_pilot_pythia.py` (PYTHIA),
+`test_build_trace.py` (TRACE) — so this isn't dead-data duplication in the §3 sense;
+every copy is read by something. It's the same data reaching four independent test
+files because each stage's fixtures were built by hand-copying the previous stage's
+output rather than pointing at it.
+
+**Fix, folded into the target layout:** under `build_data/<stage>/<variant>/`, a
+downstream stage's tests read the upstream stage's own `build_data/<upstream-stage>/
+<variant>/output/` directly — no separate copy under the downstream stage's own
+`input/`. This needs no new top-level category; it only requires each
+`test_build_*.py` file's fixture-loading code (or a shared `conftest.py` fixture, per
+T3) to point at the producing stage's output path instead of a private copy. This is
+squarely inside T10e's existing scope (it already touches every `test_build_*.py`
+fixture path), not separate work.
+
+### Pattern B — genuinely shared input data (no single producing stage)
+
+The same `metadata.csv` is byte-identical across `test_data/load_file/`,
+`test_data/preprocessing/`, and `matlab_reference/input/`, each read by an
+independent test suite (`test_load_file.py`, `test_build_preprocessing.py`,
+`test_build_prepro_n_prelim.py`, `test_instance_space_checkpoint.py`) exercising
+different code paths against the *same* raw input. Unlike Pattern A, there's no
+upstream stage whose output this is — it's the pipeline's own entry point, needed
+identically by several unrelated test suites.
+
+**Fix, folded into the target layout:** a new top-level `shared_inputs/<name>/`
+directory, sibling to `build_data/` and `explore_data/`, holding raw input data with
+more than one independent consumer and no single owning stage. `metadata.csv` moves
+there; every reader points at the one copy. Naming is not locked in — `shared_inputs/`
+is this document's proposal, favoured over "global" (collides with Python's own
+`global` keyword) and "class" (already overloaded as "class label" in this codebase's
+own ML vocabulary) — open to revision before T10e executes.
+
+**Not in scope for this addendum:** actually moving any file. Like the rest of §7,
+this is a documented decision only, waiting on the same #278 blocker as the rest of
+Step 5 — recorded now so the target shape is settled before the migration starts, not
+discovered mid-migration.
+
 ## 8. What this audit did not do
 
 It did not run the MATLAB export script (`tests/matlab_export/`) against a real MATLAB
@@ -256,7 +315,7 @@ Remediation is tracked under Phase T, as sub-issues of the Phase T parent (#273)
 | #307 | T10b — Resolve `prelim/run/output/` partial-orphan | Step 2 | Done — see commit history |
 | #308 | T10c — Fix `serialisers/actual_output/` scratch-output leak | Step 3 | Done — see commit history |
 | #309 | T10d — Relocate `test_data/demo/` out of `test_data/` | Step 4 | Done — see commit history |
-| #310 | T10e — Migrate onto the unified layout (§7) | Step 5 | Open, blocked on #278 |
+| #310 | T10e — Migrate onto the unified layout (§7, §7.1) | Step 5 | Open, blocked on #278 |
 | #311 | `examples/data/options.json`'s `selvars.type` invalid value | Found verifying Step 4 | Done — see commit history |
 
 Pick up a step by reading its GitHub issue first, then the corresponding section above —
