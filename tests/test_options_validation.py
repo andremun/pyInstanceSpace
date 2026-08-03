@@ -94,6 +94,13 @@ def test_none_seed_is_valid_not_rejected_as_a_bad_int(
         (
             lambda o: dataclasses.replace(
                 o,
+                pilot=dataclasses.replace(o.pilot, method="not-a-method"),
+            ),
+            "one of",
+        ),
+        (
+            lambda o: dataclasses.replace(
+                o,
                 outputs=dataclasses.replace(o.outputs, csv=0),
             ),
             "logical",

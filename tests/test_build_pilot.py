@@ -684,3 +684,125 @@ def test_numerical_solve_skips_pool_when_already_in_worker_process() -> None:
         )
 
     mock_pool.assert_not_called()
+
+
+def test_pls_solve_produces_correct_shapes() -> None:
+    """`pls_solve` must return A/Z/C/B at the expected `dims`-parametrised shapes."""
+    rng = np.random.default_rng(0)
+    x = rng.random((30, 5))
+    y = rng.random((30, 3))
+    x_bar = np.concatenate([x, y], axis=1)
+    m = x_bar.shape[1]
+
+    a, z, c, b, _err, r2 = PilotStage.pls_solve(x, y, x_bar, m, _do_output=False)
+
+    assert a.shape == (2, 5)
+    assert z.shape == (30, 2)
+    assert c.shape == (2, 3)
+    assert b.shape == (5, 2)
+    assert r2.shape == (m,)
+    assert np.all(np.isfinite(z))
+
+
+def test_pls_solve_a_reprojects_new_instances_correctly() -> None:
+    """`out_a` must satisfy Z = (X - mean) @ A.T for reprojecting new instances.
+
+    Regression test: MATLAB's `out.A = stats.W'` is documented as "used by
+    exploreIS to reproject new instances via Z=X*A'" - that identity only
+    holds for `stats.W` because MATLAB's `plsregress` uses SIMPLS
+    (deflates the cross-covariance, not X). sklearn's `PLSRegression` uses
+    a NIPALS-based algorithm that deflates X across components, so
+    `x_weights_` does *not* satisfy this identity beyond the first
+    component (empirically ~0.16 max error on a 3-component fit) - only
+    `x_rotations_` does (~1e-16). Using the wrong matrix here would
+    silently break future explore-time reprojection for `method='pls'`.
+    """
+    rng = np.random.default_rng(1)
+    x = rng.random((30, 6))
+    y = rng.random((30, 4))
+    x_bar = np.concatenate([x, y], axis=1)
+    m = x_bar.shape[1]
+
+    a, z, _c, _b, _err, _r2 = PilotStage.pls_solve(
+        x,
+        y,
+        x_bar,
+        m,
+        dims=3,
+        _do_output=False,
+    )
+
+    z_reprojected = (x - x.mean(axis=0)) @ a.T
+    np.testing.assert_allclose(z, z_reprojected, atol=1e-8)
+
+
+def test_pls_solve_is_dims_generic_with_no_code_changes() -> None:
+    """`pls_solve` must work at `dims=3` unmodified (F2's 3D work, #262).
+
+    Not a public option yet (no `PilotOptions.dims` field exists today),
+    but the solver itself is written to accept `dims` as a parameter
+    specifically so a future public `dims` option needs no changes here -
+    only the caller passing a different value.
+    """
+    rng = np.random.default_rng(2)
+    x = rng.random((25, 6))
+    y = rng.random((25, 4))
+    x_bar = np.concatenate([x, y], axis=1)
+    m = x_bar.shape[1]
+
+    a, z, c, b, _err, r2 = PilotStage.pls_solve(
+        x,
+        y,
+        x_bar,
+        m,
+        dims=3,
+        _do_output=False,
+    )
+
+    tolerance = 1e-6
+    assert a.shape == (3, 6)
+    assert z.shape == (25, 3)
+    assert c.shape == (3, 4)
+    assert b.shape == (6, 3)
+    assert np.all(np.isfinite(z))
+    assert np.all(r2 >= -tolerance)
+    assert np.all(r2 <= 1 + tolerance)
+
+
+def test_pilot_method_pls_dispatches_correctly() -> None:
+    """`PilotStage.pilot()` with `method='pls'` must use the PLS solver.
+
+    Regression test: `method='pls'` must be checked before `analytic`, and
+    must produce sane output regardless of `analytic`'s value (PLS ignores
+    it entirely, matching MATLAB's opts.method dispatch order).
+    """
+    rng = np.random.default_rng(3)
+    x = rng.random((30, 4))
+    y = rng.random((30, 2))
+    feat_labels = ["f0", "f1", "f2", "f3"]
+
+    opts = PilotOptions.default(method="pls", analytic=True)
+    result = PilotStage.pilot(
+        x,
+        y,
+        feat_labels,
+        opts,
+        GeneralOptions.default(),
+        _do_output=False,
+    )
+
+    assert result.a.shape == (2, 4)
+    assert result.z.shape == (30, 2)
+    assert result.alpha is None
+    assert result.X0 is None
+    assert np.all(np.isfinite(result.z))
+
+
+def test_pilot_options_default_method_is_standard() -> None:
+    """`PilotOptions.default()`'s `method` must default to `"standard"`.
+
+    Additive-at-default check: existing callers not passing `method`
+    explicitly must see no change in behaviour.
+    """
+    opts = PilotOptions.default()
+    assert opts.method == "standard"
