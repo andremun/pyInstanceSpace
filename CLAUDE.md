@@ -68,8 +68,16 @@ polygon); `explore()` now computes real ground-truth accuracy/precision/recall/c
 via `compute_binary_performance` (extracted from `PrelimStage`) when test metadata carries
 algorithm performance columns. Two new pre-existing bugs surfaced by this work, filed not fixed
 (both `[Behavior-changing]`, need their own verification): #314 (`nalgos==1` selection index is
-1, not 0) and #315 (TRACE's training-time footprint metrics use boundary-exclusive `.contains()`
-while explore-time membership uses boundary-inclusive `.covers()`). PILOT also gained a `method`
+1, not 0) and #315/**F17** (`InstanceSpace._explore_trace()` uses boundary-inclusive `.covers()`
+where MATLAB's `isinterior` — used throughout both `TRACE_legacy.m` and the explore-mode
+`TRACErescore`, confirmed by direct source read, corrected from an earlier, backwards recorded
+direction — is boundary-exclusive, matching training's own `.contains()`; so explore's `.covers()`
+is the one that needs to become `.contains()`, not training). Filed as its own scoped issue (#315,
+retitled to name the corrected fix), linked as a Phase F sub-issue of #260; not implemented.
+**F18** (#316) was also filed, as a future architectural proposal: unify build/explore into
+single-body stage methods for every stage (a `predict()` alongside each stage's `build()`,
+replacing `InstanceSpace`'s parallel `_explore_*` method family), generalizing PYTHIA/TRACE's own
+MATLAB precedent — not implemented, filed for later prioritisation only. PILOT also gained a `method`
 option (`"standard"`/`"pls"`, roadmap v1.65) as part of F2's non-3D-blocked scope. **PRELIM's own
 build/explore duplication is now simplified too (roadmap v1.67)** — shared `apply_bound_clip()`/
 `apply_boxcox_zscore()` functions, used by both `PrelimStage._bound()`/`_normalise()` and
