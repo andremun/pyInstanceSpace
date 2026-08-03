@@ -65,6 +65,10 @@ DEFAULT_PILOT_ADJUST_ROTATION = False
 # weights the performance block the same as the feature block - a no-op that
 # reproduces the pre-cost_weight behaviour exactly.
 DEFAULT_PILOT_COST_WEIGHT = 1.0
+# 'standard' (analytic/numeric eigen-decomposition, opts.analytic selects
+# which) or 'pls' (Partial Least Squares, F2's spec 5.3) - matches MATLAB's
+# opts.method naming (core/PILOT.m) exactly.
+DEFAULT_PILOT_METHOD = "standard"
 
 DEFAULT_CLOISTER_P_VAL = 0.05
 DEFAULT_CLOISTER_C_THRES = 0.7

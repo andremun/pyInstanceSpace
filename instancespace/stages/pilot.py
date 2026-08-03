@@ -23,6 +23,7 @@ from loguru import logger
 from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
 from scipy.stats import mode, pearsonr
+from sklearn.cross_decomposition import PLSRegression
 
 from instancespace.data.options import GeneralOptions, ParallelOptions, PilotOptions
 from instancespace.stages.stage import Stage
@@ -245,14 +246,28 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         hd = pdist(x).T
 
         # Following parameters are not generated in the matlab code
-        # when solving analytically
+        # when solving analytically or via PLS
         x0 = None
         alpha = None
         eoptim = None
         perf = None
 
+        # Partial Least Squares (MATLAB's method='pls', F2/#262) - an
+        # alternative to the standard analytic/numeric solvers below, not a
+        # variant of either. Checked first since it ignores `analytic`
+        # entirely, matching MATLAB's own opts.method dispatch order
+        # (core/PILOT.m).
+        if options.method == "pls":
+            out_a, out_z, out_c, out_b, error, r2 = PilotStage.pls_solve(
+                x,
+                y,
+                x_bar,
+                m,
+                _do_output=_do_output,
+            )
+
         # Analytical solution
-        if options.analytic:
+        elif options.analytic:
             out_a, out_z, out_c, out_b, error, r2 = PilotStage.analytic_solve(
                 x,
                 x_bar,
@@ -332,7 +347,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                 _do_output,
             )
 
-        if options.analytic:
+        if options.method == "pls" or options.analytic:
             summary = pd.DataFrame(out_a)
             summary.rename(
                 columns={
@@ -589,6 +604,132 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
 
         error = np.sum((x_bar - x_hat) ** 2)
         r2 = np.diag(np.corrcoef(x_bar.T, x_hat.T, rowvar=False)[:m, m:]) ** 2
+
+        a: NDArray[np.double] = out_a
+        z: NDArray[np.double] = out_z
+        c: NDArray[np.double] = out_c
+        b: NDArray[np.double] = out_b
+        err: NDArray[np.double] = error
+        corref: NDArray[np.float16] = r2.astype(np.float16)
+
+        return (a, z, c, b, err, corref)
+
+    @staticmethod
+    def pls_solve(
+        x: NDArray[np.double],
+        y: NDArray[np.double],
+        x_bar: NDArray[np.double],
+        m: int,
+        dims: int = 2,
+        _do_output: bool = True,
+    ) -> tuple[
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.float16],
+    ]:
+        """Solve the projection problem via Partial Least Squares.
+
+        MATLAB's `method='pls'` alternative (core/PILOT.m, F2/#262) to the
+        analytic/numeric eigen-decomposition solvers above - a genuinely
+        different algorithm, not a variant of either. Written to take
+        `dims` as a parameter, matching MATLAB's own `plsregress(X, Y, d)`
+        call (already dims-generic in MATLAB for d=2 or d=3), so a future
+        public `dims` option on `PilotOptions` (F2's still-unstarted 3D
+        work) needs no changes here - only the caller passing a different
+        value.
+
+        Uses `sklearn.cross_decomposition.PLSRegression` with `scale=False`
+        - MATLAB's `plsregress` only mean-centres X/Y internally, never
+        scales to unit variance, unlike sklearn's own `scale=True` default,
+        which would silently diverge from MATLAB's actual preprocessing if
+        left at its default. Note: sklearn's `PLSRegression` uses a NIPALS-
+        based algorithm, while MATLAB's `plsregress` defaults to SIMPLS -
+        related but not identical algorithms, so exact bit-for-bit MATLAB
+        parity is not expected here the way this repo's other solvers are
+        verified, only an equivalent-quality projection.
+
+        Args
+        ----
+        x : NDArray[np.double]
+            The feature matrix (instances x features) to process.
+        y : NDArray[np.double]
+            The performance matrix (instances x algorithms).
+        x_bar : NDArray[np.double]
+            Combined matrix of X and Y.
+        m : int
+            Total number of features including appended Y.
+        dims : int
+            Output projection dimensionality (2 or 3 in MATLAB; only 2 is
+            exercised/exposed as a public option today).
+
+        Returns
+        -------
+        NDArray[np.double]
+            Matrix A (dims x n), the projection matrix: Z = X @ A.T.
+        NDArray[np.double]
+            Matrix Z (instances x dims), the projected coordinates.
+        NDArray[np.double]
+            Matrix C (dims x q), the performance-block reconstruction
+            matrix.
+        NDArray[np.double]
+            Matrix B (n x dims), the feature-block reconstruction matrix.
+        NDArray[np.double]
+            The sum of squared reconstruction error between x_bar and its
+            low-dimensional approximation.
+        NDArray[np.float16]
+            The per-column coefficient of determination between x_bar and
+            its low-dimensional approximation.
+        """
+        PilotStage._pilot_print(
+            "-------------------------------------------------------------------------",
+            _do_output,
+        )
+        PilotStage._pilot_print(
+            "  -> PILOT is using partial least squares (opts.pilot.method='pls').",
+            _do_output,
+        )
+        PilotStage._pilot_print(
+            "-------------------------------------------------------------------------",
+            _do_output,
+        )
+
+        x_mean = x.mean(axis=0)
+        y_mean = y.mean(axis=0)
+
+        pls = PLSRegression(n_components=dims, scale=False)
+        pls.fit(x, y)
+
+        # x_rotations_, not x_weights_: MATLAB's out.A = stats.W' is
+        # documented as "used by exploreIS to reproject new instances via
+        # Z=X*A'" - that identity holds for W under SIMPLS (MATLAB's
+        # plsregress default) specifically, because SIMPLS deflates the
+        # cross-covariance matrix rather than X itself. sklearn's NIPALS-
+        # based algorithm deflates X across components, so x_weights_ does
+        # NOT satisfy Z=(X-mean)@W.T beyond the first component (verified
+        # empirically: ~0.16 max error on a synthetic 3-component fit).
+        # x_rotations_ is what sklearn exposes specifically to make a
+        # single-step linear reprojection exact (verified: ~1e-16 max
+        # error) - using it here is what makes the "reproject new
+        # instances via Z=X*A'" property MATLAB's own comment describes
+        # actually hold for this port, not just for MATLAB's own algorithm.
+        out_a = pls.x_rotations_.T
+        out_b = pls.x_loadings_
+        out_c = pls.y_loadings_.T
+        # Read x_scores_ straight from the fitted model rather than
+        # recomputing Z from out_a by hand - guaranteed self-consistent
+        # with x_loadings_/y_loadings_ by construction regardless of
+        # sklearn's internal algorithm details, matching MATLAB's own
+        # reasoning for using plsregress's XS output directly (core/
+        # PILOT.m).
+        out_z = pls.x_scores_
+
+        b_c_stack = np.vstack([out_b, out_c.T])
+        x_hat = out_z @ b_c_stack.T + np.concatenate([x_mean, y_mean])
+        error = np.sum((x_bar - x_hat) ** 2)
+        r2 = np.diag(np.corrcoef(x_bar, x_hat, rowvar=False)[:m, m:]) ** 2
 
         a: NDArray[np.double] = out_a
         z: NDArray[np.double] = out_z

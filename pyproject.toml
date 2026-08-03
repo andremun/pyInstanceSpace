@@ -202,6 +202,7 @@ module = [
     'sklearn.linear_model',
     'sklearn.naive_bayes',
     'sklearn.tree',
+    'sklearn.cross_decomposition',
     'joblib',
 ]
 ignore_missing_imports = 'True'

@@ -39,6 +39,7 @@ from instancespace.data.default_options import (
     DEFAULT_PILOT_ADJUST_ROTATION,
     DEFAULT_PILOT_ANALYTICS,
     DEFAULT_PILOT_COST_WEIGHT,
+    DEFAULT_PILOT_METHOD,
     DEFAULT_PILOT_N_TRIES,
     DEFAULT_PYTHIA_CLASSIFIER,
     DEFAULT_PYTHIA_CV_FOLDS,
@@ -340,6 +341,11 @@ class PilotOptions:
     # feature block in both the analytic and numerical solvers. 1.0 (default)
     # weights both blocks equally.
     cost_weight: float = DEFAULT_PILOT_COST_WEIGHT
+    # 'standard' (analytic/numeric, `analytic` selects which) or 'pls'
+    # (Partial Least Squares - F2, #262). `analytic` is only consulted when
+    # method='standard'; 'pls' ignores it entirely, matching MATLAB's own
+    # opts.method dispatch (core/PILOT.m).
+    method: str = DEFAULT_PILOT_METHOD
 
     @staticmethod
     def default(
@@ -349,6 +355,7 @@ class PilotOptions:
         precalc_alpha: NDArray[np.double] | None = None,
         adjust_rotation: bool = DEFAULT_PILOT_ADJUST_ROTATION,
         cost_weight: float = DEFAULT_PILOT_COST_WEIGHT,
+        method: str = DEFAULT_PILOT_METHOD,
     ) -> PilotOptions:
         """Instantiate with default values."""
         return PilotOptions(
@@ -358,6 +365,7 @@ class PilotOptions:
             precalc_alpha=precalc_alpha,
             adjust_rotation=adjust_rotation,
             cost_weight=cost_weight,
+            method=method,
         )
 
 
@@ -607,6 +615,7 @@ class InstanceSpaceOptions:
         _check_logical("pilot.analytic", self.pilot.analytic)
         _check_pos_int("pilot.ntries", self.pilot.n_tries)
         _check_positive("pilot.costWeight", self.pilot.cost_weight)
+        _check_member("pilot.method", self.pilot.method, ("standard", "pls"))
 
         _check_unit_range("cloister.pval", self.cloister.p_val)
         _check_unit_range("cloister.corrThreshold", self.cloister.c_thres)

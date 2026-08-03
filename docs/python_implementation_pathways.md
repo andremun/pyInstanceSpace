@@ -671,31 +671,63 @@ Not a code-design question — a deployment/ops one, flag it rather than guessin
 path's `secret_key=None` default needs no equivalent decision.
 
 ### F8 — Unify `explore()` with build-time stage code
-**Narrowed by S1 — TRACE only.** S1 (see Phase S) resolves the PYTHIA half of this item as a
-side effect: once `explore()` calls native `.predict()`/`.predict_proba()` on the stored `SVC`
-instead of reimplementing the SVM decision function by hand, there is no second implementation
-left to reconcile with the first. The remaining scope below applies to TRACE's footprint/
-alpha-shape membership testing only — a genuinely different kind of computation S1's insight
-doesn't extend to.
+**Scope correction (added this pass, verified directly against current code, not assumed):**
+this item's existing text claimed S1 "resolves the PYTHIA half of this item as a side effect...
+there is no second implementation left to reconcile" and that "`_explore_pythia` is retired
+entirely once S1 lands, not folded into this item." **Both claims are wrong as of the current
+code.** `_explore_pythia` (`instance_space.py:959`) is very much still alive - S1 only fixed
+*how it calls the classifier* (native `.predict()`/`.predict_proba()` instead of hand-rolled SVM
+math), not whether its surrounding logic duplicates PYTHIA's build-time code. It does, in two
+confirmed places:
 
+1. **Precision-weighted algorithm selection.** `_explore_pythia` inlines `weighted = y_hat *
+   precision; best = weighted.max(axis=1); selection0 = weighted.argmax(axis=1);
+   selection0[best <= 0] = -1` — this is the *same formula* as `PythiaStage._determine_selections`
+   (`pythia.py:1332`), independently reimplemented. `_determine_selections` additionally handles
+   `nalgos == 1` as a special case and computes a `selection1`/`default`-fallback value
+   `_explore_pythia` doesn't attempt at all - if a bug in the weighting formula were fixed in one,
+   it would silently not be fixed in the other, and the `nalgos == 1` edge case is untested on the
+   explore side because there's no shared code path forcing it to be.
+2. **Z-score normalisation.** `_explore_pythia` inlines `mu = train_z.mean(axis=0); sigma =
+   train_z.std(axis=0, ddof=1); z_norm = (z - mu) / sigma` - the same formula as
+   `PythiaStage._compute_znorm` (`pythia.py:1204`). Lower-priority than (1): `_explore_pythia`'s
+   own docstring already documents *why* it recomputes rather than reads back the stored
+   `PythiaOutput.mu`/`sigma` (avoiding an unnecessary indirection since the two are
+   mathematically identical), so this duplication is a deliberate, reasoned choice, not an
+   oversight - but it's still the same formula living in two places, and still worth folding into
+   whatever shared-extraction F8 does for (1), for the same reason.
+
+TRACE's own scope (below) is unaffected by this correction - it was always real, independent of
+the PYTHIA finding.
 
 **Files:** `instancespace/stages/stage.py` (possibly extending the `Stage` contract),
-`instancespace/instance_space.py` (`_explore_trace` specifically — `_explore_pythia` is
-retired entirely once S1 lands, not folded into this item)
-**Pathway — two ambition levels, pick one:**
-- **Lighter:** extract the *numerical core* of `TraceStage`'s footprint/alpha-shape logic into
-  a shared pure function that both `TraceStage._run()` and `explore()`'s `_explore_trace`
-  method call — no change to the `Stage`/`StageRunner` architecture itself, just
-  de-duplicating the math underneath it. Lower risk, doesn't touch the DAG scheduler.
+`instancespace/instance_space.py` (`_explore_trace` *and* `_explore_pythia`, per the correction
+above), `instancespace/stages/pythia.py` (`_determine_selections`, `_compute_znorm` become the
+shared functions both paths call, mirroring `PrelimStage`'s extraction pattern already decided
+for F9)
+**Pathway — two ambition levels, pick one, applied consistently to both TRACE and PYTHIA:**
+- **Lighter:** extract the *numerical core* of `TraceStage`'s footprint/alpha-shape logic, and
+  separately `PythiaStage`'s `_determine_selections`/`_compute_znorm`, into shared pure functions
+  that both the build-time `_run()` and the matching `explore()` method call — no change to the
+  `Stage`/`StageRunner` architecture itself, just de-duplicating the math underneath it. Lower
+  risk, doesn't touch the DAG scheduler. `_determine_selections`/`_compute_znorm` are already
+  `@staticmethod`s taking/returning plain arrays, so this is close to a direct call-site swap for
+  the PYTHIA half - lower effort than TRACE's own extraction.
 - **Fuller:** extend the `Stage[IN, OUT]` contract with a second entry point (e.g. `_predict()`
-  alongside `_run()`) so `TraceStage` itself knows how to run in inference mode, and
-  `explore()` dispatches to `_predict()` directly instead of maintaining `_explore_trace`
-  separately. Higher risk (changes a core abstraction every stage implements), but closes the
-  drift risk more completely — a bug fixed in `_run()` is structurally guaranteed to also be
-  fixed in `_predict()` if they share the surrounding class, not just a shared helper function.
+  alongside `_run()`) so `TraceStage`/`PythiaStage` themselves know how to run in inference mode,
+  and `explore()` dispatches to `_predict()` directly instead of maintaining `_explore_trace`/
+  `_explore_pythia` separately. Higher risk (changes a core abstraction every stage implements),
+  but closes the drift risk more completely — a bug fixed in `_run()` is structurally guaranteed
+  to also be fixed in `_predict()` if they share the surrounding class, not just a shared helper
+  function.
 **Test (either way):** the drift-detection test already scoped in the roadmap's Phase T —
 deliberately break something in `TraceStage`'s footprint logic, assert both the build-path test
-*and* the explore-path test fail, proving they can no longer silently diverge.
+*and* the explore-path test fail, proving they can no longer silently diverge. Add the same
+pattern for PYTHIA: deliberately break `_determine_selections`'s weighting formula, assert both
+`test_build_pythia.py` and an explore-path test fail together. Also add the `nalgos == 1` case to
+an explore-path test specifically - it's the one behaviour `_explore_pythia`'s current inline
+version doesn't attempt to handle at all, so it's the likeliest place a real divergence already
+exists, not just a hypothetical future one.
 **Decision needed:** lighter (shared function) or fuller (extended `Stage` contract)?
 Recommended default: **lighter**, as a first step — it captures most of the "no more silent
 drift" benefit for much less architectural risk, and the fuller redesign remains available later
@@ -704,9 +736,37 @@ if the lighter version proves insufficient in practice.
 ### F9 — Expand `explore()` to full evaluation scope
 **Decision made: Option 1 — extend `explore()` itself** (not a new method; silent branching
 based on whether ground truth is present in the input).
+
+**Scope correction (added this pass, verified directly against MATLAB source, not assumed):**
+this item's existing pathway only covered PRELIM's ground-truth labels (`y_bin`/`y_best`/`p`/
+`beta` for the test set) - it stopped one step short of what MATLAB's actual
+`InstanceSpace.evaluateTestSet` (`InstanceSpace.m:736`) does. Read directly: after computing
+those PRELIM-equivalent ground-truth fields, `evaluateTestSet` calls `out.pythia = PYTHIA(Z,
+Yraw, Ybin, Ybest, algolabels, opts.pythia, model.pythia)` - the **same** `PYTHIA()` function
+used at training time, given a 7th argument (the trained model) that switches it into
+`PYTHIAevalMode` (`core/PYTHIA.m:305`). That eval-mode branch applies the *already-trained*
+classifiers to the test set and computes real `precision`/`recall`/`accuracy`/`cvcmat`
+(confusion-matrix-derived) against the newly-available ground truth, then calls the *same*
+`computeSelection` subfunction training uses for the precision-weighted algorithm pick. "Full
+evaluation scope" in MATLAB means algorithm-performance metrics against ground truth, not just
+exposing the ground-truth labels themselves - Python's F9 scope needs to include this, which the
+existing pathway didn't.
+
+This is exactly what F8's PYTHIA-side correction (see F8 above: `_determine_selections`/
+`_compute_znorm` already need extracting into shared functions to de-duplicate build/explore) is
+also needed for here - F9 doesn't just benefit from that extraction, it structurally depends on
+it: F9's "compute accuracy/precision/recall against ground truth using the trained classifiers"
+step and F8's "de-duplicate `_explore_pythia`'s prediction/selection logic" step are two views of
+the *same* code, not separable work. This sharpens why F8-before-F9 is already recorded as a soft
+preference in the roadmap's dependency ordering (§6.0) - it's closer to a real dependency for the
+PYTHIA half specifically, even though the ordering note there was written for the TRACE-based
+reasoning only.
+
 **Files:** `instancespace/instance_space.py` (`explore()`, `explore_stage_iter()`), `instancespace/
 data/model.py` (`ExploreResult` — new optional fields), `instancespace/stages/prelim.py`
-(extract shared binary-performance logic)
+(extract shared binary-performance logic), `instancespace/stages/pythia.py` (the same
+`_determine_selections`/`_compute_znorm` extraction F8 needs, reused here for real metric
+computation, not just label prediction)
 **Pathway:**
 1. **Detecting ground truth is free — already checked.** `Metadata.from_csv_file` parses
    `algo_*` columns unconditionally whenever present and doesn't require them (confirmed:
@@ -727,18 +787,36 @@ data/model.py` (`ExploreResult` — new optional fields), `instancespace/stages/
    model's algorithm names, case-insensitively (mirrors MATLAB's `strcmpi`). Algorithms in
    training but absent from the test set: simply not evaluated. Algorithms in the test set
    absent from training ("new" algorithms, per MATLAB's `autoNormalize` handling): see decision
-   below.
-4. **Extend `ExploreResult`** with new fields, all `| None`, populated only when ground truth is
+   below. MATLAB pads these with `Yhat=false`, `Pr0hat=0`, `precision`/`recall`/`accuracy=NaN`
+   (`PYTHIAevalMode`, "no CV model" convention) rather than dropping them - worth matching that
+   convention exactly if/when the deferred edge case (below) is picked up, rather than inventing
+   a different placeholder.
+4. **Compute real evaluation metrics using the trained classifiers - this is the corrected,
+   previously-missing piece.** For each trained classifier: z-score the test `Z` using the
+   trained model's stored `mu`/`sigma` (the same formula as `_compute_znorm`/`_explore_pythia`'s
+   current inline z-scoring - one shared function per F8's correction, not a third copy), predict
+   `y_hat`/`pr0_hat` (already exists in `_explore_pythia`), then additionally derive a confusion
+   matrix against the newly-available `y_bin_actual` and compute `precision`/`recall`/`accuracy`
+   per algorithm (`tp/(tp+fp)`, `tp/(tp+fn)`, `(tp+tn)/ninst` - MATLAB's exact formulas,
+   `core/PYTHIA.m:379-381`). Feed these into the *same* precision-weighted selection function F8
+   extracts (`_determine_selections`'s equivalent), using **training-time precision** for the
+   selection weighting when available (MATLAB's own fallback rule: use `trained.precision` if
+   present, else the freshly-computed eval precision - `core/PYTHIA.m:388-393`), not the
+   just-computed eval precision by default.
+5. **Extend `ExploreResult`** with new fields, all `| None`, populated only when ground truth is
    present: `y_actual: NDArray[np.bool_] | None`, `y_best_actual: NDArray[np.double] | None`,
-   `p_actual: NDArray[np.int_] | None`, `beta_actual: NDArray[np.bool_] | None`. `None` in the
-   feature-only case preserves today's behaviour exactly — existing callers see no change.
-5. **Make the silent branch visible, even though it's automatic.** Since this is Option 1 (not
+   `p_actual: NDArray[np.int_] | None`, `beta_actual: NDArray[np.bool_] | None`, plus (per the
+   correction above) `accuracy_actual: NDArray[np.double] | None`, `precision_actual:
+   NDArray[np.double] | None`, `recall_actual: NDArray[np.double] | None`,
+   `cvcmat_actual: NDArray[np.double] | None`. `None` in the feature-only case preserves today's
+   behaviour exactly — existing callers see no change.
+6. **Make the silent branch visible, even though it's automatic.** Since this is Option 1 (not
    an explicit separate call), log an info message when ground truth is detected and evaluation
    fields get populated (ties to Q3's logging work) — mirrors MATLAB's own "[EXPLORE]
    Calculating the binary measure of performance" console line, so the mode switch is
    observable, not a silent surprise, even though it's inferred from input shape rather than an
    explicit flag.
-6. **`explore_stage_iter()` needs the same treatment:** add an `ExploreStage.EVALUATION`
+7. **`explore_stage_iter()` needs the same treatment:** add an `ExploreStage.EVALUATION`
    member (see `instancespace/instance_space.py`'s `ExploreStage` enum, added alongside the
    `explore_iter()` -> `explore_stage_iter()` rename) and yield an `AnnotatedExploreOutput`
    for it after `ExploreStage.TRACE` when ground truth is present; omit it entirely (yield
@@ -755,7 +833,12 @@ Worth confirming during implementation whether `explore_outputs/step4_pythia_pre
 is PYTHIA's *predictions* (already used to validate `y_hat` today) or could double as the
 ground-truth comparison target — likely a new reference export is needed either way, since
 predictions and ground truth are conceptually different things even if this fixture set's
-current files don't cleanly distinguish them.
+current files don't cleanly distinguish them. The corrected scope above adds its own concrete
+test target: a fixture where the trained classifiers' test-set accuracy/precision/recall are
+independently known (from MATLAB's own `evaluateTestSet` output, if a MATLAB reference run is
+ever obtained per T5/#278) or at minimum internally consistent (recomputing the same confusion
+matrix from `y_hat`/`y_bin_actual` by hand and checking it matches `ExploreResult`'s reported
+`accuracy_actual`/etc.).
 
 ### F16 — Port TRACE3, MATLAB's current default footprint algorithm
 **Verified starting point, read directly against `core/TRACE.m`/`core/TRACE_legacy.m`
