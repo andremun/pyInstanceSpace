@@ -882,11 +882,16 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         Returns
         -------
         float
-            The fitness score of the solution: the worst (highest) per-
-            algorithm k-NN classification loss (`1 - accuracy`), matching
-            MATLAB's `fitcknn`/`kfoldLoss` classification loss (core/
-            SIFTED.m) rather than treating the binary good/bad labels as a
-            regression target (#300 issue 5).
+            The fitness score of the solution: the worst (lowest) per-
+            algorithm k-NN classification accuracy. `pygad.GA` always
+            *maximizes* whatever this returns, so maximizing the minimum
+            per-algorithm accuracy directly is equivalent to MATLAB's
+            `fitcknn`/`kfoldLoss`-based `costfcn` (core/SIFTED.m), which
+            `ga()` *minimizes* as `max_i(loss_i)` - `-max_i(1 - acc_i) =
+            min_i(acc_i) - 1`, the same optimum up to an additive constant
+            - without needing a loss concept or a sign flip (#300 issue 5;
+            #312, the sign-convention finding this formulation sidesteps
+            rather than needing to resolve).
         """
         idx = np.zeros(instance.selfx.shape[1], dtype=bool)
 
@@ -928,7 +933,12 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         # dims + 1 neighbours (D+1, generalised from 2D), matching MATLAB's
         # kneighbours = dims + 1 (core/SIFTED.m).
         kneighbours = instance.dims + 1
-        y = -np.inf
+        # Track the worst (minimum) per-algorithm accuracy directly, since
+        # pygad maximizes whatever this function returns - maximizing the
+        # worst-case accuracy is the same search as MATLAB's ga() minimizing
+        # the worst-case loss (see docstring), with no loss/sign-flip
+        # arithmetic needed at all.
+        y = np.inf
         for i in range(instance.selfy.shape[1]):
             knn = KNeighborsClassifier(n_neighbors=kneighbours)
             # Classification accuracy (#300 issue 5), not neg_mean_squared_error -
@@ -941,8 +951,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 cv=instance.cv_partition,
                 scoring="accuracy",
             )
-            loss = 1.0 - scores.mean()
-            y = max(y, loss)
+            y = min(y, scores.mean())
 
         instance.cost_cache[cache_key] = y
         return y
