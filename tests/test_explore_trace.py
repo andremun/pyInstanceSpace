@@ -120,6 +120,28 @@ def test_trace_good_and_best_independent() -> None:
     assert not in_best[0, 0]
 
 
+def test_trace_widens_output_for_new_algorithms() -> None:
+    """F9 full MATLAB parity: `n_new_algos` pads in_good/in_best with `False`.
+
+    Matches MATLAB's `TRACEthrow3` empty-footprint placeholder for
+    algorithms present in the test set but absent from training - there is
+    no trained footprint to test membership against.
+    """
+    square = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
+    space = make_instance_space([square], [square])
+    z = np.array([[0.5, 0.5], [2.0, 2.0]])
+
+    in_good, in_best = InstanceSpace._explore_trace(space, z, n_new_algos=2)
+
+    assert in_good.shape == (2, 3)
+    assert in_best.shape == (2, 3)
+    # Trained column (0) is unaffected by the widening.
+    assert in_good[0, 0] and not in_good[1, 0]
+    # New-algorithm columns (1, 2) are always False - no trained footprint.
+    assert not in_good[:, 1:].any()
+    assert not in_best[:, 1:].any()
+
+
 def _bare_trace_stage(n_algos, executor) -> TraceStage:  # type: ignore[no-untyped-def]
     # Params deliberately untyped (see test_instance_space_executor.py's
     # _bare_instance_space for why): a typed signature makes mypy check this

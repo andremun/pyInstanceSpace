@@ -58,7 +58,11 @@ def test_build_test_algo_matrix_reindexes_case_insensitively() -> None:
         np.array([[10.0, 20.0], [30.0, 40.0]]),
     )
 
-    y_raw, has_gt = space._build_test_algo_matrix(test_metadata, ["Alg1", "Alg2"])
+    y_raw, has_gt = space._build_test_algo_matrix(
+        test_metadata,
+        ["Alg1", "Alg2"],
+        [],
+    )
 
     # Column 0 (Alg1) should come from the test set's "alg1" column (index 1).
     np.testing.assert_allclose(y_raw[:, 0], [20.0, 40.0])
@@ -76,19 +80,24 @@ def test_build_test_algo_matrix_nans_algorithm_absent_from_test_set() -> None:
     space = _make_space(["Alg1", "Alg2"])
     test_metadata = _make_metadata(["Alg1"], np.array([[10.0], [30.0]]))
 
-    y_raw, has_gt = space._build_test_algo_matrix(test_metadata, ["Alg1", "Alg2"])
+    y_raw, has_gt = space._build_test_algo_matrix(
+        test_metadata,
+        ["Alg1", "Alg2"],
+        [],
+    )
 
     np.testing.assert_allclose(y_raw[:, 0], [10.0, 30.0])
     assert np.all(np.isnan(y_raw[:, 1]))
     assert has_gt.tolist() == [True, False]
 
 
-def test_build_test_algo_matrix_drops_new_algorithm_not_in_training() -> None:
-    """An algorithm in the test set but absent from training is simply ignored.
+def test_build_test_algo_matrix_excludes_new_algorithm_when_not_requested() -> None:
+    """A test-set-only algorithm is excluded unless named in `new_algo_labels`.
 
-    Deferred per roadmap F9 - not an error, not evaluated, no output column
-    for it at all (the returned matrix's width always matches `algo_labels`,
-    the *trained* algorithm order).
+    `_build_test_algo_matrix` doesn't decide what's "new" itself - that's
+    `_find_new_algorithms`'s job - so passing an empty `new_algo_labels`
+    here (as if the caller chose not to widen) must not include it, and the
+    returned width must match `algo_labels` alone.
     """
     space = _make_space(["Alg1"])
     test_metadata = _make_metadata(
@@ -96,11 +105,49 @@ def test_build_test_algo_matrix_drops_new_algorithm_not_in_training() -> None:
         np.array([[10.0, 99.0], [30.0, 99.0]]),
     )
 
-    y_raw, has_gt = space._build_test_algo_matrix(test_metadata, ["Alg1"])
+    y_raw, has_gt = space._build_test_algo_matrix(test_metadata, ["Alg1"], [])
 
     assert y_raw.shape == (2, 1)
     np.testing.assert_allclose(y_raw[:, 0], [10.0, 30.0])
     assert has_gt.tolist() == [True]
+
+
+def test_build_test_algo_matrix_appends_new_algorithm_columns() -> None:
+    """A test-set-only algorithm named in `new_algo_labels` is appended.
+
+    Full MATLAB parity (F9): matches MATLAB's `Yaux` widening in
+    `evaluateTestSet` - the new algorithm's real performance data is placed
+    in an extra trailing column, not dropped.
+    """
+    space = _make_space(["Alg1"])
+    test_metadata = _make_metadata(
+        ["Alg1", "BrandNewAlgo"],
+        np.array([[10.0, 99.0], [30.0, 88.0]]),
+    )
+
+    y_raw, has_gt = space._build_test_algo_matrix(
+        test_metadata,
+        ["Alg1"],
+        ["BrandNewAlgo"],
+    )
+
+    assert y_raw.shape == (2, 2)
+    np.testing.assert_allclose(y_raw[:, 0], [10.0, 30.0])
+    np.testing.assert_allclose(y_raw[:, 1], [99.0, 88.0])
+    assert has_gt.tolist() == [True]  # only covers the *trained* column
+
+
+def test_find_new_algorithms_case_insensitive_and_deduplicated() -> None:
+    """`_find_new_algorithms` matches case-insensitively and dedupes by name."""
+    space = _make_space(["Alg1"])
+    test_metadata = _make_metadata(
+        ["alg1", "BrandNew", "brandnew"],
+        np.array([[1.0, 2.0, 2.0]]),
+    )
+
+    new_algos = space._find_new_algorithms(test_metadata, ["Alg1"])
+
+    assert new_algos == ["BrandNew"]
 
 
 def test_explore_evaluate_computes_metrics_against_ground_truth() -> None:
@@ -119,7 +166,7 @@ def test_explore_evaluate_computes_metrics_against_ground_truth() -> None:
     )
     y_hat = np.array([[True, False], [False, True]])
 
-    result = space._explore_evaluate(test_metadata, y_hat)
+    result = space._explore_evaluate(test_metadata, y_hat, [])
 
     np.testing.assert_array_equal(
         result.y_actual,
@@ -131,6 +178,7 @@ def test_explore_evaluate_computes_metrics_against_ground_truth() -> None:
     # cvcmat columns are [tn, fp, fn, tp]; each algo has one good, one bad
     # instance, both correctly predicted -> tn=1, fp=0, fn=0, tp=1.
     np.testing.assert_allclose(result.cvcmat_actual, [[1, 0, 0, 1], [1, 0, 0, 1]])
+    assert result.algo_labels == ["Alg1", "Alg2"]
 
 
 def test_explore_evaluate_reports_nan_for_algorithm_without_ground_truth() -> None:
@@ -140,7 +188,7 @@ def test_explore_evaluate_reports_nan_for_algorithm_without_ground_truth() -> No
     test_metadata = _make_metadata(["Alg1"], np.array([[0.1], [5.0]]))
     y_hat = np.array([[True, True], [False, True]])
 
-    result = space._explore_evaluate(test_metadata, y_hat)
+    result = space._explore_evaluate(test_metadata, y_hat, [])
 
     assert not np.isnan(result.accuracy_actual[0])
     assert np.isnan(result.accuracy_actual[1])
@@ -167,7 +215,7 @@ def test_explore_evaluate_imperfect_predictions_match_hand_computed_confusion() 
     )
     y_hat = np.array([[True], [False], [False], [True]])  # 1 correct, 1 wrong each way
 
-    result = space._explore_evaluate(test_metadata, y_hat)
+    result = space._explore_evaluate(test_metadata, y_hat, [])
 
     y_true = np.array([True, True, False, False])
     y_pred = y_hat[:, 0]
@@ -176,3 +224,35 @@ def test_explore_evaluate_imperfect_predictions_match_hand_computed_confusion() 
     np.testing.assert_allclose(result.cvcmat_actual[0], expected_cm)
     expected_accuracy = (y_true == y_pred).mean()
     np.testing.assert_allclose(result.accuracy_actual[0], expected_accuracy)
+
+
+def test_explore_evaluate_new_algorithm_full_parity() -> None:
+    """Full MATLAB parity (F9): a new algorithm participates in y_best/p/beta.
+
+    It still reports NaN accuracy/precision/recall/cvcmat (no trained
+    classifier exists to score it against its own, real ground truth) -
+    matching
+    MATLAB's `PYTHIAevalMode` "no CV model" convention.
+    """
+    space = _make_space(["Alg1"])
+    # Instance 0: BrandNew (0.05) beats Alg1 (5.0) outright -> best algorithm
+    # for instance 0 should be the new algorithm (index 1), not Alg1.
+    test_metadata = _make_metadata(
+        ["Alg1", "BrandNew"],
+        np.array([[5.0, 0.05], [0.1, 9.0]]),
+    )
+    # y_hat already widened by _explore_pythia(n_new_algos=1): BrandNew's
+    # column is all-False (no classifier).
+    y_hat = np.array([[True, False], [True, False]])
+
+    result = space._explore_evaluate(test_metadata, y_hat, ["BrandNew"])
+
+    assert result.algo_labels == ["Alg1", "BrandNew"]
+    assert result.y_actual.shape == (2, 2)
+    # Instance 0's best algorithm is BrandNew (index 1, 0-based -> p=2, 1-based).
+    assert result.p_actual[0] == 2  # noqa: PLR2004
+    assert not np.isnan(result.accuracy_actual[0])  # Alg1: real classifier
+    assert np.isnan(result.accuracy_actual[1])  # BrandNew: no classifier
+    assert np.isnan(result.precision_actual[1])
+    assert np.isnan(result.recall_actual[1])
+    assert np.all(np.isnan(result.cvcmat_actual[1]))

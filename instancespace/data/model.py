@@ -467,18 +467,27 @@ class ExploreResult:
     y_hat : NDArray[np.bool_] | None
         Binary algorithm predictions from PYTHIA SVMs.
         Shape: (n_instances, n_algorithms). None if PYTHIA not applied.
+        `n_algorithms` includes a trailing column (always `False`) per
+        test-set-only algorithm absent from training when ground truth is
+        present (F9, full MATLAB parity) - see `algo_labels`.
     pr0_hat : NDArray[np.double] | None
         Probability predictions from PYTHIA SVMs.
         Shape: (n_instances, n_algorithms). None if PYTHIA not applied.
+        Same new-algorithm-column convention as `y_hat` (trailing `0.0`).
     selection0 : NDArray[np.int_] | None
         Recommended algorithm index for each instance.
-        Shape: (n_instances,). None if PYTHIA not applied.
+        Shape: (n_instances,). None if PYTHIA not applied. Never points at a
+        new-algorithm column (see `y_hat`) - those are given zero selection
+        precision, so they can never be the recommended algorithm.
     in_good : NDArray[np.bool_] | None
         Whether each instance falls in "good" footprint for each algorithm.
-        Shape: (n_instances, n_algorithms). None if TRACE not applied.
+        Shape: (n_instances, n_algorithms). None if TRACE not applied. Same
+        new-algorithm-column convention as `y_hat` (trailing `False` - no
+        trained footprint exists to test membership against).
     in_best : NDArray[np.bool_] | None
         Whether each instance falls in "best" footprint for each algorithm.
-        Shape: (n_instances, n_algorithms). None if TRACE not applied.
+        Shape: (n_instances, n_algorithms). None if TRACE not applied. Same
+        new-algorithm-column convention as `in_good`.
     inst_labels : pd.Series
         Instance labels/identifiers from the test metadata.
     y_actual : NDArray[np.bool_] | None
@@ -501,8 +510,9 @@ class ExploreResult:
     accuracy_actual : NDArray[np.double] | None
         Per-algorithm accuracy of PYTHIA's trained classifiers against
         `y_actual`. Shape: (n_algorithms,). `NaN` for an algorithm absent
-        from the test set's ground truth (deferred - see roadmap F9).
-        `None` under the same condition as `y_actual`.
+        from the test set's ground truth, or a test-set-only algorithm with
+        no trained classifier to score (both "no CV model", matching
+        MATLAB's convention). `None` under the same condition as `y_actual`.
     precision_actual : NDArray[np.double] | None
         Per-algorithm precision, same shape/NaN convention as
         `accuracy_actual`.
@@ -510,9 +520,18 @@ class ExploreResult:
         Per-algorithm recall, same shape/NaN convention as `accuracy_actual`.
     cvcmat_actual : NDArray[np.double] | None
         Per-algorithm confusion matrix `[tn, fp, fn, tp]` against
-        `y_actual`. Shape: (n_algorithms, 4). `NaN` row for an algorithm
-        absent from the test set's ground truth. `None` under the same
-        condition as `y_actual`.
+        `y_actual`. Shape: (n_algorithms, 4). `NaN` row under the same
+        conditions as `accuracy_actual`. `None` under the same condition as
+        `y_actual`.
+    algo_labels : list[str] | None
+        The full algorithm order (trained algorithms, then any test-set-only
+        algorithm absent from training, in first-encountered order) that
+        `y_hat`/`pr0_hat`/`in_good`/`in_best`/`accuracy_actual`/etc.'s
+        per-algorithm columns index into (F9, full MATLAB parity) - needed
+        to interpret those columns once new algorithms widen them beyond
+        `Model.data.algo_labels`' own length. `None` under the same
+        condition as `y_actual` (when there's no ground truth, column order
+        is implicitly `Model.data.algo_labels` and never widened).
     """
 
     dataset_id: str
@@ -533,6 +552,7 @@ class ExploreResult:
     precision_actual: NDArray[np.double] | None = None
     recall_actual: NDArray[np.double] | None = None
     cvcmat_actual: NDArray[np.double] | None = None
+    algo_labels: list[str] | None = None
 
 
 @dataclass(frozen=True)

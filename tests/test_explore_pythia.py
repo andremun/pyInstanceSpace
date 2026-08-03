@@ -202,6 +202,34 @@ def test_pythia_selection0_none_when_no_positive() -> None:
     assert selection0[0] == -1
 
 
+def test_pythia_widens_output_for_new_algorithms() -> None:
+    """F9 full MATLAB parity: `n_new_algos` pads y_hat/pr0_hat/selection0.
+
+    Matches MATLAB's `PYTHIAevalMode` padding (`Yhat=false`, `Pr0hat=0`) for
+    algorithms present in the test set but absent from training - no trained
+    classifier exists for them, and zero-padded selection precision means
+    `selection0` can never point at one of them.
+    """
+    rng = np.random.default_rng(0)
+    svc = _fit_svc(rng)
+    pilot_z = _two_point_pilot_z(np.array([0.0, 0.0]), np.array([1.0, 1.0]))
+    space = make_instance_space(
+        pilot_z=pilot_z,
+        svms=[svc],
+        precision=np.array([1.0]),
+    )
+    z = np.array([[3.0, 3.0]])  # deep in the "good" cluster
+
+    y_hat, pr0_hat, selection0 = InstanceSpace._explore_pythia(space, z, n_new_algos=2)
+
+    assert y_hat.shape == (1, 3)
+    assert pr0_hat.shape == (1, 3)
+    assert y_hat[0, 0]  # trained column unaffected by the widening
+    assert not y_hat[0, 1] and not y_hat[0, 2]  # new-algo columns: no classifier
+    np.testing.assert_allclose(pr0_hat[0, 1:], [0.0, 0.0])
+    assert selection0[0] == 0  # never points at a new-algo (zero-precision) column
+
+
 def test_pythia_selection0_nalgos_equals_one() -> None:
     """F8: the nalgos==1 explore-path case, previously untested.
 
