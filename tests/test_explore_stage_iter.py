@@ -13,6 +13,15 @@ from typing import cast
 from instancespace.data.metadata import Metadata
 from instancespace.instance_space import ExploreStage, InstanceSpace
 
+# A ground-truth-free stand-in for `Metadata`: these tests exercise stage
+# orchestration only (the per-stage methods are stubbed below), and F9's
+# ExploreStage.EVALUATION branch reads `test_metadata.algorithm_names`
+# directly (unlike the other stages, which only see it through the stubbed
+# methods) - so it must be a real value, not `None`, even though nothing
+# else about this fake object needs to look like a `Metadata`.
+_FakeMetadata = type("_FakeMetadata", (), {"algorithm_names": []})
+_NO_GROUND_TRUTH = cast(Metadata, cast(object, _FakeMetadata()))
+
 
 def _stub_stages(space) -> None:  # type: ignore[no-untyped-def]
     """Replace the pieces the staged pipeline calls with cheap sentinels.
@@ -34,7 +43,7 @@ def test_explore_stage_iter_yields_the_five_stages_in_order() -> None:
     space = InstanceSpace.__new__(InstanceSpace)
     _stub_stages(space)
 
-    yielded = list(space.explore_stage_iter(cast(Metadata, None)))
+    yielded = list(space.explore_stage_iter(_NO_GROUND_TRUTH))
 
     assert [annotated.stage for annotated in yielded] == [
         ExploreStage.PRELIM,
@@ -50,6 +59,8 @@ def test_explore_stage_iter_yields_the_five_stages_in_order() -> None:
     assert stages[ExploreStage.PILOT] == "Z"
     assert stages[ExploreStage.PYTHIA] == ("yhat", "pr0", "sel")
     assert stages[ExploreStage.TRACE] == ("ingood", "inbest")
+    # No ExploreStage.EVALUATION (F9) when the test metadata has no ground truth.
+    assert ExploreStage.EVALUATION not in stages
 
 
 def test_explore_maps_stage_outputs_onto_the_result() -> None:
@@ -62,7 +73,7 @@ def test_explore_maps_stage_outputs_onto_the_result() -> None:
 
     space._extract_instance_labels = fake_extract_instance_labels  # type: ignore[method-assign,assignment]
 
-    result = space.explore(cast(Metadata, None), dataset_id="d1")
+    result = space.explore(_NO_GROUND_TRUTH, dataset_id="d1")
 
     assert result.dataset_id == "d1"
     # x is the post-SIFTED features, z is the PILOT projection.
@@ -79,3 +90,42 @@ def test_explore_maps_stage_outputs_onto_the_result() -> None:
     )
     assert result.inst_labels == ["i1", "i2"]
     assert space.explore_results == [result]
+    # No ground truth in this fixture -> all F9 evaluation fields stay None,
+    # preserving pre-F9 behaviour exactly for feature-only test metadata.
+    assert result.y_actual is None
+    assert result.y_best_actual is None
+    assert result.p_actual is None
+    assert result.beta_actual is None
+    assert result.accuracy_actual is None
+    assert result.precision_actual is None
+    assert result.recall_actual is None
+    assert result.cvcmat_actual is None
+
+
+def test_explore_stage_iter_yields_evaluation_when_ground_truth_present() -> None:
+    """F9: ExploreStage.EVALUATION is yielded (after TRACE) only with ground truth.
+
+    Orchestration-only: `_explore_evaluate` itself is stubbed here, so this
+    checks wiring (the conditional yield, and that it receives PYTHIA's
+    already-computed `y_hat`), not evaluation numerics - those are covered
+    by `tests/test_explore_evaluate.py`.
+    """
+    with_ground_truth = type("_FakeMetadata", (), {"algorithm_names": ["algo1"]})()
+
+    space = InstanceSpace.__new__(InstanceSpace)
+    _stub_stages(space)
+    space._explore_evaluate = lambda _md, y_hat: f"evaluation({y_hat})"  # type: ignore[method-assign,assignment,return-value]
+
+    yielded = list(space.explore_stage_iter(cast(Metadata, with_ground_truth)))
+
+    assert [annotated.stage for annotated in yielded] == [
+        ExploreStage.PRELIM,
+        ExploreStage.SIFTED,
+        ExploreStage.PILOT,
+        ExploreStage.PYTHIA,
+        ExploreStage.TRACE,
+        ExploreStage.EVALUATION,
+    ]
+    stages = {annotated.stage: annotated.output for annotated in yielded}
+    # _explore_pythia's stub returns ("yhat", "pr0", "sel") - y_hat is [0].
+    assert stages[ExploreStage.EVALUATION] == "evaluation(yhat)"

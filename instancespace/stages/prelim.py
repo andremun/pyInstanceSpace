@@ -23,7 +23,12 @@ from scipy import optimize, stats
 from sklearn.model_selection import train_test_split
 
 from instancespace.data.model import DataDense
-from instancespace.data.options import GeneralOptions, PrelimOptions, SelvarsOptions
+from instancespace.data.options import (
+    GeneralOptions,
+    PerformanceOptions,
+    PrelimOptions,
+    SelvarsOptions,
+)
 from instancespace.stages.stage import Stage
 from instancespace.utils.filter import do_filter
 
@@ -31,6 +36,178 @@ from instancespace.utils.filter import do_filter
 # which a data-quality warning fires (matches MATLAB's PRELIM.m,
 # ISA:PRELIM:manyZeroBest).
 _MANY_ZERO_BEST_THRESHOLD = 0.05
+
+
+def _log_many_zero_best_warning(y_best: NDArray[np.double], log_prefix: str) -> None:
+    """Warn if too many instances have a best-algorithm performance of zero.
+
+    Matches MATLAB's ISA:PRELIM:manyZeroBest: once these zeros are
+    substituted with `eps` below, the relative-performance matrix becomes
+    uninformative (close to 1 everywhere) for those instances. Shared by
+    `PrelimStage._warn_many_zero_best()` (training) and
+    `compute_binary_performance()` (F9's explore()-time evaluation path).
+    """
+    frac_zero_best = np.mean(y_best == 0)
+    if frac_zero_best > _MANY_ZERO_BEST_THRESHOLD:
+        logger.warning(
+            f"[{log_prefix}] {frac_zero_best:.1%} of instances have a best-algorithm "
+            "performance of exactly zero; the relative-performance matrix will be "
+            "close to 1 everywhere for these instances.",
+        )
+
+
+class BinaryPerformance(NamedTuple):
+    """Ground-truth binary-performance fields derived from raw algorithm performance.
+
+    Attributes
+    ----------
+    y : NDArray[np.double]
+        Relative (or absolute) performance matrix - `y_raw` transformed by the
+        same `max_perf`/`abs_perf` branching used to derive `y_bin`.
+    y_bin : NDArray[np.bool_]
+        Binary matrix indicating instances with good algorithm performance.
+    y_best : NDArray[np.double]
+        Best observed performance value for each instance across all algorithms
+        (zero values substituted with `eps`, matching MATLAB).
+    p : NDArray[np.int_]
+        1-based index of the best-performing algorithm per instance, ties
+        broken by picking the first tied algorithm.
+    num_good_algos : NDArray[np.double]
+        Number of algorithms with good performance, per instance.
+    beta : NDArray[np.bool_]
+        Whether each instance clears `beta_threshold`'s fraction of good
+        algorithms.
+    """
+
+    y: NDArray[np.double]
+    y_bin: NDArray[np.bool_]
+    y_best: NDArray[np.double]
+    p: NDArray[np.int_]
+    num_good_algos: NDArray[np.double]
+    beta: NDArray[np.bool_]
+
+
+def compute_binary_performance(
+    y_raw: NDArray[np.double],
+    perf_opts: PerformanceOptions,
+    general_opts: GeneralOptions,
+    log_prefix: str = "PRELIM",
+) -> BinaryPerformance:
+    """Compute the binary measure of algorithm performance from raw `Y`.
+
+    Ports MATLAB PRELIM.m's binary-performance section: an algorithm is
+    "good" for an instance if its performance is within `epsilon` of the best
+    (relative) or better than `epsilon` outright (absolute), per
+    `perf_opts.max_perf`/`abs_perf`. Ties for the best algorithm are broken by
+    picking the first tied algorithm - a deliberate, already-recorded
+    simplification (see roadmap F3), not a faithful port of MATLAB's random
+    `randi()` tie-break.
+
+    Shared by `PrelimStage._prelim()` (training, ground truth for the
+    training set) and `InstanceSpace.explore()`'s evaluation path (F9, ground
+    truth for a test set using the *trained* `PerformanceOptions`) - one
+    implementation, not a second one written to match it by hand.
+    """
+    logger.info(
+        f"[{log_prefix}] -------------------------------------------------"
+        "------------------------",
+    )
+    logger.info(f"[{log_prefix}] -> Calculating the binary measure of performance")
+
+    y = y_raw.copy()
+    nalgos = y.shape[1]
+
+    msg = "An algorithm is good if its performance is "
+    if perf_opts.max_perf:
+        y_aux = y.copy()
+        y_aux[np.isnan(y_aux)] = -np.inf
+
+        y_best = np.max(y_aux, axis=1)
+        # Snapshot before the zero-value eps substitution below, so tied
+        # instances whose best performance is exactly zero can still be
+        # detected as ties (matches MATLAB's YbestTie).
+        y_best_tie = y_best.copy()
+        # add 1 to the index to match the MATLAB code
+        p = np.argmax(y_aux, axis=1) + 1
+
+        if perf_opts.abs_perf:
+            y_bin = y_aux >= perf_opts.epsilon
+            msg = msg + "higher than " + str(perf_opts.epsilon)
+        else:
+            _log_many_zero_best_warning(y_best, log_prefix)
+            y_best[y_best == 0] = np.finfo(float).eps
+            y[y == 0] = np.finfo(float).eps
+            y = 1 - y / y_best[:, np.newaxis]
+            y_bin = (1 - y_aux / y_best[:, np.newaxis]) <= perf_opts.epsilon
+            msg = (
+                msg
+                + "within "
+                + str(round(100 * perf_opts.epsilon))
+                + "% of the best."
+            )
+    else:
+        logger.info(f"[{log_prefix}] -> Minimizing performance.")
+        y_aux = y.copy()
+        y_aux[np.isnan(y_aux)] = np.inf
+
+        y_best = np.min(y_aux, axis=1)
+        # Snapshot before the zero-value eps substitution below, so tied
+        # instances whose best performance is exactly zero can still be
+        # detected as ties (matches MATLAB's YbestTie).
+        y_best_tie = y_best.copy()
+        # add 1 to the index to match the MATLAB code
+        p = np.argmin(y_aux, axis=1) + 1
+
+        if perf_opts.abs_perf:
+            y_bin = y_aux <= perf_opts.epsilon
+            msg = msg + "less than " + str(perf_opts.epsilon)
+        else:
+            _log_many_zero_best_warning(y_best, log_prefix)
+            y_best[y_best == 0] = np.finfo(float).eps
+            y[y == 0] = np.finfo(float).eps
+            y = y / y_best[:, np.newaxis] - 1
+            y_bin = (y_aux / y_best[:, np.newaxis] - 1) <= perf_opts.epsilon
+            msg = (
+                msg
+                + "within "
+                + str(round(100 * perf_opts.epsilon))
+                + "% of the best."
+            )
+
+    logger.info(f"[{log_prefix}] {msg}")
+
+    best_algos = np.equal(y_raw, y_best_tie[:, np.newaxis])
+    multiple_best_algos = np.sum(best_algos, axis=1) > 1
+    aidx = np.arange(1, nalgos + 1)
+    for i in range(y_raw.shape[0]):
+        if multiple_best_algos[i]:
+            aux = aidx[best_algos[i]]
+            # Ties are broken by picking the first tied algorithm, not a
+            # random one (MATLAB uses randi() here) - see roadmap F3.
+            p[i] = aux[0]
+
+    logger.info(
+        f"[{log_prefix}] -> For {round(100 * np.mean(multiple_best_algos))}% of the "
+        "instances there is more than one best algorithm.",
+    )
+    logger.info(f"[{log_prefix}] The first tied algorithm is used to break ties.")
+
+    num_good_algos = np.sum(y_bin, axis=1)
+    if general_opts.verbose:
+        logger.debug(f"[{log_prefix}] beta_threshold: {perf_opts.beta_threshold}")
+        logger.debug(f"[{log_prefix}] nalgos: {nalgos}")
+        logger.debug(f"[{log_prefix}] num_good_algos: {num_good_algos}")
+
+    beta = num_good_algos > (perf_opts.beta_threshold * nalgos)
+
+    return BinaryPerformance(
+        y=y,
+        y_bin=y_bin,
+        y_best=y_best,
+        p=p,
+        num_good_algos=num_good_algos,
+        beta=beta,
+    )
 
 
 class PrelimInput(NamedTuple):
@@ -227,17 +404,10 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
     def _warn_many_zero_best(self, y_best: NDArray[np.double]) -> None:
         """Warn if too many instances have a best-algorithm performance of zero.
 
-        Matches MATLAB's ISA:PRELIM:manyZeroBest: once these zeros are
-        substituted with `eps` below, the relative-performance matrix becomes
-        uninformative (close to 1 everywhere) for those instances.
+        Matches MATLAB's ISA:PRELIM:manyZeroBest. Delegates to the shared
+        `_log_many_zero_best_warning()` also used by `compute_binary_performance()`.
         """
-        frac_zero_best = np.mean(y_best == 0)
-        if frac_zero_best > _MANY_ZERO_BEST_THRESHOLD:
-            logger.warning(
-                f"[PRELIM] {frac_zero_best:.1%} of instances have a best-algorithm "
-                "performance of exactly zero; the relative-performance matrix will be "
-                "close to 1 everywhere for these instances.",
-            )
+        _log_many_zero_best_warning(y_best, "PRELIM")
 
     @staticmethod
     def _inputs() -> type[PrelimInput]:
@@ -416,73 +586,6 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             y,
             prelim_opts,
         )
-
-    def _select_best_algorithms(
-        self,
-        y_raw: NDArray[np.double],
-        y_best_tie: NDArray[np.double],
-        y_bin: NDArray[np.bool_],
-        nalgos: int,
-        beta_threshold: float,
-        p: NDArray[np.int_],
-    ) -> tuple[NDArray[np.double], NDArray[np.int_], NDArray[np.bool_]]:
-        """Select the best algorithms based on the given criteria.
-
-        Args
-        ----
-            y_raw: Raw algorithm predictions.
-            y_best_tie: Best-performance-per-instance, taken *before* the
-                zero-value eps substitution applied elsewhere in `_prelim`
-                (matches MATLAB's `YbestTie`) - using the eps-substituted
-                value here would make ties where the best performance is
-                exactly zero undetectable, since no raw value equals `eps`.
-            y_bin: Binary labels.
-            nalgos: Number of algorithms.
-            betaThreshold: Beta threshold.
-            p: Placeholder for selected algorithms.
-
-        Returns
-        -------
-            num_good_algos: Number of good algorithms.
-            beta: Beta values.
-            p: Selected algorithms.
-        """
-        # testing for ties
-        y_best_tie = y_best_tie[:, np.newaxis]
-
-        best_algos = np.equal(y_raw, y_best_tie)
-        multiple_best_algos = np.sum(best_algos, axis=1) > 1
-        aidx = np.arange(1, nalgos + 1)
-
-        for i in range(y_raw.shape[0]):
-            if multiple_best_algos[i].any():
-                aux = aidx[best_algos[i]]
-                # Ties are broken by picking the first tied algorithm, not a
-                # random one (MATLAB uses randi() here). This is a deliberate,
-                # temporary simplification: a future improvement should break
-                # ties using the algorithms' performance among the instance's
-                # K nearest neighbours instead of either "first" or "random"
-                # - i.e. prefer whichever tied algorithm is more consistently
-                # the strongest performer in that local neighbourhood, rather
-                # than an arbitrary pick. Worth raising on the MATLAB side too
-                # (github.com/andremun/InstanceSpace), since randi() has the
-                # same "arbitrary choice" property this is meant to improve on.
-                p[i] = aux[0]
-
-        self._log(
-            f"-> For {round(100 * np.mean(multiple_best_algos))}% of the instances "
-            "there is more than one best algorithm.",
-        )
-        self._log("The first tied algorithm is used to break ties.")
-
-        num_good_algos = np.sum(y_bin, axis=1)
-        self._log_detail(f"beta_threshold: {beta_threshold}")
-        self._log_detail(f"nalgos: {nalgos}")
-        self._log_detail(f"num_good_algos: {num_good_algos}")
-
-        beta = num_good_algos > (beta_threshold * nalgos)
-
-        return num_good_algos, p, beta
 
     def _bound(self) -> _BoundOut:
         """Remove extreme outliers from the feature values.
@@ -665,80 +768,25 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         NDArray[np.double],  # PrelimOut.mu_y
     ]:
         y_raw = y.copy()
-        nalgos = y.shape[1]
 
-        self._log(
-            "-------------------------------------------------------------------------",
-        )
-        self._log("-> Calculating the binary measure of performance")
-
-        msg = "An algorithm is good if its performance is "
-        if prelim_opts.max_perf:
-            y_aux = y.copy()
-            y_aux[np.isnan(y_aux)] = -np.inf
-
-            y_best = np.max(y_aux, axis=1)
-            # Snapshot before the zero-value eps substitution below, so tied
-            # instances whose best performance is exactly zero can still be
-            # detected as ties (matches MATLAB's YbestTie).
-            y_best_tie = y_best.copy()
-            # add 1 to the index to match the MATLAB code
-            p = np.argmax(y_aux, axis=1) + 1
-
-            if prelim_opts.abs_perf:
-                y_bin = y_aux >= prelim_opts.epsilon
-                msg = msg + "higher than " + str(prelim_opts.epsilon)
-            else:
-                self._warn_many_zero_best(y_best)
-                y_best[y_best == 0] = np.finfo(float).eps
-                y[y == 0] = np.finfo(float).eps
-                y = 1 - y / y_best[:, np.newaxis]
-                y_bin = (1 - y_aux / y_best[:, np.newaxis]) <= prelim_opts.epsilon
-                msg = (
-                    msg
-                    + "within "
-                    + str(round(100 * prelim_opts.epsilon))
-                    + "% of the best."
-                )
-
-        else:
-            self._log("-> Minimizing performance.")
-            y_aux = y.copy()
-            y_aux[np.isnan(y_aux)] = np.inf
-
-            y_best = np.min(y_aux, axis=1)
-            # Snapshot before the zero-value eps substitution below, so tied
-            # instances whose best performance is exactly zero can still be
-            # detected as ties (matches MATLAB's YbestTie).
-            y_best_tie = y_best.copy()
-            # add 1 to the index to match the MATLAB code
-            p = np.argmin(y_aux, axis=1) + 1
-
-            if prelim_opts.abs_perf:
-                y_bin = y_aux <= prelim_opts.epsilon
-                msg = msg + "less than " + str(prelim_opts.epsilon)
-            else:
-                self._warn_many_zero_best(y_best)
-                y_best[y_best == 0] = np.finfo(float).eps
-                y[y == 0] = np.finfo(float).eps
-                y = y / y_best[:, np.newaxis] - 1
-                y_bin = (y_aux / y_best[:, np.newaxis] - 1) <= prelim_opts.epsilon
-                msg = (
-                    msg
-                    + "within "
-                    + str(round(100 * prelim_opts.epsilon))
-                    + "% of the best."
-                )
-
-        self._log(msg)
-
-        num_good_algos, p, beta = self._select_best_algorithms(
+        perf = compute_binary_performance(
             y_raw,
-            y_best_tie,
-            y_bin,
-            nalgos,
-            prelim_opts.beta_threshold,
-            p,
+            PerformanceOptions(
+                max_perf=prelim_opts.max_perf,
+                abs_perf=prelim_opts.abs_perf,
+                epsilon=prelim_opts.epsilon,
+                beta_threshold=prelim_opts.beta_threshold,
+            ),
+            self.general_opts,
+            log_prefix="PRELIM",
+        )
+        y, y_bin, y_best, p, num_good_algos, beta = (
+            perf.y,
+            perf.y_bin,
+            perf.y_best,
+            perf.p,
+            perf.num_good_algos,
+            perf.beta,
         )
 
         med_val = np.nanmedian(x, axis=0)

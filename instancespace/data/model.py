@@ -481,6 +481,38 @@ class ExploreResult:
         Shape: (n_instances, n_algorithms). None if TRACE not applied.
     inst_labels : pd.Series
         Instance labels/identifiers from the test metadata.
+    y_actual : NDArray[np.bool_] | None
+        Ground-truth binary good/bad label per algorithm (F9), derived from
+        `test_metadata`'s own `algo_*` performance columns using the
+        *trained* `PerformanceOptions`. Shape: (n_instances, n_algorithms).
+        `None` when the test set carries no algorithm performance columns at
+        all (the feature-only case - existing callers see no change).
+    y_best_actual : NDArray[np.double] | None
+        Best observed ground-truth performance per instance. Shape:
+        (n_instances,). `None` under the same condition as `y_actual`.
+    p_actual : NDArray[np.int_] | None
+        1-based index of the best-performing algorithm per instance, ties
+        broken to the first tied algorithm. Shape: (n_instances,). `None`
+        under the same condition as `y_actual`.
+    beta_actual : NDArray[np.bool_] | None
+        Whether each instance clears the beta threshold's fraction of good
+        algorithms. Shape: (n_instances,). `None` under the same condition
+        as `y_actual`.
+    accuracy_actual : NDArray[np.double] | None
+        Per-algorithm accuracy of PYTHIA's trained classifiers against
+        `y_actual`. Shape: (n_algorithms,). `NaN` for an algorithm absent
+        from the test set's ground truth (deferred - see roadmap F9).
+        `None` under the same condition as `y_actual`.
+    precision_actual : NDArray[np.double] | None
+        Per-algorithm precision, same shape/NaN convention as
+        `accuracy_actual`.
+    recall_actual : NDArray[np.double] | None
+        Per-algorithm recall, same shape/NaN convention as `accuracy_actual`.
+    cvcmat_actual : NDArray[np.double] | None
+        Per-algorithm confusion matrix `[tn, fp, fn, tp]` against
+        `y_actual`. Shape: (n_algorithms, 4). `NaN` row for an algorithm
+        absent from the test set's ground truth. `None` under the same
+        condition as `y_actual`.
     """
 
     dataset_id: str
@@ -493,6 +525,14 @@ class ExploreResult:
     in_good: NDArray[np.bool_] | None
     in_best: NDArray[np.bool_] | None
     inst_labels: pd.Series  # type: ignore[type-arg]
+    y_actual: NDArray[np.bool_] | None = None
+    y_best_actual: NDArray[np.double] | None = None
+    p_actual: NDArray[np.int_] | None = None
+    beta_actual: NDArray[np.bool_] | None = None
+    accuracy_actual: NDArray[np.double] | None = None
+    precision_actual: NDArray[np.double] | None = None
+    recall_actual: NDArray[np.double] | None = None
+    cvcmat_actual: NDArray[np.double] | None = None
 
 
 @dataclass(frozen=True)
