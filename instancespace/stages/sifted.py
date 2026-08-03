@@ -790,6 +790,40 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
 
         return (x_aux, rho, pval, selvars)
 
+    @staticmethod
+    def _standardize_for_correlation_distance(
+        x_aux: NDArray[np.double],
+    ) -> NDArray[np.double]:
+        """Z-score each feature (column of x_aux) across instances.
+
+        MATLAB's `kmeans(Xaux', opts.K, 'Distance', 'correlation', ...)`
+        (core/SIFTED.m) clusters features using correlation distance, not
+        Euclidean - sklearn's `KMeans` has no metric parameter to match this
+        directly (#300 issue 7). For two vectors `u`, `v` of length `n`
+        z-scored with population (ddof=0) statistics, squared Euclidean
+        distance `||u - v||^2 = 2n * (1 - corr(u, v))` - a positive
+        monotonic transform of Pearson correlation distance. Clustering
+        z-scored feature vectors with ordinary Euclidean k-means therefore
+        assigns points to the same nearest centroid a correlation-distance
+        k-means would, without a hand-rolled Lloyd's-algorithm
+        implementation to independently verify.
+
+        Returns
+        -------
+        NDArray[np.double]
+            One row per feature (shape `(n_features, n_instances)`, i.e.
+            already transposed - the orientation `KMeans.fit_predict`
+            expects when clustering features rather than instances), each
+            row zero-mean/unit-variance across instances. A constant
+            feature (zero variance) is left zero-centred rather than
+            divided by zero.
+        """
+        features = x_aux.T
+        mean = features.mean(axis=1, keepdims=True)
+        std = features.std(axis=1, keepdims=True)
+        std[std == 0] = 1.0
+        return (features - mean) / std
+
     def select_features_by_clustering(
         self,
         x_aux: NDArray[np.double],
@@ -818,7 +852,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             random_state=rng.integers(1000),
         )
 
-        cluster_labels: NDArray[np.intc] = kmeans.fit_predict(x_aux.T)
+        standardized = SiftedStage._standardize_for_correlation_distance(x_aux)
+        cluster_labels: NDArray[np.intc] = kmeans.fit_predict(standardized)
 
         # Create a boolean matrix where each column represents a cluster
         clust = np.zeros((x_aux.shape[1], self.opts.k), dtype=bool)
@@ -847,8 +882,11 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         Returns
         -------
         float
-            The fitness score of the solution, representing the negative mean
-            squared error of the k-NN classification.
+            The fitness score of the solution: the worst (highest) per-
+            algorithm k-NN classification loss (`1 - accuracy`), matching
+            MATLAB's `fitcknn`/`kfoldLoss` classification loss (core/
+            SIFTED.m) rather than treating the binary good/bad labels as a
+            regression target (#300 issue 5).
         """
         idx = np.zeros(instance.selfx.shape[1], dtype=bool)
 
@@ -893,14 +931,18 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         y = -np.inf
         for i in range(instance.selfy.shape[1]):
             knn = KNeighborsClassifier(n_neighbors=kneighbours)
+            # Classification accuracy (#300 issue 5), not neg_mean_squared_error -
+            # y_bin is a good/bad class label, not a regression target, matching
+            # MATLAB's fitcknn/kfoldLoss classification loss.
             scores: NDArray[np.double] = cross_val_score(
                 knn,
                 z,
                 instance.selfy_bin[:, i].astype(int),
                 cv=instance.cv_partition,
-                scoring="neg_mean_squared_error",
+                scoring="accuracy",
             )
-            y = max(y, -scores.mean())
+            loss = 1.0 - scores.mean()
+            y = max(y, loss)
 
         instance.cost_cache[cache_key] = y
         return y
@@ -1034,13 +1076,20 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         # tolerating the singleton-cluster boundary the way MATLAB's
         # evalclusters does. Matching that upper bound exactly would require
         # a from-scratch silhouette implementation; kept exclusive for now.
+        # Clustering itself now uses correlation distance too (#300 issue 7),
+        # via the same standardize-then-Euclidean-k-means equivalence
+        # `select_features_by_clustering` uses - previously this used plain
+        # Euclidean k-means while silhouette_score below (unaffected by this
+        # change) already used metric="correlation", an inconsistency this
+        # closes.
+        standardized = SiftedStage._standardize_for_correlation_distance(x_aux)
         for n in range(min_clusters, max_clusters):
             kmeans = KMeans(
                 n_clusters=n,
                 n_init="auto",
                 random_state=rng.integers(1000),
             )
-            cluster_labels = kmeans.fit_predict(x_aux.T)
+            cluster_labels = kmeans.fit_predict(standardized)
             labels[n] = cluster_labels
             silhouette_scores.append(
                 silhouette_score(
