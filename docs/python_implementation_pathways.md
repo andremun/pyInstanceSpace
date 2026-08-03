@@ -757,6 +757,121 @@ ground-truth comparison target — likely a new reference export is needed eithe
 predictions and ground truth are conceptually different things even if this fixture set's
 current files don't cleanly distinguish them.
 
+### F16 — Port TRACE3, MATLAB's current default footprint algorithm
+**Verified starting point, read directly against `core/TRACE.m`/`core/TRACE_legacy.m`
+(`andremun/InstanceSpace`, not inferred from prose):** Python's `stages/trace.py` is a line-for-
+line port of `TRACE_legacy.m` only (confirmed during F11/#302's audit). MATLAB's `TRACE.m` is a
+dispatcher over **two** algorithms - `method='legacy'` (what Python has) and `method='trace3'`
+(MATLAB's actual default now, `TRACE.m:20`) - and Python's own `TraceOptions.method` defaults to
+`"legacy"`, the opposite of MATLAB's current default. `method='trace3'` currently raises
+`NotImplementedError` (a deliberate F13-style fail-loud stub, not a silent gap) with no
+implementation behind it. F11 explicitly scoped this out: "porting TRACE3 itself would be a
+separate, much larger future item if ever prioritised, not part of that decision" - this item is
+that future item, previously mentioned only in prose with no issue of its own.
+
+**What TRACE3 actually does (`TRACEbuild3`, `core/TRACE.m:204-259`), per algorithm:**
+1. `Zu = {zi | yhat_i=1 AND ybin_i=1}` (or just `ybin_i=1` if PYTHIA predictions are
+   unavailable/skipped) - unique rows only.
+2. If `|Zu| <= minInstances` (default 4) -> empty footprint, stop.
+3. Build an alpha-shape over `Zu` at MATLAB's auto-computed default ("critical") alpha - the
+   smallest alpha giving one connected region enclosing every point.
+4. Compute `measure` (area/volume), `elements` (points inside), `goodElements` (good-labelled
+   points inside), `density = elements/measure`, `purity = goodElements/elements`. If invalid
+   (degenerate shape) or `measure < minAreaFrac * spaceArea` (default 0.01) -> empty, stop.
+5. If `purity >= PI` (purity threshold, default 0.6) -> done, return this footprint.
+6. Otherwise **iteratively tighten**: compute the shape's `alphaSpectrum` (MATLAB's built-in -
+   the sorted, topologically-distinct alpha values for this point set), step alpha down through
+   101 points from the current value to the spectrum's minimum, setting `RegionThreshold` (drops
+   already-tiny disconnected regions - MATLAB's own noise filter) at each step, recomputing
+   metrics until purity clears the threshold or the shape becomes invalid/too small. If the whole
+   spectrum is exhausted without clearing purity, return the best (last-computed) footprint.
+
+Also needed: `TRACErescore` (re-scores a *trained* footprint against new points without rebuilding
+it - MATLAB's evaluation-mode counterpart, i.e. the `explore()`-time path) and the top-level
+dispatcher logic (3D check, PYTHIA-availability handling, per-algorithm loop over `good`/`best`,
+the `hard` beta-footprint). Python's `TraceInputs` **already has `y_hat`** wired through
+(confirmed - not a blocker); MATLAB's comment that TRACE "never trains its own KNN classifier"
+(PYTHIA is a mandatory upstream dependency in this pipeline) matches this repo's own stage order
+already, so no fallback classifier path is needed.
+
+**The real roadblock - no free lunch here, flagged before any implementation is attempted:**
+MATLAB's `alphaShape` is a built-in, stateful computational-geometry object (part of base MATLAB,
+not a toolbox function this repo could read the source of) with capabilities Python's existing
+`alphashape` 1.3.1 dependency (used today only for legacy's single fixed-alpha call,
+`alphashape.alphashape(polydata, 2.15)`, `trace.py:814`) does not expose as a ready-made
+equivalent:
+- **Default/critical alpha** - MATLAB auto-selects the smallest alpha giving single-region
+  coverage. `alphashape.optimizealpha()` exists but optimises for a different goal (smallest-area
+  single polygon fit); whether its output is a usable stand-in needs direct comparison, not an
+  assumption.
+- **`alphaSpectrum`** - no Python equivalent function exists, but the pieces to build one are
+  already present: `alphashape.alphasimplices(points)` yields each Delaunay simplex and its
+  circumradius (confirmed via source read - `scipy.spatial.Delaunay`-based, so it already works
+  in arbitrary dimensions, 2D and 3D alike) - the sorted distinct circumradii *are* the
+  alpha-spectrum values by the standard alpha-shape definition. This needs new code, and the
+  radius-vs-inverse-radius convention must be reconciled against MATLAB's actual `Alpha` units
+  before trusting the result.
+- **`RegionThreshold`** (drops small disconnected regions as alpha shrinks) - no equivalent found
+  in `alphashape`/`shapely`/`scipy`. Feasible by hand in 2D (decompose a `MultiPolygon`'s parts,
+  drop ones below an area threshold), but is a fresh, unverified piece of geometry code, not a
+  library call.
+- **Native 3D** (`volume`, `inShape` on a 3D alpha-shape) - `alphashape`'s Delaunay-based core is
+  dimension-agnostic in principle, but its higher-level convenience function and volume
+  computation were not verified for 3D in this pass; a 3D-capable library (`trimesh`, `open3d`)
+  may be a better fit than extending `alphashape` by hand. Ties directly to F2 - Python's PILOT
+  is 2D-only until F2 lands, so there's no real 3D `Z` to test against yet regardless.
+
+**Because of the above, exact MATLAB parity may not be achievable** the way most of this repo's
+other ports are verified (bit-for-bit or tight-tolerance against a MATLAB reference fixture) -
+`alphaSpectrum`/`RegionThreshold` are MATLAB toolbox internals with no published algorithm to
+copy exactly, only their documented *behaviour* to approximate. This item's test plan should be
+scoped around behavioural invariants (purity threshold respected once tightening stops,
+`minInstances`/`minAreaFrac` respected, tightening is monotonically non-worsening) rather than
+assuming a MATLAB-fixture comparison test is even meaningful here - a materially different
+(weaker) parity bar than this repo's norm, worth stating explicitly rather than discovering after
+the fact when a fixture comparison predictably fails to match.
+
+**Two smaller, already-confirmed gaps, folded into this item's option-surface work (not
+separately filed):**
+- `TraceOptions` has no `min_instances`/`min_area_frac` fields at all (F11 deliberately left them
+  out since they have no meaning for legacy - they matter starting here).
+- `TraceOptions.purity` (Python's existing name for MATLAB's `PI`) defaults to `0.55`; MATLAB's
+  actual `ISAdefaults.m` default is `0.6` (`0.55` traces to a specific example script's override,
+  not the toolkit's own default) - worth fixing as part of wiring up `PI`'s real consumer, or
+  flagging as a separate pre-existing default-value mismatch if that's preferred.
+
+**Files:** `instancespace/stages/trace.py` (new `TRACEbuild3`/`TRACEmetrics3`/`TRACErescore`-
+equivalent methods, dispatcher branch replacing today's `NotImplementedError`), `instancespace/
+data/options.py` (`TraceOptions` - add `min_instances: int`, `min_area_frac: float`), possibly a
+new `instancespace/utils/alpha_shape.py` for the spectrum/region-threshold logic if it doesn't
+belong directly in `trace.py`.
+**Pathway:**
+1. Resolve the `alphaSpectrum` question first, in isolation, before touching `trace.py` itself -
+   derive it from `alphashape.alphasimplices`, verify the values behave sensibly (monotonic,
+   sensible range) against a few synthetic point sets, decide the radius-convention question.
+2. Prototype `RegionThreshold`'s small-region-drop behaviour in 2D via `shapely` `MultiPolygon`
+   part filtering.
+3. Implement `TRACEbuild3`'s 2D case end to end (steps 1-6 above), then `TRACErescore`.
+4. Wire the dispatcher: `method='trace3'` branch in the existing method-selection logic
+   (`trace.py`'s current `NotImplementedError` site), replacing the stub.
+5. Defer 3D entirely to a follow-on once F2 lands - don't build 3D alpha-shape support against a
+   Z that can't exist yet.
+**Test:** behavioural-invariant tests per the parity-bar note above, not a MATLAB-fixture
+numeric-match test (unless/until direct comparison proves the reimplementation tracks MATLAB
+closely enough for that to be meaningful).
+**Decision needed:** none blocking implementation start, but two worth a call before or during
+the audit above: (1) whether to fix `TraceOptions.purity`'s default (`0.55` -> `0.6`) as part of
+this work given it's a "TRACE3 needs a real consumer for `PI`" fix, or leave it as a
+separately-tracked pre-existing mismatch; (2) whether Python's own default `TraceOptions.method`
+should flip to `"trace3"` once implemented, matching MATLAB's current default, or stay `"legacy"`
+until TRACE3 has enough independent verification to trust as a new default - recommended:
+**stay `"legacy"` at first**, flip only after real-world use builds confidence, since unlike most
+of this repo's other behavior changes there is no MATLAB-fixture-verified bar to clear first.
+**Soft preference:** implement after F8 lands, not before - `TRACErescore` is exactly the
+`explore()`-time counterpart F8 is designed to unify with the build-time path; building it before
+F8's shared-extraction pattern exists means writing it once now and reconciling it into that
+pattern later, the same rework risk already documented for F8-before-F9.
+
 ---
 
 ## Phase R — ideas from PyISpace/PyHard
