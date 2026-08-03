@@ -210,6 +210,46 @@ def compute_binary_performance(
     )
 
 
+def apply_bound_clip(
+    x: NDArray[np.double],
+    hi_bound: NDArray[np.double],
+    lo_bound: NDArray[np.double],
+) -> NDArray[np.double]:
+    """Clip each feature column of `x` to `[lo_bound, hi_bound]`.
+
+    Equivalent to (and verified bit-for-bit identical, including NaN
+    handling, against) the mask-multiply arithmetic this replaces -
+    `np.clip` simply expresses the same operation without hand-writing it
+    twice. Shared by `PrelimStage._bound()` (training, clipping to bounds
+    just fit from this same data) and `InstanceSpace._explore_prelim()`
+    (test data, clipping to the trained model's stored bounds) - one
+    implementation, not a second one written to match it by hand.
+    """
+    return np.clip(x, lo_bound, hi_bound)
+
+
+def apply_boxcox_zscore(
+    x: NDArray[np.double],
+    lambda_: float,
+    mu: float,
+    sigma: float,
+) -> NDArray[np.double]:
+    """Apply a Box-Cox transform at a known `lambda`, then z-score at known mu/sigma.
+
+    Verified bit-for-bit identical to `scipy.stats.zscore(stats.boxcox(x,
+    lambda_), ddof=1)` when `mu`/`sigma` are themselves `x`'s own
+    box-cox'd mean/std (ddof=1) - i.e. this is a drop-in replacement for
+    recomputing the z-score from scratch, not a new formula. Shared by
+    `PrelimStage._normalise()` (training, applying the lambda/mu/sigma it
+    just fit from this same column) and `InstanceSpace._explore_prelim()`
+    (test data, applying the trained model's stored lambda/mu/sigma) - one
+    implementation, not a second one written to match it by hand. `x` must
+    already be positive (the min-shift-by-1 step happens before this call).
+    """
+    transformed = stats.boxcox(x, lambda_)
+    return (transformed - mu) / sigma
+
+
 class PrelimInput(NamedTuple):
     """Inputs for the Prelim stage.
 
@@ -612,12 +652,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         hi_bound = med_val + multiplier * iq_range
         lo_bound = med_val - multiplier * iq_range
 
-        hi_mask = self.x > hi_bound
-        lo_mask = self.x < lo_bound
-
-        self.x = self.x * ~(hi_mask | lo_mask)
-        self.x += np.multiply(hi_mask, np.broadcast_to(hi_bound, self.x.shape))
-        self.x += np.multiply(lo_mask, np.broadcast_to(lo_bound, self.x.shape))
+        self.x = apply_bound_clip(self.x, hi_bound, lo_bound)
 
         return _BoundOut(
             x=self.x,
@@ -695,7 +730,13 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         nfeats = self.x.shape[1]
         nalgos = self.y.shape[1]
 
-        min_x = np.min(self.x, axis=0)
+        # nanmin (not min): a column with even one NaN must not have every
+        # other, otherwise-valid entry in that column turned into NaN by the
+        # shift below (plain `min` propagates NaN as the column minimum,
+        # which then poisons `x - min_x` for every row) - matches MATLAB's
+        # own `min(X, [], 1, 'omitnan')` and the unconditional nanmin already
+        # used elsewhere in `_prelim()` for this same statistic.
+        min_x = np.nanmin(self.x, axis=0)
         self.x = self.x - min_x + 1
         lambda_x = np.zeros(nfeats)
         mu_x = np.zeros(nfeats)
@@ -704,11 +745,16 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         for i in range(nfeats):
             aux = self.x[:, i]
             idx = np.isnan(aux)
-            aux, lambda_x[i] = boxcox_fmin(aux[~idx])
-            mu_x[i] = np.mean(aux)
-            sigma_x[i] = np.std(aux, ddof=1)
-            aux = stats.zscore(aux, ddof=1)
-            self.x[~idx, i] = aux
+            valid = aux[~idx]
+            fit_transformed, lambda_x[i] = boxcox_fmin(valid)
+            mu_x[i] = np.mean(fit_transformed)
+            sigma_x[i] = np.std(fit_transformed, ddof=1)
+            self.x[~idx, i] = apply_boxcox_zscore(
+                valid,
+                lambda_x[i],
+                mu_x[i],
+                sigma_x[i],
+            )
 
         min_y = float(np.min(self.y))
 

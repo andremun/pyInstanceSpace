@@ -70,7 +70,15 @@ algorithm performance columns. Two new pre-existing bugs surfaced by this work, 
 (both `[Behavior-changing]`, need their own verification): #314 (`nalgos==1` selection index is
 1, not 0) and #315 (TRACE's training-time footprint metrics use boundary-exclusive `.contains()`
 while explore-time membership uses boundary-inclusive `.covers()`). PILOT also gained a `method`
-option (`"standard"`/`"pls"`, roadmap v1.65) as part of F2's non-3D-blocked scope.
+option (`"standard"`/`"pls"`, roadmap v1.65) as part of F2's non-3D-blocked scope. **PRELIM's own
+build/explore duplication is now simplified too (roadmap v1.67)** — shared `apply_bound_clip()`/
+`apply_boxcox_zscore()` functions, used by both `PrelimStage._bound()`/`_normalise()` and
+`InstanceSpace._explore_prelim()`; this surfaced and fixed two real bugs along the way (a
+`np.min`-vs-`np.nanmin` NaN-propagation bug in `_normalise()`, and `_explore_prelim()` ignoring
+`BoundOptions.flag`/`NormOptions.flag` entirely). **F9's "new algorithm absent from training" edge
+case is also now implemented, at full MATLAB parity** — `y_hat`/`pr0_hat`/`in_good`/`in_best` widen
+to include a placeholder column per new algorithm (matching MATLAB's `PYTHIAevalMode`/`TRACEthrow3`
+padding), not just the evaluation metrics; new `ExploreResult.algo_labels` field.
 Check `docs/pyIS_docs_quality_roadmap.md`'s document-history table (append-only, read newest
 entries first) for the actual current state before assuming anything below is still accurate —
 this file gets stale between sessions; that table doesn't.
@@ -124,8 +132,6 @@ first and reporting back, even if the fix seems obvious.
 
 ## Deferred — do not act on these without being asked
 
-- F9's "new algorithm absent from training" edge case — explicitly deferred, ship the common
-  case first.
 - R3 (CLI ideas) — not scoped, no active work item.
 - Any MATLAB-side change — that's a different repo (`andremun/InstanceSpace`), tracked in its
   own issue batches, not this one.

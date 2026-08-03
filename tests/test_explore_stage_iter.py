@@ -21,6 +21,7 @@ from instancespace.instance_space import ExploreStage, InstanceSpace
 # else about this fake object needs to look like a `Metadata`.
 _FakeMetadata = type("_FakeMetadata", (), {"algorithm_names": []})
 _NO_GROUND_TRUTH = cast(Metadata, cast(object, _FakeMetadata()))
+_FakeData = type("_FakeData", (), {"algo_labels": ["a0", "a1"]})
 
 
 def _stub_stages(space) -> None:  # type: ignore[no-untyped-def]
@@ -35,8 +36,13 @@ def _stub_stages(space) -> None:  # type: ignore[no-untyped-def]
     space._explore_prelim = lambda x: f"prelim({x})"
     space._explore_sifted = lambda x: f"sifted({x})"
     space._explore_pilot = lambda _x: "Z"
-    space._explore_pythia = lambda _z: ("yhat", "pr0", "sel")
-    space._explore_trace = lambda _z: ("ingood", "inbest")
+    space._explore_pythia = lambda _z, n_new_algos=0: ("yhat", "pr0", "sel")
+    space._explore_trace = lambda _z, n_new_algos=0: ("ingood", "inbest")
+    space._find_new_algorithms = lambda _md, _algo_labels: []
+    # Only reached when test_metadata carries ground truth (has_ground_truth
+    # branch in explore_stage_iter) - stubbed here too so that path doesn't
+    # need a real trained Model.
+    space._require_model = lambda: type("_FakeModel", (), {"data": _FakeData()})()
 
 
 def test_explore_stage_iter_yields_the_five_stages_in_order() -> None:
@@ -114,7 +120,9 @@ def test_explore_stage_iter_yields_evaluation_when_ground_truth_present() -> Non
 
     space = InstanceSpace.__new__(InstanceSpace)
     _stub_stages(space)
-    space._explore_evaluate = lambda _md, y_hat: f"evaluation({y_hat})"  # type: ignore[method-assign,assignment,return-value]
+    space._explore_evaluate = (  # type: ignore[method-assign,assignment,return-value]
+        lambda _md, y_hat, _new_algo_labels: f"evaluation({y_hat})"
+    )
 
     yielded = list(space.explore_stage_iter(cast(Metadata, with_ground_truth)))
 

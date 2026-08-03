@@ -70,7 +70,12 @@ from instancespace.stage_runner import (
 )
 from instancespace.stages.cloister import CloisterStage
 from instancespace.stages.pilot import PilotStage
-from instancespace.stages.prelim import PrelimStage, compute_binary_performance
+from instancespace.stages.prelim import (
+    PrelimStage,
+    apply_bound_clip,
+    apply_boxcox_zscore,
+    compute_binary_performance,
+)
 from instancespace.stages.preprocessing import PreprocessingStage
 from instancespace.stages.pythia import PythiaStage
 from instancespace.stages.sifted import SiftedStage
@@ -185,7 +190,9 @@ class AnnotatedExploreOutput(NamedTuple):
 class _EvaluationResult(NamedTuple):
     """PYTHIA-vs-ground-truth evaluation fields (F9).
 
-    Yielded for `ExploreStage.EVALUATION`.
+    Yielded for `ExploreStage.EVALUATION`. All per-algorithm fields are
+    width `n_trained_algorithms + n_new_algos` (full MATLAB parity) - see
+    `InstanceSpace._explore_evaluate`.
     """
 
     y_actual: NDArray[np.bool_]
@@ -196,6 +203,7 @@ class _EvaluationResult(NamedTuple):
     precision_actual: NDArray[np.double]
     recall_actual: NDArray[np.double]
     cvcmat_actual: NDArray[np.double]
+    algo_labels: list[str]
 
 
 class InstanceSpace:
@@ -761,6 +769,7 @@ class InstanceSpace:
             cvcmat_actual=(
                 evaluation_result.cvcmat_actual if evaluation_result else None
             ),
+            algo_labels=evaluation_result.algo_labels if evaluation_result else None,
         )
 
         self._explore_results.append(result)
@@ -786,6 +795,13 @@ class InstanceSpace:
         yielded at all) when the test set has no ground truth, matching
         ``explore()``'s own conditional field population.
 
+        When the test set introduces algorithms absent from training (full
+        MATLAB parity, F9), ``PYTHIA``'s and ``TRACE``'s yielded arrays are
+        widened to include a column per new algorithm (``False``/``0``
+        placeholders - no trained classifier or footprint exists for them),
+        matching MATLAB's own ``evaluateTestSet`` reconciliation happening
+        *before* ``PYTHIA``/``TRACE`` run, not after.
+
         Args
         ----
             test_metadata : Metadata
@@ -805,21 +821,30 @@ class InstanceSpace:
         """
         self._validate_for_explore(test_metadata)
 
+        has_ground_truth = len(test_metadata.algorithm_names) > 0
+        new_algo_labels: list[str] = []
+        if has_ground_truth:
+            algo_labels = self._require_model().data.algo_labels
+            new_algo_labels = self._find_new_algorithms(test_metadata, algo_labels)
+
         x = self._explore_prelim(self._extract_features(test_metadata))
         yield AnnotatedExploreOutput(ExploreStage.PRELIM, x)
         x = self._explore_sifted(x)
         yield AnnotatedExploreOutput(ExploreStage.SIFTED, x)
         z = self._explore_pilot(x)
         yield AnnotatedExploreOutput(ExploreStage.PILOT, z)
-        pythia_result = self._explore_pythia(z)
+        pythia_result = self._explore_pythia(z, n_new_algos=len(new_algo_labels))
         yield AnnotatedExploreOutput(ExploreStage.PYTHIA, pythia_result)
-        yield AnnotatedExploreOutput(ExploreStage.TRACE, self._explore_trace(z))
+        yield AnnotatedExploreOutput(
+            ExploreStage.TRACE,
+            self._explore_trace(z, n_new_algos=len(new_algo_labels)),
+        )
 
-        if len(test_metadata.algorithm_names) > 0:
+        if has_ground_truth:
             y_hat = pythia_result[0]
             yield AnnotatedExploreOutput(
                 ExploreStage.EVALUATION,
-                self._explore_evaluate(test_metadata, y_hat),
+                self._explore_evaluate(test_metadata, y_hat, new_algo_labels),
             )
 
     def _require_model(self) -> Model:
@@ -918,8 +943,21 @@ class InstanceSpace:
     def _explore_prelim(self, x: NDArray[np.double]) -> NDArray[np.double]:
         """Apply PRELIM transformations to features.
 
-        Applies bounding, Box-Cox transformation, and z-score normalization
-        using parameters learned during training.
+        Applies bound-clipping and Box-Cox/z-score normalisation using
+        parameters learned during training, via the same `apply_bound_clip`/
+        `apply_boxcox_zscore` functions `PrelimStage._bound()`/`_normalise()`
+        use at training time - a hand-duplicated second copy of the same
+        arithmetic previously lived here instead.
+
+        Only applies the steps `BoundOptions.flag`/`NormOptions.flag`
+        (read from the same `InstanceSpaceOptions` used to train this model)
+        actually enabled at training time. Previously this method ignored
+        both flags and always applied both steps unconditionally - wrong
+        whenever a model was trained with either flag off, and unsafe when
+        `norm=False`: `lambda_x`/`mu_x`/`sigma_x` are unfit zero arrays in
+        that case, so applying Box-Cox at `lambda=0` (a log transform, not a
+        no-op) and then dividing by `sigma_x=0` would have produced `inf`/
+        `nan` for every test instance's features.
 
         Args
         ----
@@ -931,47 +969,43 @@ class InstanceSpace:
             NDArray[np.double]
                 Transformed feature matrix with shape (n_instances, n_features).
         """
-        from scipy import stats
-
         prelim = self._require_model().prelim
+        bound = self._options.bound.flag
+        norm = self._options.norm.flag
 
-        clipped = np.any(
-            (x < prelim.lo_bound) | (x > prelim.hi_bound),
-            axis=1,
-        )
-        frac_clipped = np.mean(clipped)
-        if frac_clipped > _OOD_CLIPPED_FRACTION_THRESHOLD:
-            logger.warning(
-                f"explore(): {frac_clipped:.1%} of test instances have at least one "
-                "feature outside the training bounds and were clipped to them. This "
-                "suggests the test set may not be well represented by the trained "
-                "instance space; consider retraining with a combined dataset.",
+        if bound:
+            clipped = np.any(
+                (x < prelim.lo_bound) | (x > prelim.hi_bound),
+                axis=1,
             )
+            frac_clipped = np.mean(clipped)
+            if frac_clipped > _OOD_CLIPPED_FRACTION_THRESHOLD:
+                logger.warning(
+                    f"explore(): {frac_clipped:.1%} of test instances have at least "
+                    "one feature outside the training bounds and were clipped to "
+                    "them. This suggests the test set may not be well represented "
+                    "by the trained instance space; consider retraining with a "
+                    "combined dataset.",
+                )
+            x = apply_bound_clip(x, prelim.hi_bound, prelim.lo_bound)
 
-        # Create a copy to avoid modifying input
+        if not norm:
+            return x
+
         x_transformed = x.copy()
         n_features = x.shape[1]
 
         for i in range(n_features):
-            x_transformed[:, i] = np.clip(
-                x_transformed[:, i],
-                prelim.lo_bound[i],
-                prelim.hi_bound[i],
-            )
-
             x_transformed[:, i] = x_transformed[:, i] - prelim.min_x[i] + 1
 
             idx_valid = ~np.isnan(x_transformed[:, i])
             if np.any(idx_valid):
-                x_transformed[idx_valid, i] = stats.boxcox(
+                x_transformed[idx_valid, i] = apply_boxcox_zscore(
                     x_transformed[idx_valid, i],
                     prelim.lambda_x[i],
+                    prelim.mu_x[i],
+                    prelim.sigma_x[i],
                 )
-
-            if np.any(idx_valid):
-                x_transformed[idx_valid, i] = (
-                    x_transformed[idx_valid, i] - prelim.mu_x[i]
-                ) / prelim.sigma_x[i]
 
         return x_transformed
 
@@ -1014,6 +1048,7 @@ class InstanceSpace:
     def _explore_pythia(
         self,
         z: NDArray[np.double],
+        n_new_algos: int = 0,
     ) -> tuple[NDArray[np.bool_], NDArray[np.double], NDArray[np.int_]]:
         """Get algorithm predictions using PYTHIA's trained classifiers.
 
@@ -1033,17 +1068,29 @@ class InstanceSpace:
         ``PythiaStage._weighted_selection`` (F8 - the same selection formula
         ``PythiaStage._determine_selections`` uses at training time).
 
+        ``n_new_algos`` (F9, full MATLAB parity) widens ``y_hat``/``pr0_hat``
+        by that many columns, defaulted to ``False``/``0.0`` - "no trained
+        classifier" placeholders, matching MATLAB's ``PYTHIAevalMode`` padding
+        for algorithms present in the test set but absent from training. The
+        widened columns are given zero precision before the weighted-selection
+        step, so ``selection0`` can never point at one of them (matching
+        MATLAB's ``selPrecision`` zero-padding).
+
         Args
         ----
             z : NDArray[np.double]
                 2D coordinates with shape (n_instances, 2).
+            n_new_algos : int
+                Number of test-set-only algorithms (from `_find_new_algorithms`)
+                to pad the output with. `0` (default) reproduces this method's
+                pre-F9 behaviour exactly.
 
         Returns
         -------
             tuple[NDArray[np.bool_], NDArray[np.double], NDArray[np.int_]]
-                - y_hat: binary good/bad predictions, shape (n_instances, n_algorithms)
-                - pr0_hat: posterior probability of the "bad" class, shape
-                  (n_instances, n_algorithms)
+                - y_hat: binary good/bad predictions, shape
+                  (n_instances, n_trained_algorithms + n_new_algos)
+                - pr0_hat: posterior probability of the "bad" class, same shape
                 - selection0: recommended algorithm index (0-based) per instance,
                   or -1 when no algorithm was predicted good. Shape (n_instances,)
         """
@@ -1056,7 +1103,8 @@ class InstanceSpace:
 
         z_norm = (z - mu) / sigma
         n_inst = z_norm.shape[0]
-        n_algos = len(svms)
+        n_trained = len(svms)
+        n_algos = n_trained + n_new_algos
 
         y_hat = np.zeros((n_inst, n_algos), dtype=np.bool_)
         pr0_hat = np.zeros((n_inst, n_algos), dtype=np.double)
@@ -1067,9 +1115,12 @@ class InstanceSpace:
             pr0_hat[:, i] = proba[:, bad_idx]
             y_hat[:, i] = svc.predict(z_norm)
 
+        weighted_precision = np.zeros(n_algos, dtype=np.double)
+        weighted_precision[:n_trained] = precision
+
         best, selection0 = PythiaStage._weighted_selection(  # noqa: SLF001
             n_algos,
-            precision,
+            weighted_precision,
             y_hat,
         )
         selection0[best <= 0] = -1
@@ -1079,6 +1130,7 @@ class InstanceSpace:
     def _explore_trace(
         self,
         z: NDArray[np.double],
+        n_new_algos: int = 0,
     ) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
         """Check footprint membership using TRACE polygons.
 
@@ -1092,26 +1144,37 @@ class InstanceSpace:
         it, and the value in ``step5_trace_membership.csv`` is sourced from
         CLOISTER (a build-time stage outside this port's scope).
 
+        ``n_new_algos`` (F9, full MATLAB parity) widens ``in_good``/``in_best``
+        by that many columns, defaulted to ``False`` - "no trained footprint"
+        placeholders, matching MATLAB's ``TRACEthrow3`` empty-footprint padding
+        for algorithms present in the test set but absent from training (there
+        is no membership to test against a footprint that was never built).
+
         Args
         ----
             z : NDArray[np.double]
                 2D coordinates with shape (n_instances, 2).
+            n_new_algos : int
+                Number of test-set-only algorithms (from `_find_new_algorithms`)
+                to pad the output with. `0` (default) reproduces this method's
+                pre-F9 behaviour exactly.
 
         Returns
         -------
             tuple[NDArray[np.bool_], NDArray[np.bool_]]
-                - in_good: (n_instances, n_algorithms) bool array
-                - in_best: (n_instances, n_algorithms) bool array
+                - in_good: (n_instances, n_trained_algorithms + n_new_algos) bool array
+                - in_best: same shape
         """
         trace = self._require_model().trace
         n = z.shape[0]
-        n_algos = len(trace.good)
+        n_trained = len(trace.good)
+        n_algos = n_trained + n_new_algos
         points = [Point(z[i, 0], z[i, 1]) for i in range(n)]
 
         in_good = np.zeros((n, n_algos), dtype=np.bool_)
         in_best = np.zeros((n, n_algos), dtype=np.bool_)
 
-        for j in range(n_algos):
+        for j in range(n_trained):
             good_poly = trace.good[j].polygon
             best_poly = trace.best[j].polygon
             if good_poly is not None:
@@ -1121,26 +1184,18 @@ class InstanceSpace:
 
         return in_good, in_best
 
-    def _build_test_algo_matrix(
+    def _find_new_algorithms(
         self,
         test_metadata: Metadata,
         algo_labels: list[str],
-    ) -> tuple[NDArray[np.double], NDArray[np.bool_]]:
-        """Reindex test_metadata's raw performance columns to the trained algo order.
+    ) -> list[str]:
+        """Find test-set algorithm names absent from the trained model (F9).
 
-        Case-insensitive name matching (mirrors MATLAB's ``strcmpi``). An
-        algorithm present in training but absent from the test set becomes an
-        all-NaN column - `compute_binary_performance`'s existing
-        `max_perf`/`abs_perf` NaN handling then treats it as never the best
-        for any instance (matching MATLAB's convention for missing ground
-        truth), so no separate branch is needed for that case there. The
-        returned mask records which columns have real ground truth, so
-        `_explore_evaluate` can report `NaN` accuracy/precision/recall/
-        confusion-matrix for an algorithm rather than compute one against a
-        fabricated all-bad label.
-
-        "New" algorithms present in the test set but absent from training are
-        dropped entirely - deferred, see roadmap F9.
+        Case-insensitive match (mirrors MATLAB's ``strcmpi``, `InstanceSpace.
+        evaluateTestSet`'s reconciliation step). Order matches first
+        appearance in `test_metadata.algorithm_names`, duplicates collapsed -
+        matching MATLAB's own append-in-encounter-order `Yaux`/`lblaux`
+        widening.
 
         Args
         ----
@@ -1151,18 +1206,73 @@ class InstanceSpace:
 
         Returns
         -------
+            list[str]
+                Test-set algorithm names not present in `algo_labels`.
+        """
+        trained_lower = {label.lower() for label in algo_labels}
+        seen: set[str] = set()
+        new_algos: list[str] = []
+        for name in test_metadata.algorithm_names:
+            lower = name.lower()
+            if lower not in trained_lower and lower not in seen:
+                new_algos.append(name)
+                seen.add(lower)
+        return new_algos
+
+    def _build_test_algo_matrix(
+        self,
+        test_metadata: Metadata,
+        algo_labels: list[str],
+        new_algo_labels: list[str],
+    ) -> tuple[NDArray[np.double], NDArray[np.bool_]]:
+        """Reindex test_metadata's raw performance to [trained | new] algo order.
+
+        Case-insensitive name matching (mirrors MATLAB's ``strcmpi``). An
+        algorithm present in training but absent from the test set becomes an
+        all-NaN column - `compute_binary_performance`'s existing
+        `max_perf`/`abs_perf` NaN handling then treats it as never the best
+        for any instance (matching MATLAB's convention for missing ground
+        truth), so no separate branch is needed for that case there. The
+        returned mask records which of the *trained* columns have real ground
+        truth, so `_explore_evaluate` can report `NaN` accuracy/precision/
+        recall/confusion-matrix for an algorithm rather than compute one
+        against a fabricated all-bad label.
+
+        Algorithms in `new_algo_labels` (present in the test set, absent from
+        training - see `_find_new_algorithms`) are appended as extra columns
+        with their real test-set performance, matching MATLAB's `Yaux`
+        widening in `evaluateTestSet` - they participate as full candidates
+        in the binary-performance comparison (`compute_binary_performance`
+        can pick a new algorithm as "best" for an instance) even though no
+        classifier/footprint exists for them elsewhere in `explore()`.
+
+        Args
+        ----
+            test_metadata : Metadata
+                Test metadata, possibly carrying `algo_*` performance columns.
+            algo_labels : list[str]
+                The trained algorithm order (`Model.data.algo_labels`).
+            new_algo_labels : list[str]
+                Test-set-only algorithm names, from `_find_new_algorithms`.
+
+        Returns
+        -------
             tuple[NDArray[np.double], NDArray[np.bool_]]
-                - y_raw_test: (n_instances, n_algorithms) raw performance,
-                  reindexed to `algo_labels`' order, NaN where absent.
-                - has_ground_truth: (n_algorithms,) mask of which columns are real.
+                - y_raw_test: (n_instances, n_trained + n_new) raw performance,
+                  reindexed to `algo_labels + new_algo_labels`' order, NaN
+                  where a trained algorithm is absent from the test set.
+                - has_ground_truth: (n_trained,) mask of which *trained*
+                  columns have real ground truth (new algorithms always do,
+                  by construction - not included in this mask).
         """
         test_cols = {
             name.lower(): i for i, name in enumerate(test_metadata.algorithm_names)
         }
         ninst = test_metadata.algorithms.shape[0]
-        n_algos = len(algo_labels)
-        y_raw_test = np.full((ninst, n_algos), np.nan, dtype=np.double)
-        has_ground_truth = np.zeros(n_algos, dtype=np.bool_)
+        n_trained = len(algo_labels)
+        n_new = len(new_algo_labels)
+        y_raw_test = np.full((ninst, n_trained + n_new), np.nan, dtype=np.double)
+        has_ground_truth = np.zeros(n_trained, dtype=np.bool_)
 
         for i, label in enumerate(algo_labels):
             col = test_cols.get(label.lower())
@@ -1170,12 +1280,17 @@ class InstanceSpace:
                 y_raw_test[:, i] = test_metadata.algorithms[:, col]
                 has_ground_truth[i] = True
 
+        for j, label in enumerate(new_algo_labels):
+            col = test_cols[label.lower()]
+            y_raw_test[:, n_trained + j] = test_metadata.algorithms[:, col]
+
         return y_raw_test, has_ground_truth
 
     def _explore_evaluate(
         self,
         test_metadata: Metadata,
         y_hat: NDArray[np.bool_],
+        new_algo_labels: list[str],
     ) -> _EvaluationResult:
         """Evaluate PYTHIA's predictions against ground truth (F9).
 
@@ -1193,7 +1308,13 @@ class InstanceSpace:
 
         Algorithms absent from the test set's ground truth (see
         `_build_test_algo_matrix`) report `NaN` metrics rather than a
-        confusion matrix computed against a fabricated label.
+        confusion matrix computed against a fabricated label. Algorithms in
+        `new_algo_labels` (full MATLAB parity, F9) always have real ground
+        truth by construction but never have a trained classifier, so they
+        also report `NaN` metrics - matching MATLAB's `PYTHIAevalMode`
+        ("no CV model" convention for `ii > modelalgos`) - while still
+        participating as full candidates in `y_best_actual`/`p_actual`/
+        `beta_actual` via the widened `compute_binary_performance` call.
 
         Args
         ----
@@ -1203,19 +1324,26 @@ class InstanceSpace:
                 one is present).
             y_hat : NDArray[np.bool_]
                 PYTHIA's binary predictions, already computed by
-                `_explore_pythia`. Shape: (n_instances, n_algorithms).
+                `_explore_pythia` and already widened to include
+                `new_algo_labels`' columns (all `False`).
+                Shape: (n_instances, n_trained + n_new).
+            new_algo_labels : list[str]
+                Test-set-only algorithm names, from `_find_new_algorithms`.
 
         Returns
         -------
             _EvaluationResult
-                The ground-truth-vs-prediction evaluation fields.
+                The ground-truth-vs-prediction evaluation fields, all
+                per-algorithm fields width `n_trained + n_new`.
         """
         model = self._require_model()
         algo_labels = model.data.algo_labels
+        n_trained = len(algo_labels)
 
         y_raw_test, has_ground_truth = self._build_test_algo_matrix(
             test_metadata,
             algo_labels,
+            new_algo_labels,
         )
 
         perf = compute_binary_performance(
@@ -1225,13 +1353,13 @@ class InstanceSpace:
             log_prefix="EXPLORE",
         )
 
-        n_algos = len(algo_labels)
+        n_algos = n_trained + len(new_algo_labels)
         accuracy = np.full(n_algos, np.nan, dtype=np.double)
         precision = np.full(n_algos, np.nan, dtype=np.double)
         recall = np.full(n_algos, np.nan, dtype=np.double)
         cvcmat = np.full((n_algos, 4), np.nan, dtype=np.double)
 
-        for i in range(n_algos):
+        for i in range(n_trained):
             if not has_ground_truth[i]:
                 continue
             y_true = perf.y_bin[:, i]
@@ -1242,6 +1370,9 @@ class InstanceSpace:
             accuracy[i] = accuracy_score(y_true, y_pred)
             precision[i] = precision_score(y_true, y_pred)
             recall[i] = recall_score(y_true, y_pred)
+        # Columns [n_trained:] (new algorithms) stay NaN - no trained
+        # classifier exists for them, matching MATLAB's "no CV model"
+        # convention rather than scoring against a fabricated prediction.
 
         return _EvaluationResult(
             y_actual=perf.y_bin,
@@ -1252,6 +1383,7 @@ class InstanceSpace:
             precision_actual=precision,
             recall_actual=recall,
             cvcmat_actual=cvcmat,
+            algo_labels=[*algo_labels, *new_algo_labels],
         )
 
 

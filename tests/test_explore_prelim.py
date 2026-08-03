@@ -53,6 +53,12 @@ def mock_instance_space(mock_prelim_params: PrelimOut) -> InstanceSpace:
     mock_is._model = Mock()
     mock_is._model.prelim = mock_prelim_params
     mock_is._require_model = Mock(return_value=mock_is._model)
+    # All tests in this file exercise both steps (matches this fixture's
+    # historical, pre-flag-check behaviour) - the bound=False/norm=False
+    # cases have their own dedicated tests below.
+    mock_is._options = Mock()
+    mock_is._options.bound.flag = True
+    mock_is._options.norm.flag = True
     return mock_is
 
 
@@ -217,6 +223,72 @@ def test_prelim_ood_warning_silent_below_threshold(mock_instance_space: Instance
     assert messages == []
 
 
+def test_prelim_skips_clipping_when_bound_flag_is_false(
+    mock_instance_space: InstanceSpace,
+) -> None:
+    """Regression: explore() must not clip when the trained model used bound=False.
+
+    Previously `_explore_prelim` always clipped to `lo_bound`/`hi_bound`
+    regardless of `BoundOptions.flag` - wrong whenever a model was trained
+    with bounding disabled, since values genuinely outside the training
+    range would then be silently clamped anyway.
+
+    `mock_prelim_params`'s fixture values (`lambda_x=1`, `min_x=0`,
+    `mu_x=5`, `sigma_x=2`) make the post-bound normalisation step a plain
+    affine map, `(x - 5) / 2` - computed by hand here as the expected
+    value, independent of clipping, so this test can assert the *unclipped*
+    input passed through untouched by any bound step. `-0.5` (not further
+    below zero) keeps the min-shifted value positive, since Box-Cox itself
+    requires strictly positive input regardless of clipping - a value far
+    enough outside the trained range to go negative post-shift is exactly
+    what bound-clipping exists to prevent, a separate concern from this
+    flag-respecting test.
+    """
+    mock_instance_space._options.bound.flag = False  # type: ignore[attr-defined,misc]
+    x_raw = np.array([[-0.5, 15.0, 5.0], [5.0, 5.0, 5.0]])
+
+    messages = _collect_warnings(
+        InstanceSpace._explore_prelim,
+        mock_instance_space,
+        x_raw,
+    )
+    result = InstanceSpace._explore_prelim(mock_instance_space, x_raw)
+
+    assert messages == []  # no OOD warning either, since nothing was clipped
+    expected = (x_raw - 5.0) / 2.0
+    np.testing.assert_allclose(result, expected)
+
+
+def test_prelim_skips_normalisation_when_norm_flag_is_false(
+    mock_instance_space: InstanceSpace,
+) -> None:
+    """Regression: explore() must not apply Box-Cox/z-score when norm=False.
+
+    Previously `_explore_prelim` always applied Box-Cox + z-score
+    regardless of `NormOptions.flag`; with `norm=False` a real trained
+    model's `lambda_x`/`mu_x`/`sigma_x` are all-zero (never fit), which
+    would have produced `inf`/`nan` for every instance (Box-Cox at
+    `lambda=0` is a log transform, then dividing by `sigma_x=0`).
+    """
+    mock_instance_space._options.norm.flag = False  # type: ignore[attr-defined,misc]
+    # Zero out lambda_x/mu_x/sigma_x to match a real norm=False-trained
+    # model exactly (the fixture's mock_prelim_params otherwise sets
+    # non-zero values that would coincidentally survive the bug).
+    prelim = mock_instance_space._model.prelim  # type: ignore[attr-defined,union-attr]
+    prelim.lambda_x[:] = 0.0
+    prelim.mu_x[:] = 0.0
+    prelim.sigma_x[:] = 0.0
+    x_raw = np.array([[5.0, 5.0, 5.0], [1.0, 2.0, 3.0]])
+
+    result = InstanceSpace._explore_prelim(mock_instance_space, x_raw)
+
+    assert np.all(np.isfinite(result))
+    # bound=True still applies (unaffected by norm=False); only the
+    # normalisation step is skipped, so output equals the clipped input.
+    expected = np.clip(x_raw, prelim.lo_bound, prelim.hi_bound)
+    np.testing.assert_array_equal(result, expected)
+
+
 def load_prelim_params() -> PrelimOut:
     df = pd.read_csv(ARTIFACTS_DIR / "prelim" / "prelim_params.csv")
     n = len(df)
@@ -245,6 +317,9 @@ def test_prelim_matches_matlab() -> None:
     instance_space._model = Mock()
     instance_space._model.prelim = load_prelim_params()
     instance_space._require_model = Mock(return_value=instance_space._model)
+    instance_space._options = Mock()
+    instance_space._options.bound.flag = True
+    instance_space._options.norm.flag = True
 
     result = InstanceSpace._explore_prelim(instance_space, x_raw)
 
