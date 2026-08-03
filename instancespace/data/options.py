@@ -38,6 +38,7 @@ from instancespace.data.default_options import (
     DEFAULT_PERFORMANCE_MAX_PERF,
     DEFAULT_PILOT_ADJUST_ROTATION,
     DEFAULT_PILOT_ANALYTICS,
+    DEFAULT_PILOT_COST_WEIGHT,
     DEFAULT_PILOT_N_TRIES,
     DEFAULT_PYTHIA_CLASSIFIER,
     DEFAULT_PYTHIA_CV_FOLDS,
@@ -327,26 +328,36 @@ class PilotOptions:
     """Options for pilot studies or preliminary analysis phases."""
 
     x0: NDArray[np.double] | None
-    alpha: NDArray[np.double] | None
+    # Optional precomputed optimisation solution vector, shape (2*m + 2*n,)
+    # (MATLAB's opts.precalcAlpha). Distinct from cost_weight below - this
+    # used to be conflated under one `alpha` field (#301 issue 1).
+    precalc_alpha: NDArray[np.double] | None
     analytic: bool
     n_tries: int
     adjust_rotation: bool = DEFAULT_PILOT_ADJUST_ROTATION
+    # Scalar performance-reconstruction cost weight (MATLAB's opts.alpha,
+    # also called costWeight). Weights the performance block relative to the
+    # feature block in both the analytic and numerical solvers. 1.0 (default)
+    # weights both blocks equally.
+    cost_weight: float = DEFAULT_PILOT_COST_WEIGHT
 
     @staticmethod
     def default(
         analytic: bool = DEFAULT_PILOT_ANALYTICS,
         n_tries: int = DEFAULT_PILOT_N_TRIES,
         x0: NDArray[np.double] | None = None,
-        alpha: NDArray[np.double] | None = None,
+        precalc_alpha: NDArray[np.double] | None = None,
         adjust_rotation: bool = DEFAULT_PILOT_ADJUST_ROTATION,
+        cost_weight: float = DEFAULT_PILOT_COST_WEIGHT,
     ) -> PilotOptions:
         """Instantiate with default values."""
         return PilotOptions(
             analytic=analytic,
             n_tries=n_tries,
             x0=x0,
-            alpha=alpha,
+            precalc_alpha=precalc_alpha,
             adjust_rotation=adjust_rotation,
+            cost_weight=cost_weight,
         )
 
 
@@ -595,6 +606,7 @@ class InstanceSpaceOptions:
 
         _check_logical("pilot.analytic", self.pilot.analytic)
         _check_pos_int("pilot.ntries", self.pilot.n_tries)
+        _check_positive("pilot.costWeight", self.pilot.cost_weight)
 
         _check_unit_range("cloister.pval", self.cloister.p_val)
         _check_unit_range("cloister.corrThreshold", self.cloister.c_thres)
@@ -710,6 +722,7 @@ class InstanceSpaceOptions:
                 {
                     "ntries": "n_tries",
                     "adjustrotation": "adjust_rotation",
+                    "costweight": "cost_weight",
                     # "x0": "x0"
                 },
             ),

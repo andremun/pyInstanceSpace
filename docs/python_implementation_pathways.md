@@ -441,6 +441,14 @@ existing users' default output the moment this option is introduced — `'knn'` 
 config change away.
 
 ### F2 — PILOT 3D / viewpoint / PLS alternative, plus `ntries` restart parallelism
+**Status (v1.61):** the `ntries`-parallelism sub-item below, plus #301's `cost_weight`/
+`precalc_alpha` semantics chunk (issues 1/3/7), are now implemented (see roadmap v1.61 and
+`instancespace/stages/pilot.py`) — `numerical_solve()` runs its restarts on a
+`ProcessPoolExecutor` (empirically faster than a thread pool for this CPU-bound solve, unlike
+Q6/TRACE), guarded against SIFTED's GA workers via `multiprocessing.parent_process()`.
+**The 3D/`viewGroups`/PLS-alternative work below (the original F2 scope) is still not started** —
+`PilotOptions` has no `dims`/`view_groups`/`method` fields yet, no `pilot_viewpoint.py` exists, and
+the analytic/numeric solvers are still 2D-only.
 **Verified starting point:** no `dims`, `viewGroups`, or `method` handling found in `stages/
 pilot.py` at all — Python's PILOT is 2D-only, single-method, with none of MATLAB's Phase 5
 surface. **Added v1.25, verified directly against `core/PILOT.m`:** MATLAB's numeric/BFGS branch
