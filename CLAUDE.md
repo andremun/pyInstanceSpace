@@ -87,6 +87,20 @@ build/explore duplication is now simplified too (roadmap v1.67)** — shared `ap
 case is also now implemented, at full MATLAB parity** — `y_hat`/`pr0_hat`/`in_good`/`in_best` widen
 to include a placeholder column per new algorithm (matching MATLAB's `PYTHIAevalMode`/`TRACEthrow3`
 padding), not just the evaluation metrics; new `ExploreResult.algo_labels` field.
+**#298 (PYTHIA audit) is now fully closed — issue 10 (eval/skip mode) implemented (roadmap
+v1.69)**: `PythiaOptions.skip` bypasses classifier training, matching MATLAB's `opts.skip`/
+`emptyPYTHIAout`. Investigating it surfaced that this port's TRACE (legacy-only) depends on
+PYTHIA's `y_hat` as DBSCAN's compacting input for coherent footprints, in a way MATLAB's own
+skip mode never had to account for (true legacy TRACE never reads `Yhat`; trace3 degrades
+gracefully via an independent mechanism) — so `InstanceSpaceOptions.__post_init__` now rejects
+`pythia.skip=True` combined with `trace.use_sim=True` rather than letting it silently degrade
+footprints. If you're touching TRACE's `use_sim`/DBSCAN path, read that guard's message and
+roadmap v1.69 before assuming raw `y_bin` is an acceptable substitute for `y_hat` anywhere else.
+A `PythiaStage._generate_summary()` parameter-order bug (call site passes `accuracy_record`/
+`precision_record` into parameters named `precision`/`accuracy`, swapping the exported summary's
+`CV_model_accuracy`/`CV_model_precision` columns) was found while doing this work, filed as its
+own issue, not fixed here — out of scope for #298 and not caught by existing tests (which check
+`PythiaOutput.accuracy`/`.precision` directly, upstream of the swap).
 Check `docs/pyIS_docs_quality_roadmap.md`'s document-history table (append-only, read newest
 entries first) for the actual current state before assuming anything below is still accurate —
 this file gets stale between sessions; that table doesn't.
