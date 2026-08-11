@@ -391,7 +391,83 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         pr0sub = np.zeros(y_bin.shape, dtype=np.double)
         pr0hat = np.zeros(y_bin.shape, dtype=np.double)
 
+        # Resolving the classifier spec validates opts.classifier even in
+        # skip mode - matching MATLAB, which calls ISAgetClassifierFcn
+        # before checking opts.skip.
         classifier_spec = get_classifier_fcn(opts.classifier)
+
+        # Section 1: Normalize the feature matrix. mu/sigma still describe
+        # the real z even under opts.skip=True - MATLAB computes zscore
+        # before checking opts.skip and copies mu/sigma onto its otherwise-
+        # empty output, so a later eval-mode caller can still normalise new
+        # data correctly.
+        mu, sigma, z = PythiaStage._compute_znorm(z)
+
+        if opts.skip:
+            logger.info(
+                "[PYTHIA]  -> opts.skip is True; bypassing classifier "
+                "training entirely. TRACE will need to build footprints "
+                "from raw labels only (trace.use_sim=False).",
+            )
+            return PythiaStage._empty_output(
+                ninst,
+                nalgos,
+                algo_labels,
+                y,
+                y_bin,
+                y_best,
+                mu,
+                sigma,
+                opts,
+                general_options,
+            )
+
+        return PythiaStage._train(
+            z,
+            y,
+            y_bin,
+            y_best,
+            algo_labels,
+            opts,
+            parallel_options,
+            general_options,
+            classifier_spec,
+            mu,
+            sigma,
+            ninst,
+            nalgos,
+            y_sub,
+            y_hat,
+            pr0sub,
+            pr0hat,
+        )
+
+    @staticmethod
+    def _train(
+        z: NDArray[np.double],
+        y: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        y_best: NDArray[np.double],
+        algo_labels: list[str],
+        opts: PythiaOptions,
+        parallel_options: ParallelOptions,
+        general_options: GeneralOptions,
+        classifier_spec: ClassifierSpec,
+        mu: list[float],
+        sigma: list[float],
+        ninst: int,
+        nalgos: int,
+        y_sub: NDArray[np.bool_],
+        y_hat: NDArray[np.bool_],
+        pr0sub: NDArray[np.double],
+        pr0hat: NDArray[np.double],
+    ) -> PythiaOutput:
+        """Train a classifier per algorithm and assemble the `PythiaOutput`.
+
+        Split out of `pythia()` so `opts.skip=True`'s early return doesn't
+        push `pythia()` itself over the branch-count lint threshold; carries
+        the whole training-mode body (Sections 2-4) unchanged.
+        """
         precalcparams = PythiaStage._check_precalcparams(
             opts.params,
             nalgos,
@@ -416,8 +492,6 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         logger.info(
             f"[PYTHIA]  -> PYTHIA is training a '{opts.classifier}' classifier.",
         )
-        # Section 1: Normalize the feature matrix
-        mu, sigma, z = PythiaStage._compute_znorm(z)
 
         if opts.classifier == "svm":
             PythiaStage._log_kernel_choice(ninst, opts.is_poly_krnl)
@@ -599,6 +673,96 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 if classifier_spec.param2 is not None
                 else None
             ),
+        )
+
+        return PythiaOutput(
+            mu,
+            sigma,
+            w,
+            cp,
+            svm,
+            cvcmat,
+            y_sub,
+            y_hat,
+            pr0sub,
+            pr0hat,
+            box_consnt,
+            k_scale,
+            accuracy_record,
+            precision_record,
+            recall_record,
+            selection0,
+            selection1,
+            summary,
+        )
+
+    @staticmethod
+    def _empty_output(
+        ninst: int,
+        nalgos: int,
+        algo_labels: list[str],
+        y: NDArray[np.double],
+        y_bin: NDArray[np.bool_],
+        y_best: NDArray[np.double],
+        mu: list[float],
+        sigma: list[float],
+        opts: PythiaOptions,
+        general_options: GeneralOptions,
+    ) -> PythiaOutput:
+        """Build a "nothing trained" `PythiaOutput` for `opts.skip=True`.
+
+        Matches MATLAB's `emptyPYTHIAout` - every classifier-derived field is
+        a placeholder rather than a real training result: `svm` holds one
+        never-fitted `_ConstantClassifier(False)` per algorithm (so every
+        consumer of `PythiaOutput.svm` can still call `.predict()`/
+        `.predict_proba()` without special-casing skip mode),
+        `y_sub`/`y_hat` are all-False, `precision`/`accuracy`/`recall` are
+        NaN, and `selection0`/`selection1` are both -1 - Python's
+        established "no selection at all" sentinel (`_determine_selections`),
+        translating MATLAB's `zeros(ninst, 1)` (which relies on MATLAB's
+        1-based indexing never colliding with a real selection - 0 would
+        collide with "algorithm index 0 selected" here). `mu`/`sigma` are
+        the caller's real zscore parameters, not placeholders - MATLAB
+        overwrites `emptyPYTHIAout`'s own zeroed/unit-scaled mu/sigma with
+        these immediately after, so eval-mode callers can still normalise
+        new data correctly.
+        """
+        svm: list[ClassifierMixin] = [_ConstantClassifier(False) for _ in range(nalgos)]
+        y_sub = np.zeros((ninst, nalgos), dtype=bool)
+        y_hat = np.zeros((ninst, nalgos), dtype=bool)
+        pr0sub = np.zeros((ninst, nalgos), dtype=np.double)
+        pr0hat = np.zeros((ninst, nalgos), dtype=np.double)
+        cvcmat = np.zeros((nalgos, 4), dtype=int)
+        accuracy_record: list[float] = [float("nan")] * nalgos
+        precision_record: list[float] = [float("nan")] * nalgos
+        recall_record: list[float] = [float("nan")] * nalgos
+        box_consnt: list[float] = [float("nan")] * nalgos
+        k_scale: list[float] = [float("nan")] * nalgos
+        selection0 = np.full(ninst, -1, dtype=np.int_)
+        selection1 = np.full(ninst, -1, dtype=np.int_)
+        w = np.ones((ninst, nalgos), dtype=np.double)
+        cp = StratifiedKFold(
+            n_splits=opts.cv_folds,
+            shuffle=True,
+            random_state=general_options.seed,
+        )
+
+        summary = PythiaStage._generate_summary(
+            nalgos,
+            algo_labels,
+            y,
+            y_hat,
+            y_bin,
+            y_best,
+            selection0,
+            selection1,
+            accuracy_record,
+            precision_record,
+            recall_record,
+            box_consnt,
+            k_scale,
+            None,
+            None,
         )
 
         return PythiaOutput(
@@ -1431,7 +1595,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         recall: list[float],
         box_consnt: list[float],
         k_scale: list[float],
-        param1_label: str,
+        param1_label: str | None,
         param2_label: str | None,
     ) -> pd.DataFrame:
         """Generate a summary of the results.
@@ -1465,13 +1629,18 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         k_scale : list[float]
             Each algorithm's tuned second hyperparameter (`param2_label`'s
             units), or NaN for classifiers with only one tunable parameter.
-        param1_label : str
+        param1_label : str | None
             Column header for `box_consnt`, matching `ISAgetClassifierFcn.m`'s
-            `p1label` for `PythiaOptions.classifier`.
+            `p1label` for `PythiaOptions.classifier`, or `None` to drop both
+            hyperparameter columns entirely (`opts.skip=True`'s empty
+            output - matching MATLAB's `buildSummary(..., [], [])` call from
+            `emptyPYTHIAout`, whose `~isempty(p1label)` check gates
+            `param2_label` too).
         param2_label : str | None
             Column header for `k_scale`, or `None` for classifiers with only
             one tunable parameter (`p2label = 'N/A'`), which drops the column
-            entirely - matching MATLAB's `buildSummary`.
+            entirely - matching MATLAB's `buildSummary`. Ignored when
+            `param1_label` is `None`.
         """
         logger.info("[PYTHIA]   -> PYTHIA is preparing the summary table.")
 
@@ -1558,10 +1727,14 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 100 * np.append(recall, [np.nan, recallsel]),
                 3,
             ),
-            param1_label: np.round(np.append(box_consnt, [np.nan, np.nan]), 3),
         }
-        if param2_label is not None:
-            data[param2_label] = np.round(np.append(k_scale, [np.nan, np.nan]), 3)
+        if param1_label is not None:
+            data[param1_label] = np.round(np.append(box_consnt, [np.nan, np.nan]), 3)
+            if param2_label is not None:
+                data[param2_label] = np.round(
+                    np.append(k_scale, [np.nan, np.nan]),
+                    3,
+                )
 
         df = pd.DataFrame(data).replace({np.nan: ""})
         logger.info(

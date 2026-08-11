@@ -88,6 +88,10 @@ DEFAULT_PYTHIA_USE_WEIGHTS = False
 DEFAULT_PYTHIA_CLASSIFIER = "svm"
 DEFAULT_PYTHIA_TUNING = "sobol"
 DEFAULT_PYTHIA_N_TUNING_ITER = 20
+# Bypass classifier training entirely (core/PYTHIA.m's opts.skip). Only safe
+# with trace.use_sim=False - see InstanceSpaceOptions.__post_init__'s
+# cross-field guard for why (#298 Issue 10).
+DEFAULT_PYTHIA_SKIP = False
 
 DEFAULT_TRACE_USE_SIM = True
 DEFAULT_TRACE_PURITY = 0.55

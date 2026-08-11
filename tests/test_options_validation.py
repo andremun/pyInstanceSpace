@@ -105,6 +105,13 @@ def test_none_seed_is_valid_not_rejected_as_a_bad_int(
             ),
             "logical",
         ),
+        (
+            lambda o: dataclasses.replace(
+                o,
+                pythia=dataclasses.replace(o.pythia, skip=1),
+            ),
+            "logical",
+        ),
     ],
 )
 def test_invalid_field_raises_with_a_clear_message(
@@ -135,3 +142,36 @@ def test_unrecognised_json_field_still_errors_before_validation_runs() -> None:
     """An unknown field name is still caught by the existing name-check, not F13's."""
     with pytest.raises(ValueError, match="not defined"):
         InstanceSpaceOptions.from_dict({"perf": {"not_a_real_field": 1}})
+
+
+def test_pythia_skip_with_trace_use_sim_raises(
+    valid_options: InstanceSpaceOptions,
+) -> None:
+    """#298 Issue 10: `pythia.skip=True` + `trace.use_sim=True` is rejected.
+
+    This port's TRACE (legacy-only) clusters PYTHIA's `y_hat` predictions
+    with DBSCAN to build compact footprints - `y_hat` fills the role
+    DBSCAN's own density clustering plays on raw labels in true legacy
+    TRACE. Skipping PYTHIA training removes that input entirely, so
+    silently allowing this combination would degrade TRACE's footprints
+    from compact regions to fragmented ones built from raw, noisy `y_bin`,
+    unlike MATLAB's trace3 (which has an independent, Yhat-free compacting
+    mechanism and so degrades gracefully instead).
+    """
+    with pytest.raises(ValueError, match="incompatible"):
+        dataclasses.replace(
+            valid_options,
+            pythia=dataclasses.replace(valid_options.pythia, skip=True),
+            trace=dataclasses.replace(valid_options.trace, use_sim=True),
+        )
+
+
+def test_pythia_skip_with_trace_use_sim_false_constructs(
+    valid_options: InstanceSpaceOptions,
+) -> None:
+    """The safe pairing - `use_sim=False` - is not rejected."""
+    dataclasses.replace(
+        valid_options,
+        pythia=dataclasses.replace(valid_options.pythia, skip=True),
+        trace=dataclasses.replace(valid_options.trace, use_sim=False),
+    )

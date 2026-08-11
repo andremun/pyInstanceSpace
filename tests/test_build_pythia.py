@@ -884,3 +884,63 @@ def test_determine_selections_uses_negative_one_for_no_selection() -> None:
     assert selection0[0] == 0
     assert selection0[1] == -1
     assert selection1[1] == 1  # falls back to the algorithm with best mean y_bin
+
+
+def test_skip_mode_bypasses_training_and_returns_empty_output() -> None:
+    """#298 Issue 10: `opts.skip=True` matches MATLAB's `emptyPYTHIAout`.
+
+    No classifier is trained (`svm` holds only never-fitted
+    `_ConstantClassifier` placeholders), every prediction-derived field is a
+    "nothing trained" placeholder, and `mu`/`sigma` still describe the real
+    `z` (needed so a later eval-mode caller can normalise new data
+    correctly, matching MATLAB's `emptyPYTHIAout` caller overwriting its own
+    zeroed mu/sigma with the real zscore parameters).
+    """
+    rng = np.random.default_rng(0)
+    ninst = 20
+    nalgos = 3
+    coin_flip_threshold = 0.5
+    z_small = rng.random((ninst, 2))
+    y_small = rng.random((ninst, nalgos))
+    y_bin_small = rng.random((ninst, nalgos)) > coin_flip_threshold
+    y_best_small = rng.random(ninst)
+    algo_small = ["a0", "a1", "a2"]
+    skip_opts = PythiaOptions.default(skip=True)
+
+    out = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        skip_opts,
+        parallel_opts,
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    assert len(out.svm) == nalgos
+    assert not np.any(out.y_sub)
+    assert not np.any(out.y_hat)
+    assert np.all(out.selection0 == -1)
+    assert np.all(out.selection1 == -1)
+    assert all(np.isnan(v) for v in out.accuracy)
+    assert all(np.isnan(v) for v in out.precision)
+    assert all(np.isnan(v) for v in out.recall)
+    # No hyperparameter columns - matching MATLAB's 9-column skip-mode
+    # summary (buildSummary(..., [], []) - no classifier trained).
+    assert list(out.pythia_summary.columns) == [
+        "Algorithms",
+        "Avg_Perf_all_instances",
+        "Std_Perf_all_instances",
+        "Probability_of_good",
+        "Avg_Perf_selected_instances",
+        "Std_Perf_selected_instances",
+        "CV_model_accuracy",
+        "CV_model_precision",
+        "CV_model_recall",
+    ]
+    # mu/sigma describe the real z, not zeros/ones - matching MATLAB
+    # overwriting emptyPYTHIAout's own placeholder mu/sigma with the real
+    # zscore parameters.
+    np.testing.assert_allclose(out.mu, np.mean(z_small, axis=0))
+    np.testing.assert_allclose(out.sigma, np.std(z_small, ddof=1, axis=0))

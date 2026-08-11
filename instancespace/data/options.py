@@ -45,6 +45,7 @@ from instancespace.data.default_options import (
     DEFAULT_PYTHIA_CV_FOLDS,
     DEFAULT_PYTHIA_IS_POLY_KRNL,
     DEFAULT_PYTHIA_N_TUNING_ITER,
+    DEFAULT_PYTHIA_SKIP,
     DEFAULT_PYTHIA_TUNING,
     DEFAULT_PYTHIA_USE_WEIGHTS,
     DEFAULT_SELVARS_DENSITY_FLAG,
@@ -414,6 +415,13 @@ class PythiaOptions:
     classifier: str = DEFAULT_PYTHIA_CLASSIFIER
     tuning: str = DEFAULT_PYTHIA_TUNING
     n_tuning_iter: int = DEFAULT_PYTHIA_N_TUNING_ITER
+    # Bypass classifier training entirely, matching core/PYTHIA.m's
+    # opts.skip. Only meaningful combined with trace.use_sim=False -
+    # InstanceSpaceOptions.__post_init__ rejects the use_sim=True pairing,
+    # since this port's TRACE relies on PYTHIA's y_hat predictions (not raw
+    # y_bin) as DBSCAN's compacting input for coherent footprints (#298
+    # Issue 10).
+    skip: bool = DEFAULT_PYTHIA_SKIP
 
     @staticmethod
     def default(
@@ -423,6 +431,7 @@ class PythiaOptions:
         classifier: str = DEFAULT_PYTHIA_CLASSIFIER,
         tuning: str = DEFAULT_PYTHIA_TUNING,
         n_tuning_iter: int = DEFAULT_PYTHIA_N_TUNING_ITER,
+        skip: bool = DEFAULT_PYTHIA_SKIP,
     ) -> PythiaOptions:
         """Instantiate with default values."""
         return PythiaOptions(
@@ -433,6 +442,7 @@ class PythiaOptions:
             classifier=classifier,
             tuning=tuning,
             n_tuning_iter=n_tuning_iter,
+            skip=skip,
         )
 
 
@@ -568,12 +578,21 @@ class InstanceSpaceOptions:
         deep inside PRELIM/PILOT/PYTHIA/etc., or silently produce a
         numerically-valid-looking but wrong result. Only checks fields that
         exist in this port today; MATLAB fields with no Python equivalent
-        yet (`pilot.method`/`dims`/`topoWeight`/`viewGroups`, `pythia.skip`/
-        `ensembleMethod`, `trace.minInstances`/`minAreaFrac`,
+        yet (`pilot.method`/`dims`/`topoWeight`/`viewGroups`,
+        `pythia.ensembleMethod`, `trace.minInstances`/`minAreaFrac`,
         `outputs.fig`) are out of scope until those options themselves are
         ported (see F2/F5/F8/F9). `sifted.pval`/`sifted.dims` (#300 audit
         findings, issues 2 and 4) and `cloister.hullDims` (#299 audit
-        finding, issue 5) are now real fields, validated below.
+        finding, issue 5) are now real fields, validated below. `pythia.skip`
+        (#298 Issue 10) is also now a real field - validated here alongside a
+        cross-field guard, since this port's TRACE (legacy-only) uses
+        PYTHIA's `y_hat` predictions as the compacting input its DBSCAN
+        clustering depends on for coherent footprints; skipping PYTHIA
+        while `trace.use_sim=True` would silently fall back to raw,
+        unsmoothed `y_bin`, fragmenting footprints rather than degrading
+        gracefully the way MATLAB's trace3 does (trace3 has an independent,
+        Yhat-free compacting mechanism this port's legacy-only TRACE
+        doesn't have).
         """
         _check_logical("general.verbose", self.general.verbose)
         if self.general.seed is not None:
@@ -627,10 +646,27 @@ class InstanceSpaceOptions:
             ("knn", "svm", "tree", "nb", "linear", "ensemble"),
         )
         _check_pos_int("pythia.kFold", self.pythia.cv_folds)
+        _check_logical("pythia.skip", self.pythia.skip)
 
         _check_member("trace.method", self.trace.method, ("trace3", "legacy"))
         _check_unit_range("trace.PI", self.trace.purity)
         _check_logical("trace.contra", self.trace.contra)
+
+        if self.pythia.skip and self.trace.use_sim:
+            msg = (
+                "pythia.skip=True is incompatible with trace.use_sim=True: "
+                "this port's TRACE (legacy-only) clusters PYTHIA's y_hat "
+                "predictions with DBSCAN to build compact footprints - "
+                "y_hat fills the role DBSCAN's own density clustering plays "
+                "on raw labels in true legacy TRACE. Skipping PYTHIA "
+                "training removes that input, so TRACE would fall back to "
+                "raw, unsmoothed y_bin and produce fragmented footprints "
+                "instead of a graceful degradation (unlike MATLAB's trace3, "
+                "which has an independent, Yhat-free compacting mechanism). "
+                "Set trace.use_sim=False to build footprints from true "
+                "labels only when skipping PYTHIA."
+            )
+            raise ValueError(msg)
 
         _check_logical("outputs.csv", self.outputs.csv)
         _check_logical("outputs.png", self.outputs.png)
