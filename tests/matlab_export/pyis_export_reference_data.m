@@ -426,9 +426,11 @@ metrics = table(algolabels(:), pythiaOut.accuracy(:), pythiaOut.precision(:), ..
     pythiaOut.recall(:), 'VariableNames', ...
     {'algorithm', 'accuracy', 'precision', 'recall'});
 if isfield(pythiaOut, 'cvcmat') && size(pythiaOut.cvcmat, 2) == 4
+    % PYTHIA stores cm(:)' in MATLAB column-major order: TN,FN,FP,TP.
+    % Export named columns rather than preserving that storage order.
     metrics.true_negative = pythiaOut.cvcmat(:, 1);
-    metrics.false_positive = pythiaOut.cvcmat(:, 2);
-    metrics.false_negative = pythiaOut.cvcmat(:, 3);
+    metrics.false_positive = pythiaOut.cvcmat(:, 3);
+    metrics.false_negative = pythiaOut.cvcmat(:, 2);
     metrics.true_positive = pythiaOut.cvcmat(:, 4);
 end
 writetable(metrics, [destDir 'raw_metrics.csv']);
@@ -449,7 +451,7 @@ if isfield(traceOut, 'summary') && ~isempty(traceOut.summary)
     writeCellCSV(traceOut.summary(2:end, 2:end), traceOut.summary(1, 2:end), ...
         traceOut.summary(2:end, 1), [destDir 'summary.csv']);
 end
-rows = cell(0, 13);
+rows = cell(0, 14);
 for i = 1:numel(algolabels)
     [goodParts, goodHoles] = writeFootprintCSV(traceOut.good{i}, ...
         [destDir 'good_' algolabels{i} '.csv']);
@@ -468,7 +470,7 @@ end
 rows(end+1, :) = footprintMetricRow('space', '', traceOut.space, 0, 0);
 metricNames = {'kind', 'algorithm', 'measure', 'measure_label', 'elements', ...
     'good_elements', 'density', 'purity', 'alpha_radius', 'region_threshold', ...
-    'component_count', 'hole_count', 'empty'};
+    'component_count', 'geometry_part_count', 'hole_count', 'empty'};
 writetable(cell2table(rows, 'VariableNames', metricNames), [destDir 'raw_metrics.csv']);
 end
 
@@ -691,13 +693,17 @@ density = numericField(footprint, 'density', 0);
 purity = numericField(footprint, 'purity', 0);
 alphaRadius = NaN;
 regionThreshold = NaN;
+componentCount = parts;
 if isfield(footprint, 'polygon') && isa(footprint.polygon, 'alphaShape')
     alphaRadius = footprint.polygon.Alpha;
     regionThreshold = footprint.polygon.RegionThreshold;
+    componentCount = numRegions(footprint.polygon);
+elseif isfield(footprint, 'polygon') && isa(footprint.polygon, 'polyshape')
+    componentCount = numel(regions(footprint.polygon));
 end
 empty = ~isfield(footprint, 'polygon') || isempty(footprint.polygon);
 row = {kind, algorithm, measure, measureLabel, elements, goodElements, density, ...
-    purity, alphaRadius, regionThreshold, parts, holes, empty};
+    purity, alphaRadius, regionThreshold, componentCount, parts, holes, empty};
 end
 
 function value = numericField(container, name, fallback)
