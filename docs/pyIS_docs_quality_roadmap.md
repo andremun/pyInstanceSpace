@@ -7,6 +7,12 @@
 
 ---
 
+> **Current provenance note (2026-08-18):** numerical files predating the manifest
+> exporter are `legacy-unknown`, even where this historical roadmap called them MATLAB
+> golden/reference data. The permissive PYTHIA Bayesian metric comparisons were replaced
+> by deterministic estimator-unit and integration contracts. Current parity claims require
+> the verified bundle under `tests/fixtures/matlab/current/`.
+
 ## 1. Purpose and scope
 
 `pyInstanceSpace` was forked from the MATLAB `InstanceSpace` toolkit at **v0.3.3** (Feb 2023),

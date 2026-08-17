@@ -25,11 +25,11 @@ existing name.
 
 ### Validation tests
 
-Each stage is fed MATLAB's own inputs — the trained-model artifacts plus the previous
-stage's MATLAB output — and its result is compared against the MATLAB reference output
-for that stage. This isolates per-stage port fidelity from error accumulated along the
-pipeline. Reference data lives in `tests/matlab_reference/` (see its README for the
-file inventory). Run with `-s` to see the comparison statistics each test prints.
+Historical stage tests feed stored training artifacts and previous-stage outputs into
+each Python stage. Data under `tests/matlab_reference/` is `legacy-unknown`: useful for
+regression detection, but not a verified MATLAB oracle. Current parity tests use the
+manifest-verified bundle under `tests/fixtures/matlab/current/`. Run with `-s` to see
+comparison diagnostics.
 
 ### Unit tests
 
