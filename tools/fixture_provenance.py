@@ -18,6 +18,9 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Final, cast
 
 BUNDLE_SCHEMA: Final = "pyinstancespace.matlab-fixtures/v1"
+REFERENCE_PROFILE: Final = "pyinstancespace.reference-export/v1"
+RESOLVED_OPTIONS_INDEX_SCHEMA: Final = "pyinstancespace.resolved-options-index/v1"
+RESOLVED_OPTIONS_SCHEMA: Final = "pyinstancespace.resolved-options/v1"
 INVENTORY_SCHEMA: Final = "pyinstancespace.fixture-inventory/v1"
 VERIFIED_TRUST: Final = "matlab-verified"
 DIAGNOSTIC_TRUST: Final = "matlab-diagnostic"
@@ -52,6 +55,124 @@ _GEOMETRY_HEADER: Final = (
     "z_2",
 )
 _MIN_RING_VERTICES: Final = 3
+_SHARED_INPUT_PATH_DEPTH: Final = 3
+_RESOLVED_OPTION_PATH_DEPTH: Final = 2
+_STAGE_PATH_DEPTH: Final = 5
+_REFERENCE_VARIANTS: Final = (
+    "trace3_default",
+    "trace3_pythia_skip",
+    "legacy_svm",
+)
+_REFERENCE_REQUIRED_TOOLBOXES: Final = {
+    "MATLAB",
+    "Statistics and Machine Learning Toolbox",
+    "Optimization Toolbox",
+    "Global Optimization Toolbox",
+    "Financial Toolbox",
+}
+_BASE_STAGE_VARIANTS: Final = {
+    ("build", "prelim", "default"),
+    ("build", "sifted", "default"),
+    ("build", "pilot", "default"),
+    ("build", "cloister", "default"),
+}
+_OPTION_FIELDS: Final = {
+    "general": {"seed", "verbose", "parallel", "ncores"},
+    "perf": {"MaxPerf", "AbsPerf", "epsilon", "betaThreshold"},
+    "prelim": {"iqrMultiplier", "nanThreshold"},
+    "auto": {"preproc"},
+    "bound": {"flag"},
+    "norm": {"flag"},
+    "selvars": {
+        "smallscaleflag",
+        "smallscale",
+        "fileidxflag",
+        "fileidx",
+        "densityflag",
+        "mindistance",
+        "type",
+    },
+    "sifted": {"flag", "rho", "pval", "K", "MaxIter", "Replicates"},
+    "pilot": {
+        "analytic",
+        "ntries",
+        "dims",
+        "method",
+        "alpha",
+        "viewGroups",
+        "topoWeight",
+        "verbose",
+    },
+    "cloister": {"pval", "corrThreshold", "maxFeatures"},
+    "pythia": {
+        "flag",
+        "kFold",
+        "tuning",
+        "nTuningIter",
+        "params",
+        "skip",
+        "ispolykrnl",
+        "useweights",
+        "ensembleMethod",
+        "verbose",
+        "seed",
+        "classifier",
+    },
+    "trace": {"method", "PI", "minInstances", "minAreaFrac", "contra"},
+    "outputs": {"csv", "png", "fig", "web"},
+}
+_BOOL_OPTION_FIELDS: Final = {
+    ("general", "verbose"),
+    ("general", "parallel"),
+    ("perf", "MaxPerf"),
+    ("perf", "AbsPerf"),
+    ("auto", "preproc"),
+    ("bound", "flag"),
+    ("norm", "flag"),
+    ("selvars", "smallscaleflag"),
+    ("selvars", "fileidxflag"),
+    ("selvars", "densityflag"),
+    ("sifted", "flag"),
+    ("pilot", "analytic"),
+    ("pilot", "verbose"),
+    ("pythia", "flag"),
+    ("pythia", "skip"),
+    ("pythia", "ispolykrnl"),
+    ("pythia", "useweights"),
+    ("pythia", "verbose"),
+    ("trace", "contra"),
+    ("outputs", "csv"),
+    ("outputs", "png"),
+    ("outputs", "fig"),
+    ("outputs", "web"),
+}
+_INT_OPTION_FIELDS: Final = {
+    ("general", "seed"),
+    ("general", "ncores"),
+    ("sifted", "K"),
+    ("sifted", "MaxIter"),
+    ("sifted", "Replicates"),
+    ("pilot", "ntries"),
+    ("pilot", "dims"),
+    ("cloister", "maxFeatures"),
+    ("pythia", "kFold"),
+    ("pythia", "nTuningIter"),
+    ("pythia", "seed"),
+    ("trace", "minInstances"),
+}
+_LIST_OPTION_FIELDS: Final = {
+    ("pilot", "viewGroups"),
+    ("pythia", "params"),
+}
+_TEXT_OPTION_FIELDS: Final = {
+    ("selvars", "fileidx"),
+    ("selvars", "type"),
+    ("pilot", "method"),
+    ("pythia", "tuning"),
+    ("pythia", "ensembleMethod"),
+    ("pythia", "classifier"),
+    ("trace", "method"),
+}
 
 
 class ProvenanceError(ValueError):
@@ -137,6 +258,7 @@ def validate_bundle(  # noqa: PLR0912
     manifest_path = bundle_root / "manifest.json"
     manifest = _load_object(manifest_path, "fixture manifest")
     _expect_equal(manifest, "schema_version", BUNDLE_SCHEMA)
+    _expect_equal(manifest, "profile", REFERENCE_PROFILE)
     trust = _expect_text(manifest, "trust")
     if trust not in {VERIFIED_TRUST, DIAGNOSTIC_TRUST}:
         raise ProvenanceError(f"Unsupported generated fixture trust class: {trust!r}")
@@ -148,11 +270,9 @@ def validate_bundle(  # noqa: PLR0912
 
     _validate_timestamp(_expect_text(manifest, "generated_at"))
     _expect_text(manifest, "bundle_id")
-    _expect_object(manifest, "dataset")
+    dataset = _expect_object(manifest, "dataset")
     options = _expect_object(manifest, "resolved_options")
-    variants = _expect_list(options, "variants")
-    if not variants:
-        raise ProvenanceError("resolved_options.variants must not be empty")
+    _expect_equal(options, "schema_version", RESOLVED_OPTIONS_INDEX_SCHEMA)
 
     matlab = _expect_object(manifest, "matlab")
     matlab_release = _expect_text(matlab, "release")
@@ -170,6 +290,10 @@ def validate_bundle(  # noqa: PLR0912
         _expect_list(matlab, "required_toolboxes"),
         "required_toolboxes",
     )
+    if required != _REFERENCE_REQUIRED_TOOLBOXES:
+        raise ProvenanceError(
+            "required_toolboxes must name exactly the reference-export dependencies",
+        )
     missing_toolboxes = sorted(required - installed)
     if missing_toolboxes:
         raise ProvenanceError(
@@ -203,6 +327,7 @@ def validate_bundle(  # noqa: PLR0912
 
     expected_paths: set[str] = set()
     folded_paths: set[str] = set()
+    entries_by_path: dict[str, dict[str, Any]] = {}
     total_bytes = 0
     for index, raw_entry in enumerate(entries):
         if not isinstance(raw_entry, dict):
@@ -217,6 +342,7 @@ def validate_bundle(  # noqa: PLR0912
             )
         expected_paths.add(relative_text)
         folded_paths.add(folded)
+        entries_by_path[relative_text] = entry
 
         _validate_sha256(_expect_text(entry, "sha256"), f"files[{index}].sha256")
         size_bytes = _expect_nonnegative_int(entry, "size_bytes")
@@ -286,6 +412,13 @@ def validate_bundle(  # noqa: PLR0912
             f"Manifest file-set mismatch. Missing={missing}; extra={extra}",
         )
 
+    _validate_reference_profile(
+        bundle_root,
+        dataset,
+        options,
+        entries_by_path,
+    )
+
     return BundleReport(
         root=bundle_root,
         trust=trust,
@@ -293,6 +426,427 @@ def validate_bundle(  # noqa: PLR0912
         file_count=len(entries),
         total_bytes=total_bytes,
     )
+
+
+def _validate_reference_profile(  # noqa: PLR0912
+    bundle_root: Path,
+    dataset: dict[str, Any],
+    resolved_index: dict[str, Any],
+    entries_by_path: dict[str, dict[str, Any]],
+) -> None:
+    """Enforce the complete, canonical reference-export profile."""
+    _expect_equal(resolved_index, "schema_version", RESOLVED_OPTIONS_INDEX_SCHEMA)
+    records = _resolved_option_records(resolved_index)
+
+    _expect_equal(
+        dataset,
+        "training_input",
+        "shared_inputs/reference/metadata.csv",
+    )
+    _expect_equal(
+        dataset,
+        "test_input",
+        "shared_inputs/reference/metadata_test.csv",
+    )
+    _expect_text(dataset, "name")
+    dataset_seed = _expect_nonnegative_int(dataset, "seed")
+
+    for relative, entry in entries_by_path.items():
+        _validate_profile_entry(relative, entry)
+
+    required = _fixed_reference_paths()
+    missing = sorted(required - entries_by_path.keys())
+    if missing:
+        raise ProvenanceError(
+            f"Reference export profile is incomplete. Missing={missing}",
+        )
+
+    options_by_variant: dict[str, dict[str, Any]] = {}
+    for variant, record in records.items():
+        option_path = _expect_text(record, "path")
+        expected_path = f"resolved_options/{variant}.json"
+        if option_path != expected_path:
+            raise ProvenanceError(
+                f"Resolved-options path for {variant!r} must be {expected_path!r}",
+            )
+        artifact = _load_object(bundle_root / option_path, "resolved options")
+        if set(artifact) != {"schema_version", "name", "description", "options"}:
+            raise ProvenanceError(
+                f"Resolved-options artifact for {variant!r} has an invalid structure",
+            )
+        _expect_equal(artifact, "schema_version", RESOLVED_OPTIONS_SCHEMA)
+        if _expect_text(artifact, "name") != variant:
+            raise ProvenanceError(
+                f"Resolved-options artifact name does not match {variant!r}",
+            )
+        if _expect_text(artifact, "description") != _expect_text(
+            record,
+            "description",
+        ):
+            raise ProvenanceError(
+                f"Resolved-options description does not match {variant!r}",
+            )
+        effective = _expect_object(artifact, "options")
+        _validate_effective_options(effective, variant)
+        options_by_variant[variant] = effective
+
+    _validate_variant_option_relationships(options_by_variant, dataset_seed)
+
+    reference_labels: list[str] | None = None
+    for variant in _REFERENCE_VARIANTS:
+        trace_labels = _read_algorithm_labels(
+            bundle_root / f"build_data/trace/{variant}/inputs/algorithm_labels.csv",
+        )
+        pythia_labels = _read_algorithm_labels(
+            bundle_root / f"build_data/pythia/{variant}/inputs/algorithm_labels.csv",
+        )
+        if trace_labels != pythia_labels:
+            raise ProvenanceError(
+                f"PYTHIA and TRACE algorithm labels differ for {variant!r}",
+            )
+        for stage in ("pythia", "trace"):
+            explore_labels = _read_algorithm_labels(
+                bundle_root
+                / f"explore_data/{stage}/{variant}/inputs/algorithm_labels.csv",
+            )
+            if explore_labels != trace_labels:
+                raise ProvenanceError(
+                    f"Build and explore algorithm labels differ for {variant!r}",
+                )
+        if reference_labels is None:
+            reference_labels = trace_labels
+        elif trace_labels != reference_labels:
+            raise ProvenanceError("Reference variants use different algorithm labels")
+
+    assert reference_labels is not None
+    prelim_labels = _read_algorithm_labels(
+        bundle_root / "build_data/prelim/default/inputs/algorithm_labels.csv",
+    )
+    if prelim_labels != reference_labels:
+        raise ProvenanceError("PRELIM and downstream algorithm labels differ")
+
+    required.update(_geometry_paths(reference_labels))
+    missing = sorted(required - entries_by_path.keys())
+    extra = sorted(entries_by_path.keys() - required)
+    if missing or extra:
+        raise ProvenanceError(
+            "Reference export profile file-set mismatch. "
+            f"Missing={missing}; extra={extra}",
+        )
+
+
+def _resolved_option_records(
+    resolved_index: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    if set(resolved_index) != {"schema_version", "variants"}:
+        raise ProvenanceError("resolved_options index has an invalid structure")
+    records: dict[str, dict[str, Any]] = {}
+    for index, value in enumerate(_expect_list(resolved_index, "variants")):
+        if not isinstance(value, dict):
+            raise ProvenanceError(
+                f"resolved_options.variants[{index}] must be an object",
+            )
+        record = cast(dict[str, Any], value)
+        if set(record) != {"name", "description", "path"}:
+            raise ProvenanceError(
+                f"resolved_options.variants[{index}] has an invalid structure",
+            )
+        name = _expect_text(record, "name")
+        if name in records:
+            raise ProvenanceError(f"Duplicate resolved-options variant: {name!r}")
+        records[name] = record
+    if set(records) != set(_REFERENCE_VARIANTS):
+        raise ProvenanceError(
+            "resolved_options.variants must name exactly "
+            f"{list(_REFERENCE_VARIANTS)!r}",
+        )
+    return records
+
+
+def _validate_profile_entry(  # noqa: PLR0912
+    relative: str,
+    entry: dict[str, Any],
+) -> None:
+    path = PurePosixPath(relative)
+    parts = path.parts
+    expected_stage: str | None
+    if parts[0] == "shared_inputs":
+        if len(parts) != _SHARED_INPUT_PATH_DEPTH or parts[1] != "reference":
+            raise ProvenanceError(f"Noncanonical reference-export path: {relative}")
+        expected_phase, expected_stage, expected_variant = "shared", None, "reference"
+    elif parts[0] == "resolved_options":
+        if len(parts) != _RESOLVED_OPTION_PATH_DEPTH or path.suffix != ".json":
+            raise ProvenanceError(f"Noncanonical reference-export path: {relative}")
+        expected_phase, expected_stage, expected_variant = "shared", None, path.stem
+    elif parts[0] in {"build_data", "explore_data"}:
+        if len(parts) != _STAGE_PATH_DEPTH or parts[3] not in {"inputs", "outputs"}:
+            raise ProvenanceError(f"Noncanonical reference-export path: {relative}")
+        expected_phase = parts[0].removesuffix("_data")
+        expected_stage, expected_variant = parts[1], parts[2]
+        stage_variant = (expected_phase, expected_stage, expected_variant)
+        downstream = (
+            expected_phase in {"build", "explore"}
+            and expected_stage in {"pythia", "trace"}
+            and expected_variant in _REFERENCE_VARIANTS
+        )
+        if stage_variant not in _BASE_STAGE_VARIANTS and not downstream:
+            raise ProvenanceError(
+                f"Unsupported reference-export stage/variant: {stage_variant!r}",
+            )
+        if expected_phase == "explore" and expected_stage not in {"pythia", "trace"}:
+            raise ProvenanceError(f"Unsupported explore stage: {expected_stage!r}")
+    else:
+        raise ProvenanceError(f"Noncanonical reference-export path: {relative}")
+
+    actual_stage = entry.get("stage")
+    if actual_stage == "":
+        actual_stage = None
+    actual = (
+        _expect_text(entry, "phase"),
+        actual_stage,
+        _expect_text(entry, "variant"),
+    )
+    expected = (expected_phase, expected_stage, expected_variant)
+    if actual != expected:
+        raise ProvenanceError(
+            f"Manifest metadata for {relative} must be {expected!r}, got {actual!r}",
+        )
+    expected_media = "application/json" if path.suffix == ".json" else "text/csv"
+    if _expect_text(entry, "media_type") != expected_media:
+        raise ProvenanceError(f"Manifest media type does not match {relative}")
+    if _expect_text(entry, "role") != relative:
+        raise ProvenanceError(f"Manifest role does not match {relative}")
+
+
+def _validate_effective_options(options: dict[str, Any], variant: str) -> None:
+    if set(options) != set(_OPTION_FIELDS):
+        raise ProvenanceError(
+            f"Resolved options for {variant!r} do not contain the exact option groups",
+        )
+    for group, expected_fields in _OPTION_FIELDS.items():
+        values = _expect_object(options, group)
+        if set(values) != expected_fields:
+            raise ProvenanceError(
+                f"Resolved options {variant!r}.{group} do not match the MATLAB schema",
+            )
+        for field, value in values.items():
+            key = (group, field)
+            if key in _BOOL_OPTION_FIELDS:
+                valid = isinstance(value, bool)
+            elif key in _INT_OPTION_FIELDS:
+                valid = isinstance(value, int) and not isinstance(value, bool)
+            elif key in _LIST_OPTION_FIELDS:
+                valid = isinstance(value, list)
+            elif key in _TEXT_OPTION_FIELDS:
+                valid = isinstance(value, str) and (field == "fileidx" or bool(value))
+            else:
+                valid = (
+                    isinstance(value, int | float)
+                    and not isinstance(value, bool)
+                    and math.isfinite(value)
+                )
+            if not valid:
+                raise ProvenanceError(
+                    f"Resolved option {variant!r}.{group}.{field} has an invalid type",
+                )
+
+
+def _validate_variant_option_relationships(
+    options_by_variant: dict[str, dict[str, Any]],
+    dataset_seed: int,
+) -> None:
+    baseline = options_by_variant["trace3_default"]
+    if baseline["general"]["seed"] != dataset_seed:
+        raise ProvenanceError("Resolved general.seed does not match dataset.seed")
+    if baseline["general"]["parallel"] or baseline["general"]["verbose"]:
+        raise ProvenanceError(
+            "Reference export must disable parallel and verbose modes",
+        )
+    if baseline["pilot"]["dims"] != 2:  # noqa: PLR2004
+        raise ProvenanceError(
+            "Reference export profile requires a two-dimensional PILOT",
+        )
+    if any(baseline["outputs"].values()):
+        raise ProvenanceError("Reference export must disable toolkit output writers")
+
+    for variant in _REFERENCE_VARIANTS[1:]:
+        effective = options_by_variant[variant]
+        for group in set(_OPTION_FIELDS) - {"pythia", "trace"}:
+            if effective[group] != baseline[group]:
+                raise ProvenanceError(
+                    f"Resolved option group {group!r} differs in {variant!r}",
+                )
+
+    expected_changes: dict[str, tuple[dict[str, Any], dict[str, Any]]] = {
+        "trace3_default": (
+            {"classifier": "knn", "tuning": "sobol", "skip": False},
+            {"method": "trace3", "PI": 0.6, "contra": False},
+        ),
+        "trace3_pythia_skip": (
+            {"classifier": "knn", "tuning": "sobol", "skip": True},
+            {"method": "trace3", "PI": 0.6, "contra": False},
+        ),
+        "legacy_svm": (
+            {"classifier": "svm", "tuning": "sobol", "skip": False},
+            {"method": "legacy", "PI": 0.55, "contra": True},
+        ),
+    }
+    for variant, (pythia_changes, trace_changes) in expected_changes.items():
+        effective = options_by_variant[variant]
+        expected_pythia = dict(baseline["pythia"])
+        expected_pythia.update(pythia_changes)
+        expected_trace = dict(baseline["trace"])
+        expected_trace.update(trace_changes)
+        if effective["pythia"] != expected_pythia:
+            raise ProvenanceError(f"Resolved PYTHIA options mismatch for {variant!r}")
+        if effective["trace"] != expected_trace:
+            raise ProvenanceError(f"Resolved TRACE options mismatch for {variant!r}")
+
+
+def _fixed_reference_paths() -> set[str]:
+    paths = {
+        "shared_inputs/reference/metadata.csv",
+        "shared_inputs/reference/metadata_test.csv",
+        *{f"resolved_options/{variant}.json" for variant in _REFERENCE_VARIANTS},
+    }
+    stage_files = {
+        "prelim/default/inputs": {
+            "x_raw.csv",
+            "y_raw.csv",
+            "x_processed.csv",
+            "y_processed.csv",
+            "y_bin.csv",
+            "y_best.csv",
+            "p.csv",
+            "beta.csv",
+            "feature_labels.csv",
+            "algorithm_labels.csv",
+        },
+        "prelim/default/outputs": {
+            "prelim_feature_params.csv",
+            "prelim_algo_params.csv",
+            "prelim_scalars.csv",
+            "prelim_instance_outputs.csv",
+            "prelim_ybin.csv",
+        },
+        "sifted/default/inputs": {"x.csv", "y.csv", "y_bin.csv", "feature_labels.csv"},
+        "sifted/default/outputs": {
+            "correlation_rho.csv",
+            "correlation_pval.csv",
+            "sifted_indices.csv",
+            "selected_indices.csv",
+        },
+        "pilot/default/inputs": {"x.csv", "y.csv", "feature_labels.csv"},
+        "pilot/default/outputs": {
+            "pilot_matrix.csv",
+            "pilot_a_raw.csv",
+            "pilot_b.csv",
+            "pilot_c.csv",
+            "pilot_z.csv",
+            "pilot_r2.csv",
+            "pilot_error.csv",
+            "pilot_eoptim.csv",
+            "pilot_perf.csv",
+            "pilot_alpha.csv",
+            "pilot_x0.csv",
+        },
+        "cloister/default/inputs": {"x.csv", "projection_a.csv"},
+        "cloister/default/outputs": {"z_edge.csv", "z_ecorr.csv"},
+    }
+    for stage_path, filenames in stage_files.items():
+        paths.update(f"build_data/{stage_path}/{name}" for name in filenames)
+
+    pythia_inputs = {
+        "z.csv",
+        "y_raw.csv",
+        "y_bin.csv",
+        "y_best.csv",
+        "algorithm_labels.csv",
+    }
+    pythia_outputs = {
+        "summary.csv",
+        "ysub.csv",
+        "yhat.csv",
+        "pr0sub.csv",
+        "pr0hat.csv",
+        "selection0.csv",
+        "selection1.csv",
+        "normalization_mu.csv",
+        "normalization_sigma.csv",
+        "raw_metrics.csv",
+        "hyperparameters.csv",
+    }
+    trace_inputs = {
+        "z.csv",
+        "y_bin.csv",
+        "y_hat.csv",
+        "p.csv",
+        "beta.csv",
+        "algorithm_labels.csv",
+    }
+    for variant in _REFERENCE_VARIANTS:
+        paths.update(
+            f"build_data/pythia/{variant}/inputs/{name}" for name in pythia_inputs
+        )
+        paths.update(
+            f"build_data/pythia/{variant}/outputs/{name}" for name in pythia_outputs
+        )
+        paths.update(
+            f"build_data/trace/{variant}/inputs/{name}" for name in trace_inputs
+        )
+        paths.update(
+            f"build_data/trace/{variant}/outputs/{name}"
+            for name in ("summary.csv", "raw_metrics.csv", "hard.csv")
+        )
+        paths.update(
+            f"explore_data/pythia/{variant}/inputs/{name}" for name in pythia_inputs
+        )
+        paths.update(
+            f"explore_data/pythia/{variant}/outputs/{name}"
+            for name in ("eval_summary.csv", "predictions.csv", "probabilities.csv")
+        )
+        paths.update(
+            f"explore_data/trace/{variant}/inputs/{name}" for name in trace_inputs
+        )
+        paths.update(
+            f"explore_data/trace/{variant}/outputs/{name}"
+            for name in ("eval_summary.csv", "membership.csv")
+        )
+    return paths
+
+
+def _geometry_paths(labels: list[str]) -> set[str]:
+    return {
+        f"build_data/trace/{variant}/outputs/{kind}_{label}.csv"
+        for variant in _REFERENCE_VARIANTS
+        for kind in ("good", "best")
+        for label in labels
+    }
+
+
+def _read_algorithm_labels(path: Path) -> list[str]:
+    with path.open("r", encoding="utf-8", newline="") as stream:
+        reader = csv.reader(stream)
+        try:
+            header = next(reader)
+        except StopIteration as error:
+            raise ProvenanceError(
+                f"Algorithm-label CSV has no header: {path}",
+            ) from error
+        rows = list(reader)
+    if header != ["algorithm_name"] or not rows:
+        raise ProvenanceError(f"Algorithm-label CSV has an invalid schema: {path}")
+    labels = [row[0] for row in rows if len(row) == 1 and row[0]]
+    folded_labels = {label.casefold() for label in labels}
+    if len(labels) != len(rows) or len(folded_labels) != len(labels):
+        raise ProvenanceError(f"Algorithm-label CSV has invalid labels: {path}")
+    for label in labels:
+        candidate = PurePosixPath(f"good_{label}.csv")
+        if len(candidate.parts) != 1 or label in {".", ".."} or "\\" in label:
+            raise ProvenanceError(
+                f"Algorithm label is unsafe for geometry filenames: {label!r}",
+            )
+    return labels
 
 
 def validate_inventory(  # noqa: PLR0912

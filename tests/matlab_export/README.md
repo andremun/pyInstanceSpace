@@ -14,9 +14,20 @@ This directory provides the reproducible MATLAB reference-data workflow for issu
 - `diagnostic` permits an older or dirty environment. It exercises the exporter but
   its output is never a MATLAB oracle.
 
+Both modes preflight MATLAB plus Statistics and Machine Learning, Optimization, Global
+Optimization, and Financial Toolbox. PRELIM calls `boxcox`, so Financial Toolbox is an
+execution dependency rather than optional provenance metadata.
+
 The exporter writes to scratch space and publishes atomically. `manifest.json`
-records the repositories, exporter hash, MATLAB environment, resolved options,
-dataset, file hashes, CSV shapes, semantic roles, and explicit empty artifacts.
+records the repositories, exporter hash, MATLAB environment, dataset, file hashes,
+CSV shapes, semantic roles, and explicit empty artifacts. Each variant links a separate
+JSON artifact containing the complete effective option tree after MATLAB validation and
+default resolution; partial `pythia`/`trace` overrides are not provenance.
+
+The verifier enforces the `reference-export/v1` profile as well as manifest hashes. It
+requires the shared inputs, three option artifacts, every declared build/explore stage,
+raw metrics, memberships, and all algorithm geometry. Deleting a file and its manifest
+entry therefore remains an error.
 
 Historical files remain classified as `legacy-unknown`, `python-regression`,
 `python-synthetic`, or `test-scratch` in `tests/fixture_inventory.json`. They are not
@@ -27,10 +38,15 @@ silently promoted to MATLAB references.
 ```text
 <bundle>/
 ├── manifest.json
-├── shared_inputs/<dataset>/
+├── shared_inputs/reference/{metadata.csv,metadata_test.csv}
+├── resolved_options/<variant>.json
 ├── build_data/<stage>/<variant>/{inputs,outputs}/
 └── explore_data/<stage>/<variant>/{inputs,outputs}/
 ```
+
+Both build and explore stages carry their explicit numeric inputs. A reviewed bundle is
+installed unchanged at `tests/fixtures/matlab/current`; no alternate flattened tree is
+supported.
 
 The current variants are:
 
@@ -75,9 +91,11 @@ python -m tools.fixture_provenance install \
 
 ## Current execution status
 
-On 2026-08-17 the hardened exporter completed all three variants under MATLAB
-R2024a and its 196-file, 1.1 MB diagnostic bundle passed the independent hash,
-shape, path, toolbox, and file-set verifier. This proves the workflow executes, but
-does not close #278: the repository declares R2025a+, and both source repositories
-must be clean for a verified run. Consequently #310's committed-fixture migration
-remains gated; no unknown-provenance fixture was moved or relabelled.
+On 2026-08-17 the exporter completed all three variants under MATLAB R2024a. Its earlier
+196-file diagnostic bundle supported TRACE3 parity analysis, but it predates complete
+option artifacts and explicit explore inputs and is not accepted by the current profile.
+The complete reference dataset is expected to contain 229 files plus `manifest.json`.
+A clean R2026a verified run and scientific review remain required for #278 and #310; no
+unknown-provenance fixture was moved or relabelled. The first R2026a diagnostic attempt
+stopped at PRELIM because Financial Toolbox was absent; the new preflight catches that
+before execution, and atomic publication left no partial bundle.
