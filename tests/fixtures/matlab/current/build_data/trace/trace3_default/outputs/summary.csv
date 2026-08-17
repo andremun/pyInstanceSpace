@@ -1,0 +1,11 @@
+Row,Area_Good,Area_Good_Normalized,Density_Good,Density_Good_Normalized,Purity_Good,Area_Best,Area_Best_Normalized,Density_Best,Density_Best_Normalized,Purity_Best
+NB,0,0,0,0,0,0,0,0,0,0
+LDA,0,0,0,0,0,0,0,0,0,0
+QDA,0,0,0,0,0,0,0,0,0,0
+CART,0,0,0,0,0,0,0,0,0,0
+J48,0.868,0.034,19.594,2.334,0.882,0.574,0.023,22.654,2.699,0.923
+KNN,0,0,0,0,0,0,0,0,0,0
+L_SVM,0,0,0,0,0,0,0,0,0,0
+poly_SVM,0,0,0,0,0,0,0,0,0,0
+RBF_SVM,0,0,0,0,0,0,0,0,0,0
+RandF,6.354,0.252,15.738,1.875,0.63,4.224,0.167,17.757,2.115,0.613
