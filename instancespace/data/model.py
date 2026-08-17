@@ -15,7 +15,20 @@ from typing import Any, TypeVar
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from shapely.geometry import MultiPoint, Polygon
+from shapely.geometry import MultiPoint, MultiPolygon, Polygon
+
+
+def pointwise_covers(
+    polygon: Polygon | MultiPolygon,
+    points: NDArray[np.double],
+) -> NDArray[np.bool_]:
+    """Return MATLAB-compatible interior-or-boundary membership per point."""
+    multi_point = MultiPoint(points)
+    return np.fromiter(
+        (polygon.covers(point) for point in multi_point.geoms),
+        dtype=np.bool_,
+        count=len(multi_point.geoms),
+    )
 
 
 @dataclass(frozen=True)
@@ -335,7 +348,7 @@ class Footprint:
 
     Attributes:
     ----------
-    polygon : Polygon | None
+    polygon : Polygon | MultiPolygon | None
         The geometric shape of the footprint.
     area : float
         The area of the footprint.
@@ -349,7 +362,7 @@ class Footprint:
         The purity of "good" elements in relation to all elements in the footprint.
     """
 
-    polygon: Polygon | None
+    polygon: Polygon | MultiPolygon | None
     area: float
     elements: int
     good_elements: int
@@ -359,7 +372,7 @@ class Footprint:
     @classmethod
     def from_polygon(
         cls: type["Footprint"],
-        polygon: Polygon | None,
+        polygon: Polygon | MultiPolygon | None,
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         smoothen: bool = False,
@@ -368,7 +381,7 @@ class Footprint:
 
         Parameters:
         ----------
-        polygon : Polygon
+        polygon : Polygon | MultiPolygon
             The polygon to create the footprint from.
         z : NDArray[np.double]
             The space of instances, represented as an array of data points (features).
@@ -382,24 +395,23 @@ class Footprint:
         Footprint:
             The created footprint, or an empty one if the polygon is empty.
         """
-        if polygon is None:
+        if polygon is None or polygon.is_empty:
             return cls(None, 0, 0, 0, 0, 0)
 
         if smoothen:
             polygon = polygon.buffer(0.01).buffer(-0.01)
 
-        elements = np.sum(
-            [polygon.contains(point) for point in MultiPoint(z).geoms],
-        )
-        good_elements = np.sum(
-            [polygon.contains(point) for point in MultiPoint(z[y_bin]).geoms],
-        )
-        density = elements / polygon.area if polygon.area != 0 else 0
-        purity = good_elements / elements if elements != 0 else 0
+        if polygon.is_empty:
+            return cls(None, 0, 0, 0, 0, 0)
+
+        elements = int(np.sum(pointwise_covers(polygon, z)))
+        good_elements = int(np.sum(pointwise_covers(polygon, z[y_bin])))
+        density = float(elements / polygon.area) if polygon.area != 0 else 0.0
+        purity = float(good_elements / elements) if elements != 0 else 0.0
 
         return cls(
             polygon=polygon,
-            area=polygon.area,
+            area=float(polygon.area),
             elements=elements,
             good_elements=good_elements,
             density=density,

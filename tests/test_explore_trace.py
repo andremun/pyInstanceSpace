@@ -42,8 +42,16 @@ ARTIFACTS_DIR = REFERENCE_DIR / "training_artifacts" / "trace"
 OUTPUTS_DIR = REFERENCE_DIR / "explore_outputs"
 
 ALGO_ORDER = [
-    "NB", "LDA", "QDA", "CART", "J48",
-    "KNN", "L_SVM", "poly_SVM", "RBF_SVM", "RandF",
+    "NB",
+    "LDA",
+    "QDA",
+    "CART",
+    "J48",
+    "KNN",
+    "L_SVM",
+    "poly_SVM",
+    "RBF_SVM",
+    "RandF",
 ]
 
 
@@ -179,6 +187,24 @@ def test_compute_algorithm_qualities_reuses_a_supplied_executor() -> None:
     shared_executor.shutdown(wait=True)
 
 
+def test_compute_algorithm_qualities_stays_sequential_when_parallel_disabled() -> None:
+    """A supplied pool is ignored when the shared parallel flag is false."""
+    n_algorithms = 3
+    supplied_executor = Mock(spec=ThreadPoolExecutor)
+    stage = _bare_trace_stage(n_algos=n_algorithms, executor=supplied_executor)
+    stage.parallel_opts = ParallelOptions(False, 2)
+
+    with patch(
+        "instancespace.stages.trace.ThreadPoolExecutor",
+    ) as mock_pool_class:
+        good, best = stage.compute_algorithm_qualities(n_algorithms)
+
+    mock_pool_class.assert_not_called()
+    supplied_executor.submit.assert_not_called()
+    assert len(good) == n_algorithms
+    assert len(best) == n_algorithms
+
+
 def test_compute_algorithm_qualities_creates_its_own_pool_when_none_supplied() -> None:
     stage = _bare_trace_stage(n_algos=2, executor=None)
 
@@ -268,5 +294,7 @@ def test_trace_matches_matlab() -> None:
 
     for col, agr in per_col_agreement.items():
         assert agr >= 0.99, f"{col} agreement {agr * 100:.2f}% < 99%"
-    print(f"[PASS] TRACE validation: overall {overall * 100:.2f}% across "
-          f"{len(per_col_agreement)} columns")
+    print(
+        f"[PASS] TRACE validation: overall {overall * 100:.2f}% across "
+        f"{len(per_col_agreement)} columns"
+    )

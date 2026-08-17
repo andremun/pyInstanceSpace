@@ -294,7 +294,7 @@ def save_instance_space_graphs(
         p_foot = pythia.selection0
     else:
         y_foot = data.y_bin
-        p_foot = data.p
+        p_foot = data.p - 1
 
     for i in range(num_feats):
         filename = f"distribution_feature_{data.feat_labels[i]}.png"
@@ -358,7 +358,7 @@ def save_instance_space_graphs(
 
     _draw_portfolio_selections(
         pilot.z,
-        data.p,
+        data.p - 1,
         np.array(data.algo_labels),
         "Best algorithm",
         output_directory / "distribution_portfolio.png",
@@ -516,18 +516,11 @@ def _draw_portfolio_selections(
     title_label: str,
     output: Path,
 ) -> None:
+    """Plot a portfolio encoded with zero-based indices and ``-1`` for none."""
     plt.clf()
     upper_bound = np.ceil(np.max(z))
     lower_bound = np.floor(np.min(z))
     num_algorithms = len(algorithm_labels)
-    # labels: list[str] = []
-    # h = np.zeros((1, num_algorithms + 1))
-
-    bsxfun_result = np.array(
-        [[x == j for j in range(num_algorithms + 1)] for i, x in enumerate(p)],
-    )
-    is_worthy = np.sum(bsxfun_result, axis=0) != 0
-
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
     ax: Axes = ax2
@@ -537,18 +530,22 @@ def _draw_portfolio_selections(
 
     norm = Normalize(lower_bound, upper_bound)
 
-    for i in range(num_algorithms):
-        if not is_worthy[i]:
+    for selection in range(-1, num_algorithms):
+        selected = p == selection
+        if not np.any(selected):
             continue
 
         ax.scatter(
-            z[p == i, 0],
-            z[p == i, 1],
+            z[selected, 0],
+            z[selected, 1],
             s=8,
-            # c=i,
             norm=norm,
             cmap=cmap,
-            label="None" if i == 0 else algorithm_labels[i - 1].replace("_", " "),
+            label=(
+                "None"
+                if selection == -1
+                else algorithm_labels[selection].replace("_", " ")
+            ),
         )
 
     ax.set_xlabel(r"$z_{1}$")
@@ -567,16 +564,11 @@ def _draw_portfolio_footprint(
     algorithm_labels: NDArray[np.str_],
     output: Path,
 ) -> None:
-
+    """Plot best footprints for a zero-based portfolio with ``-1`` for none."""
     plt.clf()
     upper_bound = np.ceil(np.max(z))
     lower_bound = np.floor(np.min(z))
     num_algorithms = len(algorithm_labels)
-
-    bsxfun_result = np.array(
-        [[x == j for j in range(num_algorithms + 1)] for i, x in enumerate(p)],
-    )
-    is_worthy = np.sum(bsxfun_result, axis=0) != 0
 
     cmap = plt.colormaps["viridis"]
     fig, ax2 = plt.subplots()
@@ -587,21 +579,26 @@ def _draw_portfolio_footprint(
 
     norm = Normalize(lower_bound, upper_bound)
 
-    for i in range(num_algorithms):
-        if not is_worthy[i]:
+    for selection in range(-1, num_algorithms):
+        selected = p == selection
+        if not np.any(selected):
             continue
 
         ax.scatter(
-            z[p == i, 0],
-            z[p == i, 1],
+            z[selected, 0],
+            z[selected, 1],
             s=8,
-            # c=i,
             norm=norm,
             cmap=cmap,
-            label="None" if i == 0 else algorithm_labels[i - 1].replace("_", " "),
+            label=(
+                "None"
+                if selection == -1
+                else algorithm_labels[selection].replace("_", " ")
+            ),
         )
 
-        _draw_footprint(ax, best[i], cmap(norm(i)), 0.3)
+        if selection >= 0:
+            _draw_footprint(ax, best[selection], cmap(norm(selection)), 0.3)
 
     ax.set_xlabel(r"$z_{1}$")
     ax.set_ylabel(r"$z_{2}$")
