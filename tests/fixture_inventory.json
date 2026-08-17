@@ -1,6 +1,7 @@
 {
   "schema_version": "pyinstancespace.fixture-inventory/v1",
   "roots": [
+    "tests/fixtures/matlab/current",
     "tests/matlab_reference",
     "tests/pilot_pythia",
     "tests/test_data"
@@ -10,6 +11,11 @@
     "**/README.md"
   ],
   "rules": [
+    {
+      "pattern": "tests/fixtures/matlab/current/**",
+      "trust": "matlab-verified",
+      "reason": "The strict manifest records clean source commits, R2026a, resolved options, toolboxes, schemas, and SHA-256 hashes."
+    },
     {
       "pattern": "tests/matlab_reference/**",
       "trust": "legacy-unknown",

@@ -1,0 +1,11 @@
+algo,param1,param2
+NB,21,4
+LDA,23,1
+QDA,23,1
+CART,7,1
+J48,21,2
+KNN,22,2
+L_SVM,12,2
+poly_SVM,10,4
+RBF_SVM,21,2
+RandF,8,3
