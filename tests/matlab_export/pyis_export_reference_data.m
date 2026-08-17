@@ -87,6 +87,16 @@ pipelineRoot = ensureTrailingSlash(workRoot);
 matlabState = gitState(toolkitRoot);
 generatorState = gitState(generatorRoot);
 matlabRelease = ['R' version('-release')];
+installed = ver;
+installedToolboxes = {installed.Name};
+requiredToolboxes = {'MATLAB', 'Statistics and Machine Learning Toolbox', ...
+    'Optimization Toolbox', 'Global Optimization Toolbox', 'Financial Toolbox'};
+missingToolboxes = setdiff(requiredToolboxes, installedToolboxes, 'stable');
+if ~isempty(missingToolboxes)
+    error('pyis_export:missingToolbox', ...
+        'Fixture export requires these missing toolboxes: %s.', ...
+        strjoin(missingToolboxes, ', '));
+end
 if strcmp(mode, 'verified')
     if matlabState.dirty || generatorState.dirty
         error('pyis_export:dirtySource', ...
@@ -183,6 +193,7 @@ variants = { ...
 };
 
 baseObj = obj; % snapshot with prelim/sifted/pilot/cloister already completed
+resolvedVariantRecords = cell(1, numel(variants));
 for v = 1:numel(variants)
     variant = variants{v};
     fprintf('[EXPORT] === PYTHIA/TRACE variant ''%s'': %s ===\n', variant.name, variant.desc);
@@ -195,12 +206,24 @@ for v = 1:numel(variants)
     for f = 1:numel(fields)
         obj.opts.trace.(fields{f}) = variant.trace.(fields{f});
     end
-    writeJson(struct('name', variant.name, 'description', variant.desc, ...
-        'pythia', obj.opts.pythia, 'trace', obj.opts.trace), ...
-        [outputRoot 'resolved_options/' variant.name '.json']);
+    % Re-run the toolkit's own validation/default resolution after applying
+    % variant overrides. The artifact below is the complete effective tree
+    % actually stored on the trained model, not a partial override list.
+    obj.opts = ISAdefaults(ISAvalidateOpts(obj.opts));
 
     % ---- Build path (training) ----
     obj = obj.build('stages', {'pythia', 'trace'});
+    resolvedPath = ['resolved_options/' variant.name '.json'];
+    writeJson(struct( ...
+        'schema_version', 'pyinstancespace.resolved-options/v1', ...
+        'name', variant.name, ...
+        'description', variant.desc, ...
+        'options', obj.model.opts), ...
+        [outputRoot resolvedPath]);
+    resolvedVariantRecords{v} = struct( ...
+        'name', variant.name, ...
+        'description', variant.desc, ...
+        'path', resolvedPath);
     exportPythiaInputs(obj.model, ...
         [outputRoot 'build_data/pythia/' variant.name '/inputs/']);
     exportPythiaArtifacts(obj.model.pythia, obj.model.data.algolabels, ...
@@ -217,15 +240,20 @@ for v = 1:numel(variants)
     % and neither name has to be remembered as the "odd one out".
     obj = obj.explore(pipelineRoot);
     testOut = obj.getResults(1);
+    exportPythiaInputs(testOut, ...
+        [outputRoot 'explore_data/pythia/' variant.name '/inputs/']);
     exportPythiaExploreArtifacts(testOut, ...
         [outputRoot 'explore_data/pythia/' variant.name '/outputs/']);
+    exportTraceInputs(testOut, ...
+        [outputRoot 'explore_data/trace/' variant.name '/inputs/']);
     exportTraceExploreArtifacts(testOut, ...
         [outputRoot 'explore_data/trace/' variant.name '/outputs/']);
 end
 
 rmdir(workRoot, 's');
 writeManifest(toolkitRoot, scriptPath, outputRoot, mode, ...
-    variants, matlabState, generatorState, matlabRelease);
+    resolvedVariantRecords, matlabState, generatorState, matlabRelease, ...
+    installedToolboxes, requiredToolboxes);
 [moved, moveMessage] = movefile(scratchRoot, publishRoot);
 if ~moved
     error('pyis_export:publishFailed', ...
@@ -777,7 +805,8 @@ end
 end
 
 function writeManifest(toolkitRoot, scriptPath, outputRoot, mode, ...
-        variants, matlabState, generatorState, matlabRelease)
+        resolvedVariantRecords, matlabState, generatorState, matlabRelease, ...
+        installedToolboxes, requiredToolboxes)
 listing = dir(fullfile(outputRoot, '**', '*'));
 listing = listing(~[listing.isdir]);
 files = repmat(struct('path', '', 'sha256', '', 'size_bytes', 0, ...
@@ -815,19 +844,17 @@ end
 [~, order] = sort({files.path});
 files = files(order);
 
-installed = ver;
-installedToolboxes = {installed.Name};
-requiredToolboxes = {'MATLAB', 'Statistics and Machine Learning Toolbox', ...
-    'Optimization Toolbox', 'Global Optimization Toolbox'};
 if strcmp(mode, 'verified')
     trust = 'matlab-verified';
 else
     trust = 'matlab-diagnostic';
 end
 resolvedOptions = struct();
-resolvedOptions.variants = [variants{:}];
+resolvedOptions.schema_version = 'pyinstancespace.resolved-options-index/v1';
+resolvedOptions.variants = [resolvedVariantRecords{:}];
 manifest = struct();
 manifest.schema_version = 'pyinstancespace.matlab-fixtures/v1';
+manifest.profile = 'pyinstancespace.reference-export/v1';
 manifest.bundle_id = 'reference-current';
 manifest.trust = trust;
 manifest.generated_at = string(datetime('now', 'TimeZone', 'UTC'), ...
