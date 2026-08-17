@@ -231,23 +231,7 @@ def test_pythia_widens_output_for_new_algorithms() -> None:
 
 
 def test_pythia_selection0_nalgos_equals_one() -> None:
-    """F8: the nalgos==1 explore-path case, previously untested.
-
-    (See F8's own scope note: `_explore_pythia`'s pre-F8 inline version
-    never exercised this because it didn't need to match
-    `_determine_selections`'s branching at all.)
-
-    This pins down *current, shared* behaviour, not necessarily *correct*
-    behaviour: `_weighted_selection`'s `nalgos == 1` branch returns `1` (not
-    `0`) for a "good" prediction (`y_hat.flatten().astype(np.int_)` on
-    `[True]`), so a single-algorithm portfolio's "selected" index is `1`,
-    which is out of range for a 0-based, one-algorithm index space. This is
-    a pre-existing bug (present before F8's extraction, in the original
-    `_determine_selections`, and now shared identically by both call sites)
-    - flagged, not fixed here, since fixing it changes existing output for
-    both `build()` and `explore()` and needs its own compatibility-tagged
-    fix. See the F8/F9 follow-up GitHub issue.
-    """
+    """#314: explore selects index 0 for a good single-algorithm prediction."""
     rng = np.random.default_rng(0)
     svc = _fit_svc(rng)
     pilot_z = _two_point_pilot_z(np.array([0.0, 0.0]), np.array([1.0, 1.0]))
@@ -258,12 +242,18 @@ def test_pythia_selection0_nalgos_equals_one() -> None:
     )
 
     z_good = np.array([[3.0, 3.0]])  # deep in the "good" cluster
-    y_hat_good, _, selection0_good = InstanceSpace._explore_pythia(space, z_good)
+    y_hat_good, _, selection0_good = InstanceSpace._explore_pythia(  # noqa: SLF001
+        space,
+        z_good,
+    )
     assert y_hat_good[0, 0]
-    assert selection0_good[0] == 1  # see docstring - not a valid 0-based index
+    assert selection0_good[0] == 0
 
     z_bad = np.array([[-3.0, -3.0]])  # deep in the "bad" cluster
-    y_hat_bad, _, selection0_bad = InstanceSpace._explore_pythia(space, z_bad)
+    y_hat_bad, _, selection0_bad = InstanceSpace._explore_pythia(  # noqa: SLF001
+        space,
+        z_bad,
+    )
     assert not y_hat_bad[0, 0]
     assert selection0_bad[0] == -1  # "no selection" sentinel, unaffected by the above
 

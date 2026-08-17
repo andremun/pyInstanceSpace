@@ -17,10 +17,9 @@ from exploreIS. exploreIS does not compute per-instance in_space, and
 CLOISTER training is out of scope for this port. The validation here covers
 the ``in_good_*`` and ``in_best_*`` columns only.
 
-Threshold: per-column boolean agreement >= 99%. MATLAB ``inpolygon``
-treats boundary points as inside; ``shapely.Polygon.covers`` matches that
-semantics. The 1% tolerance allows for floating-point boundary edge cases
-after CSV round-trip.
+Threshold: per-column boolean agreement >= 99%. MATLAB ``isinterior`` and
+``shapely.Polygon.covers`` both include boundary points. The 1% tolerance
+allows for floating-point boundary edge cases after CSV round-trip.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -78,14 +77,18 @@ def test_trace_output_shapes() -> None:
     assert in_best.dtype == np.bool_
 
 
-def test_trace_inside_outside() -> None:
+def test_trace_inside_outside_and_matlab_boundary_semantics() -> None:
+    """MATLAB ``isinterior`` counts exact boundary points as inside."""
     square = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
     space = make_instance_space([square], [square])
     z = np.array([[0.5, 0.5], [2.0, 2.0], [0.0, 0.0]])
-    in_good, in_best = InstanceSpace._explore_trace(space, z)
-    # (0.5, 0.5) inside; (2, 2) outside; (0, 0) on boundary -> inside (covers)
-    assert in_good[0, 0] and not in_good[1, 0] and in_good[2, 0]
-    assert in_best[0, 0] and not in_best[1, 0] and in_best[2, 0]
+    in_good, in_best = InstanceSpace._explore_trace(space, z)  # noqa: SLF001
+    assert in_good[0, 0]
+    assert not in_good[1, 0]
+    assert in_good[2, 0]
+    assert in_best[0, 0]
+    assert not in_best[1, 0]
+    assert in_best[2, 0]
 
 
 def test_trace_none_polygon_returns_false() -> None:
