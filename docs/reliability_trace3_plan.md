@@ -40,12 +40,15 @@ undefined metrics, local alpha-shape geometry, and warnings promoted to errors.
 ### 3. Establish fixture provenance
 
 Correct the MATLAB exporter before moving fixtures. Add a versioned manifest, input and
-output hashes, clean-source requirements, complete resolved options, raw TRACE metrics,
-region-aware geometry, explicit empties, and atomic publication.
+output hashes, clean-source requirements, complete post-validation/default option trees,
+raw TRACE metrics, region-aware geometry, explicit build and explore inputs, explicit
+empties, and atomic publication.
 
-Add a Python verifier with synthetic valid and invalid fixture bundles. Create a complete
-inventory that classifies current files as MATLAB verified, Python regression, or
-legacy-unknown. Add a migration map for issue #310.
+Add a Python verifier with synthetic valid and invalid fixture bundles. Its strict
+reference profile must reject missing stages or variants even when a file and its manifest
+entry are removed together. Create a complete inventory that classifies current files as
+MATLAB verified, Python regression, or legacy-unknown. Install issue #310 data only at
+`tests/fixtures/matlab/current/{shared_inputs,resolved_options,build_data,explore_data}`.
 
 Run the exporter on clean MATLAB R2025a+ before marking issue #278 complete. Only then move
 verified fixtures into the unified layout and update readers in one commit. Until that run,
@@ -102,6 +105,9 @@ status, and remaining blockers in `docs/implemented_fixes.md` and
 ### Fixture provenance
 
 - The manifest verifier rejects missing, altered, stale, dirty, or ambiguous bundles.
+- Every variant links a complete effective MATLAB option tree, and build/explore parity
+  artifacts include the inputs needed to reproduce their stage result.
+- The reference profile rejects an internally consistent partial manifest.
 - Every committed fixture has one explicit trust class.
 - No legacy-unknown or Python-regression file is called a MATLAB oracle.
 - Issue #310 moves only data that passed a real current-MATLAB provenance run.
@@ -116,10 +122,10 @@ status, and remaining blockers in `docs/implemented_fixes.md` and
 - Explore rescoring never rebuilds trained geometry.
 - The public empty-footprint and summary contracts remain consistent.
 
-## Known external gate
+## Pending current-gold run
 
-The discovered MATLAB R2024a installation is below the gold repository's R2025a requirement.
-Its first batch probe failed before the user refreshed the MATLAB login, so it will be
-tested again. A clean R2025a+ environment with the required toolboxes and license remains
-the required source for verified reference data. This is the only authorized basis for
-closing #278 and completing the fixture move in #310.
+The R2024a diagnostic completed TRACE3 parity checks but is below the verified-mode
+requirement. MATLAB R2026a is installed, but its first run proved Financial Toolbox is
+also required by PRELIM and is not yet installed. After installing it and committing both
+implementations cleanly, run and review verified mode, then install the accepted bundle
+for #278/#310. That review is also required before switching Python's TRACE default.

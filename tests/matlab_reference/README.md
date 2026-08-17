@@ -1,10 +1,10 @@
-# MATLAB Reference Data for the exploreIS Pipeline
+# Historical MATLAB explore snapshots
 
-Ground-truth inputs, trained-model artifacts and stage outputs from the MATLAB
-implementation of the exploreIS pipeline, consumed by the validation tests in each
-`tests/test_explore_<stage>.py`. All files were exported from a single MATLAB run of the reference
-toolkit (https://github.com/andremun/InstanceSpace) on the trial dataset, so the
-trained artifacts and the reference outputs are mutually consistent.
+These files predate the repository's provenance manifest. Their MATLAB commit, release,
+resolved options, input hashes, and generator state cannot be verified, so they are
+`legacy-unknown` regression snapshots—not current MATLAB ground truth or a numerical
+oracle. Tests may use them to detect unexpected drift, but current parity claims must use
+the verified bundle under `tests/fixtures/matlab/current/`.
 
 ## Directory Structure
 

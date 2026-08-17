@@ -111,32 +111,41 @@ MATLAB comparison data is trusted only when a schema-versioned manifest records:
 - clean MATLAB repository commit and toolkit version;
 - MATLAB release, platform, and required toolboxes;
 - generator repository commit and exporter script hash;
-- resolved options, random seed, dataset, and generation timestamp.
+- one linked artifact per variant containing the complete effective MATLAB option tree
+  after `ISAvalidateOpts` and `ISAdefaults`, plus the seed, dataset, and timestamp.
 
-Generation uses a fresh temporary directory and publishes atomically. Unknown or dirty
-source state, stale files, missing provenance, or a partial export is an error. Empty
-geometry is explicit instead of being represented by a missing file.
+Generation uses a fresh temporary directory and publishes atomically. The verifier applies
+the strict `reference-export/v1` profile in addition to hashes: it requires both shared
+metadata inputs, all three resolved-option artifacts, every base and downstream stage,
+build and explore inputs, raw metrics, memberships, and every algorithm footprint. Removing
+a file and its manifest entry still fails. Empty geometry is explicit instead of missing.
+
+The reference profile requires MATLAB, Statistics and Machine Learning Toolbox,
+Optimization Toolbox, Global Optimization Toolbox, and Financial Toolbox. The last is
+required by PRELIM's `boxcox` call and is checked before pipeline execution.
 
 Historical fixtures without this evidence are `legacy-unknown`. Python regression data
 is never labeled as a MATLAB oracle.
 
-Issue #278 requires a successful run from a clean MATLAB R2025a-or-newer environment.
-The discovered local application is R2024a. Its first batch probe failed before the user
-refreshed the MATLAB login, so its startup and toolbox state must be checked again. Even a
-successful R2024a run is diagnostic rather than current-gold evidence. This pass can
-implement and test the generator, schema, verifier, inventory, and migration tooling. It
-cannot manufacture verified MATLAB provenance.
+Issue #278 requires a successful verified run from a clean MATLAB R2025a-or-newer
+environment; installed R2026a is the current-gold target. The earlier R2024a diagnostic
+completed all variants and supported parity analysis, but predates the complete-option and
+explore-input profile, so the hardened verifier does not accept it. Run R2026a only after
+both implementations are committed cleanly; review that bundle before installation.
 
-Issue #310 moves only verified data. The target layout is:
+Issue #310 moves only verified data. The canonical installed layout is:
 
 ```text
-tests/fixtures/
-  shared_inputs/<dataset>/
-  matlab/build/<stage>/<variant>/{inputs,outputs}/
-  matlab/explore/<stage>/<variant>/{inputs,outputs}/
-  regression/<stage>/<variant>/
-  legacy_unknown/
+tests/fixtures/matlab/current/
+  manifest.json
+  shared_inputs/reference/{metadata.csv,metadata_test.csv}
+  resolved_options/<variant>.json
+  build_data/<stage>/<variant>/{inputs,outputs}/
+  explore_data/<stage>/<variant>/{inputs,outputs}/
 ```
+
+Historical and Python-generated data remain separately classified by
+`tests/fixture_inventory.json`; they are not moved into `matlab/current`.
 
 ## TRACE3 contract
 
@@ -156,8 +165,11 @@ The engine uses MATLAB radius units:
 1. Delaunay-triangulate unique supporting points.
 2. Compute each finite triangle circumradius.
 3. Keep triangles whose radius is within the selected alpha radius.
-4. Retain boundary edges, polygonize them, and preserve components and holes.
-5. Remove components below the current region threshold.
+4. Group selected triangles into regions by shared-vertex connectivity, matching MATLAB
+   even when polygon interiors touch only at one point.
+5. Keep only regions whose combined triangle area is strictly greater than the current
+   region threshold.
+6. Union the retained triangles while preserving polygon parts and holes.
 
 The default radius models MATLAB `criticalAlpha('all-points')`, not the one-region
 criterion stated in issue #313. Degenerate, collinear, or Qhull-failing inputs produce the
@@ -185,10 +197,21 @@ Training computes good and best footprints per algorithm, a hard footprint, and 
 metrics. Explore rescoring keeps trained geometry fixed and recomputes memberships and raw
 metrics against new truth. New algorithms receive empty footprints.
 
+### Diagnostic parity evidence
+
+The R2024a diagnostic bundle compared both prediction-filtered TRACE3 and the
+PYTHIA-skipped true-label fallback. Every exported good, best, hard, and space result
+matched in measure, membership counts, density, purity, components, holes, and boundary
+geometry to floating-point precision. Focused probes also confirmed the alpha spectrum,
+all-points critical radius, inclusive simplex boundary, strict region threshold, and
+shared-vertex region rule. This is implementation evidence only; a clean R2026a run remains
+the current-gold provenance gate.
+
 ## Default policy
 
-`method="legacy"` remains the Python default until a reviewed R2025a+ export proves TRACE3
-geometry and metrics. `method="trace3"` is fully usable and tested by independent invariants.
+`method="legacy"` remains the Python default until a reviewed current-gold export proves
+TRACE3 geometry and metrics. `method="trace3"` is fully usable in two dimensions and tested
+by independent invariants plus the R2024a diagnostic comparison.
 The method-specific effective purity is 0.55 for omitted legacy options and MATLAB's 0.60
 for omitted TRACE3 options. An explicit purity always wins.
 

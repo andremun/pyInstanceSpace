@@ -44,8 +44,8 @@ Please refer to the pdoc documentation for instructions on exporting static HTML
 
 ## Repository layout
 
-- `instancespace/` — the package itself: `instance_space.py` (the `InstanceSpace` class — `build()`/`explore()`/`explore_stage_iter()` — hardcodes the built-in 7-stage execution order), `stage_runner.py` (`StageRunner`, the execution/rollback engine, plus `build_stage_runner()` for attaching extra/plugin stages to that order via `RunBefore`/`RunAfter`), `stages/` (one module per pipeline stage — `preprocessing`, `prelim`, `sifted`, `pilot`, `pythia`, `cloister`, `trace`), `data/` (option and metadata dataclasses), `model.py` (the trained `Model` and its `save_to_csv`/`save_for_web`/`save_graphs`/`save_to_mat`/`save_zip` methods), and `scripting/` (CSV/plot output helpers).
-- `tests/` — the test suite, flat (no per-stage subdirectories): `tests/matlab_reference/` holds MATLAB-trained golden-reference artifacts used to validate the Python port stage by stage, `test_build_<stage>.py` covers a stage's `build()`-time behaviour, and `test_explore_<stage>.py` covers its `explore()`/`explore_stage_iter()`-time inference (unit + MATLAB validation tests together in one file). See `tests/README.md` for the full naming convention.
+- `instancespace/` — the package itself: `instance_space.py` (the `InstanceSpace` class — `build()`/`explore()`/`explore_stage_iter()` — hardcodes the built-in 7-stage execution order), `stage_runner.py` (`StageRunner`, the execution/rollback engine, plus `build_stage_runner()` for attaching extra/plugin stages to that order via `RunBefore`/`RunAfter`), `stages/` (one module per pipeline stage — `preprocessing`, `prelim`, `sifted`, `pilot`, `pythia`, `cloister`, `trace`), `data/` (option and metadata dataclasses), `_serialisers.py` (CSV/plot/MAT helpers), and `model.py` (the trained `Model` and its save methods).
+- `tests/` — the flat test suite. `tests/fixtures/matlab/current/` is reserved for manifest-verified current MATLAB data; `tests/matlab_reference/` contains unverified historical regression snapshots. `test_build_<stage>.py` covers training and `test_explore_<stage>.py` covers inference. See `tests/README.md`.
 - `examples/data/` — real, multi-dataset example data (BBO, JSS, KP, MFP, and more) used by `integration_demo.py`/`example_plugin.py` - not a test fixture.
 - `integration_demo.py` — the minimal runnable example: load metadata + options from `examples/data/`, construct an `InstanceSpace` with the full stage list, and `build()` it.
 - `example_plugin.py` — demonstrates writing a custom `Stage` and slotting it into the pipeline alongside the built-in stages.
@@ -87,7 +87,10 @@ result = space.explore(test_metadata)
 
 `explore()` returns the full result in one call; `explore_stage_iter()` runs the same stages but yields each one's output in turn (`prelim`, `sifted`, `pilot`, `pythia`, `trace`), for inspecting the pipeline one stage at a time. The operation manual `liveDemoIS.ipynb` — the Python counterpart of the MATLAB live demo (`liveDemoIS.m`) — walks through both `build()` and `explore()`/`explore_stage_iter()` stage by stage and is meant to be read as a usage guide; run it from the repository root.
 
-The port is validated stage by stage against the MATLAB implementation: `tests/matlab_reference/` holds the MATLAB-trained artifacts and reference outputs, `test_explore_<stage>.py` (e.g. run `pytest tests/test_explore_trace.py -v -s`) holds the validation and unit tests for each stage's `explore()`-time inference, and `docs/explore_validation.ipynb` documents how the validation numbers were obtained and how a from-scratch Python build behaves. `tests/README.md` documents the full naming convention.
+Stage tests combine synthetic contracts, historical regression snapshots, and
+manifest-verified current MATLAB fixtures. `tests/matlab_reference/` is explicitly
+unverified; current parity evidence lives under `tests/fixtures/matlab/current/`.
+`tests/README.md` documents the naming and trust conventions.
 
 ## Development Environment Setup Guide
 
