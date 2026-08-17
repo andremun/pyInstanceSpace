@@ -1009,6 +1009,9 @@ class PrelimOptions:
     # MATLAB's opts.iqrMultiplier. Default matches the value this port
     # previously hard-coded.
     iqr_multiplier: float = 5.0
+    # Master switch matching MATLAB's opts.auto.preproc. Keep this enabled by
+    # default and after the existing multiplier to preserve positional callers.
+    preproc: bool = True
 
     @staticmethod
     def from_options(options: InstanceSpaceOptions) -> PrelimOptions:
@@ -1020,6 +1023,7 @@ class PrelimOptions:
             beta_threshold=options.perf.beta_threshold,
             bound=options.bound.flag,
             norm=options.norm.flag,
+            preproc=options.auto.preproc,
         )
 
 
