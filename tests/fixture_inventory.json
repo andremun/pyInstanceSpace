@@ -1,0 +1,57 @@
+{
+  "schema_version": "pyinstancespace.fixture-inventory/v1",
+  "roots": [
+    "tests/matlab_reference",
+    "tests/pilot_pythia",
+    "tests/test_data"
+  ],
+  "ignore": [
+    "**/.gitignore",
+    "**/README.md"
+  ],
+  "rules": [
+    {
+      "pattern": "tests/matlab_reference/**",
+      "trust": "legacy-unknown",
+      "reason": "Historical MATLAB-labelled data has no machine-verifiable generator provenance."
+    },
+    {
+      "pattern": "tests/pilot_pythia/**",
+      "trust": "legacy-unknown",
+      "reason": "Historical combined-stage results have no recorded MATLAB commit or environment."
+    },
+    {
+      "pattern": "tests/test_data/trace_csvs/correct_results_simulation.csv",
+      "trust": "python-regression",
+      "reason": "This boundary-sensitive baseline was regenerated from corrected Python TRACE behavior."
+    },
+    {
+      "pattern": "tests/test_data/load_file/**",
+      "trust": "python-synthetic",
+      "reason": "These files exercise Python-only parsing and rejection behavior."
+    },
+    {
+      "pattern": "tests/test_data/serialisers/actual_output/**",
+      "trust": "test-scratch",
+      "reason": "Serializer tests create these files during a run."
+    },
+    {
+      "pattern": "tests/test_data/serialisers/**",
+      "exclude": [
+        "tests/test_data/serialisers/actual_output/**"
+      ],
+      "trust": "python-regression",
+      "reason": "These inputs and expected artifacts test Python's output contract, not MATLAB parity."
+    },
+    {
+      "pattern": "tests/test_data/**",
+      "exclude": [
+        "tests/test_data/load_file/**",
+        "tests/test_data/serialisers/**",
+        "tests/test_data/trace_csvs/correct_results_simulation.csv"
+      ],
+      "trust": "legacy-unknown",
+      "reason": "These stage fixtures are attributed to historical MATLAB runs without verifiable provenance."
+    }
+  ]
+}
