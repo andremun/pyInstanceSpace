@@ -48,12 +48,7 @@ from loguru import logger
 from numpy.typing import NDArray
 from scipy import stats
 from sklearn.base import ClassifierMixin
-from sklearn.metrics import (
-    accuracy_score,
-    confusion_matrix,
-    precision_score,
-    recall_score,
-)
+from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 from skopt import BayesSearchCV
 
@@ -82,6 +77,42 @@ _BAYES_OPTIMIZER_KWARGS: dict[str, object] = {
     "n_initial_points": 4,
     "acq_func": "EI",
 }
+
+
+def _safe_ratio(numerator: int | float, denominator: int | float) -> float:
+    """Return NaN when a rate has no observations."""
+    return float(numerator / denominator) if denominator != 0 else float("nan")
+
+
+def _nanmean(
+    values: NDArray[Any],
+    axis: int | None = None,
+) -> NDArray[np.double]:
+    """Calculate a NaN-aware mean without an empty-slice warning."""
+    array = np.asarray(values, dtype=np.double)
+    present = np.logical_not(np.isnan(array))
+    totals = np.sum(np.where(present, array, 0.0), axis=axis, dtype=np.double)
+    counts = np.sum(present, axis=axis, dtype=np.int_)
+    result = np.full(np.asarray(totals).shape, np.nan, dtype=np.double)
+    return np.divide(totals, counts, out=result, where=counts > 0)
+
+
+def _matlab_nanstd(
+    values: NDArray[Any],
+    axis: int | None = None,
+) -> NDArray[np.double]:
+    """Calculate MATLAB's NaN-aware sample standard deviation without warnings."""
+    array = np.asarray(values, dtype=np.double)
+    present = np.logical_not(np.isnan(array))
+    means = _nanmean(array, axis=axis)
+    expanded_means = means if axis is None else np.expand_dims(means, axis=axis)
+    squared_error = np.where(present, (array - expanded_means) ** 2, 0.0)
+    totals = np.sum(squared_error, axis=axis, dtype=np.double)
+    counts = np.sum(present, axis=axis, dtype=np.int_)
+    denominator = np.maximum(counts - 1, 1)
+    variance = np.full(np.asarray(totals).shape, np.nan, dtype=np.double)
+    np.divide(totals, denominator, out=variance, where=counts > 0)
+    return np.sqrt(variance)
 
 
 @dataclass(frozen=True)
@@ -468,6 +499,11 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         push `pythia()` itself over the branch-count lint threshold; carries
         the whole training-mode body (Sections 2-4) unchanged.
         """
+        PythiaStage._validate_cv_folds(
+            y_bin,
+            algo_labels,
+            opts.cv_folds,
+        )
         precalcparams = PythiaStage._check_precalcparams(
             opts.params,
             nalgos,
@@ -502,8 +538,9 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         # Cost-sensitive classification
         if opts.use_weights:
             logger.info("[PYTHIA]  -> PYTHIA is using cost-sensitive classification.")
-            w = np.abs(y - np.nanmean(y))
-            finite_nonzero = w[(w != 0) & ~np.isnan(w)]
+            performance_mean = float(_nanmean(y))
+            w = np.abs(y - performance_mean)
+            finite_nonzero = w[(w != 0) & np.isfinite(w)]
             if finite_nonzero.size == 0:
                 # Degenerate case: y is constant or entirely NaN, so every
                 # weight is 0 or NaN. Fall back to uniform weighting rather
@@ -515,8 +552,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 )
                 w = np.ones((ninst, nalgos), dtype=np.double)
             else:
-                w[w == 0] = np.min(w[w != 0])
-                w[np.isnan(w)] = np.max(w[~np.isnan(w)])
+                w[w == 0] = np.min(finite_nonzero)
+                w[~np.isfinite(w)] = np.max(finite_nonzero)
         else:
             logger.info(
                 "[PYTHIA]  -> PYTHIA is not using cost-sensitive classification.",
@@ -605,9 +642,9 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             cm = confusion_matrix(y_bin[:, i], res.Ysub, labels=[False, True])
             tn, fp, fn, tp = cm.ravel()
 
-            accuracy = accuracy_score(y_bin[:, i], res.Ysub)
-            precision = precision_score(y_bin[:, i], res.Ysub)
-            recall = recall_score(y_bin[:, i], res.Ysub)
+            accuracy = float((tp + tn) / ninst)
+            precision = _safe_ratio(tp, tp + fp)
+            recall = _safe_ratio(tp, tp + fn)
 
             cvcmat[i, :] = [tn, fp, fn, tp]
             accuracy_record.append(accuracy)
@@ -1352,15 +1389,17 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         -------
         None
         """
+        precision_mean = float(_nanmean(np.asarray(precision, dtype=np.double)))
+        accuracy_mean = float(_nanmean(np.asarray(accuracy, dtype=np.double)))
         logger.info(
             "[PYTHIA]  -> The average cross validated precision is: "
-            + str(np.round(100 * np.mean(precision), 1))
+            + str(np.round(100 * precision_mean, 1))
             + "%",
         )
 
         logger.info(
             "[PYTHIA]  -> The average cross validated accuracy is: "
-            + str(np.round(100 * np.mean(accuracy), 1))
+            + str(np.round(100 * accuracy_mean, 1))
             + "%",
         )
 
@@ -1419,20 +1458,47 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         """
         if params is None:
             return None
+        params_array = np.asarray(params)
         n_params = 1 + int(spec.param2 is not None)
-        # Check if the shape of hyper-parameters is correct
-        if params.shape != (nalgos, n_params):
-            logger.warning(
-                f"[PYTHIA] -> Incorrect number of hyper-parameters (expected "
-                f"({nalgos}, {n_params}) for '{classifier_name}'). "
-                "Hyper-parameters will be auto-generated.",
+        expected_shape = (nalgos, n_params)
+        if params_array.shape != expected_shape:
+            raise ValueError(
+                "PythiaOptions.params has shape "
+                f"{params_array.shape}. Classifier '{classifier_name}' requires "
+                f"shape {expected_shape}.",
             )
-            return None
+        if not np.issubdtype(params_array.dtype, np.number) or not np.isrealobj(
+            params_array,
+        ):
+            raise ValueError("PythiaOptions.params must contain real numbers.")
+        params_array = np.asarray(params_array, dtype=np.double)
+        if not np.all(np.isfinite(params_array)):
+            raise ValueError("PythiaOptions.params must contain finite values.")
         logger.info(
             f"[PYTHIA] -> Using pre-calculated hyper-parameters for the "
             f"'{classifier_name}' classifier.",
         )
-        return params
+        return params_array
+
+    @staticmethod
+    def _validate_cv_folds(
+        y_bin: NDArray[np.bool_],
+        algo_labels: list[str],
+        cv_folds: int,
+    ) -> None:
+        """Validate folds against each nondegenerate algorithm's class counts."""
+        for index, algo_label in enumerate(algo_labels):
+            labels = np.asarray(y_bin[:, index], dtype=np.bool_)
+            good_count = int(np.count_nonzero(labels))
+            bad_count = int(labels.size - good_count)
+            if good_count == 0 or bad_count == 0:
+                continue
+            smallest_class = min(good_count, bad_count)
+            if cv_folds > smallest_class:
+                raise ValueError(
+                    f"PythiaOptions.cv_folds={cv_folds} exceeds class count "
+                    f"{smallest_class} for algorithm '{algo_label}'.",
+                )
 
     @staticmethod
     def _validate_tuning(
@@ -1519,6 +1585,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             The predicted labels.
         """
         precision_array = np.asarray(precision, dtype=np.double).reshape(1, nalgos)
+        precision_array = np.where(np.isnan(precision_array), 0.0, precision_array)
         weighted_yhat = y_hat * precision_array
         best = np.max(weighted_yhat, axis=1)
         raw_selection = np.argmax(weighted_yhat, axis=1).astype(np.int_)
@@ -1641,8 +1708,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         sel1 = selection1[:, np.newaxis] == np.arange(nalgos)
 
         # Compute the average performance of the selected algorithms
-        avgperf = np.round(np.nanmean(y, axis=0), 3)
-        stdperf = np.round(np.nanstd(y, axis=0), 3)
+        avgperf = np.round(_nanmean(y, axis=0), 3)
+        stdperf = np.round(_matlab_nanstd(y, axis=0), 3)
 
         """This variable stores the full performance of the algorithms,
         but filtered based on selection1
@@ -1672,49 +1739,52 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         tg = np.sum(np.any(np.logical_and(y_bin, sel0), axis=1))  # selected, good
         fg = np.sum(np.any(np.logical_and(not_y_bin, sel0), axis=1))  # selected, bad
         fb = np.sum(np.any(np.logical_and(y_bin, not_sel0), axis=1))  # good, unselected
-        precisionsel = tg / (tg + fg)
-        recallsel = tg / (tg + fb)
+        precisionsel = _safe_ratio(tg, tg + fg)
+        recallsel = _safe_ratio(tg, tg + fb)
 
         # Prepare the data for the summary table
         data = {
             "Algorithms": [*algo_labels, "Oracle", "Selector"],
             "Avg_Perf_all_instances": np.round(
-                np.append(avgperf, [np.nanmean(y_best), np.nanmean(y_full)]),
+                np.append(avgperf, [_nanmean(y_best), _nanmean(y_full)]),
                 3,
             ),
             "Std_Perf_all_instances": np.round(
-                np.append(stdperf, [np.nanstd(y_best), np.nanstd(y_full)]),
+                np.append(
+                    stdperf,
+                    [_matlab_nanstd(y_best), _matlab_nanstd(y_full)],
+                ),
                 3,
             ),
             "Probability_of_good": np.round(
-                np.append(np.nanmean(y_bin, axis=0), [1, pgood]),
+                np.append(_nanmean(y_bin, axis=0), [1, pgood]),
                 3,
             ),
             "Avg_Perf_selected_instances": np.round(
                 np.append(
-                    np.nanmean(y_svms, axis=0),
-                    np.array([np.nan, np.nanmean(y_full)]),
+                    _nanmean(y_svms, axis=0),
+                    np.array([np.nan, _nanmean(y)]),
                 ),
                 3,
             ),
             "Std_Perf_selected_instances": np.round(
                 np.append(
-                    np.nanstd(y_svms, axis=0),
-                    np.array([np.nan, np.nanstd(y_full)]),
+                    _matlab_nanstd(y_svms, axis=0),
+                    np.array([np.nan, _matlab_nanstd(y)]),
                 ),
                 3,
             ),
             "CV_model_accuracy": np.round(
                 100 * np.append(accuracy, [np.nan, np.nan]),
-                3,
+                1,
             ),
             "CV_model_precision": np.round(
                 100 * np.append(precision, [np.nan, precisionsel]),
-                3,
+                1,
             ),
             "CV_model_recall": np.round(
                 100 * np.append(recall, [np.nan, recallsel]),
-                3,
+                1,
             ),
         }
         if param1_label is not None:
@@ -1725,7 +1795,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                     3,
                 )
 
-        df = pd.DataFrame(data).replace({np.nan: ""})
+        df = pd.DataFrame(data)
         logger.info(
             f"[PYTHIA]   -> PYTHIA has completed! Performance of the models:\n{df}",
         )
