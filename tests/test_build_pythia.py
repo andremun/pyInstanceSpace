@@ -14,6 +14,7 @@ Tests includes:
     - test_compare_output: Test that the output of the compute_znorm is as expected.
 """
 
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,6 +22,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from numpy.typing import NDArray
+from sklearn.exceptions import UndefinedMetricWarning  # type: ignore[import-untyped]
 from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
 
@@ -515,49 +517,25 @@ def test_pythia_sobol_seed_reproducibility() -> None:
 
 def test_pythia_tuning_none_requires_params() -> None:
     """F10: `tuning='none'` without pre-calculated params fails loudly."""
-    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
-    opts = PythiaOptions(
-        cv_folds=2,
-        is_poly_krnl=False,
-        use_weights=False,
-        params=None,
-        tuning="none",
-    )
-
     with pytest.raises(ValueError, match="tuning='none'"):
-        PythiaStage.pythia(
-            z_small,
-            y_small,
-            y_bin_small,
-            y_best_small,
-            algo_small,
-            opts,
-            ParallelOptions.default(),
-            GeneralOptions(verbose=False, seed=0),
+        PythiaOptions(
+            cv_folds=2,
+            is_poly_krnl=False,
+            use_weights=False,
+            params=None,
+            tuning="none",
         )
 
 
 def test_pythia_tuning_invalid_value_raises() -> None:
     """F10: an unrecognised `tuning` value fails loudly, not silently."""
-    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
-    opts = PythiaOptions(
-        cv_folds=2,
-        is_poly_krnl=False,
-        use_weights=False,
-        params=None,
-        tuning="not-a-real-strategy",
-    )
-
-    with pytest.raises(ValueError, match="not recognised"):
-        PythiaStage.pythia(
-            z_small,
-            y_small,
-            y_bin_small,
-            y_best_small,
-            algo_small,
-            opts,
-            ParallelOptions.default(),
-            GeneralOptions(verbose=False, seed=0),
+    with pytest.raises(ValueError, match="one of"):
+        PythiaOptions(
+            cv_folds=2,
+            is_poly_krnl=False,
+            use_weights=False,
+            params=None,
+            tuning="not-a-real-strategy",
         )
 
 
@@ -676,6 +654,7 @@ def test_compute_znorm_mu_sigma_are_from_raw_z() -> None:
     assert not np.allclose(sigma, 1.0, atol=0.5)
 
 
+@pytest.mark.filterwarnings("error::RuntimeWarning")
 def test_pythia_use_weights_degenerate_falls_back_to_uniform(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -694,7 +673,7 @@ def test_pythia_use_weights_degenerate_falls_back_to_uniform(
         cv_folds=2,
         is_poly_krnl=False,
         use_weights=True,
-        params=None,
+        params=np.ones((2, 2)),
     )
 
     messages: list[str] = []
@@ -860,7 +839,7 @@ def test_pythia_summary_algorithm_rows_match_raw_metrics(
     ):
         np.testing.assert_allclose(
             algorithm_rows[column].to_numpy(dtype=np.double),
-            np.round(100 * np.asarray(raw_metrics), 3),
+            np.round(100 * np.asarray(raw_metrics), 1),
         )
 
 
@@ -998,6 +977,7 @@ def test_pythia_single_algorithm_build_selects_index_zero() -> None:
     np.testing.assert_array_equal(out.selection1, np.zeros(z_small.shape[0]))
 
 
+@pytest.mark.filterwarnings("error::RuntimeWarning")
 def test_skip_mode_bypasses_training_and_returns_empty_output() -> None:
     """#298 Issue 10: `opts.skip=True` matches MATLAB's `emptyPYTHIAout`.
 
@@ -1056,3 +1036,130 @@ def test_skip_mode_bypasses_training_and_returns_empty_output() -> None:
     # zscore parameters.
     np.testing.assert_allclose(out.mu, np.mean(z_small, axis=0))
     np.testing.assert_allclose(out.sigma, np.std(z_small, ddof=1, axis=0))
+
+
+def test_undefined_metrics_are_nan_without_warnings() -> None:
+    """Undefined algorithm and selector rates must match MATLAB NaN values."""
+    z_small, y_small, _y_bin, y_best_small, algo_small = _small_pythia_dataset()
+    y_bin_all_bad = np.zeros(y_small.shape, dtype=np.bool_)
+    opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        params=None,
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        warnings.simplefilter("error", UndefinedMetricWarning)
+        out = PythiaStage.pythia(
+            z_small,
+            y_small,
+            y_bin_all_bad,
+            y_best_small,
+            algo_small,
+            opts,
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=0),
+        )
+
+    assert all(np.isnan(value) for value in out.precision)
+    assert all(np.isnan(value) for value in out.recall)
+    np.testing.assert_array_equal(out.selection0, -1)
+    np.testing.assert_array_equal(out.selection1, 0)
+    selector = out.pythia_summary.iloc[-1]
+    assert np.isnan(selector["CV_model_precision"])
+    assert np.isnan(selector["CV_model_recall"])
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+def test_summary_uses_matlab_sample_standard_deviation() -> None:
+    """Summary standard deviations use N-1 and return zero for one value."""
+    summary = PythiaStage._generate_summary(  # noqa: SLF001
+        nalgos=2,
+        algo_labels=["a0", "a1"],
+        y=np.array([[1.0, np.nan], [3.0, 5.0], [5.0, np.nan]]),
+        y_hat=np.zeros((3, 2), dtype=np.bool_),
+        y_bin=np.zeros((3, 2), dtype=np.bool_),
+        y_best=np.array([1.0, 3.0, 5.0]),
+        selection0=np.full(3, -1, dtype=np.int_),
+        selection1=np.zeros(3, dtype=np.int_),
+        accuracy=[np.nan, np.nan],
+        precision=[np.nan, np.nan],
+        recall=[np.nan, np.nan],
+        box_consnt=[np.nan, np.nan],
+        k_scale=[np.nan, np.nan],
+        param1_label=None,
+        param2_label=None,
+    )
+
+    np.testing.assert_allclose(
+        summary.loc[:1, "Std_Perf_all_instances"].to_numpy(dtype=float),
+        [2.0, 0.0],
+    )
+    assert np.isnan(summary.iloc[-1]["CV_model_precision"])
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+def test_summary_excludes_selector_fallback_from_selected_performance() -> None:
+    """Selector selected-performance statistics use selection0, not selection1."""
+    summary = PythiaStage._generate_summary(  # noqa: SLF001
+        nalgos=2,
+        algo_labels=["a0", "a1"],
+        y=np.array([[1.0, 10.0], [3.0, 20.0]]),
+        y_hat=np.zeros((2, 2), dtype=np.bool_),
+        y_bin=np.zeros((2, 2), dtype=np.bool_),
+        y_best=np.array([10.0, 20.0]),
+        selection0=np.full(2, -1, dtype=np.int_),
+        selection1=np.zeros(2, dtype=np.int_),
+        accuracy=[np.nan, np.nan],
+        precision=[np.nan, np.nan],
+        recall=[np.nan, np.nan],
+        box_consnt=[np.nan, np.nan],
+        k_scale=[np.nan, np.nan],
+        param1_label=None,
+        param2_label=None,
+    )
+
+    selector = summary.iloc[-1]
+    expected_average = 2.0
+    assert selector["Avg_Perf_all_instances"] == expected_average
+    assert np.isnan(selector["Avg_Perf_selected_instances"])
+    assert np.isnan(selector["Std_Perf_selected_instances"])
+
+
+def test_pythia_rejects_contextual_parameter_shape() -> None:
+    """Precalculated parameters must match the algorithm and classifier counts."""
+    spec = get_classifier_fcn("svm")
+
+    with pytest.raises(ValueError, match=r"shape \(2, 2\)"):
+        PythiaStage._check_precalcparams(  # noqa: SLF001
+            np.ones((1, 2)),
+            nalgos=2,
+            spec=spec,
+            classifier_name="svm",
+        )
+
+
+def test_pythia_rejects_folds_above_smallest_class() -> None:
+    """Cross-validation must have enough examples from both classes."""
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    y_bin_small[:, 0] = False
+    y_bin_small[0, 0] = True
+
+    with pytest.raises(ValueError, match="exceeds class count 1.*a0"):
+        PythiaStage.pythia(
+            z_small,
+            y_small,
+            y_bin_small,
+            y_best_small,
+            algo_small,
+            PythiaOptions(
+                cv_folds=2,
+                is_poly_krnl=False,
+                use_weights=False,
+                params=None,
+            ),
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=0),
+        )
