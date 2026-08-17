@@ -1,11 +1,11 @@
 # Test data audit and remediation proposal
 
-**Status:** Audit complete. §7's decision is made: single unified layout (Option A),
-documented only for now — the migration itself waits on GitHub issue #278 (the export
-script needs a real MATLAB run before any fixture moves onto its shape). Steps 1
+**Status:** Audit complete. §7's decision is made: single unified layout (Option A).
+The hardened exporter and independent verifier completed an R2024a diagnostic run on
+2026-08-17. A verified R2025a+ run is still required before fixtures move. Steps 1
 (delete confirmed-dead data), 2 (resolve the `prelim/run/output/` partial-orphan), 3
 (fix the `serialisers/actual_output/` scratch leak), and 4 (relocate `test_data/demo/`)
-are done. Step 5 (the unified-layout migration itself) remains open, blocked on #278 —
+are done. Step 5 (the unified-layout migration itself) remains gated on #278 and is
 tracked as GitHub issue T10e (#310); full status in §9. **§7.1 (added on request,
 2026-08-03) extends the target layout with a cross-stage/shared-input rule**,
 documented now so T10e's migration only has to move fixtures once, not twice.
@@ -218,10 +218,10 @@ options. Do not start moving `test_data/<stage>/` fixtures until one option is c
 
 ## 7. Decision: one layout, not two
 
-**Decided: Option A, single unified layout.** Documented here only — no fixture has
-moved yet, since the migration itself is blocked on GitHub issue #278 (the export
-script needs a real MATLAB run, and its output needs a review, before anything treats
-its shape as ground truth to migrate onto).
+**Decided: Option A, single unified layout.** The exporter now produces and verifies
+this layout, and `tools.fixture_provenance install` can atomically install only a
+verified bundle. No historical fixture has moved: the available R2024a diagnostic
+bundle is deliberately rejected by that installer.
 
 Target shape: `tests/matlab_export/pyis_export_reference_data.m`'s own output —
 `build_data/<stage>/<variant>/` and `explore_data/<stage>/<variant>/`, the same shape and
@@ -291,18 +291,16 @@ is this document's proposal, favoured over "global" (collides with Python's own
 `global` keyword) and "class" (already overloaded as "class label" in this codebase's
 own ML vocabulary) — open to revision before T10e executes.
 
-**Not in scope for this addendum:** actually moving any file. Like the rest of §7,
-this is a documented decision only, waiting on the same #278 blocker as the rest of
-Step 5 — recorded now so the target shape is settled before the migration starts, not
-discovered mid-migration.
+**Migration gate:** move files and update readers only after a clean R2025a+ export
+passes manifest review and the Python verifier. This keeps unknown-provenance data out
+of the new oracle tree.
 
 ## 8. What this audit did not do
 
-It did not run the MATLAB export script (`tests/matlab_export/`) against a real MATLAB
-checkout — that dependency is already tracked on GitHub issue #278 and is unchanged by
-this document. Step 1 (delete confirmed-dead data) is the only step this audit executed;
-Steps 2-5 are proposals, not completed actions. It did not audit `docs/`, `output/`, or
-any directory outside `tests/` — a repository-root sweep, if wanted, is separate work.
+The exporter has now run against the current MATLAB checkout under R2024a. Its 196-file
+diagnostic bundle passed hash, path, shape, toolbox, and exact file-set validation.
+Because the toolkit declares R2025a+, this run validates tooling rather than scientific
+parity. A clean R2025a+ run and review remain external gates for #278 and #310.
 
 ## 9. Tracking issues
 
@@ -315,7 +313,7 @@ Remediation is tracked under Phase T, as sub-issues of the Phase T parent (#273)
 | #307 | T10b — Resolve `prelim/run/output/` partial-orphan | Step 2 | Done — see commit history |
 | #308 | T10c — Fix `serialisers/actual_output/` scratch-output leak | Step 3 | Done — see commit history |
 | #309 | T10d — Relocate `test_data/demo/` out of `test_data/` | Step 4 | Done — see commit history |
-| #310 | T10e — Migrate onto the unified layout (§7, §7.1) | Step 5 | Open, blocked on #278 |
+| #310 | T10e — Migrate onto the unified layout (§7, §7.1) | Step 5 | Installer ready; fixture move blocked on verified #278 bundle |
 | #311 | `examples/data/options.json`'s `selvars.type` invalid value | Found verifying Step 4 | Done — see commit history |
 
 Pick up a step by reading its GitHub issue first, then the corresponding section above —
