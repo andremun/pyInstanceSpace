@@ -127,11 +127,10 @@ required by PRELIM's `boxcox` call and is checked before pipeline execution.
 Historical fixtures without this evidence are `legacy-unknown`. Python regression data
 is never labeled as a MATLAB oracle.
 
-Issue #278 requires a successful verified run from a clean MATLAB R2025a-or-newer
-environment; installed R2026a is the current-gold target. The earlier R2024a diagnostic
-completed all variants and supported parity analysis, but predates the complete-option and
-explore-input profile, so the hardened verifier does not accept it. Run R2026a only after
-both implementations are committed cleanly; review that bundle before installation.
+Issue #278's local provenance gate is satisfied by a verified R2026a Update 4 run from
+clean MATLAB `34c0129` and Python generator `b87179f`. The earlier R2024a diagnostic still
+predates the complete-option and explore-input profile and is not accepted. The strict
+verifier accepted 229 manifest-listed files before the bundle was installed.
 
 Issue #310 moves only verified data. The canonical installed layout is:
 
@@ -197,21 +196,22 @@ Training computes good and best footprints per algorithm, a hard footprint, and 
 metrics. Explore rescoring keeps trained geometry fixed and recomputes memberships and raw
 metrics against new truth. New algorithms receive empty footprints.
 
-### Diagnostic parity evidence
+### Current-gold parity evidence
 
-The R2024a diagnostic bundle compared both prediction-filtered TRACE3 and the
-PYTHIA-skipped true-label fallback. Every exported good, best, hard, and space result
-matched in measure, membership counts, density, purity, components, holes, and boundary
-geometry to floating-point precision. Focused probes also confirmed the alpha spectrum,
-all-points critical radius, inclusive simplex boundary, strict region threshold, and
-shared-vertex region rule. This is implementation evidence only; a clean R2026a run remains
-the current-gold provenance gate.
+The verified R2026a bundle compares both prediction-filtered TRACE3 and the PYTHIA-skipped
+true-label fallback. Build measures, counts, density, purity, components, holes, and
+boundary geometry agree to about `1.3e-13`; fallback explore membership and rescoring are
+exact. The default explore variant has two disagreements for one exported point whose
+distance to both affected exported boundaries is zero. The reader pins those exact CSV
+precision ambiguities and requires exact agreement everywhere off the boundary. Independent
+probes also confirmed the alpha spectrum, all-points critical radius, inclusive simplex
+boundary, strict region threshold, and shared-vertex region rule.
 
 ## Default policy
 
-`method="legacy"` remains the Python default until a reviewed current-gold export proves
-TRACE3 geometry and metrics. `method="trace3"` is fully usable in two dimensions and tested
-by independent invariants plus the R2024a diagnostic comparison.
+`method="legacy"` remains the Python default as an explicit compatibility policy, not for
+lack of evidence. `method="trace3"` is fully usable in two dimensions and tested by
+independent invariants plus the verified R2026a comparison.
 The method-specific effective purity is 0.55 for omitted legacy options and MATLAB's 0.60
 for omitted TRACE3 options. An explicit purity always wins.
 

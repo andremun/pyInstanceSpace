@@ -91,11 +91,9 @@ python -m tools.fixture_provenance install \
 
 ## Current execution status
 
-On 2026-08-17 the exporter completed all three variants under MATLAB R2024a. Its earlier
-196-file diagnostic bundle supported TRACE3 parity analysis, but it predates complete
-option artifacts and explicit explore inputs and is not accepted by the current profile.
-The complete reference dataset is expected to contain 229 files plus `manifest.json`.
-A clean R2026a verified run and scientific review remain required for #278 and #310; no
-unknown-provenance fixture was moved or relabelled. The first R2026a diagnostic attempt
-stopped at PRELIM because Financial Toolbox was absent; the new preflight catches that
-before execution, and atomic publication left no partial bundle.
+On 2026-08-18 verified mode completed all three variants under MATLAB R2026a Update 4 from
+clean MATLAB `34c0129` and Python generator `b87179f`. The strict verifier accepted 229
+manifest-listed files plus `manifest.json`; the reviewed bundle is installed unchanged at
+`tests/fixtures/matlab/current/`. The R2024a diagnostic and all historical snapshots retain
+their non-oracle trust classes. The initial missing-Financial-Toolbox attempt published no
+partial bundle.

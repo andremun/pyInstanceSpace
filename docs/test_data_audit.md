@@ -1,12 +1,12 @@
 # Test data audit and remediation proposal
 
-**Status:** Audit complete. §7's decision is made: single unified layout (Option A).
-The hardened exporter and independent verifier completed an R2024a diagnostic run on
-2026-08-17. A verified R2025a+ run is still required before fixtures move. Steps 1
+**Status:** Audit and current migration complete. §7's decision is implemented: single
+unified layout (Option A). The hardened exporter and independent verifier completed a
+verified R2026a Update 4 run on 2026-08-18. Steps 1
 (delete confirmed-dead data), 2 (resolve the `prelim/run/output/` partial-orphan), 3
 (fix the `serialisers/actual_output/` scratch leak), and 4 (relocate `test_data/demo/`)
-are done. Step 5 (the unified-layout migration itself) remains gated on #278 and is
-tracked as GitHub issue T10e (#310); full status in §9. **§7.1 (added on request,
+are done. Step 5 installed the verified bundle and current-layout readers; it remains
+tracked as GitHub issue T10e (#310) pending maintainer review. **§7.1 (added on request,
 2026-08-03) extends the target layout with a cross-stage/shared-input rule**,
 documented now so T10e's migration only has to move fixtures once, not twice.
 **Scope:** every file under `tests/` in this repository, not only
@@ -208,20 +208,20 @@ unrelated to the move — `examples/data/options.json`'s `selvars.type` is `"Ftr
 `tests/test_data/load_file/` left where it is, since "test data for loading tests" is an
 accurate name for exactly what it is.
 
-### Step 5 — Decide the target layout for MATLAB-parity data (open decision, see §7)
+### Step 5 — Install the verified MATLAB-parity layout (implemented, see §7)
 **[Behavior-changing] if it moves any fixture a currently-passing test reads** — needs
 the full `tests/matlab_reference`-style verification pass before and after, same as any
 other change to existing test data.
 
-This is the big one, and it is a decision, not a mechanical step. §7 lays out the
-options. Do not start moving `test_data/<stage>/` fixtures until one option is chosen.
+This was the big migration step. §7 records the chosen layout and the provenance gate
+that was satisfied before installation.
 
 ## 7. Decision: one layout, not two
 
 **Decided: Option A, single unified layout.** The exporter now produces and verifies
 this layout, and `tools.fixture_provenance install` can atomically install only a
-verified bundle. No historical fixture has moved: the available R2024a diagnostic
-bundle is deliberately rejected by that installer.
+verified bundle. Historical fixtures did not move: the R2024a diagnostic is rejected,
+while the reviewed R2026a bundle is installed under the canonical root.
 
 Canonical target: `tests/fixtures/matlab/current/`, containing `manifest.json`,
 `shared_inputs/`, `resolved_options/`, `build_data/<stage>/<variant>/`, and
@@ -233,11 +233,9 @@ side). PRELIM, SIFTED, PILOT, and CLOISTER use the `default` build variant. PYTH
 TRACE carry build and explore inputs and outputs for all three reference variants. One
 profile and one installed root replace alternate flattened layouts.
 
-Cost, recorded so it is not a surprise when Step 5 starts: every
-`test_build_*.py`/`test_explore_*.py` file's fixture paths need updating to point at
-the new layout. This is real work across a large number of test files, not a single
-mechanical rename, since the old and new layouts group the same data differently
-(stage-first versus phase-first) rather than just renaming directories in place.
+Current MATLAB comparisons now have at least one numerical reader per exported build and
+explore stage. Historical tests may keep their old paths as explicitly unverified
+regression checks; they are not silently promoted or mechanically renamed.
 
 ## 7.1 Addendum: cross-stage and shared-input data (added 2026-08-03)
 
@@ -283,17 +281,16 @@ identically by several unrelated test suites.
 for `metadata.csv` and `metadata_test.csv`, sibling to `resolved_options/`, `build_data/`,
 and `explore_data/` inside the installed bundle.
 
-**Migration gate:** move files and update readers only after a clean R2025a+ export
-passes manifest review and the Python verifier. This keeps unknown-provenance data out
-of the new oracle tree.
+**Migration gate:** satisfied by the clean R2026a export, manifest review, strict Python
+verification, atomic install, and current-layout readers. Unknown-provenance data remains
+outside the oracle tree.
 
 ## 8. What this audit did not do
 
-The exporter ran under R2024a and its earlier 196-file diagnostic supported TRACE3 parity
-analysis. That bundle predates the complete 229-file profile (full option trees and
-explicit explore inputs) and is rejected by the hardened verifier. MATLAB R2026a is
-installed, but Financial Toolbox is still required for PRELIM; installation, a clean run,
-and review remain the #278/#310 gate.
+The earlier 196-file R2024a diagnostic remains non-authoritative. The complete 229-file
+profile was generated from clean source under MATLAB R2026a Update 4 after Financial
+Toolbox installation, passed strict verification and scientific review, and was installed
+without relabeling any historical fixture.
 
 ## 9. Tracking issues
 
@@ -306,7 +303,7 @@ Remediation is tracked under Phase T, as sub-issues of the Phase T parent (#273)
 | #307 | T10b — Resolve `prelim/run/output/` partial-orphan | Step 2 | Done — see commit history |
 | #308 | T10c — Fix `serialisers/actual_output/` scratch-output leak | Step 3 | Done — see commit history |
 | #309 | T10d — Relocate `test_data/demo/` out of `test_data/` | Step 4 | Done — see commit history |
-| #310 | T10e — Migrate onto the unified layout (§7, §7.1) | Step 5 | Installer ready; fixture move blocked on verified #278 bundle |
+| #310 | T10e — Migrate onto the unified layout (§7, §7.1) | Step 5 | Implemented locally; pending maintainer review |
 | #311 | `examples/data/options.json`'s `selvars.type` invalid value | Found verifying Step 4 | Done — see commit history |
 
 Pick up a step by reading its GitHub issue first, then the corresponding section above —

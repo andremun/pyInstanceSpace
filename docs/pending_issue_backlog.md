@@ -12,6 +12,8 @@ results only; no issue was closed or edited remotely.
 | [#317](https://github.com/andremun/pyInstanceSpace/issues/317) | Implemented and tested | Close after review. |
 | [#315](https://github.com/andremun/pyInstanceSpace/issues/315) | Premise disproved | Close as invalid or stale; MATLAB membership is boundary-inclusive. |
 | [#313](https://github.com/andremun/pyInstanceSpace/issues/313) | 2D scope implemented and tested | Review the opt-in port; track 3D and any default switch separately. |
+| [#278](https://github.com/andremun/pyInstanceSpace/issues/278) | Implemented and tested locally | Review the R2026a manifest, exporter, verifier, and scientific comparisons; close only after maintainer approval. |
+| [#310](https://github.com/andremun/pyInstanceSpace/issues/310) | Implemented and tested locally | Review the installed canonical bundle and current-layout readers; historical snapshots remain separately classified. |
 
 ## Deferred open issues
 
@@ -20,8 +22,6 @@ results only; no issue was closed or edited remotely.
 | [#262](https://github.com/andremun/pyInstanceSpace/issues/262) | High | Add PILOT dimensions, viewpoints, and 3D parity as a separate feature. |
 | [#265](https://github.com/andremun/pyInstanceSpace/issues/265) | Medium | Follow #262 with 3D output and visualization support. |
 | [#316](https://github.com/andremun/pyInstanceSpace/issues/316) | Medium | Design a shared train/infer stage contract before changing orchestration. |
-| [#278](https://github.com/andremun/pyInstanceSpace/issues/278) | High, ready to run | Generate the 229-file profile from clean commits under MATLAB R2026a and review it; all required toolboxes are installed. |
-| [#310](https://github.com/andremun/pyInstanceSpace/issues/310) | Blocked | Install and migrate only the reviewed current-gold bundle from #278. |
 | [#305](https://github.com/andremun/pyInstanceSpace/issues/305) | Tracker | Reassess after #278 and #310. |
 | [#273](https://github.com/andremun/pyInstanceSpace/issues/273) | Tracker | Reassess after provenance and fixture work. |
 | [#304](https://github.com/andremun/pyInstanceSpace/issues/304) | Low | Benchmark Bayesian convergence before tuning defaults. |
@@ -36,8 +36,8 @@ results only; no issue was closed or edited remotely.
 
 - Add three-dimensional alpha geometry only after #262 and #265 define the projected
   and serialized 3D contracts.
-- Keep `method="legacy"` as the Python default until a reviewed R2026a bundle supports
-  an explicit compatibility decision.
+- Keep `method="legacy"` as the Python default until maintainers make an explicit
+  compatibility decision using the reviewed R2026a evidence.
 - Do not commit or relabel the R2024a diagnostic bundle as a MATLAB oracle.
 
 ### Quality gate
