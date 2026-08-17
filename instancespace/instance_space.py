@@ -33,7 +33,7 @@ from sklearn.metrics import (
 )
 
 from instancespace.data.metadata import Metadata, from_csv_file
-from instancespace.data.model import ExploreResult
+from instancespace.data.model import ExploreResult, TraceOut
 from instancespace.data.options import (
     AutoOptions,
     BoundOptions,
@@ -76,7 +76,10 @@ from instancespace.stages.prelim import (
     apply_boxcox_zscore,
     compute_binary_performance,
 )
-from instancespace.stages.preprocessing import PreprocessingStage
+from instancespace.stages.preprocessing import (
+    PreprocessingStage,
+    validate_viable_dimensions,
+)
 from instancespace.stages.pythia import PythiaStage
 from instancespace.stages.sifted import SiftedStage
 from instancespace.stages.stage import IN, OUT, Stage, StageClass
@@ -204,6 +207,7 @@ class _EvaluationResult(NamedTuple):
     recall_actual: NDArray[np.double]
     cvcmat_actual: NDArray[np.double]
     algo_labels: list[str]
+    trace_out: TraceOut | None = None
 
 
 class InstanceSpace:
@@ -277,6 +281,11 @@ class InstanceSpace:
                 reporter, so omitting this changes nothing about existing
                 behaviour.
         """
+        validate_viable_dimensions(
+            metadata.features,
+            metadata.algorithms,
+            context="Build metadata",
+        )
         self._metadata = metadata
         self._options = options
         self._stages = stages
@@ -807,6 +816,7 @@ class InstanceSpace:
                 evaluation_result.cvcmat_actual if evaluation_result else None
             ),
             algo_labels=evaluation_result.algo_labels if evaluation_result else None,
+            trace_out=evaluation_result.trace_out if evaluation_result else None,
         )
 
         self._explore_results.append(result)
@@ -872,6 +882,7 @@ class InstanceSpace:
         yield AnnotatedExploreOutput(ExploreStage.PILOT, z)
         pythia_result = self._explore_pythia(z, n_new_algos=len(new_algo_labels))
         yield AnnotatedExploreOutput(ExploreStage.PYTHIA, pythia_result)
+
         yield AnnotatedExploreOutput(
             ExploreStage.TRACE,
             self._explore_trace(z, n_new_algos=len(new_algo_labels)),
@@ -879,9 +890,22 @@ class InstanceSpace:
 
         if has_ground_truth:
             y_hat = pythia_result[0]
+            evaluation_result = self._explore_evaluate(
+                test_metadata,
+                y_hat,
+                new_algo_labels,
+            )
+            rescored_trace = TraceStage.rescore(
+                self._require_model().trace,
+                z,
+                evaluation_result.y_actual,
+                evaluation_result.p_actual,
+                evaluation_result.beta_actual,
+                evaluation_result.algo_labels,
+            )
             yield AnnotatedExploreOutput(
                 ExploreStage.EVALUATION,
-                self._explore_evaluate(test_metadata, y_hat, new_algo_labels),
+                evaluation_result._replace(trace_out=rescored_trace),
             )
 
     def _require_model(self) -> Model:
@@ -910,6 +934,12 @@ class InstanceSpace:
                 If test metadata features don't match training features.
         """
         self._require_model()
+        validate_viable_dimensions(
+            metadata.features,
+            metadata.algorithms,
+            require_algorithms=False,
+            context="Explore metadata",
+        )
 
         # Training feature names, pre-SIFTED: build() overwrites the model's own
         # feat_labels with the post-SIFTED subset, so the original metadata is the

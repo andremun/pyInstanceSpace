@@ -1,3 +1,4 @@
+# ruff: noqa: ANN001, ARG005, D103, SLF001
 """Unit tests for the staged explore entry points.
 
 These exercise the orchestration added by ``explore_stage_iter`` and the refactored
@@ -10,8 +11,15 @@ validation suites.
 
 from typing import cast
 
+import numpy as np
+import pandas as pd
+import pytest
+from numpy.typing import NDArray
+
 from instancespace.data.metadata import Metadata
-from instancespace.instance_space import ExploreStage, InstanceSpace
+from instancespace.data.model import Footprint, TraceOut
+from instancespace.instance_space import ExploreStage, InstanceSpace, _EvaluationResult
+from instancespace.stages.trace import TraceStage
 
 # A ground-truth-free stand-in for `Metadata`: these tests exercise stage
 # orchestration only (the per-stage methods are stubbed below), and F9's
@@ -42,7 +50,11 @@ def _stub_stages(space) -> None:  # type: ignore[no-untyped-def]
     # Only reached when test_metadata carries ground truth (has_ground_truth
     # branch in explore_stage_iter) - stubbed here too so that path doesn't
     # need a real trained Model.
-    space._require_model = lambda: type("_FakeModel", (), {"data": _FakeData()})()
+    space._require_model = lambda: type(
+        "_FakeModel",
+        (),
+        {"data": _FakeData(), "trace": "trained_trace"},
+    )()
 
 
 def test_explore_stage_iter_yields_the_five_stages_in_order() -> None:
@@ -106,9 +118,12 @@ def test_explore_maps_stage_outputs_onto_the_result() -> None:
     assert result.precision_actual is None
     assert result.recall_actual is None
     assert result.cvcmat_actual is None
+    assert result.trace_out is None
 
 
-def test_explore_stage_iter_yields_evaluation_when_ground_truth_present() -> None:
+def test_explore_stage_iter_yields_evaluation_when_ground_truth_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """F9: ExploreStage.EVALUATION is yielded (after TRACE) only with ground truth.
 
     Orchestration-only: `_explore_evaluate` itself is stubbed here, so this
@@ -120,8 +135,34 @@ def test_explore_stage_iter_yields_evaluation_when_ground_truth_present() -> Non
 
     space = InstanceSpace.__new__(InstanceSpace)
     _stub_stages(space)
-    space._explore_evaluate = (  # type: ignore[method-assign,assignment,return-value]
-        lambda _md, y_hat, _new_algo_labels: f"evaluation({y_hat})"
+
+    evaluation = _EvaluationResult(
+        y_actual=np.zeros((1, 1), dtype=np.bool_),
+        y_best_actual=np.zeros(1, dtype=np.double),
+        p_actual=np.ones(1, dtype=np.int_),
+        beta_actual=np.zeros(1, dtype=np.bool_),
+        accuracy_actual=np.zeros(1, dtype=np.double),
+        precision_actual=np.zeros(1, dtype=np.double),
+        recall_actual=np.zeros(1, dtype=np.double),
+        cvcmat_actual=np.zeros((1, 4), dtype=np.double),
+        algo_labels=["algo1"],
+    )
+
+    def fake_explore_evaluate(
+        test_metadata: Metadata,
+        y_hat: NDArray[np.bool_],
+        new_algo_labels: list[str],
+    ) -> _EvaluationResult:
+        del test_metadata, y_hat, new_algo_labels
+        return evaluation
+
+    space._explore_evaluate = fake_explore_evaluate  # type: ignore[method-assign]
+    empty = Footprint(None, 0, 0, 0, 0, 0)
+    rescored = TraceOut(empty, [], [], empty, pd.DataFrame())
+    monkeypatch.setattr(
+        TraceStage,
+        "rescore",
+        lambda *_args: rescored,
     )
 
     yielded = list(space.explore_stage_iter(cast(Metadata, with_ground_truth)))
@@ -136,4 +177,105 @@ def test_explore_stage_iter_yields_evaluation_when_ground_truth_present() -> Non
     ]
     stages = {annotated.stage: annotated.output for annotated in yielded}
     # _explore_pythia's stub returns ("yhat", "pr0", "sel") - y_hat is [0].
-    assert stages[ExploreStage.EVALUATION] == "evaluation(yhat)"
+    assert stages[ExploreStage.EVALUATION].trace_out is rescored
+
+
+def test_explore_stage_iter_defers_evaluation_until_after_trace_yield(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stopping at TRACE cannot run the later evaluation or rescore work."""
+    with_ground_truth = type("_FakeMetadata", (), {"algorithm_names": ["algo1"]})()
+    space = InstanceSpace.__new__(InstanceSpace)
+    _stub_stages(space)
+    events: list[str] = []
+
+    evaluation = _EvaluationResult(
+        y_actual=np.zeros((1, 1), dtype=np.bool_),
+        y_best_actual=np.zeros(1, dtype=np.double),
+        p_actual=np.ones(1, dtype=np.int_),
+        beta_actual=np.zeros(1, dtype=np.bool_),
+        accuracy_actual=np.zeros(1, dtype=np.double),
+        precision_actual=np.zeros(1, dtype=np.double),
+        recall_actual=np.zeros(1, dtype=np.double),
+        cvcmat_actual=np.zeros((1, 4), dtype=np.double),
+        algo_labels=["algo1"],
+    )
+
+    def fake_explore_trace(
+        z: NDArray[np.double],
+        n_new_algos: int = 0,
+    ) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
+        del z, n_new_algos
+        events.append("trace")
+        memberships = np.zeros((1, 1), dtype=np.bool_)
+        return memberships, memberships
+
+    def fake_explore_evaluate(
+        test_metadata: Metadata,
+        y_hat: NDArray[np.bool_],
+        new_algo_labels: list[str],
+    ) -> _EvaluationResult:
+        del test_metadata, y_hat, new_algo_labels
+        events.append("evaluate")
+        return evaluation
+
+    def fake_rescore(*_args: object) -> TraceOut:
+        events.append("rescore")
+        empty = Footprint(None, 0, 0, 0, 0, 0)
+        return TraceOut(empty, [], [], empty, pd.DataFrame())
+
+    space._explore_trace = fake_explore_trace  # type: ignore[method-assign]
+    space._explore_evaluate = fake_explore_evaluate  # type: ignore[method-assign]
+    monkeypatch.setattr(TraceStage, "rescore", fake_rescore)
+
+    stages = space.explore_stage_iter(cast(Metadata, with_ground_truth))
+    for expected in (
+        ExploreStage.PRELIM,
+        ExploreStage.SIFTED,
+        ExploreStage.PILOT,
+        ExploreStage.PYTHIA,
+    ):
+        assert next(stages).stage is expected
+
+    assert next(stages).stage is ExploreStage.TRACE
+    assert events == ["trace"]
+    assert next(stages).stage is ExploreStage.EVALUATION
+    assert events == ["trace", "evaluate", "rescore"]
+
+
+def test_explore_maps_rescored_trace_onto_ground_truth_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ground-truth explore results expose metrics on the trained geometry."""
+    with_ground_truth = type("_FakeMetadata", (), {"algorithm_names": ["algo1"]})()
+    space = InstanceSpace.__new__(InstanceSpace)
+    space._explore_results = []
+    _stub_stages(space)
+
+    def fake_extract_instance_labels(metadata: Metadata) -> pd.Series:  # type: ignore[type-arg]
+        del metadata
+        return pd.Series(["i1"])
+
+    space._extract_instance_labels = fake_extract_instance_labels  # type: ignore[method-assign]
+
+    evaluation = _EvaluationResult(
+        y_actual=np.zeros((1, 1), dtype=np.bool_),
+        y_best_actual=np.zeros(1, dtype=np.double),
+        p_actual=np.ones(1, dtype=np.int_),
+        beta_actual=np.zeros(1, dtype=np.bool_),
+        accuracy_actual=np.zeros(1, dtype=np.double),
+        precision_actual=np.zeros(1, dtype=np.double),
+        recall_actual=np.zeros(1, dtype=np.double),
+        cvcmat_actual=np.zeros((1, 4), dtype=np.double),
+        algo_labels=["algo1"],
+    )
+    space._explore_evaluate = lambda *_args: evaluation  # type: ignore[method-assign]
+    empty = Footprint(None, 0, 0, 0, 0, 0)
+    rescored = TraceOut(empty, [], [], empty, pd.DataFrame())
+    monkeypatch.setattr(TraceStage, "rescore", lambda *_args: rescored)
+
+    result = space.explore(cast(Metadata, with_ground_truth), dataset_id="d1")
+
+    assert result.trace_out is rescored
+    assert result.algo_labels == ["algo1"]
+    assert space.explore_results == [result]
