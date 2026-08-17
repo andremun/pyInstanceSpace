@@ -350,7 +350,10 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             out_z = x @ out_a.T
             b = alpha[2 * n :, idx].reshape(m, 2)
             x_hat = out_z @ b.T
-            out_c = b[n + 1 : m, :].T
+            # MATLAB's 1-based ``B(n+1:m, :)`` starts at the first
+            # performance row.  In Python's 0-based indexing that is
+            # ``b[n:m]``; ``n + 1`` silently dropped the first algorithm.
+            out_c = b[n:m, :].T
             out_b = b[:n, :]
             error = np.sum((x_bar - x_hat) ** 2)
             # rowvar=False + the [:m, m:] block mirrors analytic_solve()'s (correct)

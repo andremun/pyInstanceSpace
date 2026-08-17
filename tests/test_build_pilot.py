@@ -146,6 +146,50 @@ def test_run_numerical() -> None:
         np.testing.assert_almost_equal(perf, mtr.data["perf"][0], decimal=1)
 
 
+def test_numerical_c_keeps_every_algorithm_reconstruction_column() -> None:
+    """Translate MATLAB's one-based B(n+1:m, :) slice without dropping Y[:, 0]."""
+    x = np.array(
+        [
+            [0.1, 0.4],
+            [0.2, 0.8],
+            [0.7, 0.3],
+            [0.9, 0.6],
+        ],
+    )
+    y = np.array(
+        [
+            [0.2, 0.5, 0.8],
+            [0.4, 0.3, 0.7],
+            [0.6, 0.9, 0.1],
+            [0.8, 0.2, 0.4],
+        ],
+    )
+    n_features = x.shape[1]
+    total_columns = n_features + y.shape[1]
+    alpha = np.arange(1, 2 * total_columns + 2 * n_features + 1, dtype=float)
+    alpha = (alpha / 10.0).reshape(-1, 1)
+
+    output = PilotStage.pilot(
+        x,
+        y,
+        ["f0", "f1"],
+        PilotOptions.default(analytic=False, precalc_alpha=alpha),
+        GeneralOptions.default(verbose=False),
+        _do_output=False,
+    )
+
+    full_reconstruction = alpha[2 * n_features :, 0].reshape(total_columns, 2)
+    np.testing.assert_array_equal(
+        output.c,
+        full_reconstruction[n_features:total_columns].T,
+    )
+    assert output.c.shape == (2, y.shape[1])
+
+    reconstructed = output.z @ np.vstack((output.b, output.c.T)).T
+    expected_error = np.sum((np.column_stack((x, y)) - reconstructed) ** 2)
+    assert output.error == pytest.approx(expected_error)
+
+
 def test_pilot_seed_reproducibility() -> None:
     """Same seed gives identical output; a different seed gives different output.
 

@@ -1552,7 +1552,29 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         algo_labels: list[str],
         cv_folds: int,
     ) -> None:
-        """Validate folds against each nondegenerate algorithm's class counts."""
+        """Reject impossible CV layouts and warn about sparse test folds.
+
+        MATLAB permits ``kFold`` to exceed the minority-class count.  Scikit-learn
+        does too (with a warning): training remains valid when the minority class
+        has at least two observations, although some test folds omit that class.
+        A singleton minority class is different because the fold containing it
+        leaves a single-class training set, which the active classifiers cannot
+        train on.
+        """
+        n_instances = y_bin.shape[0]
+        if cv_folds > n_instances:
+            raise ValueError(
+                f"PythiaOptions.cv_folds={cv_folds} exceeds the number of "
+                f"instances {n_instances}.",
+            )
+
+        largest_test_fold = (n_instances + cv_folds - 1) // cv_folds
+        if n_instances - largest_test_fold < 1:
+            raise ValueError(
+                f"PythiaOptions.cv_folds={cv_folds} leaves no usable "
+                "cross-validation training split.",
+            )
+
         for index, algo_label in enumerate(algo_labels):
             labels = np.asarray(y_bin[:, index], dtype=np.bool_)
             good_count = int(np.count_nonzero(labels))
@@ -1560,10 +1582,17 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             if good_count == 0 or bad_count == 0:
                 continue
             smallest_class = min(good_count, bad_count)
-            if cv_folds > smallest_class:
+            if smallest_class == 1:
                 raise ValueError(
+                    f"PythiaOptions.cv_folds={cv_folds} leaves a "
+                    "single-class cross-validation training split for "
+                    f"algorithm '{algo_label}' (smallest class count 1).",
+                )
+            if cv_folds > smallest_class:
+                logger.warning(
                     f"PythiaOptions.cv_folds={cv_folds} exceeds class count "
-                    f"{smallest_class} for algorithm '{algo_label}'.",
+                    f"{smallest_class} for algorithm '{algo_label}'; continuing "
+                    "to match MATLAB, with some test folds missing that class.",
                 )
 
     @staticmethod

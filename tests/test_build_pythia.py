@@ -1201,13 +1201,51 @@ def test_pythia_rejects_precalculated_knn_neighbors_above_cv_fold_size() -> None
         )
 
 
-def test_pythia_rejects_folds_above_smallest_class() -> None:
-    """Cross-validation must have enough examples from both classes."""
+def test_pythia_warns_and_runs_when_folds_exceed_class_count() -> None:
+    """Match MATLAB by allowing sparse-class stratified test folds."""
+    from loguru import logger
+
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    y_bin_small[:, 0] = False
+    y_bin_small[:4, 0] = True
+    messages: list[str] = []
+    sink_id = logger.add(messages.append, level="WARNING")
+    try:
+        with pytest.warns(UserWarning, match="least populated class"):
+            output = PythiaStage.pythia(
+                z_small,
+                y_small,
+                y_bin_small,
+                y_best_small,
+                algo_small,
+                PythiaOptions(
+                    cv_folds=5,
+                    is_poly_krnl=False,
+                    use_weights=False,
+                    params=np.array([[3.0, 1.0], [3.0, 1.0]]),
+                    classifier="knn",
+                    tuning="none",
+                ),
+                ParallelOptions.default(),
+                GeneralOptions(verbose=False, seed=0),
+            )
+    finally:
+        logger.remove(sink_id)
+
+    assert output.y_hat.shape == y_bin_small.shape
+    assert any(
+        "exceeds class count 4" in message and "continuing" in message
+        for message in messages
+    )
+
+
+def test_pythia_rejects_cv_that_leaves_single_class_training_fold() -> None:
+    """Reject a singleton minority class because one training fold loses it."""
     z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
     y_bin_small[:, 0] = False
     y_bin_small[0, 0] = True
 
-    with pytest.raises(ValueError, match="exceeds class count 1.*a0"):
+    with pytest.raises(ValueError, match="single-class.*a0.*count 1"):
         PythiaStage.pythia(
             z_small,
             y_small,
@@ -1216,6 +1254,28 @@ def test_pythia_rejects_folds_above_smallest_class() -> None:
             algo_small,
             PythiaOptions(
                 cv_folds=2,
+                is_poly_krnl=False,
+                use_weights=False,
+                params=None,
+            ),
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=0),
+        )
+
+
+def test_pythia_rejects_more_folds_than_instances() -> None:
+    """Fail clearly before constructing an impossible cross-validator."""
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+
+    with pytest.raises(ValueError, match="cv_folds=21.*number of instances 20"):
+        PythiaStage.pythia(
+            z_small,
+            y_small,
+            y_bin_small,
+            y_best_small,
+            algo_small,
+            PythiaOptions(
+                cv_folds=21,
                 is_poly_krnl=False,
                 use_weights=False,
                 params=None,
