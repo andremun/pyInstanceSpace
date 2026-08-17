@@ -15,6 +15,9 @@ DEFAULT_PERFORMANCE_ABS_PERF = True
 DEFAULT_PERFORMANCE_EPSILON = 0.20
 DEFAULT_PERFORMANCE_BETA_THRESHOLD = 0.55
 
+DEFAULT_PRELIM_IQR_MULTIPLIER = 5.0
+DEFAULT_PRELIM_NAN_THRESHOLD = 0.20
+
 DEFAULT_AUTO_PREPROC = True
 
 DEFAULT_BOUND_FLAG = True
@@ -89,14 +92,18 @@ DEFAULT_PYTHIA_CLASSIFIER = "svm"
 DEFAULT_PYTHIA_TUNING = "sobol"
 DEFAULT_PYTHIA_N_TUNING_ITER = 20
 # Bypass classifier training entirely (core/PYTHIA.m's opts.skip). Only safe
-# with trace.use_sim=False - see InstanceSpaceOptions.__post_init__'s
-# cross-field guard for why (#298 Issue 10).
+# with trace.use_sim=False for legacy TRACE. TRACE3 can fall back to true labels.
 DEFAULT_PYTHIA_SKIP = False
 
 DEFAULT_TRACE_USE_SIM = True
+# Keep legacy TRACE as Python's default in this pass. TRACE3 uses the current
+# MATLAB purity default when callers omit the method-aware value.
 DEFAULT_TRACE_PURITY = 0.55
+DEFAULT_TRACE3_PURITY = 0.60
 DEFAULT_TRACE_METHOD = "legacy"
 DEFAULT_TRACE_CONTRA = True
+DEFAULT_TRACE_MIN_INSTANCES = 4
+DEFAULT_TRACE_MIN_AREA_FRAC = 0.01
 
 DEFAULT_OUTPUTS_CSV = True
 DEFAULT_OUTPUTS_WEB = False

@@ -10,6 +10,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from instancespace.data.options import PrelimOptions, SelvarsOptions
 from instancespace.instance_space import instance_space_from_files
 from instancespace.stages.preprocessing import PreprocessingInput, PreprocessingStage
 
@@ -62,6 +63,48 @@ def test_run_method() -> None:
         pre_output.y,
         df_y,
     ), "The data arrays X and Y are not approximately equal."
+
+
+def test_composed_nan_threshold_controls_feature_washing() -> None:
+    """PREPROCESSING consumes the configured MATLAB NaN-fraction threshold."""
+    features = np.array(
+        [
+            [np.nan, 1.0, 2.0, 3.0],
+            [1.0, 2.0, 3.0, 4.0],
+            [2.0, 3.0, 4.0, 5.0],
+            [3.0, 4.0, 5.0, 6.0],
+        ],
+    )
+    algorithms = np.arange(4, dtype=np.double).reshape(-1, 1)
+    feature_names = ["f1", "f2", "f3", "f4"]
+    instance_labels = pd.Series(["i1", "i2", "i3", "i4"])
+    legacy_input = PreprocessingInput(
+        feature_names,
+        ["a1"],
+        instance_labels,
+        None,
+        features,
+        algorithms,
+        SelvarsOptions.default(),
+    )
+    assert legacy_input.prelim_options == PrelimOptions.default()
+
+    configured_input = legacy_input._replace(
+        prelim_options=PrelimOptions(
+            False,
+            True,
+            0.2,
+            0.55,
+            True,
+            True,
+            nan_threshold=0.30,
+        ),
+    )
+
+    output = PreprocessingStage._run(configured_input)  # noqa: SLF001
+
+    assert output.feat_labels == feature_names
+    assert output.x.shape[1] == len(feature_names)
 
 
 """
