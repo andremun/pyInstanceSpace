@@ -225,11 +225,68 @@ def test_rerunning_earlier_stage() -> None:
     }
 
     stage_runner.run_stage(StageA, a=2)
+    assert "c" not in stage_runner._available_arguments  # noqa: SLF001
     stage_b_output = stage_runner.run_stage(StageB)
 
     assert stage_b_output._asdict() == {
         "c": "2 2",
     }
+
+
+def test_schedule_snapshots_are_isolated_from_downstream_outputs() -> None:
+    """A later wave must not mutate the dictionary saved for an earlier wave."""
+    stage_runner = build_stage_runner([[StageA], [StageB]], [], InitialArguments)
+
+    stage_runner.run_all(InitialArguments(1))
+
+    first_wave = stage_runner._schedule_output_data[0]  # noqa: SLF001
+    assert first_wave == {"a": 1, "b": "1"}
+    assert first_wave is not stage_runner._available_arguments  # noqa: SLF001
+
+
+def test_successful_stage_override_persists_for_downstream_stages() -> None:
+    """An override is durable runner state, not a one-stage temporary value."""
+    stage_runner = build_stage_runner([[StageA], [StageD]], [], InitialArguments)
+    override = 7
+
+    stage_runner.run_stage(StageA, a=override)
+    output = stage_runner.run_stage(StageD)
+
+    assert stage_runner._available_arguments["a"] == override  # noqa: SLF001
+    assert output.e == "7 d"
+
+
+def test_run_until_stage_executes_the_complete_target_wave() -> None:
+    """The target and its unordered sibling both run before stopping."""
+    stage_runner = build_stage_runner(
+        [[StageA], [StageB, StageC]],
+        [],
+        InitialArguments,
+    )
+
+    output = stage_runner.run_until_stage(StageB, InitialArguments(1))
+
+    assert output["c"] == "1 2"
+    assert output["d"] == "1 c"
+    assert stage_runner._current_schedule_item == len(  # noqa: SLF001
+        stage_runner._stage_order,  # noqa: SLF001
+    )
+
+
+def test_run_until_stage_persists_initial_overrides() -> None:
+    """Call-level overrides seed every wave through the requested target."""
+    stage_runner = build_stage_runner([[StageA], [StageD]], [], InitialArguments)
+    override = 9
+
+    output = stage_runner.run_until_stage(
+        StageD,
+        InitialArguments(1),
+        a=override,
+    )
+
+    assert output["a"] == override
+    assert output["b"] == "9"
+    assert output["e"] == "9 d"
 
 
 def test_extra_stage_run_after() -> None:
