@@ -24,6 +24,7 @@ from instancespace.data.options import (
     AutoOptions,
     GeneralOptions,
     PerformanceOptions,
+    PrelimConfigOptions,
     PrelimOptions,
     SelvarsOptions,
 )
@@ -609,12 +610,29 @@ def test_prelim_options_copy_master_preprocessing_flag() -> None:
 
 
 def test_prelim_options_preserve_positional_iqr_multiplier() -> None:
-    """The existing seventh positional argument remains iqr_multiplier."""
+    """Existing positional IQR and master-switch arguments keep their meaning."""
     multiplier = 2.5
-    prelim = PrelimOptions(False, True, 0.2, 0.55, True, True, multiplier)
+    nan_threshold = 0.20
+    prelim = PrelimOptions(False, True, 0.2, 0.55, True, True, multiplier, False)
 
     assert prelim.iqr_multiplier == multiplier
-    assert prelim.preproc is True
+    assert prelim.preproc is False
+    assert prelim.nan_threshold == nan_threshold
+
+
+def test_prelim_options_propagate_build_level_configuration() -> None:
+    """The composed stage options carry both values from ``opts.prelim``."""
+    iqr_multiplier = 3.5
+    nan_threshold = 0.4
+    options = dataclasses.replace(
+        create_option(),
+        prelim=PrelimConfigOptions(iqr_multiplier, nan_threshold),
+    )
+
+    prelim = PrelimOptions.from_options(options)
+
+    assert prelim.iqr_multiplier == iqr_multiplier
+    assert prelim.nan_threshold == nan_threshold
 
 
 def test_prelim_master_switch_disables_bound_and_normalisation() -> None:

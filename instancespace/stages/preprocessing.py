@@ -27,10 +27,106 @@ import pandas as pd
 from loguru import logger
 from numpy._typing import NDArray
 
+from instancespace.data.default_options import DEFAULT_PRELIM_NAN_THRESHOLD
 from instancespace.data.options import (
+    PrelimOptions,
     SelvarsOptions,
 )
 from instancespace.stages.stage import Stage
+
+MATRIX_DIMENSIONS = 2
+MIN_FEATURES = 3
+
+
+def validate_viable_dimensions(
+    x: NDArray[np.double],
+    y: NDArray[np.double],
+    *,
+    require_algorithms: bool = True,
+    context: str = "Input data",
+) -> None:
+    """Validate matrix shape and the minimum viable instance-space dimensions."""
+    x_array = np.asarray(x)
+    y_array = np.asarray(y)
+    for name, matrix in (("feature", x_array), ("algorithm", y_array)):
+        is_real_numeric = np.issubdtype(
+            matrix.dtype,
+            np.number,
+        ) and not np.issubdtype(matrix.dtype, np.complexfloating)
+        if matrix.dtype == np.bool_ or not is_real_numeric:
+            msg = f"{context} {name} values must be numeric and non-Boolean."
+            raise ValueError(msg)
+        if matrix.ndim != MATRIX_DIMENSIONS:
+            msg = f"{context} {name} values must be a two-dimensional matrix."
+            raise ValueError(msg)
+        if np.isinf(matrix).any():
+            msg = f"{context} {name} values must be finite or NaN."
+            raise ValueError(msg)
+
+    if x_array.shape[0] != y_array.shape[0]:
+        msg = f"{context} feature and algorithm matrices must have equal row counts."
+        raise ValueError(msg)
+    if x_array.shape[0] < 1:
+        msg = f"{context} must contain at least one instance."
+        raise ValueError(msg)
+    if x_array.shape[1] < MIN_FEATURES:
+        msg = f"{context} must contain at least three features."
+        raise ValueError(msg)
+    if require_algorithms and y_array.shape[1] < 1:
+        msg = f"{context} must contain at least one algorithm."
+        raise ValueError(msg)
+
+
+def _selected_indices(
+    labels: list[str],
+    requested: list[str] | None,
+    *,
+    prefix: str,
+    kind: str,
+) -> list[int]:
+    """Resolve a manual selection while preserving dataset order."""
+    if not requested:
+        return list(range(len(labels)))
+    if not all(isinstance(value, str) for value in requested):
+        msg = f"Manual {kind} selections must contain only strings."
+        raise ValueError(msg)
+
+    lowered_labels = [label.casefold() for label in labels]
+    matched_requests: set[int] = set()
+    selected: list[int] = []
+    for label_index, lowered_label in enumerate(lowered_labels):
+        label_selected = False
+        for request_index, request in enumerate(requested):
+            lowered_request = request.casefold()
+            exact_match = lowered_request == lowered_label
+            prefixed_match = lowered_request.startswith(prefix) and (
+                lowered_request[len(prefix) :] == lowered_label
+            )
+            if exact_match or prefixed_match:
+                label_selected = True
+                matched_requests.add(request_index)
+        if label_selected:
+            selected.append(label_index)
+
+    unknown = [
+        request
+        for request_index, request in enumerate(requested)
+        if request_index not in matched_requests
+    ]
+    if not selected:
+        requested_text = ", ".join(requested)
+        available_text = ", ".join(labels)
+        msg = (
+            f"Manual {kind} selection matched no columns. "
+            f"Requested: {requested_text}. Available: {available_text}."
+        )
+        raise ValueError(msg)
+    if unknown:
+        logger.warning(
+            f"[PREPROCESSING] Unknown {kind} selections were ignored: "
+            f"{', '.join(unknown)}.",
+        )
+    return selected
 
 
 class PreprocessingInput(NamedTuple):
@@ -52,6 +148,9 @@ class PreprocessingInput(NamedTuple):
         Algorithm matrix (instances y algorithms) as a 2D numpy array.
     selvars_options : SelvarsOptions
         Options for selecting variables (features and algorithms).
+    prelim_options : PrelimOptions
+        Composed preliminary-processing options. Legacy direct construction uses
+        the same defaults as the aggregate configuration.
     """
 
     feature_names: list[str]
@@ -61,6 +160,7 @@ class PreprocessingInput(NamedTuple):
     features: NDArray[np.double]
     algorithms: NDArray[np.double]
     selvars_options: SelvarsOptions
+    prelim_options: PrelimOptions = PrelimOptions.default()
 
 
 class PreprocessingOutput(NamedTuple):
@@ -177,6 +277,7 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             inputs.instance_sources,
             new_feat_labels,
             inputs.instance_labels,
+            inputs.prelim_options.nan_threshold,
         )
 
         return PreprocessingOutput(
@@ -227,55 +328,45 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             - List of selected algorithm labels.
         """
         logger.info("[PREPROCESSING] " + "-" * 65)
-        new_x = x
-        new_feat_labels = feat_labels
-        new_y = y
-        new_algo_labels = algo_labels
-        if selvars.feats is not None:
-            selected_features = [feat for feat in feat_labels if feat in selvars.feats]
+        if x.ndim != MATRIX_DIMENSIONS or x.shape[1] != len(feat_labels):
+            msg = "Feature labels must match the feature matrix columns."
+            raise ValueError(msg)
+        if y.ndim != MATRIX_DIMENSIONS or y.shape[1] != len(algo_labels):
+            msg = "Algorithm labels must match the algorithm matrix columns."
+            raise ValueError(msg)
+        if x.shape[0] != y.shape[0]:
+            msg = "Feature and algorithm matrices must have equal row counts."
+            raise ValueError(msg)
 
-            # if something were chosen, based on the logic index,
-            # rather than the name string
-            if selected_features:
-                logger.info(
-                    "[PREPROCESSING] -> Using the following features: "
-                    f"{' '.join(selected_features)}",
-                )
+        feature_indices = _selected_indices(
+            feat_labels,
+            selvars.feats,
+            prefix="feature_",
+            kind="feature",
+        )
+        algorithm_indices = _selected_indices(
+            algo_labels,
+            selvars.algos,
+            prefix="algo_",
+            kind="algorithm",
+        )
+        new_x = x[:, feature_indices]
+        new_feat_labels = [feat_labels[index] for index in feature_indices]
+        new_y = y[:, algorithm_indices]
+        new_algo_labels = [algo_labels[index] for index in algorithm_indices]
 
-                # based on manually selected feature to update the data.x
-                is_selected_feature = [
-                    feat_labels.index(feat) for feat in selected_features
-                ]
-                new_x = x[:, is_selected_feature]
-                new_feat_labels = selected_features
-            else:
-                logger.info(
-                    "[PREPROCESSING] No features were specified in opts.selvars."
-                    "feats or it was an empty list.",
-                )
+        if selvars.feats:
+            logger.info(
+                "[PREPROCESSING] -> Using the following features: "
+                f"{' '.join(new_feat_labels)}",
+            )
 
         logger.info("[PREPROCESSING] " + "-" * 65)
-        if selvars.algos is not None:
-            selected_algorithms = [
-                algo for algo in algo_labels if algo in selvars.algos
-            ]
-
-            if selected_algorithms:
-                logger.info(
-                    "[PREPROCESSING] -> Using the following algorithms: "
-                    f"{' '.join(selected_algorithms)}",
-                )
-
-                is_selected_algo = [
-                    algo_labels.index(algo) for algo in selected_algorithms
-                ]
-                new_y = y[:, is_selected_algo]
-                new_algo_labels = selected_algorithms
-            else:
-                logger.info(
-                    "[PREPROCESSING] No algorithms were specified in opts.selvars."
-                    "algos or it was an empty list.",
-                )
+        if selvars.algos:
+            logger.info(
+                "[PREPROCESSING] -> Using the following algorithms: "
+                f"{' '.join(new_algo_labels)}",
+            )
         return new_x, new_y, new_feat_labels, new_algo_labels
 
     @staticmethod
@@ -285,6 +376,7 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
         s: pd.Series | None,  # type: ignore[type-arg]
         feat_labels: list[str],
         inst_labels: pd.Series,  # type: ignore[type-arg]
+        nan_threshold: float = DEFAULT_PRELIM_NAN_THRESHOLD,
     ) -> tuple[  # type: ignore[type-arg]
         NDArray[np.double],
         NDArray[np.double],
@@ -313,6 +405,8 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             List of labels corresponding to the features in 'x'.
         inst_labels : pd.Series
             Series containing labels for each instance.
+        nan_threshold : float
+            Fraction of missing values at which a feature is removed.
 
         Returns
         -------
@@ -323,6 +417,17 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             list of feature labels that remain after removal, and optionally
             modified series 's' if provided.
         """
+        validate_viable_dimensions(x, y, context="Preprocessing input")
+        if len(feat_labels) != x.shape[1]:
+            msg = "Feature labels must match the feature matrix columns."
+            raise ValueError(msg)
+        if len(inst_labels) != x.shape[0]:
+            msg = "Instance labels must match the preprocessing rows."
+            raise ValueError(msg)
+        if s is not None and len(s) != x.shape[0]:
+            msg = "Instance sources must match the preprocessing rows."
+            raise ValueError(msg)
+
         new_x = x
         new_y = y
         new_inst_labels = inst_labels
@@ -344,9 +449,12 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             if s is not None:
                 new_s = s[~idx]
 
-        # Check for features(column) with more than 20% missing values
-        threshold = 0.20
-        idx = np.mean(np.isnan(new_x), axis=0) >= threshold
+        if new_x.shape[0] == 0:
+            msg = "Data washing removed every instance."
+            raise ValueError(msg)
+
+        # Remove feature columns at or above MATLAB's configured NaN fraction.
+        idx = np.mean(np.isnan(new_x), axis=0) >= nan_threshold
 
         if np.any(idx):
             logger.info(
@@ -355,6 +463,8 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             )
             new_x = new_x[:, ~idx]
             new_feat_labels = [label for label, keep in zip(feat_labels, ~idx) if keep]
+
+        validate_viable_dimensions(new_x, new_y, context="Washed data")
 
         ninst = new_x.shape[0]
         nuinst = len(np.unique(new_x, axis=0))

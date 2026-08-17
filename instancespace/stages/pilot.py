@@ -203,6 +203,27 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             logger.debug(f"[PILOT] {a}")
 
     @staticmethod
+    def _validate_numerical_option_shapes(
+        options: PilotOptions,
+        expected_rows: int,
+    ) -> None:
+        """Validate solver matrices after the PILOT dimensions are known."""
+        if options.precalc_alpha is not None:
+            expected_shape = (expected_rows, 1)
+            if options.precalc_alpha.shape != expected_shape:
+                msg = (
+                    "opts.pilot.precalcAlpha must have shape "
+                    f"{expected_shape}. Got {options.precalc_alpha.shape}."
+                )
+                raise ValueError(msg)
+        if options.x0 is not None and options.x0.shape[0] != expected_rows:
+            msg = (
+                f"opts.pilot.x0 must have {expected_rows} rows. "
+                f"Got {options.x0.shape}."
+            )
+            raise ValueError(msg)
+
+    @staticmethod
     def pilot(
         x: NDArray[np.double],
         y: NDArray[np.double],
@@ -278,10 +299,9 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
 
         # Numerical solution
         else:
-            if options.precalc_alpha is not None and options.precalc_alpha.shape == (
-                2 * m + 2 * n,
-                1,
-            ):
+            expected_rows = 2 * m + 2 * n
+            PilotStage._validate_numerical_option_shapes(options, expected_rows)
+            if options.precalc_alpha is not None:
                 PilotStage._pilot_print(
                     " -> PILOT is using a pre-calculated solution.",
                     _do_output,
@@ -296,6 +316,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                         _do_output,
                     )
                     x0 = options.x0
+                    n_tries = x0.shape[1]
                 else:
                     PilotStage._pilot_print(
                         "  -> PILOT is using random starting points for BFGS.",
@@ -303,10 +324,11 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                     )
                     rng = np.random.default_rng(seed=general_options.seed)
                     x0 = 2 * rng.random((2 * m + 2 * n, options.n_tries)) - 1
+                    n_tries = options.n_tries
 
-                alpha = np.zeros((2 * m + 2 * n, options.n_tries))
-                eoptim = np.zeros(options.n_tries)
-                perf = np.zeros(options.n_tries)
+                alpha = np.zeros((2 * m + 2 * n, n_tries))
+                eoptim = np.zeros(n_tries)
+                perf = np.zeros(n_tries)
 
                 idx, alpha, eoptim, perf = PilotStage.numerical_solve(
                     x,
@@ -823,10 +845,11 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             _do_output,
         )
 
+        n_tries = x0.shape[1]
         use_pool = (
             parallel_options is not None
             and parallel_options.flag
-            and opts.n_tries > 1
+            and n_tries > 1
             and multiprocessing.parent_process() is None
         )
 
@@ -835,7 +858,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             assert parallel_options is not None
             n_workers = max(
                 1,
-                min(parallel_options.n_cores, opts.n_tries, os.cpu_count() or 1),
+                min(parallel_options.n_cores, n_tries, os.cpu_count() or 1),
             )
             with ProcessPoolExecutor(max_workers=n_workers) as executor:
                 futures = {
@@ -849,7 +872,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                         m,
                         opts.cost_weight,
                     ): i
-                    for i in range(opts.n_tries)
+                    for i in range(n_tries)
                 }
                 for future in as_completed(futures):
                     i = futures[future]
@@ -863,7 +886,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                         general_options,
                     )
         else:
-            for i in range(opts.n_tries):
+            for i in range(n_tries):
                 xopts, fopts, perf_i = PilotStage._solve_one_trial(
                     x0[:, i],
                     x,

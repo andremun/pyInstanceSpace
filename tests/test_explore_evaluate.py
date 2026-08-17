@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 # Copyright (c) 2024-2026 Mario Andrés Muñoz
+# ruff: noqa: SLF001
 """Tests for F9's explore()-time ground-truth evaluation (_explore_evaluate).
 
 Covers the numerics `_explore_evaluate`/`_build_test_algo_matrix` add on top of
@@ -43,8 +44,8 @@ def _make_space(algo_labels: list[str]) -> InstanceSpace:
     model = Mock()
     model.data = Mock()
     model.data.algo_labels = algo_labels
-    space._model = model  # type: ignore[attr-defined]
-    space._options = InstanceSpaceOptions.default(*([None] * 12))  # type: ignore[attr-defined]
+    space._model = model
+    space._options = InstanceSpaceOptions.default(*([None] * 12))
     space._require_model = Mock(return_value=model)  # type: ignore[method-assign]
     return space
 
@@ -138,12 +139,12 @@ def test_build_test_algo_matrix_appends_new_algorithm_columns() -> None:
 
 
 def test_find_new_algorithms_case_insensitive_and_deduplicated() -> None:
-    """`_find_new_algorithms` matches case-insensitively and dedupes by name."""
+    """The internal helper remains defensive against duplicate legacy metadata."""
     space = _make_space(["Alg1"])
-    test_metadata = _make_metadata(
-        ["alg1", "BrandNew", "brandnew"],
-        np.array([[1.0, 2.0, 2.0]]),
-    )
+    # Public Metadata construction now rejects this ambiguous schema. A mock
+    # keeps coverage for legacy objects loaded from an older checkpoint.
+    test_metadata = Mock(spec=Metadata)
+    test_metadata.algorithm_names = ["alg1", "BrandNew", "brandnew"]
 
     new_algos = space._find_new_algorithms(test_metadata, ["Alg1"])
 

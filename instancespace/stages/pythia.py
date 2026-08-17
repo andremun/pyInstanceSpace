@@ -223,7 +223,8 @@ class PythiaOutput(NamedTuple):
     box_consnt : list[float]
         Regularization parameters `C`.
     k_scale : list[float]
-        The kernel scale (parameters `gamma`) values.
+        MATLAB-facing KernelScale values. SVC stores the equivalent
+        estimator coefficient as `gamma = 1 / KernelScale**2`.
     accuracy : list[float]
         Accuracy scores of each SVM model.
     precision : list[float]
@@ -509,6 +510,13 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             nalgos,
             classifier_spec,
             opts.classifier,
+        )
+        PythiaStage._validate_precalc_knn_neighbors(
+            precalcparams,
+            y_bin,
+            opts.cv_folds,
+            classifier_spec,
+            algo_labels,
         )
         cp = StratifiedKFold(
             n_splits=opts.cv_folds,
@@ -1431,7 +1439,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
     @staticmethod
     def _check_precalcparams(
-        params: NDArray[np.double] | None,
+        params: NDArray[Any] | None,
         nalgos: int,
         spec: ClassifierSpec,
         classifier_name: str,
@@ -1474,11 +1482,69 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         params_array = np.asarray(params_array, dtype=np.double)
         if not np.all(np.isfinite(params_array)):
             raise ValueError("PythiaOptions.params must contain finite values.")
+
+        parameter_specs = [spec.param1]
+        if spec.param2 is not None:
+            parameter_specs.append(spec.param2)
+        for row_index, row in enumerate(params_array):
+            for column_index, parameter_spec in enumerate(parameter_specs):
+                value = float(row[column_index])
+                if (
+                    parameter_spec.categories is None
+                    and not parameter_spec.is_int
+                    and value <= 0
+                ):
+                    raise ValueError(
+                        "PythiaOptions.params"
+                        f"[{row_index}, {column_index}] "
+                        f"({parameter_spec.label} for classifier "
+                        f"'{classifier_name}') must be strictly positive; "
+                        f"got {value}.",
+                    )
         logger.info(
             f"[PYTHIA] -> Using pre-calculated hyper-parameters for the "
             f"'{classifier_name}' classifier.",
         )
         return params_array
+
+    @staticmethod
+    def _validate_precalc_knn_neighbors(
+        params: NDArray[np.double] | None,
+        y_bin: NDArray[np.bool_],
+        cv_folds: int,
+        spec: ClassifierSpec,
+        algo_labels: list[str],
+    ) -> None:
+        """Reject KNN parameters that cannot predict within a CV fold.
+
+        MATLAB-compatible rounding and lower clamping happen through
+        `ParamSpec.from_precalc`. The remaining upper limit is data-dependent:
+        sklearn cannot predict with more neighbors than the smallest training
+        fold contains. Degenerate-label algorithms never train a classifier,
+        so their otherwise-unused parameter row is deliberately ignored.
+        """
+        if params is None or spec.param1.sklearn_name != "n_neighbors":
+            return
+
+        n_instances = y_bin.shape[0]
+        largest_test_fold = (n_instances + cv_folds - 1) // cv_folds
+        smallest_training_fold = n_instances - largest_test_fold
+        for row_index, raw_neighbors in enumerate(params[:, 0]):
+            labels = np.asarray(y_bin[:, row_index], dtype=np.bool_)
+            if bool(np.all(labels)) or not bool(np.any(labels)):
+                continue
+            normalized = spec.param1.from_precalc(float(raw_neighbors))
+            if not isinstance(normalized, int):
+                msg = "KNN NumNeighbors did not normalize to an integer."
+                raise TypeError(msg)
+            if normalized > smallest_training_fold:
+                raise ValueError(
+                    "PythiaOptions.params"
+                    f"[{row_index}, 0] (NumNeighbors for algorithm "
+                    f"{algo_labels[row_index]!r}) normalizes to {normalized}, "
+                    "which exceeds the smallest cross-validation training "
+                    f"fold size {smallest_training_fold}.",
+                )
 
     @staticmethod
     def _validate_cv_folds(
