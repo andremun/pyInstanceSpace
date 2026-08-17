@@ -1,5 +1,10 @@
 # Open-issue remediation plan
 
+> Historical plan for the predecessor `codex/open-issue-big-rocks` pass. Its MATLAB
+> availability and deferred-work statements describe that earlier baseline. See
+> `docs/reliability_trace3_plan.md` and `docs/implemented_fixes.md` for the completed
+> R2026a continuation and current status.
+
 ## Baseline
 
 - Repository: `andremun/pyInstanceSpace`
