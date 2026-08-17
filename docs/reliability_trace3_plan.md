@@ -50,9 +50,9 @@ entry are removed together. Create a complete inventory that classifies current 
 MATLAB verified, Python regression, or legacy-unknown. Install issue #310 data only at
 `tests/fixtures/matlab/current/{shared_inputs,resolved_options,build_data,explore_data}`.
 
-Run the exporter on clean MATLAB R2025a+ before marking issue #278 complete. Only then move
-verified fixtures into the unified layout and update readers in one commit. Until that run,
-the verifier and migration tooling are complete but the provenance gate remains open.
+The exporter ran from clean source under MATLAB R2026a before any fixture moved. The
+strictly verified bundle was then installed in the unified layout with current readers;
+#278 and #310 remain open only for maintainer review, not for missing local evidence.
 
 ### 4. Port TRACE3
 
@@ -122,10 +122,12 @@ status, and remaining blockers in `docs/implemented_fixes.md` and
 - Explore rescoring never rebuilds trained geometry.
 - The public empty-footprint and summary contracts remain consistent.
 
-## Pending current-gold run
+## Completed current-gold run
 
-The R2024a diagnostic completed TRACE3 parity checks but is below the verified-mode
-requirement. MATLAB R2026a is installed, but its first run proved Financial Toolbox is
-also required by PRELIM and is not yet installed. After installing it and committing both
-implementations cleanly, run and review verified mode, then install the accepted bundle
-for #278/#310. That review is also required before switching Python's TRACE default.
+After Financial Toolbox was installed, verified mode completed under MATLAB R2026a Update
+4 from clean MATLAB `34c0129` and generator `b87179f`. The strict verifier accepted all 229
+manifest-listed files and the bundle was installed atomically at
+`tests/fixtures/matlab/current/`. Current-layout numerical readers cover every exported
+build and explore stage. TRACE3 build parity is within floating precision for both
+variants; two default-explore memberships are pinned as export-precision boundary
+ambiguities. Switching Python's TRACE default remains a separate maintainer decision.

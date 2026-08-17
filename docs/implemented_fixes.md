@@ -21,8 +21,8 @@ deliberately deferred.
 | [#317](https://github.com/andremun/pyInstanceSpace/issues/317) | PYTHIA summary accuracy and precision now map to the correct columns. |
 | [#315](https://github.com/andremun/pyInstanceSpace/issues/315) | No requested code change. MATLAB `polyshape.isinterior` includes boundary points, so Python retains inclusive membership and adds a regression test. |
 | [#313](https://github.com/andremun/pyInstanceSpace/issues/313) | Ported MATLAB TRACE3 for two-dimensional spaces behind `method="trace3"`, including trained-geometry explore rescoring. Legacy remains the Python default. |
-| [#278](https://github.com/andremun/pyInstanceSpace/issues/278) | Hardened the exporter and strict profile verifier. The R2024a diagnostic predates the 229-file profile; the first R2026a attempt identified missing Financial Toolbox. |
-| [#310](https://github.com/andremun/pyInstanceSpace/issues/310) | Added the verified-bundle layout and installer. No fixture was moved because #278's current-gold gate remains open. |
+| [#278](https://github.com/andremun/pyInstanceSpace/issues/278) | Generated and independently verified the complete 229-file profile from clean source under MATLAB R2026a Update 4 with all required toolboxes. |
+| [#310](https://github.com/andremun/pyInstanceSpace/issues/310) | Installed the reviewed bundle atomically at `tests/fixtures/matlab/current/`, classified it as `matlab-verified`, and added current-layout numerical readers. |
 
 ## Audit fixes
 
@@ -59,6 +59,11 @@ deliberately deferred.
   preserve MATLAB units in public output, and validate contextual PYTHIA parameters.
 - Replace permissive, provenance-free Bayesian metric comparisons with deterministic
   integration and estimator-unit contracts. The old CSVs remain `legacy-unknown` data.
+- Correct numerical PILOT's MATLAB-to-Python slice so its reported `C` matrix retains
+  every algorithm column and reconstructs the complete fitted response.
+- Allow MATLAB-supported sparse-class cross-validation with a named warning while still
+  rejecting splits that leave an unusable training fold. This unblocks the verified
+  default KNN variant without weakening impossible-layout checks.
 
 ## Compatibility notes
 
@@ -66,9 +71,9 @@ deliberately deferred.
   boundary-heavy data.
 - `correct_results_simulation.csv` is a Python regression baseline, not a verified
   MATLAB oracle.
-- The R2024a bundle is diagnostic evidence, not a committed oracle. R2026a and all five
-  required toolboxes, including Financial Toolbox, are installed; a clean current-gold
-  export is the next gate for #278 and #310.
+- The R2024a bundle remains diagnostic evidence. The committed current oracle was generated
+  under R2026a Update 4 from clean MATLAB and Python commits with all five required
+  toolboxes, then passed the strict verifier before installation.
 - TRACE3 is opt-in and two-dimensional. Legacy remains the default; 3D support and a
   default switch require separate review.
 - The public mixed index contract is intentional and documented in
@@ -76,7 +81,7 @@ deliberately deferred.
 
 ## Verification
 
-- Repository-wide integration checkpoint: **768 passed** with normal process
+- Repository-wide integration checkpoint: **787 passed** with normal process
   permissions; no failures or exclusions.
 - Both R2024a TRACE3 variants matched every exported good, best, hard, and space
   geometry and raw metric to floating-point precision.
@@ -85,7 +90,14 @@ deliberately deferred.
 - Fixture provenance and strict-profile checks: **42 passed**, including mutations that
   remove both required files and their manifest entries.
 - MATLAB R2026a `checkcode` reports no exporter findings. Its first diagnostic run stopped
-  at PRELIM because Financial Toolbox was absent; the exporter now preflights that product.
+  at PRELIM because Financial Toolbox was absent; after installation, verified mode
+  completed all three variants in 54.4 seconds and published 229 manifest-listed files.
+- Current-gold TRACE3 build geometry and raw metrics match both exported variants to
+  about `1.3e-13`. Explore fallback is exact; the default variant has two explicitly
+  pinned CSV-boundary ambiguities and exact agreement for every off-boundary membership.
+- Current-gold stage readers: **16 passed** across PRELIM, SIFTED, PILOT, CLOISTER,
+  PYTHIA build/explore, and TRACE build/explore. They account explicitly for randomized
+  PRELIM ties, equivalent PILOT rotations/reflections, and tied-neighbour KNN scores.
 - Ruff, Black, strict mypy, lock consistency, and patch-whitespace checks pass across all
-  34 changed Python files. The full suite reports 70 known third-party warnings, recorded
+  36 changed Python files. The full suite reports 70 known third-party warnings, recorded
   in `docs/pending_issue_backlog.md`.
