@@ -41,13 +41,17 @@ Ground-truth performance enables evaluation metrics but does not retrain the mod
 
 ## Reliability invariants
 
-- Algorithm indices are zero-based.
+- PRELIM `p` keeps MATLAB's one-based algorithm indices.
+- PYTHIA `selection0` uses zero-based algorithm indices.
 - `-1` means that PYTHIA made no selection.
 - A single-algorithm portfolio can only select index `0`.
 - Empty TRACE footprints use `polygon=None` and zero metrics.
-- TRACE legacy membership excludes exact polygon-boundary points.
+- TRACE legacy membership includes exact polygon-boundary points, matching MATLAB
+  `polyshape.isinterior`.
 - Summary columns must match their named raw metrics.
 - Build and explore must use the same fitted transformations and selection rules.
+- Disabled preprocessing, feature-selection, and parallel flags must be no-ops.
+- Stage rollback must restore an isolated snapshot and invalidate derived models.
 - Stage output shapes and dtypes must remain stable across serializing and loading.
 
 ## MATLAB parity boundaries
@@ -76,4 +80,3 @@ They are not part of the current correctness pass.
 - Python stages: `instancespace/stages/`
 - Python model contracts: `instancespace/data/model.py` and `instancespace/model.py`
 - MATLAB parity fixtures: `tests/matlab_reference/`
-
