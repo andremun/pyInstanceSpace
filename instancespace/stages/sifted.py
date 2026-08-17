@@ -547,32 +547,24 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             constraints before generating the output.
         """
         x = self.x
-        y = self.y
-        y_bin = self.y_bin
-        x_raw = self.x_raw
-        y_raw = self.y_raw
-        beta = self.beta
-        num_good_algos = self.num_good_algos
-        y_best = self.y_best
-        p = self.p
-        inst_labels = self.inst_labels
-        s = self.s
-        feat_labels = self.feat_labels
         opts = self.opts
 
         nfeats = x.shape[1]
         rng = np.random.default_rng(seed=self.general_opts.seed)
 
-        # Prepare for Filter
-        bydensity = (
-            opts_selvars is not None
-            and "density_flag" in opts_selvars.__dict__
-            and opts_selvars.density_flag
-            and "min_distance" in opts_selvars.__dict__
-            and isinstance(opts_selvars.min_distance, float)
-            and "selvars_type" in opts_selvars.__dict__
-            and isinstance(opts_selvars.selvars_type, str)
-        )
+        if not opts.flag:
+            self._log("-> Feature selection is disabled. Using all features.")
+            return self._finalize_output(
+                x,
+                np.arange(nfeats, dtype=np.intc),
+                None,
+                None,
+                None,
+                None,
+                opts_selvars,
+                data_dense,
+                apply_density=False,
+            )
 
         if nfeats <= 1:
             raise NotEnoughFeatureError(
@@ -584,25 +576,15 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 "-> There are 3 or less features to do selection. "
                 "Skipping feature selection.",
             )
-            selvars = np.arange(nfeats)
-            return SiftedOutput(
+            return self._finalize_output(
                 x,
-                y,
-                y_bin,
-                x_raw,
-                y_raw,
-                beta,
-                num_good_algos,
-                y_best,
-                p,
-                inst_labels,
-                s,
-                list(feat_labels),
-                selvars,
+                np.arange(nfeats, dtype=np.intc),
                 None,
                 None,
                 None,
                 None,
+                opts_selvars,
+                data_dense,
             )
 
         self._log("-> Selecting features based on correlation with performance.")
@@ -621,24 +603,15 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 "-> There are 3 or less features to do selection. "
                 "Skipping correlation clustering selection.",
             )
-            return SiftedOutput(
+            return self._finalize_output(
                 x_aux,
-                y,
-                y_bin,
-                x_raw,
-                y_raw,
-                beta,
-                num_good_algos,
-                y_best,
-                p,
-                inst_labels,
-                s,
-                [feat_labels[i] for i in selvars],
                 selvars,
                 rho,
                 pval,
                 None,
                 None,
+                opts_selvars,
+                data_dense,
             )
 
         if nfeats <= opts.k:
@@ -646,24 +619,15 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 "-> There are less features than clusters. "
                 "Skipping correlation clustering selection.",
             )
-            return SiftedOutput(
+            return self._finalize_output(
                 x_aux,
-                y,
-                y_bin,
-                x_raw,
-                y_raw,
-                beta,
-                num_good_algos,
-                y_best,
-                p,
-                inst_labels,
-                s,
-                [feat_labels[i] for i in selvars],
                 selvars,
                 rho,
                 pval,
                 None,
                 None,
+                opts_selvars,
+                data_dense,
             )
 
         self._log("-> Selecting features based on correlation clustering.")
@@ -674,9 +638,35 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
 
         x_aux, selvars = self._find_best_combination(x_aux, clust, selvars, rng)
 
-        self._log_detail(f"Bydensity value is : {bydensity}")
-        # Run filter for small experiment
-        if bydensity and data_dense is not None:
+        return self._finalize_output(
+            x_aux,
+            selvars,
+            rho,
+            pval,
+            silhouette_scores,
+            clust,
+            opts_selvars,
+            data_dense,
+        )
+
+    def _finalize_output(
+        self,
+        x: NDArray[np.double],
+        selvars: NDArray[np.intc],
+        rho: NDArray[np.double] | None,
+        pval: NDArray[np.double] | None,
+        silhouette_scores: list[float] | None,
+        clust: NDArray[np.bool_] | None,
+        opts_selvars: SelvarsOptions,
+        data_dense: DataDense | None,
+        *,
+        apply_density: bool = True,
+    ) -> SiftedOutput:
+        """Build a SIFTED result and apply its optional post-selection filter."""
+        by_density = apply_density and opts_selvars.density_flag
+        self._log_detail(f"Bydensity value is : {by_density}")
+
+        if by_density and data_dense is not None:
             subset_index, _, _, _ = do_filter(
                 data_dense.x[:, selvars],
                 data_dense.y,
@@ -685,8 +675,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 opts_selvars.min_distance,
             )
             subset_index = ~subset_index
-            if data_dense.s is not None:
-                s = data_dense.s[subset_index]
+            dense_s = data_dense.s[subset_index] if data_dense.s is not None else None
             return SiftedOutput(
                 data_dense.x[subset_index][:, selvars],
                 data_dense.y[subset_index][:],
@@ -698,27 +687,28 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 data_dense.y_best[subset_index][:],
                 data_dense.p[subset_index],
                 data_dense.inst_labels[subset_index],
-                s,
-                [feat_labels[i] for i in selvars],
+                dense_s,
+                self.feat_labels[selvars].tolist(),
                 selvars,
                 rho,
                 pval,
                 silhouette_scores,
                 clust,
             )
+
         return SiftedOutput(
-            x_aux,
-            y,
-            y_bin,
-            x_raw,
-            y_raw,
-            beta,
-            num_good_algos,
-            y_best,
-            p,
-            inst_labels,
-            s,
-            [feat_labels[i] for i in selvars],
+            x,
+            self.y,
+            self.y_bin,
+            self.x_raw,
+            self.y_raw,
+            self.beta,
+            self.num_good_algos,
+            self.y_best,
+            self.p,
+            self.inst_labels,
+            self.s,
+            self.feat_labels[selvars].tolist(),
             selvars,
             rho,
             pval,
@@ -822,7 +812,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         mean = features.mean(axis=1, keepdims=True)
         std = features.std(axis=1, keepdims=True)
         std[std == 0] = 1.0
-        return (features - mean) / std
+        return np.asarray((features - mean) / std, dtype=np.double)
 
     def select_features_by_clustering(
         self,
