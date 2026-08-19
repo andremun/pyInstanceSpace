@@ -61,10 +61,10 @@ import pandas as pd
 from loguru import logger
 from numpy.typing import NDArray
 from scipy.special import gamma
-from shapely.geometry import MultiPoint, MultiPolygon, Polygon
+from shapely.geometry import MultiPolygon, Polygon
 from shapely.ops import triangulate, unary_union
 
-from instancespace.data.model import Footprint
+from instancespace.data.model import Footprint, pointwise_covers
 from instancespace.data.options import GeneralOptions, ParallelOptions, TraceOptions
 from instancespace.stages.stage import Stage
 
@@ -79,9 +79,10 @@ class TraceInputs(NamedTuple):
     z : NDArray[np.double]
         The space of instances, represented as an array of data points (features).
     selection0 : NDArray[np.int_]
-        Performance metrics from the Pythia algorithm, represented as an array.
+        PYTHIA selections as zero-based algorithm indices; ``-1`` means that no
+        algorithm was selected.
     p : NDArray[np.int_]
-        Performance metrics from the data source, represented as an array of values.
+        PRELIM selections as MATLAB-compatible one-based algorithm indices.
     beta : NDArray[np.bool_]
         A binary array indicating specific beta thresholds for the footprint.
     algo_labels : list[str]
@@ -340,10 +341,15 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             "[TRACE]   -> TRACE will use experimental data to calculate the"
             " footprints.",
         )
+        experimental_selection = TraceStage._experimental_portfolio_indices(
+            inputs.p,
+            n_instances=inputs.z.shape[0],
+            n_algorithms=inputs.y_bin.shape[1],
+        )
         return TraceStage.trace(
             inputs.z,
             inputs.y_bin,
-            inputs.p,
+            experimental_selection,
             inputs.beta,
             inputs.algo_labels,
             inputs.trace_options,
@@ -351,6 +357,46 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             inputs.general_options,
             inputs.executor,
         )
+
+    @staticmethod
+    def _experimental_portfolio_indices(
+        p: NDArray[np.int_],
+        *,
+        n_instances: int,
+        n_algorithms: int,
+    ) -> NDArray[np.int_]:
+        """Validate PRELIM's one-based portfolio and convert it for TRACE.
+
+        ``Data.p`` deliberately preserves MATLAB's ``1..n_algorithms`` indexing.
+        TRACE's common implementation uses Python's ``0..n_algorithms-1`` indexing,
+        as does PYTHIA's ``selection0`` (with ``-1`` for no selection).  This method
+        is the sole conversion boundary for experimental TRACE input.
+        """
+        portfolio = np.asarray(p)
+        if portfolio.ndim != 1 or portfolio.shape[0] != n_instances:
+            msg = (
+                "Experimental portfolio p must be a one-dimensional array with "
+                "one entry per instance."
+            )
+            raise ValueError(msg)
+        if not (
+            np.issubdtype(portfolio.dtype, np.integer)
+            or np.issubdtype(portfolio.dtype, np.floating)
+        ):
+            msg = "Experimental portfolio p must contain numeric algorithm indices."
+            raise ValueError(msg)
+        if not np.all(np.isfinite(portfolio)) or not np.all(
+            portfolio == np.floor(portfolio),
+        ):
+            msg = "Experimental portfolio p must contain finite integer indices."
+            raise ValueError(msg)
+        if np.any(portfolio < 1) or np.any(portfolio > n_algorithms):
+            msg = (
+                "Experimental portfolio p must use one-based algorithm indices in "
+                f"the range 1..{n_algorithms}."
+            )
+            raise ValueError(msg)
+        return portfolio.astype(np.int_, copy=False) - 1
 
     @staticmethod
     def trace(
@@ -626,17 +672,20 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
         labels = self.run_dbscan(y_bin, unique_rows)
         flag = False
-        polygon_body: Polygon = Polygon()
+        polygon_body: Polygon | MultiPolygon = Polygon()
         for i in range(1, int(np.max(labels)) + 1):
             polydata = unique_rows[labels == i]
 
             aux = self.fit_poly(polydata, y_bin)
-            if aux:
+            if aux is not None and not aux.is_empty:
                 if not flag:
                     polygon_body = aux
                     flag = True
                 else:
                     polygon_body = polygon_body.union(aux)
+
+        if not flag or polygon_body.is_empty:
+            return self.throw()
 
         return Footprint.from_polygon(
             polygon=polygon_body,
@@ -681,20 +730,19 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         contradiction = base_polygon.intersection(test_polygon)
 
         while not contradiction.is_empty and num_tries <= max_tries:
-            num_elements = np.sum(
-                [contradiction.contains(point) for point in MultiPoint(self.z).geoms],
-            )
+            num_elements = np.sum(pointwise_covers(contradiction, self.z))
+            if num_elements == 0:
+                self._log_detail(
+                    "        -> The contradicting area contains no instances; "
+                    "leaving both footprints unchanged.",
+                )
+                break
+
             num_good_elements_base = np.sum(
-                [
-                    contradiction.contains(point)
-                    for point in MultiPoint(self.z[y_base]).geoms
-                ],
+                pointwise_covers(contradiction, self.z[y_base]),
             )
             num_good_elements_test = np.sum(
-                [
-                    contradiction.contains(point)
-                    for point in MultiPoint(self.z[y_test]).geoms
-                ],
+                pointwise_covers(contradiction, self.z[y_test]),
             )
 
             purity_base = num_good_elements_base / num_elements
@@ -742,7 +790,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         self,
         polygon: Polygon | MultiPolygon,
         y_bin: NDArray[np.bool_],
-    ) -> Polygon | None:
+    ) -> Polygon | MultiPolygon:
         """Refine an existing polygon by removing slivers and improving its shape.
 
         Parameters:
@@ -754,39 +802,35 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
         Returns:
         -------
-        Polygon | None:
-            The refined polygon, or None if the refinement fails.
+        Polygon | MultiPolygon:
+            The refined polygon, or an empty polygon if refinement fails.
         """
-        if polygon is None:
-            return None
-
         splits = (
             [item for item in polygon.geoms]
             if isinstance(polygon, MultiPolygon)
             else [polygon]
         )
         n_polygons = len(splits)
-        refined_polygons = []
+        refined_polygons: list[Polygon] = []
 
         for i in range(n_polygons):
-            criteria = np.logical_and(splits[i].contains(MultiPoint(self.z)), y_bin)
+            criteria = np.logical_and(
+                pointwise_covers(splits[i], self.z),
+                y_bin,
+            )
             polydata = self.z[criteria]
 
             if polydata.shape[0] < POLYGON_MIN_POINT_REQUIREMENT:
                 continue
 
-            temp_polygon = Polygon(polydata)
+            aux = self.fit_poly(polydata, y_bin)
 
-            boundary = temp_polygon.boundary
-            filtered_polydata = polydata[boundary]
-            aux = self.fit_poly(filtered_polydata, y_bin)
-
-            if aux:
+            if aux is not None and not aux.is_empty:
                 refined_polygons.append(aux)
 
-        if len(refined_polygons) > 0:
+        if refined_polygons:
             return unary_union(refined_polygons)
-        return None
+        return Polygon()
 
     def fit_poly(
         self,
@@ -820,19 +864,11 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 return None
             tri = triangulate(polygon)
             for piece in tri:
-                elements = np.sum(
-                    [
-                        piece.convex_hull.contains(point)
-                        for point in MultiPoint(self.z).geoms
-                    ],
-                )
+                elements = np.sum(pointwise_covers(piece.convex_hull, self.z))
                 good_elements = np.sum(
-                    [
-                        piece.convex_hull.contains(point)
-                        for point in MultiPoint(self.z[y_bin]).geoms
-                    ],
+                    pointwise_covers(piece.convex_hull, self.z[y_bin]),
                 )
-                if elements > 0 and (good_elements / elements) < self.opts.purity:
+                if elements == 0 or (good_elements / elements) < self.opts.purity:
                     polygon = polygon.difference(piece)
 
         return polygon
@@ -898,7 +934,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
     def run_dbscan(
         y_bin: NDArray[np.bool_],
         data: NDArray[np.double],
-    ) -> NDArray[np.float64]:
+    ) -> NDArray[np.int_]:
         """Perform DBSCAN clustering on the dataset.
 
         Parameters:
@@ -913,7 +949,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         NDArray[np.int_]:
             Array of cluster labels for each data point.
         """
-        nn = max(min(np.ceil(np.sum(y_bin) / 20), 50), 3)
+        nn = int(max(min(np.ceil(np.sum(y_bin) / 20), 50), 3))
         # Compute Eps
         eps = TraceStage.epsilon(data, nn)
         return TraceStage.dbscan(data, nn, eps)
@@ -945,7 +981,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
     def dist(
         i: NDArray[np.double],
         x: NDArray[np.double],
-    ) -> float | NDArray[np.double]:
+    ) -> NDArray[np.double]:
         """Calculate the Euclidean distances between objects.
 
         Parameters:
@@ -960,16 +996,14 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         D: float
             Euclidean distance (m,)
         """
-        m, n = x.shape
+        _, n = x.shape
 
-        return (
-            float(np.abs(x - i).flatten())
-            if n == 1
-            else np.sqrt(np.sum((x - i) ** 2, axis=1))
-        )
+        if n == 1:
+            return np.asarray(np.abs(x[:, 0] - i[0]), dtype=np.double)
+        return np.asarray(np.sqrt(np.sum((x - i) ** 2, axis=1)), dtype=np.double)
 
     @staticmethod
-    def dbscan(x: NDArray[np.double], k: int, eps: float) -> NDArray[np.float64]:
+    def dbscan(x: NDArray[np.double], k: int, eps: float) -> NDArray[np.int_]:
         """Density-Based Spatial Clustering of Applications with Noise (DBSCAN).
 
         Parameters:
@@ -992,10 +1026,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             eps = TraceStage.epsilon(x, k)
         # Augment x with indices
         x_with_index = np.hstack((np.arange(m).reshape(m, 1), x))
-        type_ = np.zeros(m)  # 1: core, 0: border, -1: noise
+        type_ = np.zeros(m, dtype=np.int_)  # 1: core, 0: border, -1: noise
         no = 1  # Cluster label
-        touched = np.zeros(m)  # 0: not processed, 1: processed
-        classes = np.zeros(m)  # Cluster assignment
+        touched = np.zeros(m, dtype=np.bool_)
+        classes = np.zeros(m, dtype=np.int_)  # Cluster assignment
         for i in range(m):
             if touched[i] == 0:
                 ob = x_with_index[i, :]
@@ -1089,7 +1123,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         good: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0) for _ in range(n_algos)]
         best: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0) for _ in range(n_algos)]
 
-        if self.executor is not None:
+        if not self.parallel_opts.flag:
+            for i in range(n_algos):
+                _, good[i], best[i] = self.process_algorithm(i)
+        elif self.executor is not None:
             self._submit_algorithm_futures(self.executor, n_algos, good, best)
         else:
             worker_count = min(self.parallel_opts.n_cores, multiprocessing.cpu_count())

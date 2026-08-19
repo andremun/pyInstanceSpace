@@ -237,10 +237,8 @@ class InstanceSpace:
     _model: Model | None
     _final_output: dict[str, Any] | None
 
-    # Lazily created, reused across staged calls (Q6) - mirrors MATLAB's
-    # ensurePool()'s "rightSize" check: recreated only if the worker count
-    # changes, not on every stage call. Currently backs TraceStage's
-    # footprint computation.
+    # When parallel execution is enabled, lazily created and reused across
+    # staged calls (Q6). Mirrors MATLAB's ensurePool() "rightSize" check.
     _executor: ThreadPoolExecutor | None
     _executor_workers: int | None
 
@@ -333,7 +331,11 @@ class InstanceSpace:
             Model: The output of building the instance space.
         """
         if self._model is None:
-            if self._final_output is None:
+            if (
+                self._final_output is None
+                or not self._runner_is_complete()
+                or not self._can_build_complete_model()
+            ):
                 raise StageRunningError("InstanceSpace has not been completely ran.")
 
             self._model = Model.from_stage_runner_output(
@@ -354,9 +356,8 @@ class InstanceSpace:
         `build()`/`run_stage()`/etc. call (Q6), the same as after `close()`.
 
         `_final_output` needs the same treatment as `_runner`'s own state
-        (see `StageRunner.__getstate__()`): `build()`/`run_stage()` set it to
-        the *same* dict object as `_runner._available_arguments` (not a
-        copy), so it carries the same stale `"executor"` entry.
+        (see `StageRunner.__getstate__()`), because a completed run's output
+        snapshot can carry the live executor under the `"executor"` key.
         """
         state = self.__dict__.copy()
         state["_executor"] = None
@@ -442,12 +443,18 @@ class InstanceSpace:
             )
         return instance_space
 
-    def _get_executor(self) -> ThreadPoolExecutor:
-        """Return a cached ThreadPoolExecutor, reused across staged calls (Q6).
+    def _get_executor(self) -> ThreadPoolExecutor | None:
+        """Return the cached executor when parallel execution is enabled.
 
-        Recreated only if the worker count changes (mirrors MATLAB's
-        `ensurePool()`'s "rightSize" check) rather than on every call.
+        When ``ParallelOptions.flag`` is false, no pool is created and any
+        cached pool is closed. Otherwise the pool is recreated only if the
+        worker count changes (mirrors MATLAB's ``ensurePool()``
+        ``rightSize`` check).
         """
+        if not self._options.parallel.flag:
+            self.close()
+            return None
+
         worker_count = min(
             self._options.parallel.n_cores,
             multiprocessing.cpu_count(),
@@ -459,11 +466,32 @@ class InstanceSpace:
             self._executor_workers = worker_count
         return self._executor
 
+    def _invalidate_model_state(self) -> None:
+        """Invalidate cached results before mutating runner state."""
+        self._model = None
+        self._final_output = None
+
+    def _runner_is_complete(self) -> bool:
+        """Return whether every scheduled stage wave has completed."""
+        current_item = self._runner._current_schedule_item  # noqa: SLF001
+        stage_order = self._runner._stage_order  # noqa: SLF001
+        return current_item >= len(stage_order)
+
+    def _can_build_complete_model(self) -> bool:
+        """Return whether this instance includes every model-producing stage."""
+        required_stages = {stage for wave in _BUILTIN_STAGE_ORDER for stage in wave}
+        return required_stages.issubset(self._stages)
+
+    def _finalize_model_state(self, output: dict[str, Any]) -> None:
+        """Record a stable final snapshot only for a complete model pipeline."""
+        if self._runner_is_complete() and self._can_build_complete_model():
+            self._final_output = output.copy()
+
     def close(self) -> None:
         """Release resources held across staged calls (currently: the TRACE pool).
 
-        Safe to call even if nothing has been built yet. A subsequent
-        `build()`/`run_stage()`/etc. call recreates the pool lazily.
+        Safe to call even if nothing has been built yet. A subsequent staged
+        call recreates the pool lazily when parallel execution is enabled.
         """
         if self._executor is not None:
             self._executor.shutdown(wait=True)
@@ -530,6 +558,7 @@ class InstanceSpace:
             Model: The output of all stages.
 
         """
+        self._invalidate_model_state()
         try:
             inputs = _InstanceSpaceInputs.from_metadata_and_options(
                 self.metadata,
@@ -542,7 +571,9 @@ class InstanceSpace:
                     instance_space=self,
                 )
 
-            self._final_output = self._runner._available_arguments  # noqa: SLF001
+            self._finalize_model_state(
+                self._runner._available_arguments,  # noqa: SLF001
+            )
 
             self._progress_reporter.report_job_completed(instance_space=self)
 
@@ -563,11 +594,15 @@ class InstanceSpace:
                 with what stage was ran, as multiple stages ran in the same schedule can
                 be ran in any order.
         """
+        self._invalidate_model_state()
         inputs = _InstanceSpaceInputs.from_metadata_and_options(
             self.metadata,
             self.options,
         )._replace(executor=self._get_executor())
         yield from self._runner.run_iter(inputs)
+        self._finalize_model_state(
+            self._runner._available_arguments,  # noqa: SLF001
+        )
 
     def run_stage(
         self,
@@ -602,6 +637,7 @@ class InstanceSpace:
         -------
             list[Any]: The output of the stage.
         """
+        self._invalidate_model_state()
         arguments.setdefault("executor", self._get_executor())
         stage_name = self._stage_report_name(stage)
         start = time.monotonic()
@@ -629,7 +665,9 @@ class InstanceSpace:
             self._progress_reporter.report_job_failed(str(e))
             raise
 
-        self._final_output = self._runner._available_arguments  # noqa: SLF001
+        self._finalize_model_state(
+            self._runner._available_arguments,  # noqa: SLF001
+        )
         duration_seconds = time.monotonic() - start
 
         self._progress_reporter.report_stage_completed(
@@ -638,10 +676,7 @@ class InstanceSpace:
             instance_space=self,
         )
 
-        current_item = self._runner._current_schedule_item  # noqa: SLF001
-        stage_order = self._runner._stage_order  # noqa: SLF001
-        schedule_complete = current_item >= len(stage_order)
-        if schedule_complete:
+        if self._runner_is_complete():
             self._progress_reporter.report_job_completed(instance_space=self)
 
         return output
@@ -649,30 +684,34 @@ class InstanceSpace:
     def run_until_stage(
         self,
         stage: StageClass,
-        **_arguments: Any,  # noqa: ANN401
+        **arguments: Any,  # noqa: ANN401
     ) -> dict[str, Any]:
         """Run all stages until the specified stage, as well as the specified stage.
 
         Args
         ----
-            stage StageClass: The stage to stop running stages after.
-            metadata Metadata: _description_
-            options InstanceSpaceOptions: _description_
-            **arguments dict[str, Any]: if this is the first time stages are ran the
-                initial inputs, and overriding inputs for other stages.
+            stage : StageClass
+                A stage in the last wave to execute.
+            **arguments : Any
+                Per-run input overrides. Successful overrides remain available
+                to every downstream stage.
 
         Returns
         -------
             dict[str, Any]: The raw output dict of all ran stages.
         """
+        self._invalidate_model_state()
         inputs = _InstanceSpaceInputs.from_metadata_and_options(
             self.metadata,
             self.options,
         )._replace(executor=self._get_executor())
-        return self._runner.run_until_stage(
+        output = self._runner.run_until_stage(
             stage,
             inputs,
+            **arguments,
         )
+        self._finalize_model_state(output)
+        return output
 
     @property
     def explore_results(self) -> list[ExploreResult]:
@@ -731,9 +770,7 @@ class InstanceSpace:
         }
 
         if dataset_id is None:
-            dataset_id = (
-                f"explore_{datetime.now(tz=UTC).strftime('%Y%m%d_%H%M%S')}"
-            )
+            dataset_id = f"explore_{datetime.now(tz=UTC).strftime('%Y%m%d_%H%M%S')}"
 
         inst_labels = self._extract_instance_labels(test_metadata)
         pythia_result = stages[ExploreStage.PYTHIA]
@@ -849,12 +886,13 @@ class InstanceSpace:
 
     def _require_model(self) -> Model:
         """Return the trained model, raising if build() hasn't been called yet."""
-        if self._model is None:
+        try:
+            return self.model
+        except StageRunningError as exc:
             raise RuntimeError(
                 "Must call build() before explore(). "
                 "The instance space model must be trained first.",
-            )
-        return self._model
+            ) from exc
 
     def _validate_for_explore(self, metadata: Metadata) -> None:
         """Validate that the instance space is ready for explore and metadata is valid.
@@ -949,15 +987,9 @@ class InstanceSpace:
         use at training time - a hand-duplicated second copy of the same
         arithmetic previously lived here instead.
 
-        Only applies the steps `BoundOptions.flag`/`NormOptions.flag`
-        (read from the same `InstanceSpaceOptions` used to train this model)
-        actually enabled at training time. Previously this method ignored
-        both flags and always applied both steps unconditionally - wrong
-        whenever a model was trained with either flag off, and unsafe when
-        `norm=False`: `lambda_x`/`mu_x`/`sigma_x` are unfit zero arrays in
-        that case, so applying Box-Cox at `lambda=0` (a log transform, not a
-        no-op) and then dividing by `sigma_x=0` would have produced `inf`/
-        `nan` for every test instance's features.
+        Only applies transformations when `AutoOptions.preproc` is enabled,
+        and then only the steps enabled by `BoundOptions.flag` and
+        `NormOptions.flag` (read from the same options used for training).
 
         Args
         ----
@@ -970,8 +1002,9 @@ class InstanceSpace:
                 Transformed feature matrix with shape (n_instances, n_features).
         """
         prelim = self._require_model().prelim
-        bound = self._options.bound.flag
-        norm = self._options.norm.flag
+        auto_preproc = self._options.auto.preproc
+        bound = auto_preproc and self._options.bound.flag
+        norm = auto_preproc and self._options.norm.flag
 
         if bound:
             clipped = np.any(
@@ -1025,9 +1058,7 @@ class InstanceSpace:
         """
         sifted = self._require_model().sifted
         selected_indices = sifted.selvars
-        x_selected = x[:, selected_indices]
-
-        return x_selected
+        return x[:, selected_indices]
 
     def _explore_pilot(self, x: NDArray[np.double]) -> NDArray[np.double]:
         """Project features to 2D instance space using PILOT.
@@ -1136,9 +1167,8 @@ class InstanceSpace:
 
         Ports the per-instance equivalent of MATLAB TRACEtest: for each test
         point and each algorithm, check whether the point lies inside the
-        algorithm's good and best footprints. MATLAB's ``inpolygon`` treats
-        boundary points as inside; ``polygon.covers`` matches that semantics
-        (closed set), whereas ``polygon.contains`` would exclude the boundary.
+        algorithm's good and best footprints. MATLAB's ``isinterior`` includes
+        boundary points; ``polygon.covers`` matches that semantics.
 
         ``in_space`` is intentionally omitted: ``exploreIS.m`` does not compute
         it, and the value in ``step5_trace_membership.csv`` is sourced from

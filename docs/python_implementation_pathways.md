@@ -995,45 +995,19 @@ of this repo's other behavior changes there is no MATLAB-fixture-verified bar to
 F8's shared-extraction pattern exists means writing it once now and reconciling it into that
 pattern later, the same rework risk already documented for F8-before-F9.
 
-### F17 — Fix `_explore_trace()`'s `.covers()` to `.contains()`, matching MATLAB's `isinterior`/`TRACErescore`
-**Origin:** surfaced by F8's (v1.66) TRACE audit as a real, separate inconsistency between build
-and explore membership tests over the same footprint polygons - `Footprint.from_polygon()` and
-`contra()` (training, `trace.py`) use Shapely's `.contains()` (boundary-exclusive); `InstanceSpace.
-_explore_trace()` (explore, `instance_space.py`) uses `.covers()` (boundary-inclusive). F8's own
-write-up originally recorded the fix direction backwards (assumed training's `.contains()` was the
-bug, explore's `.covers()` the reference to match) - **corrected this session** by reading MATLAB's
-actual source rather than trusting that prior note: both `TRACE_legacy.m` (training) and
-`TRACErescore` (`core/TRACE.m:309-344`, MATLAB's *explore*-mode re-scoring function, used for both
-`legacy` and `trace3` models since it's dispatched before the `useLegacy` branch) call `isinterior`
-throughout, never `inpolygon`. `isinterior` is boundary-exclusive (matches Shapely's `.contains()`
-exactly); `inpolygon` is the boundary-inclusive one. So MATLAB's build and explore paths agree with
-each other, and *always* exclude the boundary - meaning explore's `.covers()` is the one that
-diverges from MATLAB, not training's `.contains()`.
+### F17 — Preserve boundary-inclusive TRACE membership
 
-**Files:** `instancespace/instance_space.py` (`_explore_trace()`'s membership checks).
-**Pathway:**
-1. Locate every `.covers()` call in `_explore_trace()` (footprint-membership checks against
-   `in_good`/`in_best`) and change each to `.contains()`.
-2. Add a boundary-exact regression test - construct a footprint polygon and a query point placed
-   exactly on its boundary, assert the explore-time result now matches training's `.contains()`
-   convention (`False`, not `True`) instead of the current `.covers()` behaviour.
-3. Re-run the full TRACE + explore reference-test suite (`tests/test_build_trace.py`,
-   `tests/test_explore_trace.py`) to confirm no boundary-exact point exists in the current fixture
-   set that would silently flip an assertion - if one does, that's the verification the
-   `[Behavior-changing]` tag calls for, not a reason to skip the check.
-4. Update `ExploreResult`'s `in_good`/`in_best` docstrings if they mention `.covers()`'s
-   boundary-inclusive convention anywhere (check before assuming they don't).
+**Resolution:** issue #315's premise is incorrect. MATLAB `polyshape.isinterior` returns true for
+points in a solid region or on its boundary. Shapely `.covers()` is the matching operation.
+Changing explore to `.contains()` reduced reference agreement from 100% to 92.02%.
 
-**Test:** the new boundary-exact regression test above, plus unchanged passing of every existing
-TRACE/explore reference test (interior and clearly-exterior points aren't affected by this change
-either way - only the exact-boundary case is).
-**Decision needed:** none - this is a straightforward correction to match MATLAB's own,
-internally-consistent convention (`isinterior` everywhere), not a design choice between two valid
-options.
-**Compat:** `[Behavior-changing]` - changes which explore-time query points exactly on a footprint
-boundary count as "in good"/"in best". Needs its own before/after verification against the
-existing TRACE reference tests once implemented (per this repo's compatibility-tagging rule), not
-assumed safe from the diff's small size.
+Keep `.covers()` in explore and use pointwise `.covers()` in legacy TRACE scoring and refinement.
+Boundary-exact regressions must assert `True`. The old `.contains()` pathway is superseded and
+#315 should close without the proposed code change.
+
+**Source:** [MathWorks `isinterior`](https://www.mathworks.com/help/matlab/ref/polyshape.isinterior.html).
+**Compat:** build-time scoring changes where Python previously excluded boundary points; explore
+behavior stays unchanged.
 
 ### F18 — Unify build/explore into single-body stage methods (all stages)
 **Origin:** proposed on direct request, filed as a future item, not scoped for implementation now.

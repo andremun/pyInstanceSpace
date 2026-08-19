@@ -15,6 +15,7 @@ Tests includes:
 """
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -799,6 +800,70 @@ def test_pythia_reported_metrics_use_cross_validated_predictions() -> None:
         assert out.accuracy[i] == pytest.approx(expected)
 
 
+def test_pythia_summary_algorithm_rows_match_raw_metrics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#317: summary metric columns retain their named raw metric values."""
+    z_small = np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 0.0], [3.0, 1.0]])
+    y_small = np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6], [0.7, 0.8]])
+    y_bin_small = np.array(
+        [[True, True], [True, False], [False, True], [False, False]],
+    )
+    y_best_small = np.max(y_small, axis=1)
+    predictions = [
+        np.array([True, True, True, False]),
+        np.array([True, False, False, False]),
+    ]
+    call_index = 0
+
+    def fake_fit_classifier(**_kwargs: object) -> SimpleNamespace:
+        nonlocal call_index
+        prediction = predictions[call_index]
+        call_index += 1
+        return SimpleNamespace(
+            classifier=SVC(),
+            Ysub=prediction,
+            Psub=np.zeros(prediction.size),
+            Yhat=prediction,
+            Phat=np.zeros(prediction.size),
+            c=1.0,
+            g=1.0,
+        )
+
+    monkeypatch.setattr(
+        PythiaStage,
+        "_fit_classifier",
+        staticmethod(fake_fit_classifier),
+    )
+    out = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        ["a0", "a1"],
+        PythiaOptions(
+            cv_folds=2,
+            is_poly_krnl=False,
+            use_weights=False,
+            params=None,
+        ),
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    assert not np.allclose(out.accuracy, out.precision)
+    algorithm_rows = out.pythia_summary.iloc[:2]
+    for column, raw_metrics in (
+        ("CV_model_accuracy", out.accuracy),
+        ("CV_model_precision", out.precision),
+        ("CV_model_recall", out.recall),
+    ):
+        np.testing.assert_allclose(
+            algorithm_rows[column].to_numpy(dtype=np.double),
+            np.round(100 * np.asarray(raw_metrics), 3),
+        )
+
+
 def test_pythia_pr0_is_probability_of_bad_class() -> None:
     """pr0_sub/pr0_hat must be P(class 0 = "bad"), matching MATLAB's Pr0.
 
@@ -884,6 +949,53 @@ def test_determine_selections_uses_negative_one_for_no_selection() -> None:
     assert selection0[0] == 0
     assert selection0[1] == -1
     assert selection1[1] == 1  # falls back to the algorithm with best mean y_bin
+
+
+def test_weighted_selection_single_algorithm_uses_common_formula() -> None:
+    """#314: shared weighting is zero-based and build retains its -1 sentinel."""
+    y_hat = np.array([[True], [False]])
+    best, raw_selection = PythiaStage._weighted_selection(  # noqa: SLF001
+        1,
+        [0.75],
+        y_hat,
+    )
+
+    np.testing.assert_allclose(best, [0.75, 0.0])
+    np.testing.assert_array_equal(raw_selection, [0, 0])
+
+    selection0, selection1 = PythiaStage._determine_selections(  # noqa: SLF001
+        1,
+        [0.75],
+        y_hat,
+        np.array([[True], [False]]),
+    )
+    np.testing.assert_array_equal(selection0, [0, -1])
+    np.testing.assert_array_equal(selection1, [0, 0])
+
+
+def test_pythia_single_algorithm_build_selects_index_zero() -> None:
+    """#314: build uses index 0 for a good one-algorithm portfolio."""
+    z_small, y_small, _, y_best_small, _ = _small_pythia_dataset()
+    y_bin_single = np.ones((z_small.shape[0], 1), dtype=np.bool_)
+    out = PythiaStage.pythia(
+        z_small,
+        y_small[:, :1],
+        y_bin_single,
+        y_best_small,
+        ["a0"],
+        PythiaOptions(
+            cv_folds=2,
+            is_poly_krnl=False,
+            use_weights=False,
+            params=None,
+        ),
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    assert np.all(out.y_hat)
+    np.testing.assert_array_equal(out.selection0, np.zeros(z_small.shape[0]))
+    np.testing.assert_array_equal(out.selection1, np.zeros(z_small.shape[0]))
 
 
 def test_skip_mode_bypasses_training_and_returns_empty_output() -> None:

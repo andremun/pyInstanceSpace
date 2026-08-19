@@ -847,3 +847,130 @@ def correlation_matrix_check(df: pd.DataFrame, threshold: float) -> bool:
     total_percentage = (row_percentage + col_percentage) / 2
 
     return total_percentage >= threshold
+
+
+def _synthetic_sifted_stage(
+    n_features: int,
+    *,
+    flag: bool,
+) -> tuple[SiftedStage, DataDense]:
+    """Create a compact SIFTED stage and its pre-filter dense dataset."""
+    n_instances = 6
+    x = np.arange(n_instances * n_features, dtype=float).reshape(
+        n_instances,
+        n_features,
+    )
+    y = np.column_stack(
+        [np.arange(n_instances, dtype=float), np.arange(n_instances, 0, -1)],
+    )
+    good_performance_threshold = 2
+    y_bin = y <= good_performance_threshold
+    labels = pd.Series([f"i{i}" for i in range(n_instances)])
+    stage = SiftedStage(
+        x,
+        y,
+        y_bin,
+        x.copy(),
+        y.copy(),
+        np.zeros(n_instances, dtype=bool),
+        np.sum(y_bin, axis=1),
+        np.min(y, axis=1),
+        np.ones(n_instances, dtype=int),
+        labels,
+        None,
+        [f"f{i}" for i in range(n_features)],
+        dataclasses.replace(SiftedOptions.default(), flag=flag, k=4),
+        ParallelOptions.default(),
+        GeneralOptions.default(),
+    )
+    dense = DataDense(
+        inst_labels=labels,
+        x=x + 100.0,
+        y=y,
+        x_raw=x.copy(),
+        y_raw=y.copy(),
+        y_bin=y_bin,
+        y_best=np.min(y, axis=1),
+        p=np.ones(n_instances, dtype=int),
+        num_good_algos=np.sum(y_bin, axis=1),
+        beta=np.zeros(n_instances, dtype=bool),
+        s=None,
+    )
+    return stage, dense
+
+
+def test_sifted_flag_false_returns_all_features_without_density(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A disabled SIFTED stage runs neither selection nor density filtering."""
+    stage, dense = _synthetic_sifted_stage(1, flag=False)
+
+    def fail_if_called(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("disabled SIFTED must not run selection or density filtering")
+
+    monkeypatch.setattr(stage, "select_features_by_performance", fail_if_called)
+    monkeypatch.setattr("instancespace.stages.sifted.do_filter", fail_if_called)
+
+    result = stage.sift(SelvarsOptions.default(density_flag=True), dense)
+
+    np.testing.assert_array_equal(result.x, stage.x)
+    np.testing.assert_array_equal(result.selvars, [0])
+    assert result.feat_labels == ["f0"]
+
+
+@pytest.mark.parametrize(
+    ("n_features", "selected"),
+    [
+        (3, None),
+        (5, (0, 2)),
+        (5, (0, 1, 2, 3)),
+    ],
+)
+def test_density_filter_runs_for_every_sifted_early_return(
+    monkeypatch: pytest.MonkeyPatch,
+    n_features: int,
+    selected: tuple[int, ...] | None,
+) -> None:
+    """Density re-filtering also finalises the <=3 and <=K selection paths."""
+    stage, dense = _synthetic_sifted_stage(n_features, flag=True)
+    expected_selvars = np.array(
+        selected if selected is not None else tuple(range(n_features)),
+        dtype=np.intc,
+    )
+
+    def select_features() -> tuple[
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.intc],
+    ]:
+        if selected is None:
+            pytest.fail("the initial <=3 path must skip performance selection")
+        shape = (n_features, stage.y.shape[1])
+        return (
+            stage.x[:, expected_selvars],
+            np.zeros(shape),
+            np.zeros(shape),
+            expected_selvars,
+        )
+
+    monkeypatch.setattr(stage, "select_features_by_performance", select_features)
+    calls: list[tuple[int, int]] = []
+
+    def fake_filter(
+        selected_x: NDArray[np.double],
+        *_args: object,
+        **_kwargs: object,
+    ) -> tuple[NDArray[np.bool_], None, None, None]:
+        calls.append((selected_x.shape[0], selected_x.shape[1]))
+        removed = np.ones(selected_x.shape[0], dtype=bool)
+        removed[0] = False
+        return removed, None, None, None
+
+    monkeypatch.setattr("instancespace.stages.sifted.do_filter", fake_filter)
+
+    result = stage.sift(SelvarsOptions.default(density_flag=True), dense)
+
+    assert calls == [(dense.x.shape[0], len(expected_selvars))]
+    np.testing.assert_array_equal(result.selvars, expected_selvars)
+    assert result.x.shape == (1, len(expected_selvars))

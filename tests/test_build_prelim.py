@@ -21,6 +21,7 @@ import pandas as pd
 from numpy.typing import NDArray
 
 from instancespace.data.options import (
+    AutoOptions,
     GeneralOptions,
     PerformanceOptions,
     PrelimOptions,
@@ -31,6 +32,7 @@ from instancespace.stages.prelim import (
     PrelimStage,
     compute_binary_performance,
 )
+from tests.utils.option_creator import create_option
 
 script_dir = Path(__file__).parent
 
@@ -595,3 +597,122 @@ def test_prelim_zero_value_ties_are_detected() -> None:
     assert result is not None
     assert result.p[0] == 1  # first tied algorithm (1-based), unchanged either way
     assert any("50" in m and "more than one best algorithm" in m for m in messages)
+
+
+def test_prelim_options_copy_master_preprocessing_flag() -> None:
+    """PRELIM receives MATLAB's auto.preproc master switch."""
+    options = create_option(auto=AutoOptions(preproc=False))
+
+    prelim = PrelimOptions.from_options(options)
+
+    assert prelim.preproc is False
+
+
+def test_prelim_options_preserve_positional_iqr_multiplier() -> None:
+    """The existing seventh positional argument remains iqr_multiplier."""
+    multiplier = 2.5
+    prelim = PrelimOptions(False, True, 0.2, 0.55, True, True, multiplier)
+
+    assert prelim.iqr_multiplier == multiplier
+    assert prelim.preproc is True
+
+
+def test_prelim_master_switch_disables_bound_and_normalisation() -> None:
+    """auto.preproc=False bypasses both optional preprocessing operations."""
+    x = np.array([[1.0, 10.0], [2.0, 20.0], [100.0, 30.0], [4.0, 40.0]])
+    y_raw = np.array([[2.0, 4.0], [4.0, 2.0], [3.0, 6.0], [6.0, 3.0]])
+    opts = PrelimOptions(
+        max_perf=False,
+        abs_perf=False,
+        epsilon=0.2,
+        beta_threshold=0.55,
+        bound=True,
+        norm=True,
+        preproc=False,
+    )
+    expected_y = compute_binary_performance(
+        y_raw,
+        PerformanceOptions(False, False, 0.2, 0.55),
+        GeneralOptions.default(),
+    ).y
+
+    result = PrelimStage.prelim(
+        x.copy(),
+        y_raw.copy(),
+        x.copy(),
+        y_raw.copy(),
+        None,
+        pd.Series(["i1", "i2", "i3", "i4"]),
+        opts,
+        selvars_opts,
+        GeneralOptions.default(),
+    )
+
+    np.testing.assert_array_equal(result[0], x)
+    np.testing.assert_allclose(result[1], expected_y)
+    np.testing.assert_array_equal(result[12], np.zeros(x.shape[1]))
+    np.testing.assert_array_equal(result[16], np.zeros(y_raw.shape[1]))
+
+
+def test_prelim_normalises_relative_performance_with_sparse_nans() -> None:
+    """Normalisation consumes transformed Y and ignores isolated NaNs."""
+    x = np.array(
+        [
+            [1.0, 7.0],
+            [2.0, 6.0],
+            [3.0, 5.0],
+            [4.0, 4.0],
+            [5.0, 3.0],
+            [6.0, 2.0],
+        ],
+    )
+    y_raw = np.array(
+        [
+            [2.0, 4.0],
+            [4.0, 2.0],
+            [3.0, np.nan],
+            [6.0, 3.0],
+            [5.0, 4.0],
+            [8.0, 5.0],
+        ],
+    )
+    opts = PrelimOptions(
+        max_perf=False,
+        abs_perf=False,
+        epsilon=0.2,
+        beta_threshold=0.55,
+        bound=False,
+        norm=True,
+    )
+    performance = compute_binary_performance(
+        y_raw,
+        PerformanceOptions(False, False, 0.2, 0.55),
+        GeneralOptions.default(),
+    )
+    expected_stage = PrelimStage(
+        x.copy(),
+        performance.y.copy(),
+        x.copy(),
+        y_raw.copy(),
+        None,
+        pd.Series([f"i{i}" for i in range(len(x))]),
+        opts,
+        selvars_opts,
+        GeneralOptions.default(),
+    )
+    expected = expected_stage._normalise()  # noqa: SLF001
+
+    result = PrelimStage.prelim(
+        x.copy(),
+        y_raw.copy(),
+        x.copy(),
+        y_raw.copy(),
+        None,
+        pd.Series([f"i{i}" for i in range(len(x))]),
+        opts,
+        selvars_opts,
+        GeneralOptions.default(),
+    )
+
+    assert result[15] == np.nanmin(performance.y)
+    np.testing.assert_allclose(result[1], expected.y, equal_nan=True)

@@ -277,8 +277,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                         y_hat: NDArray[np.bool_], y_bin: NDArray[np.bool_],
                         y_best: NDArray[np.double],
                         selection0: NDArray[np.int_], selection1: NDArray[np.int_],
-                        precision: list[float],
-                        accuracy: list[float], recall: list[float],
+                        accuracy: list[float], precision: list[float],
+                        recall: list[float],
                         box_consnt: list[float],
                         k_scale: list[float]) -> pd.DataFrames
         Generate a summary of the results.
@@ -654,21 +654,21 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         # Section4: Generate summary of the results
         summary = PythiaStage._generate_summary(
-            nalgos,
-            algo_labels,
-            y,
-            y_hat,
-            y_bin,
-            y_best,
-            selection0,
-            selection1,
-            accuracy_record,
-            precision_record,
-            recall_record,
-            box_consnt,
-            k_scale,
-            classifier_spec.param1.label,
-            (
+            nalgos=nalgos,
+            algo_labels=algo_labels,
+            y=y,
+            y_hat=y_hat,
+            y_bin=y_bin,
+            y_best=y_best,
+            selection0=selection0,
+            selection1=selection1,
+            accuracy=accuracy_record,
+            precision=precision_record,
+            recall=recall_record,
+            box_consnt=box_consnt,
+            k_scale=k_scale,
+            param1_label=classifier_spec.param1.label,
+            param2_label=(
                 classifier_spec.param2.label
                 if classifier_spec.param2 is not None
                 else None
@@ -748,21 +748,21 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         )
 
         summary = PythiaStage._generate_summary(
-            nalgos,
-            algo_labels,
-            y,
-            y_hat,
-            y_bin,
-            y_best,
-            selection0,
-            selection1,
-            accuracy_record,
-            precision_record,
-            recall_record,
-            box_consnt,
-            k_scale,
-            None,
-            None,
+            nalgos=nalgos,
+            algo_labels=algo_labels,
+            y=y,
+            y_hat=y_hat,
+            y_bin=y_bin,
+            y_best=y_best,
+            selection0=selection0,
+            selection1=selection1,
+            accuracy=accuracy_record,
+            precision=precision_record,
+            recall=recall_record,
+            box_consnt=box_consnt,
+            k_scale=k_scale,
+            param1_label=None,
+            param2_label=None,
         )
 
         return PythiaOutput(
@@ -1518,21 +1518,10 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         y_hat : NDArray[np.bool_]
             The predicted labels.
         """
-        if nalgos > 1:
-            # Boardcast corresponding col of y_hat with precision
-            precision_array = np.asarray(precision, dtype=np.double)
-            weighted_yhat = y_hat * precision_array[np.newaxis, :]
-            # Find the maximum value for each row in weighted_yhat
-            best = np.max(weighted_yhat, axis=1)
-            # Get the index of the maximum value in each row
-            raw_selection = np.argmax(weighted_yhat, axis=1).astype(np.int_)
-        else:
-            # y_hat is (ninst, 1) here; flatten to 1D to match the nalgos > 1
-            # branch's shape - callers' `best <= 0` mask and
-            # `selection[:, np.newaxis] == np.arange(nalgos)` both assume a
-            # 1D selection, not a (ninst, 1) column.
-            best = y_hat.flatten().astype(np.double)
-            raw_selection = y_hat.flatten().astype(np.int_)
+        precision_array = np.asarray(precision, dtype=np.double).reshape(1, nalgos)
+        weighted_yhat = y_hat * precision_array
+        best = np.max(weighted_yhat, axis=1)
+        raw_selection = np.argmax(weighted_yhat, axis=1).astype(np.int_)
 
         return best, raw_selection
 
@@ -1590,8 +1579,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         y_best: NDArray[np.double],
         selection0: NDArray[np.int_],
         selection1: NDArray[np.int_],
-        precision: list[float],
         accuracy: list[float],
+        precision: list[float],
         recall: list[float],
         box_consnt: list[float],
         k_scale: list[float],
@@ -1618,10 +1607,10 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             The selected algorithms.
         selection1 : NDArray[np.integer]
             Backup selected algorithm.
-        precision : list[float]
-            The precision metrics.
         accuracy : list[float]
             The accuracy metrics.
+        precision : list[float]
+            The precision metrics.
         recall : list[float]
             The recall metrics.
         box_consnt : list[float]

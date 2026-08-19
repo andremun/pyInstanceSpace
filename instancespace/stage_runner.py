@@ -212,8 +212,7 @@ class StageRunner:
             self._rollback_to_schedule_index(stage_schedule_index)
 
         available_arguments = self._available_arguments.copy()
-        for k, v in additional_arguments.items():
-            available_arguments[k] = v
+        available_arguments.update(additional_arguments)
 
         input_arguments = stage._inputs()  # noqa: SLF001
 
@@ -233,11 +232,16 @@ class StageRunner:
 
         outputs = stage._run(_deepcopy_stage_inputs(inputs))  # noqa: SLF001
 
+        # A successful override is part of the new runner state, not only a
+        # temporary input to this stage. Downstream stages must see it after
+        # this call, including after a checkpoint round trip.
+        self._available_arguments.update(additional_arguments)
+
         for output_name, output_value in outputs._asdict().items():
             self._available_arguments[output_name] = output_value
 
         self._schedule_output_data[self._current_schedule_item] = (
-            self._available_arguments
+            self._available_arguments.copy()
         )
 
         self._stages_ran[stage] = True
@@ -253,7 +257,7 @@ class StageRunner:
 
         Returns
         -------
-            tuple[Any]: _description_
+            dict[str, Any]: Available inputs and outputs after the target wave.
         """
         self._rollback_to_schedule_index(0)
 
@@ -268,9 +272,14 @@ class StageRunner:
     def run_until_stage(
         self,
         stop_at_stage: StageClass,
-        additional_arguments: NamedTuple,
+        initial_arguments: NamedTuple,
+        **additional_arguments: Any,  # noqa: ANN401
     ) -> dict[str, Any]:
-        """Run all stages until the specified stage, as well as the specified stage.
+        """Run every wave through the wave containing ``stop_at_stage``.
+
+        Stages in one wave are unordered siblings. Running only the named
+        sibling would leave the runner in an ambiguous half-wave state, so
+        the complete target wave is always executed.
 
         Returns
         -------
@@ -278,18 +287,15 @@ class StageRunner:
         """
         self._rollback_to_schedule_index(0)
 
-        self._available_arguments = additional_arguments._asdict()
+        self._available_arguments = initial_arguments._asdict()
+        self._available_arguments.update(additional_arguments)
 
-        for schedule in self._stage_order:
-            if stop_at_stage in schedule:
-                break
-
+        target_schedule_index = self._stage_to_schedule_index[stop_at_stage]
+        for schedule in self._stage_order[: target_schedule_index + 1]:
             for stage in schedule:
                 self.run_stage(stage)
 
         return self._available_arguments
-
-        # TODO: Work out what this should return. Maybe just the dict of outputs?
 
     @staticmethod
     def _check_stage_order_is_runnable(
@@ -322,7 +328,7 @@ class StageRunner:
         index: int,
     ) -> None:
         self._current_schedule_item = index
-        self._available_arguments = self._schedule_output_data[index]
+        self._available_arguments = self._schedule_output_data[index].copy()
 
         self._schedule_output_data = self._schedule_output_data[: index + 1]
 
@@ -339,7 +345,7 @@ class StageRunner:
 
         if current_schedule_finished:
             self._schedule_output_data[self._current_schedule_item] = (
-                self._available_arguments
+                self._available_arguments.copy()
             )
 
             self._current_schedule_item += 1

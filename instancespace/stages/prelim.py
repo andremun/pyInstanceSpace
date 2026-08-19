@@ -140,10 +140,7 @@ def compute_binary_performance(
             y = 1 - y / y_best[:, np.newaxis]
             y_bin = (1 - y_aux / y_best[:, np.newaxis]) <= perf_opts.epsilon
             msg = (
-                msg
-                + "within "
-                + str(round(100 * perf_opts.epsilon))
-                + "% of the best."
+                msg + "within " + str(round(100 * perf_opts.epsilon)) + "% of the best."
             )
     else:
         logger.info(f"[{log_prefix}] -> Minimizing performance.")
@@ -168,10 +165,7 @@ def compute_binary_performance(
             y = y / y_best[:, np.newaxis] - 1
             y_bin = (y_aux / y_best[:, np.newaxis] - 1) <= perf_opts.epsilon
             msg = (
-                msg
-                + "within "
-                + str(round(100 * perf_opts.epsilon))
-                + "% of the best."
+                msg + "within " + str(round(100 * perf_opts.epsilon)) + "% of the best."
             )
 
     logger.info(f"[{log_prefix}] {msg}")
@@ -246,8 +240,8 @@ def apply_boxcox_zscore(
     implementation, not a second one written to match it by hand. `x` must
     already be positive (the min-shift-by-1 step happens before this call).
     """
-    transformed = stats.boxcox(x, lambda_)
-    return (transformed - mu) / sigma
+    transformed = np.asarray(stats.boxcox(x, lambda_), dtype=np.double)
+    return np.asarray((transformed - mu) / sigma, dtype=np.double)
 
 
 class PrelimInput(NamedTuple):
@@ -756,7 +750,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
                 sigma_x[i],
             )
 
-        min_y = float(np.min(self.y))
+        min_y = float(np.nanmin(self.y))
 
         self.y = (self.y - min_y) + np.finfo(float).eps
 
@@ -841,7 +835,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         hi_bound = med_val + multiplier * iq_range
         lo_bound = med_val - multiplier * iq_range
 
-        if prelim_opts.bound:
+        if prelim_opts.preproc and prelim_opts.bound:
             bound_out = self._bound()
             x = bound_out.x
             med_val = bound_out.med_val
@@ -860,7 +854,12 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         mu_y = np.zeros(nalgos)
         sigma_y = np.zeros(nalgos)
 
-        if prelim_opts.norm:
+        if prelim_opts.preproc and prelim_opts.norm:
+            # ``compute_binary_performance`` may replace raw Y with relative
+            # performance. Normalise that transformed matrix, not the raw Y
+            # retained by the stage constructor.
+            self.x = x
+            self.y = y
             normalise_out = self._normalise()
             x = normalise_out.x
             min_x = normalise_out.min_x
@@ -936,9 +935,10 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         path = Path(selvars_opts.file_idx)
         self._log_detail(f"path: {path}")
         self._log_detail(f"path.is_file(file_idx): {path.is_file()}")
-        fileindexed = (
-            selvars_opts.file_idx_flag and Path(selvars_opts.file_idx).is_file()
-        )
+        if selvars_opts.file_idx_flag and not path.is_file():
+            msg = f"Subset index file does not exist: {path}"
+            raise FileNotFoundError(msg)
+        fileindexed = selvars_opts.file_idx_flag
 
         bydensity = (
             selvars_opts.density_flag
@@ -963,13 +963,28 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         elif fileindexed:
             self._log("-> Using a subset of instances.")
             subset_index = np.zeros(ninst, dtype=bool)
-            aux = np.genfromtxt(selvars_opts.file_idx, delimiter=",", dtype=int)
-            self._log_detail(f"aux: {aux}")
-            aux = aux[aux < ninst]
+            loaded = np.genfromtxt(path, delimiter=",", dtype=float)
+            indices = np.atleast_1d(loaded).ravel()
+            self._log_detail(f"indices (1-based): {indices}")
 
-            for i in range(len(aux)):
-                aux[i] = aux[i] - 1
-            subset_index[aux] = True
+            if indices.size == 0 or not np.all(np.isfinite(indices)):
+                msg = f"Subset index file must contain finite 1-based indices: {path}"
+                raise ValueError(msg)
+            if not np.all(indices == np.floor(indices)):
+                msg = f"Subset index file must contain integer indices: {path}"
+                raise ValueError(msg)
+
+            indices_1_based = indices.astype(np.int_)
+            invalid = (indices_1_based < 1) | (indices_1_based > ninst)
+            if np.any(invalid):
+                bad = indices_1_based[invalid].tolist()
+                msg = (
+                    f"Subset indices must be in MATLAB's 1-based range "
+                    f"[1, {ninst}]; got {bad}."
+                )
+                raise ValueError(msg)
+
+            subset_index[indices_1_based - 1] = True
 
         elif bydensity:
             self._log(
