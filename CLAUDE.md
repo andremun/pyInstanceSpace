@@ -66,14 +66,43 @@ implemented and verified (roadmap v1.66)** — PYTHIA's real build/explore dupli
 TRACE audited and found to need no such unification (`_explore_trace` already reuses the trained
 polygon); `explore()` now computes real ground-truth accuracy/precision/recall/confusion-matrix
 via `compute_binary_performance` (extracted from `PrelimStage`) when test metadata carries
-algorithm performance columns. Two new pre-existing bugs surfaced by this work, filed not fixed
-(both `[Behavior-changing]`, need their own verification): #314 (`nalgos==1` selection index is
-1, not 0) and #315/**F17** (`InstanceSpace._explore_trace()` uses boundary-inclusive `.covers()`
-where MATLAB's `isinterior` — used throughout both `TRACE_legacy.m` and the explore-mode
-`TRACErescore`, confirmed by direct source read, corrected from an earlier, backwards recorded
-direction — is boundary-exclusive, matching training's own `.contains()`; so explore's `.covers()`
-is the one that needs to become `.contains()`, not training). Filed as its own scoped issue (#315,
-retitled to name the corrected fix), linked as a Phase F sub-issue of #260; not implemented.
+algorithm performance columns. Two new pre-existing bugs surfaced by this work were filed at the
+time, not fixed: #314 (`nalgos==1` selection index is 1, not 0) and #315/**F17**. **Both are now
+resolved, and F17's recorded direction needs a correction of its own** — see below.
+
+**F17/#315 correction (roadmap v1.70, PR #319, merged):** the earlier recorded conclusion here —
+that MATLAB's `isinterior` is boundary-*exclusive*, so explore's `.covers()` needed to become
+`.contains()` to match training — was itself wrong, and stayed wrong through a prior "correction"
+pass (roadmap v1.68, which flipped F8's original filing but landed on the same wrong direction
+again). MathWorks' own documentation for
+`polyshape.isinterior` states plainly that boundary points count as interior ("a point is in a
+polyshape if it is either in a solid region or on one of the boundaries") — i.e.
+boundary-*inclusive*, matching Shapely's `.covers()`, not `.contains()`. Reading `TRACE_legacy.m`
+only confirms `isinterior` is *called*; it can't establish *how* that MATLAB builtin treats
+boundary points — that gap between "confirmed by source read" and what was actually confirmed is
+what let the wrong direction stand. #315's own proposed fix (make explore `.contains()`) was
+correctly rejected — not implemented — but PR #319 fixed the *real* bug: training's side
+(`Footprint.from_polygon`, `contra()`, `tight()`, `fit_poly()`) was the one using boundary-exclusive
+`.contains()`; it now uses a new `pointwise_covers()` helper (`instancespace/data/model.py`) built
+on `.covers()`, unifying training and explore on boundary-inclusive semantics that actually match
+MATLAB. `[Behavior-changing]` — training-time footprint area/purity/contradiction resolution can
+differ for any dataset with points exactly on a fitted polygon edge. If you're about to touch
+TRACE's boundary-membership logic again: don't re-trust a "confirmed by source read" claim about a
+MATLAB builtin's own semantics without an actual documentation citation or empirical check backing
+it — that's exactly how this got recorded backwards the first time.
+
+Same PR (#319, "big rocks" open-issue pass, `docs/remediation_plan.md`/`docs/implemented_fixes.md`/
+`docs/pending_issue_backlog.md`) also fixed #314 and #317 (the `_generate_summary` accuracy/
+precision swap noted below), all seven #302 TRACE audit findings, and a batch of internally-audited
+defects (PRELIM `p` vs. PYTHIA `selection0` one-based/zero-based index conversions now only applied
+at explicit TRACE/plotting boundaries, PRELIM normalizing derived performance instead of raw `Y`,
+preprocessing/SIFTED/parallel option flags that previously didn't always gate execution, transactional
+stage rollback + explicit model-lifecycle invalidation in `StageRunner`, one-based subset-file index
+validation, and SIFTED density re-filtering applied consistently across early-exit paths) —
+`[Behavior-changing]`, 512 tests passed per the PR's own validation. Read `docs/implemented_fixes.md`
+and `docs/pending_issue_backlog.md` for the itemised breakdown rather than re-deriving it from the
+code; this file only tracks that the pass happened and landed.
+
 **F18** (#316) was also filed, as a future architectural proposal: unify build/explore into
 single-body stage methods for every stage (a `predict()` alongside each stage's `build()`,
 replacing `InstanceSpace`'s parallel `_explore_*` method family), generalizing PYTHIA/TRACE's own
