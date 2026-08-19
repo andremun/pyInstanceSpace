@@ -62,4 +62,4 @@ asserts it:
 | SIFTED | exact match | pure column indexing |
 | PILOT  | max relative error < 1% | single matrix product with the stored projection matrix |
 | PYTHIA | binary agreement ≥ 99%; mean probability Pearson \|r\| ≥ 0.99 | SVM evaluation with stored parameters; small margin for thresholded predictions near the decision boundary |
-| TRACE  | per-column boolean agreement ≥ 99% | boundary-inclusive membership matching MATLAB `inpolygon`; the 1% budget covers floating-point boundary edge cases after the CSV round-trip |
+| TRACE  | per-column boolean agreement ≥ 99% | boundary-inclusive membership matching MATLAB `polyshape.isinterior`; the 1% budget covers floating-point boundary edge cases after the CSV round-trip |

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from instancespace.data.options import GeneralOptions, PrelimOptions, SelvarsOptions
 from instancespace.stages.prelim import PrelimStage
@@ -510,6 +511,91 @@ def test_split_fileindexed() -> None:
     assert np.array_equal(p, p_after)
     assert np.array_equal(inst_labels, inst_labels_after)
     print("Fileindexed tests passed!")
+
+
+def _run_file_index_filter(
+    index_path: Path,
+    ninst: int = 4,
+) -> tuple[np.ndarray, pd.Series]:  # type: ignore[type-arg]
+    """Run PRELIM's file-indexed filter over a compact synthetic dataset."""
+    x = np.arange(ninst * 2, dtype=float).reshape(ninst, 2)
+    y = np.arange(ninst, dtype=float)[:, np.newaxis]
+    y_bin = np.ones_like(y, dtype=bool)
+    y_best = y[:, 0]
+    p = np.ones(ninst, dtype=int)
+    num_good_algos = np.ones(ninst)
+    beta = np.zeros(ninst, dtype=bool)
+    labels = pd.Series([f"i{i + 1}" for i in range(ninst)])
+    options = SelvarsOptions.default(
+        file_idx_flag=True,
+        file_idx=str(index_path),
+    )
+    stage = PrelimStage(
+        x,
+        y,
+        x.copy(),
+        y.copy(),
+        None,
+        labels,
+        PrelimOptions(False, True, 0.2, 0.55, False, False),
+        options,
+        GeneralOptions.default(),
+    )
+    result = stage._filter(  # noqa: SLF001
+        labels,
+        x,
+        y,
+        y_bin,
+        y_best,
+        x.copy(),
+        y.copy(),
+        p,
+        num_good_algos,
+        beta,
+        None,
+        options,
+    )
+    return result[0], result[10]
+
+
+def test_file_indices_accept_first_and_last_matlab_indices(tmp_path: Path) -> None:
+    """MATLAB's inclusive 1..ninst range maps once to Python positions."""
+    index_path = tmp_path / "indices.csv"
+    index_path.write_text("1\n4\n", encoding="utf-8")
+
+    result = _run_file_index_filter(index_path)
+
+    np.testing.assert_array_equal(result[0], [True, False, False, True])
+    assert result[1].tolist() == ["i1", "i4"]
+
+
+def test_file_indices_support_scalar_files(tmp_path: Path) -> None:
+    """A one-entry subset file is treated as a one-element vector."""
+    index_path = tmp_path / "scalar.csv"
+    index_path.write_text("4\n", encoding="utf-8")
+
+    result = _run_file_index_filter(index_path)
+
+    np.testing.assert_array_equal(result[0], [False, False, False, True])
+    assert result[1].tolist() == ["i4"]
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "5", "1.5"])
+def test_file_indices_reject_invalid_values(tmp_path: Path, value: str) -> None:
+    """Zero, negative, out-of-range, and fractional indices fail clearly."""
+    index_path = tmp_path / "invalid.csv"
+    index_path.write_text(f"{value}\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Subset ind"):
+        _run_file_index_filter(index_path)
+
+
+def test_missing_file_index_path_fails_clearly(tmp_path: Path) -> None:
+    """An enabled but missing subset file never silently selects all rows."""
+    missing = tmp_path / "missing.csv"
+
+    with pytest.raises(FileNotFoundError, match="Subset index file does not exist"):
+        _run_file_index_filter(missing)
 
 
 # Tao to complete this test

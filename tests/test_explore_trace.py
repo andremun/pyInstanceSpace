@@ -17,10 +17,9 @@ from exploreIS. exploreIS does not compute per-instance in_space, and
 CLOISTER training is out of scope for this port. The validation here covers
 the ``in_good_*`` and ``in_best_*`` columns only.
 
-Threshold: per-column boolean agreement >= 99%. MATLAB ``inpolygon``
-treats boundary points as inside; ``shapely.Polygon.covers`` matches that
-semantics. The 1% tolerance allows for floating-point boundary edge cases
-after CSV round-trip.
+Threshold: per-column boolean agreement >= 99%. MATLAB ``isinterior`` and
+``shapely.Polygon.covers`` both include boundary points. The 1% tolerance
+allows for floating-point boundary edge cases after CSV round-trip.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -43,8 +42,16 @@ ARTIFACTS_DIR = REFERENCE_DIR / "training_artifacts" / "trace"
 OUTPUTS_DIR = REFERENCE_DIR / "explore_outputs"
 
 ALGO_ORDER = [
-    "NB", "LDA", "QDA", "CART", "J48",
-    "KNN", "L_SVM", "poly_SVM", "RBF_SVM", "RandF",
+    "NB",
+    "LDA",
+    "QDA",
+    "CART",
+    "J48",
+    "KNN",
+    "L_SVM",
+    "poly_SVM",
+    "RBF_SVM",
+    "RandF",
 ]
 
 
@@ -78,14 +85,18 @@ def test_trace_output_shapes() -> None:
     assert in_best.dtype == np.bool_
 
 
-def test_trace_inside_outside() -> None:
+def test_trace_inside_outside_and_matlab_boundary_semantics() -> None:
+    """MATLAB ``isinterior`` counts exact boundary points as inside."""
     square = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
     space = make_instance_space([square], [square])
     z = np.array([[0.5, 0.5], [2.0, 2.0], [0.0, 0.0]])
-    in_good, in_best = InstanceSpace._explore_trace(space, z)
-    # (0.5, 0.5) inside; (2, 2) outside; (0, 0) on boundary -> inside (covers)
-    assert in_good[0, 0] and not in_good[1, 0] and in_good[2, 0]
-    assert in_best[0, 0] and not in_best[1, 0] and in_best[2, 0]
+    in_good, in_best = InstanceSpace._explore_trace(space, z)  # noqa: SLF001
+    assert in_good[0, 0]
+    assert not in_good[1, 0]
+    assert in_good[2, 0]
+    assert in_best[0, 0]
+    assert not in_best[1, 0]
+    assert in_best[2, 0]
 
 
 def test_trace_none_polygon_returns_false() -> None:
@@ -174,6 +185,24 @@ def test_compute_algorithm_qualities_reuses_a_supplied_executor() -> None:
     assert len(good) == 3
     assert len(best) == 3
     shared_executor.shutdown(wait=True)
+
+
+def test_compute_algorithm_qualities_stays_sequential_when_parallel_disabled() -> None:
+    """A supplied pool is ignored when the shared parallel flag is false."""
+    n_algorithms = 3
+    supplied_executor = Mock(spec=ThreadPoolExecutor)
+    stage = _bare_trace_stage(n_algos=n_algorithms, executor=supplied_executor)
+    stage.parallel_opts = ParallelOptions(False, 2)
+
+    with patch(
+        "instancespace.stages.trace.ThreadPoolExecutor",
+    ) as mock_pool_class:
+        good, best = stage.compute_algorithm_qualities(n_algorithms)
+
+    mock_pool_class.assert_not_called()
+    supplied_executor.submit.assert_not_called()
+    assert len(good) == n_algorithms
+    assert len(best) == n_algorithms
 
 
 def test_compute_algorithm_qualities_creates_its_own_pool_when_none_supplied() -> None:
@@ -265,5 +294,7 @@ def test_trace_matches_matlab() -> None:
 
     for col, agr in per_col_agreement.items():
         assert agr >= 0.99, f"{col} agreement {agr * 100:.2f}% < 99%"
-    print(f"[PASS] TRACE validation: overall {overall * 100:.2f}% across "
-          f"{len(per_col_agreement)} columns")
+    print(
+        f"[PASS] TRACE validation: overall {overall * 100:.2f}% across "
+        f"{len(per_col_agreement)} columns"
+    )

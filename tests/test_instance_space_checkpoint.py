@@ -28,11 +28,16 @@ import pytest
 from instancespace.data.metadata import Metadata
 from instancespace.data.options import InstanceSpaceOptions
 from instancespace.instance_space import InstanceSpace, instance_space_from_files
-from instancespace.model import ModelSignatureError
+from instancespace.model import Model, ModelSignatureError
 from instancespace.progress_reporter import NullProgressReporter
+from instancespace.stage_runner import StageRunningError
+from instancespace.stages.cloister import CloisterStage
+from instancespace.stages.pilot import PilotStage
 from instancespace.stages.prelim import PrelimStage
 from instancespace.stages.preprocessing import PreprocessingStage
+from instancespace.stages.pythia import PythiaStage
 from instancespace.stages.sifted import SiftedStage
+from instancespace.stages.trace import TraceStage
 
 # ---------------------------------------------------------------------------
 # Real, fast round-trip tests
@@ -53,14 +58,13 @@ def two_stage_instance_space() -> InstanceSpace:
     return instance_space
 
 
-def test_save_drops_the_live_executor_so_load_does_not_crash(
+def test_save_with_parallelism_disabled_loads_without_an_executor(
     two_stage_instance_space: InstanceSpace,
     tmp_path: Path,
 ) -> None:
-    # run_stage() always creates the cached executor (Q6), so by this point
-    # the checkpoint would contain a live ThreadPoolExecutor without the
-    # __getstate__ fix - this is the regression this test guards.
-    assert two_stage_instance_space._executor is not None  # noqa: SLF001
+    # This fixture's options set parallel.flag=false, so staged execution must
+    # not create a pool merely for checkpointing.
+    assert two_stage_instance_space._executor is None  # noqa: SLF001
     path = tmp_path / "checkpoint.joblib"
 
     two_stage_instance_space.save(path)
@@ -130,6 +134,15 @@ def _bare_instance_space(reporter: Any = None) -> InstanceSpace:  # noqa: ANN401
     space._progress_reporter = reporter or NullProgressReporter()
     space._model = None
     space._final_output = None
+    space._stages = [
+        PreprocessingStage,
+        PrelimStage,
+        SiftedStage,
+        PilotStage,
+        PythiaStage,
+        CloisterStage,
+        TraceStage,
+    ]
     space._executor = None
     space._executor_workers = None
     return space
@@ -262,7 +275,9 @@ def test_run_stage_does_not_reseed_a_partially_completed_runner() -> None:
     space.close()
 
 
-def test_build_reports_each_stage_and_job_completed() -> None:
+def test_build_reports_each_stage_and_job_completed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     reporter = MagicMock()
     space = _bare_instance_space(reporter)
 
@@ -279,13 +294,20 @@ def test_build_reports_each_stage_and_job_completed() -> None:
         SimpleNamespace(
             run_iter=fake_run_iter,
             _available_arguments={"done": True},
+            _current_schedule_item=2,
+            _stage_order=[[PreprocessingStage], [PrelimStage]],
         ),
     )
-    space._model = "the-model"  # type: ignore[assignment]
+    space._model = "stale-model"  # type: ignore[assignment]
+    monkeypatch.setattr(
+        Model,
+        "from_stage_runner_output",
+        classmethod(lambda cls, output, options: "fresh-model"),  # noqa: ARG005
+    )
 
     result = space.build()
 
-    assert cast(str, result) == "the-model"
+    assert cast(str, result) == "fresh-model"
     assert reporter.report_stage_completed.call_count == 2  # noqa: PLR2004
     reported_names = [
         call.args[0] for call in reporter.report_stage_completed.call_args_list
@@ -312,6 +334,121 @@ def test_build_reports_job_failed_and_reraises() -> None:
     space.close()
 
 
+def test_run_iter_finalizes_only_after_full_exhaustion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A partially consumed iterator cannot expose either old or partial models."""
+    space = _bare_instance_space()
+
+    class FakeStageOutput:
+        stage = PreprocessingStage
+        output = "partial"
+
+    runner = SimpleNamespace(
+        _available_arguments={"old": True},
+        _current_schedule_item=0,
+        _stage_order=[[PreprocessingStage]],
+    )
+
+    def fake_run_iter(_inputs: object) -> Iterator[FakeStageOutput]:
+        yield FakeStageOutput()
+        runner._available_arguments = {"fresh": True}
+        runner._current_schedule_item = 1
+
+    runner.run_iter = fake_run_iter
+    space._runner = cast(Any, runner)
+    space._model = "stale-model"  # type: ignore[assignment]
+    space._final_output = {"old": True}
+    monkeypatch.setattr(
+        Model,
+        "from_stage_runner_output",
+        classmethod(lambda cls, output, options: "fresh-model"),  # noqa: ARG005
+    )
+
+    outputs = space.run_iter()
+    first = next(outputs)
+
+    assert cast(str, first.output) == "partial"
+    assert space._model is None  # noqa: SLF001
+    assert space._final_output is None  # noqa: SLF001
+    with pytest.raises(StageRunningError, match="not been completely"):
+        _ = space.model
+
+    with pytest.raises(StopIteration):
+        next(outputs)
+
+    assert space._final_output == {"fresh": True}  # noqa: SLF001
+    assert cast(str, space.model) == "fresh-model"
+    space.close()
+
+
+def test_run_until_stage_forwards_overrides_without_exposing_partial_model() -> None:
+    """Partial scheduling updates state but keeps ``model`` unavailable."""
+    space = _bare_instance_space()
+    captured: dict[str, Any] = {}
+
+    def fake_run_until_stage(
+        stage: object,
+        inputs: object,
+        **arguments: object,
+    ) -> dict[str, Any]:
+        captured["stage"] = stage
+        captured["inputs"] = inputs
+        captured.update(arguments)
+        return {"partial": True}
+
+    space._runner = cast(
+        Any,
+        SimpleNamespace(
+            run_until_stage=fake_run_until_stage,
+            _current_schedule_item=1,
+            _stage_order=[[PreprocessingStage], [PrelimStage]],
+        ),
+    )
+    space._model = "stale-model"  # type: ignore[assignment]
+    space._final_output = {"old": True}
+
+    threshold = 0.25
+    output = space.run_until_stage(PreprocessingStage, threshold=threshold)
+
+    assert output == {"partial": True}
+    assert captured["threshold"] == threshold
+    assert space._model is None  # noqa: SLF001
+    assert space._final_output is None  # noqa: SLF001
+    with pytest.raises(StageRunningError, match="not been completely"):
+        _ = space.model
+    space.close()
+
+
+def test_completed_run_stage_replaces_a_stale_cached_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rerunning a completed stage never returns the previously cached model."""
+    space = _bare_instance_space()
+    space._runner = cast(
+        Any,
+        SimpleNamespace(
+            run_stage=lambda stage, **kwargs: "output",  # noqa: ARG005
+            _available_arguments={"fresh": True},
+            _current_schedule_item=1,
+            _stage_order=[[FakeStage]],
+        ),
+    )
+    space._model = "stale-model"  # type: ignore[assignment]
+    space._final_output = {"old": True}
+    monkeypatch.setattr(
+        Model,
+        "from_stage_runner_output",
+        classmethod(lambda cls, output, options: "fresh-model"),  # noqa: ARG005
+    )
+
+    space.run_stage(FakeStage)  # type: ignore[arg-type]
+
+    assert cast(str, space.model) == "fresh-model"
+    assert space._final_output == {"fresh": True}  # noqa: SLF001
+    space.close()
+
+
 def test_getstate_drops_a_live_executor() -> None:
     space = _bare_instance_space()
     space._executor = ThreadPoolExecutor(max_workers=1)
@@ -326,12 +463,7 @@ def test_getstate_drops_a_live_executor() -> None:
 
 
 def test_getstate_strips_executor_from_aliased_final_output() -> None:
-    """`_final_output` can be the *same* dict object as `_runner._available_arguments`.
-
-    `build()`/`run_stage()` set it that way (not a copy) - `__getstate__` has
-    to scrub `"executor"` out of that dict too, not just the top-level
-    `_executor` field, or checkpointing after `run_stage()` still crashes.
-    """
+    """Legacy/directly assigned final output is still scrubbed when aliased."""
     space = _bare_instance_space()
     executor = ThreadPoolExecutor(max_workers=1)
     try:

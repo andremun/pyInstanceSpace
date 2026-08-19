@@ -21,6 +21,7 @@ from instancespace._serialisers import (
 from instancespace.data.model import (
     CloisterOut,
     Data,
+    DataDense,
     FeatSel,
     PilotOut,
     PrelimOut,
@@ -47,7 +48,7 @@ class Model:
     """The output of running InstanceSpace."""
 
     data: Data
-    data_dense: Data
+    data_dense: DataDense | None
     feat_sel: FeatSel
     prelim: PrelimOut
     sifted: SiftedOut
@@ -81,7 +82,7 @@ class Model:
 
         return cls(
             data=data,
-            data_dense=data,  # TODO: Work out what data_dense is
+            data_dense=stage_runner_output["data_dense"],
             feat_sel=FeatSel.from_stage_runner_output(stage_runner_output),
             prelim=PrelimOut.from_stage_runner_output(stage_runner_output),
             sifted=SiftedOut.from_stage_runner_output(stage_runner_output),

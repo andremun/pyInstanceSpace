@@ -20,6 +20,7 @@ from sklearn.svm import SVC
 from instancespace.data.model import (
     CloisterOut,
     Data,
+    DataDense,
     FeatSel,
     Footprint,
     PilotOut,
@@ -53,6 +54,19 @@ def _build_minimal_model() -> Model:
         p=np.zeros(n_inst, dtype=np.int_),
         num_good_algos=np.ones(n_inst, dtype=np.double),
         beta=np.zeros(n_inst, dtype=np.bool_),
+        s=None,
+    )
+    data_dense = DataDense(
+        inst_labels=data.inst_labels.iloc[:4],
+        x=data.x[:4] + 10.0,
+        y=data.y[:4],
+        x_raw=data.x_raw[:4],
+        y_raw=data.y_raw[:4],
+        y_bin=data.y_bin[:4],
+        y_best=data.y_best[:4],
+        p=data.p[:4],
+        num_good_algos=data.num_good_algos[:4],
+        beta=data.beta[:4],
         s=None,
     )
 
@@ -145,7 +159,7 @@ def _build_minimal_model() -> Model:
 
     return Model(
         data=data,
-        data_dense=data,
+        data_dense=data_dense,
         feat_sel=FeatSel(idx=np.array([0, 1], dtype=np.intc)),
         prelim=prelim,
         sifted=sifted,
@@ -164,6 +178,9 @@ def _assert_models_equal(original: Model, loaded: Model) -> None:
     assert np.array_equal(original.feat_sel.idx, loaded.feat_sel.idx)
     assert np.array_equal(original.sifted.selvars, loaded.sifted.selvars)
     assert original.opts == loaded.opts
+    assert isinstance(original.data_dense, DataDense)
+    assert isinstance(loaded.data_dense, DataDense)
+    np.testing.assert_array_equal(original.data_dense.x, loaded.data_dense.x)
 
     original_svc = original.pythia.svm[0]
     loaded_svc = loaded.pythia.svm[0]
@@ -182,7 +199,54 @@ def _assert_models_equal(original: Model, loaded: Model) -> None:
     assert original_polygon.equals(loaded_polygon)
 
 
+def _stage_output_for_model(
+    model: Model,
+    data_dense: DataDense | None,
+) -> dict[str, object]:
+    """Recreate the flat StageRunner payload consumed by Model."""
+    output: dict[str, object] = dict(vars(model.data))
+    output["data_dense"] = data_dense
+    output.update(vars(model.prelim))
+    output.update(vars(model.sifted))
+    output.update({k: v for k, v in vars(model.pilot).items() if k != "summary"})
+    output["pilot_summary"] = model.pilot.summary
+    output.update(vars(model.cloister))
+    output.update({k: v for k, v in vars(model.pythia).items() if k != "summary"})
+    output["pythia_summary"] = model.pythia.summary
+    output.update({k: v for k, v in vars(model.trace).items() if k != "summary"})
+    output["trace_summary"] = model.trace.summary
+    return output
+
+
+def test_from_stage_output_preserves_data_dense() -> None:
+    """Model construction keeps PRELIM's actual dense dataset, not final Data."""
+    source = _build_minimal_model()
+    dense = source.data_dense
+    assert isinstance(dense, DataDense)
+
+    built = Model.from_stage_runner_output(
+        _stage_output_for_model(source, dense),
+        source.opts,
+    )
+
+    assert built.data_dense is dense
+    assert not np.array_equal(built.data_dense.x, built.data.x)
+
+
+def test_from_stage_output_preserves_absent_data_dense() -> None:
+    """No density subset remains None in the public Model."""
+    source = _build_minimal_model()
+
+    built = Model.from_stage_runner_output(
+        _stage_output_for_model(source, None),
+        source.opts,
+    )
+
+    assert built.data_dense is None
+
+
 def test_round_trip_unsigned(tmp_path: Path) -> None:
+    """An unsigned model round-trips without creating a signature."""
     model = _build_minimal_model()
     path = tmp_path / "model.joblib"
 
@@ -194,6 +258,7 @@ def test_round_trip_unsigned(tmp_path: Path) -> None:
 
 
 def test_round_trip_signed(tmp_path: Path) -> None:
+    """A signed model round-trips when the verification key matches."""
     model = _build_minimal_model()
     path = tmp_path / "model.joblib"
     secret_key = b"a-server-managed-secret"
@@ -206,6 +271,7 @@ def test_round_trip_signed(tmp_path: Path) -> None:
 
 
 def test_load_with_wrong_key_raises(tmp_path: Path) -> None:
+    """Loading a signed model with another key fails verification."""
     model = _build_minimal_model()
     path = tmp_path / "model.joblib"
 
@@ -216,6 +282,7 @@ def test_load_with_wrong_key_raises(tmp_path: Path) -> None:
 
 
 def test_signature_tampering_refuses_before_deserialising(tmp_path: Path) -> None:
+    """Payload tampering is detected before joblib deserialisation."""
     model = _build_minimal_model()
     path = tmp_path / "model.joblib"
     secret_key = b"a-server-managed-secret"
@@ -241,6 +308,7 @@ def test_downgrade_attack_is_refused(tmp_path: Path) -> None:
 
 
 def test_signed_key_but_no_signature_file_is_refused(tmp_path: Path) -> None:
+    """A verification key requires an accompanying signature file."""
     model = _build_minimal_model()
     path = tmp_path / "model.joblib"
     model.save(path)  # unsigned - writes no .sig
@@ -250,6 +318,7 @@ def test_signed_key_but_no_signature_file_is_refused(tmp_path: Path) -> None:
 
 
 def test_resaving_unsigned_removes_a_stale_signature(tmp_path: Path) -> None:
+    """An unsigned resave removes a signature that no longer applies."""
     model = _build_minimal_model()
     path = tmp_path / "model.joblib"
     model.save(path, secret_key=b"a-server-managed-secret")

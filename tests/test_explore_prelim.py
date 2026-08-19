@@ -11,6 +11,7 @@ precision when fed the same parameters).
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import Mock
 
 import numpy as np
@@ -57,6 +58,7 @@ def mock_instance_space(mock_prelim_params: PrelimOut) -> InstanceSpace:
     # historical, pre-flag-check behaviour) - the bound=False/norm=False
     # cases have their own dedicated tests below.
     mock_is._options = Mock()
+    mock_is._options.auto.preproc = True
     mock_is._options.bound.flag = True
     mock_is._options.norm.flag = True
     return mock_is
@@ -289,6 +291,24 @@ def test_prelim_skips_normalisation_when_norm_flag_is_false(
     np.testing.assert_array_equal(result, expected)
 
 
+def test_prelim_skips_all_transforms_when_auto_preproc_is_false(
+    mock_instance_space: InstanceSpace,
+) -> None:
+    """Explore must mirror a training run with automatic preprocessing off."""
+    cast(Any, mock_instance_space)._options.auto.preproc = False
+    x_raw = np.array([[-5.0, 15.0, 5.0], [1.0, 2.0, 3.0]])
+
+    messages = _collect_warnings(
+        InstanceSpace._explore_prelim,
+        mock_instance_space,
+        x_raw,
+    )
+    result = InstanceSpace._explore_prelim(mock_instance_space, x_raw)
+
+    assert messages == []
+    np.testing.assert_array_equal(result, x_raw)
+
+
 def load_prelim_params() -> PrelimOut:
     df = pd.read_csv(ARTIFACTS_DIR / "prelim" / "prelim_params.csv")
     n = len(df)
@@ -318,6 +338,7 @@ def test_prelim_matches_matlab() -> None:
     instance_space._model.prelim = load_prelim_params()
     instance_space._require_model = Mock(return_value=instance_space._model)
     instance_space._options = Mock()
+    instance_space._options.auto.preproc = True
     instance_space._options.bound.flag = True
     instance_space._options.norm.flag = True
 
