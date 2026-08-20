@@ -14,8 +14,13 @@ import tempfile
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
+from fractions import Fraction
+from itertools import pairwise
 from pathlib import Path, PurePosixPath
 from typing import Any, Final, cast
+
+import numpy as np
+from scipy.spatial import ConvexHull, Delaunay, QhullError
 
 BUNDLE_SCHEMA: Final = "pyinstancespace.matlab-fixtures/v1"
 REFERENCE_PROFILE_V1: Final = "pyinstancespace.reference-export/v1"
@@ -71,6 +76,52 @@ _PILOT_EVIDENCE_VARIANTS: Final = (
     "pilot_pls_2d",
     "pilot_pls_3d_grouped",
 )
+_TRACE3_3D_VARIANT: Final = "pilot_standard_analytic_3d"
+_TRACE3_VERTEX_HEADER: Final = ("vertex", "z_1", "z_2", "z_3")
+_TRACE3_TETRAHEDRON_HEADER: Final = (
+    "tetrahedron",
+    "v_1",
+    "v_2",
+    "v_3",
+    "v_4",
+)
+_TRACE3_FACE_HEADER: Final = ("face", "v_1", "v_2", "v_3")
+_TRACE3_SPECTRUM_HEADER: Final = ("spectrum_index", "alpha")
+_TRACE3_METRICS_HEADER: Final = (
+    "kind",
+    "algorithm",
+    "measure",
+    "measure_label",
+    "elements",
+    "good_elements",
+    "density",
+    "purity",
+    "alpha_radius",
+    "region_threshold",
+    "region_count",
+    "tetrahedron_count",
+    "boundary_face_count",
+    "alpha_spectrum_count",
+    "volume",
+    "surface_area",
+    "empty",
+)
+_TRACE3_DIMENSIONS: Final = 3
+_TRACE3_DEGENERACY_TOLERANCE: Final = 1e-15
+_TRACE3_EXACT_PREDICATE_BAND: Final = 1e-12
+_TRACE3_SUMMARY_TOLERANCE: Final = 5.1e-4
+_TRACE3_SPECTRUM_ABSOLUTE_TOLERANCE: Final = 2e-10
+_TRACE3_SPECTRUM_RELATIVE_TOLERANCE: Final = 2e-12
+_TRACE3_ALPHA_STEPS: Final = 100
+_TRACE3_REGION_DIVISOR: Final = 20.0
+_TRACE3_COUNT_METRICS: Final = {
+    "elements",
+    "good_elements",
+    "region_count",
+    "tetrahedron_count",
+    "boundary_face_count",
+    "alpha_spectrum_count",
+}
 _REFERENCE_VARIANTS: Final = _DOWNSTREAM_VARIANTS + _PILOT_EVIDENCE_VARIANTS
 _PILOT_VARIANT_DIMS: Final = {
     "pilot_standard_analytic_3d": 3,
@@ -101,7 +152,7 @@ _CANONICAL_DATASET_SHA256: Final = {
 }
 _EXPORTER_SCRIPT: Final = "tests/matlab_export/pyis_export_reference_data.m"
 _REFERENCE_V2_EXPORTER_SHA256: Final = (
-    "7a5d0e26f14fd858770b21f24e0ac028aebb38ed29c84a52691a06b878246182"
+    "d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c"
 )
 _BASE_STAGE_VARIANTS: Final = {
     ("build", "prelim", "default"),
@@ -428,9 +479,13 @@ def validate_bundle(  # noqa: PLR0912
                 raise ProvenanceError(
                     f"CSV empty flag must match its data-row count for {relative_text}",
                 )
-            if stage == "trace" and (
-                relative.name.startswith(("good_", "best_"))
-                or relative.name == "hard.csv"
+            if (
+                stage == "trace"
+                and relative.parts[2] in _DOWNSTREAM_VARIANTS
+                and (
+                    relative.name.startswith(("good_", "best_"))
+                    or relative.name == "hard.csv"
+                )
             ):
                 _validate_trace_geometry_csv(target)
 
@@ -602,12 +657,20 @@ def _validate_reference_profile(  # noqa: PLR0912
         )
 
     required.update(_geometry_paths(reference_labels))
+    if evidence_enabled:
+        required.update(_trace3d_mesh_paths(reference_labels))
     missing = sorted(required - entries_by_path.keys())
     extra = sorted(entries_by_path.keys() - required)
     if missing or extra:
         raise ProvenanceError(
             "Reference export profile file-set mismatch. "
             f"Missing={missing}; extra={extra}",
+        )
+    if evidence_enabled:
+        _validate_trace3d_profile(
+            bundle_root,
+            options_by_variant,
+            reference_labels,
         )
 
 
@@ -725,6 +788,11 @@ def _validate_profile_entry(  # noqa: PLR0912
             and expected_stage in {"pythia", "trace"}
             and expected_variant in _DOWNSTREAM_VARIANTS
         )
+        trace3d_evidence = (
+            expected_phase in {"build", "explore"}
+            and expected_stage == "trace"
+            and expected_variant == _TRACE3_3D_VARIANT
+        )
         pilot_evidence = (
             expected_phase in {"build", "explore"}
             and expected_stage == "pilot"
@@ -734,6 +802,7 @@ def _validate_profile_entry(  # noqa: PLR0912
             stage_variant not in _BASE_STAGE_VARIANTS
             and not downstream
             and not pilot_evidence
+            and not trace3d_evidence
         ):
             raise ProvenanceError(
                 f"Unsupported reference-export stage/variant: {stage_variant!r}",
@@ -1719,6 +1788,950 @@ def _validate_pilot_viewpoint_artifacts(  # noqa: PLR0912
             raise ProvenanceError("PILOT viewpoint angles are inconsistent")
 
 
+@dataclass(frozen=True)
+class _Trace3DMesh:
+    vertices: list[tuple[float, float, float]]
+    tetrahedra: list[tuple[int, int, int, int]]
+    boundary_faces: list[tuple[int, int, int]]
+    spectrum: list[float]
+
+
+@dataclass(frozen=True)
+class _Trace3DSupportComplex:
+    tetrahedra: list[tuple[int, int, int, int]]
+    radii: list[float]
+    volumes: list[float]
+    spectrum: list[float]
+    critical_radius: float
+
+
+def _parse_contiguous_id(value: str, expected: int, path: Path) -> None:
+    try:
+        numeric = float(value)
+    except ValueError as error:
+        raise ProvenanceError(f"TRACE3 identifier is not numeric: {path}") from error
+    if (
+        not math.isfinite(numeric)
+        or not numeric.is_integer()
+        or int(numeric) != expected
+    ):
+        raise ProvenanceError(f"TRACE3 identifiers are not contiguous: {path}")
+
+
+def _read_trace3d_mesh(output_root: Path, prefix: str) -> _Trace3DMesh:
+    vertex_path = output_root / f"{prefix}_vertices.csv"
+    vertex_header, vertex_rows = _read_csv_rows(vertex_path)
+    if tuple(vertex_header) != _TRACE3_VERTEX_HEADER:
+        raise ProvenanceError(f"TRACE3 vertex header is invalid: {vertex_path}")
+    vertices: list[tuple[float, float, float]] = []
+    for expected, row in enumerate(vertex_rows, start=1):
+        _parse_contiguous_id(row[0], expected, vertex_path)
+        try:
+            point = tuple(float(value) for value in row[1:])
+        except ValueError as error:
+            raise ProvenanceError(
+                f"TRACE3 vertex is not numeric: {vertex_path}",
+            ) from error
+        if len(point) != _TRACE3_DIMENSIONS or not all(
+            math.isfinite(value) for value in point
+        ):
+            raise ProvenanceError(f"TRACE3 vertex is not finite 3D data: {vertex_path}")
+        vertices.append(cast(tuple[float, float, float], point))
+    if len(set(vertices)) != len(vertices):
+        raise ProvenanceError(f"TRACE3 vertices contain duplicates: {vertex_path}")
+
+    def read_connectivity(
+        suffix: str,
+        expected_header: tuple[str, ...],
+        width: int,
+    ) -> list[tuple[int, ...]]:
+        path = output_root / f"{prefix}_{suffix}.csv"
+        header, rows = _read_csv_rows(path)
+        if tuple(header) != expected_header:
+            raise ProvenanceError(f"TRACE3 connectivity header is invalid: {path}")
+        connectivity: list[tuple[int, ...]] = []
+        for expected, row in enumerate(rows, start=1):
+            _parse_contiguous_id(row[0], expected, path)
+            values: list[int] = []
+            for raw in row[1:]:
+                try:
+                    numeric = float(raw)
+                except ValueError as error:
+                    raise ProvenanceError(
+                        f"TRACE3 connectivity is not numeric: {path}",
+                    ) from error
+                if (
+                    not math.isfinite(numeric)
+                    or not numeric.is_integer()
+                    or not 1 <= int(numeric) <= len(vertices)
+                ):
+                    raise ProvenanceError(
+                        f"TRACE3 connectivity index is out of range: {path}",
+                    )
+                values.append(int(numeric) - 1)
+            if len(values) != width or len(set(values)) != width:
+                raise ProvenanceError(f"TRACE3 simplex is invalid: {path}")
+            connectivity.append(tuple(values))
+        if len({tuple(sorted(item)) for item in connectivity}) != len(connectivity):
+            raise ProvenanceError(f"TRACE3 connectivity contains duplicates: {path}")
+        return connectivity
+
+    tetrahedra = cast(
+        list[tuple[int, int, int, int]],
+        read_connectivity("tetrahedra", _TRACE3_TETRAHEDRON_HEADER, 4),
+    )
+    faces = cast(
+        list[tuple[int, int, int]],
+        read_connectivity("boundary_faces", _TRACE3_FACE_HEADER, 3),
+    )
+    spectrum_path = output_root / f"{prefix}_alpha_spectrum.csv"
+    spectrum_header, spectrum_rows = _read_csv_rows(spectrum_path)
+    if tuple(spectrum_header) != _TRACE3_SPECTRUM_HEADER:
+        raise ProvenanceError(
+            f"TRACE3 alpha-spectrum header is invalid: {spectrum_path}",
+        )
+    spectrum: list[float] = []
+    for expected, row in enumerate(spectrum_rows, start=1):
+        _parse_contiguous_id(row[0], expected, spectrum_path)
+        try:
+            alpha = float(row[1])
+        except ValueError as error:
+            raise ProvenanceError(
+                f"TRACE3 alpha spectrum is not numeric: {spectrum_path}",
+            ) from error
+        if not math.isfinite(alpha) or alpha <= 0:
+            raise ProvenanceError(
+                f"TRACE3 alpha spectrum contains an invalid radius: {spectrum_path}",
+            )
+        spectrum.append(alpha)
+    if any(left <= right for left, right in pairwise(spectrum)):
+        raise ProvenanceError(
+            f"TRACE3 alpha spectrum must be strictly descending: {spectrum_path}",
+        )
+    return _Trace3DMesh(vertices, tetrahedra, faces, spectrum)
+
+
+def _determinant3(matrix: list[list[float]]) -> float:
+    return (
+        matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1])
+        - matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0])
+        + matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0])
+    )
+
+
+def _tetrahedron_determinant(
+    points: list[tuple[float, float, float]],
+) -> float:
+    origin = points[0]
+    return _determinant3(
+        [
+            [points[column][row] - origin[row] for column in range(1, 4)]
+            for row in range(3)
+        ],
+    )
+
+
+def _cross(
+    left: tuple[float, float, float],
+    right: tuple[float, float, float],
+) -> tuple[float, float, float]:
+    return (
+        left[1] * right[2] - left[2] * right[1],
+        left[2] * right[0] - left[0] * right[2],
+        left[0] * right[1] - left[1] * right[0],
+    )
+
+
+def _circumsphere_radius(points: list[tuple[float, float, float]]) -> float:
+    origin = points[0]
+    matrix = [
+        [2.0 * (points[row + 1][column] - origin[column]) for column in range(3)]
+        for row in range(3)
+    ]
+    right = [
+        sum(value * value for value in points[row + 1])
+        - sum(value * value for value in origin)
+        for row in range(3)
+    ]
+    determinant = _determinant3(matrix)
+    if abs(determinant) <= _TRACE3_DEGENERACY_TOLERANCE:
+        raise ProvenanceError("TRACE3 tetrahedron has no finite circumsphere")
+    centre = []
+    for column in range(3):
+        replaced = [row[:] for row in matrix]
+        for row in range(3):
+            replaced[row][column] = right[row]
+        centre.append(_determinant3(replaced) / determinant)
+    return math.sqrt(
+        sum((centre[index] - origin[index]) ** 2 for index in range(3)),
+    )
+
+
+def _trace3d_radius_close(left: float, right: float) -> bool:
+    return math.isclose(
+        left,
+        right,
+        rel_tol=_TRACE3_SPECTRUM_RELATIVE_TOLERANCE,
+        abs_tol=_TRACE3_SPECTRUM_ABSOLUTE_TOLERANCE,
+    )
+
+
+def _trace3d_support_complex(
+    vertices: list[tuple[float, float, float]],
+) -> _Trace3DSupportComplex:
+    try:
+        triangulation = Delaunay(np.asarray(vertices, dtype=np.double))
+    except QhullError as error:
+        raise ProvenanceError(
+            "TRACE3 support has no Delaunay tetrahedralization",
+        ) from error
+
+    tetrahedra: list[tuple[int, int, int, int]] = []
+    radii: list[float] = []
+    volumes: list[float] = []
+    for raw_simplex in np.asarray(triangulation.simplices, dtype=np.int_):
+        simplex = cast(
+            tuple[int, int, int, int],
+            tuple(int(value) for value in raw_simplex),
+        )
+        points = [vertices[index] for index in simplex]
+        volume = abs(_tetrahedron_determinant(points)) / 6.0
+        if volume <= _TRACE3_DEGENERACY_TOLERANCE:
+            continue
+        radius = _circumsphere_radius(points)
+        if not math.isfinite(radius):
+            continue
+        tetrahedra.append(simplex)
+        radii.append(radius)
+        volumes.append(volume)
+    if not tetrahedra:
+        raise ProvenanceError("TRACE3 support has no finite Delaunay tetrahedra")
+
+    incident_radius = [math.inf] * len(vertices)
+    for simplex, radius in zip(tetrahedra, radii, strict=True):
+        for vertex in simplex:
+            incident_radius[vertex] = min(incident_radius[vertex], radius)
+    if not all(math.isfinite(radius) for radius in incident_radius):
+        raise ProvenanceError("TRACE3 support is absent from its Delaunay complex")
+
+    return _Trace3DSupportComplex(
+        tetrahedra=tetrahedra,
+        radii=radii,
+        volumes=volumes,
+        spectrum=sorted(set(radii), reverse=True),
+        critical_radius=max(incident_radius),
+    )
+
+
+def _trace3d_retained_state(
+    support: _Trace3DSupportComplex,
+    radius: float,
+    region_threshold: float,
+) -> tuple[list[tuple[int, int, int, int]], float, int]:
+    selected = [
+        index
+        for index, simplex_radius in enumerate(support.radii)
+        if simplex_radius <= radius
+    ]
+    if not selected:
+        return [], 0.0, 0
+
+    parent = list(range(len(selected)))
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    vertex_owner: dict[int, int] = {}
+    for local_index, simplex_index in enumerate(selected):
+        for vertex in support.tetrahedra[simplex_index]:
+            owner = vertex_owner.setdefault(vertex, local_index)
+            left, right = find(local_index), find(owner)
+            if left != right:
+                parent[right] = left
+
+    component_volumes: dict[int, float] = {}
+    for local_index, simplex_index in enumerate(selected):
+        root = find(local_index)
+        component_volumes[root] = (
+            component_volumes.get(root, 0.0) + support.volumes[simplex_index]
+        )
+    retained_roots = {
+        root for root, volume in component_volumes.items() if volume > region_threshold
+    }
+    retained_indices = [
+        simplex_index
+        for local_index, simplex_index in enumerate(selected)
+        if find(local_index) in retained_roots
+    ]
+    return (
+        [support.tetrahedra[index] for index in retained_indices],
+        sum(support.volumes[index] for index in retained_indices),
+        len(retained_roots),
+    )
+
+
+def _trace3d_replay_alpha_state(
+    support: _Trace3DSupportComplex,
+    exported_alpha: float,
+) -> tuple[float, list[tuple[int, int, int, int]]]:
+    if _trace3d_radius_close(exported_alpha, support.critical_radius):
+        retained, _, _ = _trace3d_retained_state(
+            support,
+            support.critical_radius,
+            0.0,
+        )
+        return 0.0, retained
+
+    tightening_radii = np.linspace(
+        support.critical_radius,
+        support.spectrum[-1],
+        _TRACE3_ALPHA_STEPS + 1,
+        dtype=np.double,
+    )[1:]
+    matching_steps = [
+        index
+        for index, radius in enumerate(tightening_radii)
+        if _trace3d_radius_close(exported_alpha, float(radius))
+    ]
+    if len(matching_steps) != 1:
+        raise ProvenanceError("TRACE3 alpha is not on MATLAB's tightening path")
+
+    region_threshold = 0.0
+    final_radius = support.critical_radius
+    for radius in tightening_radii[: matching_steps[0] + 1]:
+        final_radius = float(radius)
+        _, prior_volume, _ = _trace3d_retained_state(
+            support,
+            final_radius,
+            region_threshold,
+        )
+        region_threshold = prior_volume / _TRACE3_REGION_DIVISOR
+    retained, _, _ = _trace3d_retained_state(
+        support,
+        final_radius,
+        region_threshold,
+    )
+    return region_threshold, retained
+
+
+def _trace3d_coordinate_tetrahedra(
+    vertices: list[tuple[float, float, float]],
+    tetrahedra: list[tuple[int, int, int, int]],
+) -> set[tuple[tuple[float, float, float], ...]]:
+    return {
+        tuple(sorted(vertices[index] for index in simplex)) for simplex in tetrahedra
+    }
+
+
+def _trace3d_geometry(
+    mesh: _Trace3DMesh,
+) -> tuple[float, float, int, list[float]]:
+    face_counts: Counter[tuple[int, int, int]] = Counter()
+    tetrahedron_volumes: list[float] = []
+    radii: list[float] = []
+    for simplex in mesh.tetrahedra:
+        points = [mesh.vertices[index] for index in simplex]
+        volume = abs(_tetrahedron_determinant(points)) / 6.0
+        if volume <= _TRACE3_DEGENERACY_TOLERANCE:
+            raise ProvenanceError("TRACE3 tetrahedron is degenerate")
+        tetrahedron_volumes.append(volume)
+        for omitted in range(4):
+            face = cast(
+                tuple[int, int, int],
+                tuple(sorted(simplex[:omitted] + simplex[omitted + 1 :])),
+            )
+            face_counts[face] += 1
+        radii.append(_circumsphere_radius(points))
+
+    expected_faces = {face for face, count in face_counts.items() if count == 1}
+    actual_faces = {tuple(sorted(face)) for face in mesh.boundary_faces}
+    if actual_faces != expected_faces:
+        raise ProvenanceError(
+            "TRACE3 boundary faces do not match exposed tetrahedron faces",
+        )
+
+    surface = 0.0
+    for face in mesh.boundary_faces:
+        first, second, third = (mesh.vertices[index] for index in face)
+        first_edge = cast(
+            tuple[float, float, float],
+            tuple(second[index] - first[index] for index in range(3)),
+        )
+        second_edge = cast(
+            tuple[float, float, float],
+            tuple(third[index] - first[index] for index in range(3)),
+        )
+        normal = _cross(first_edge, second_edge)
+        norm = math.sqrt(sum(value * value for value in normal))
+        if norm <= _TRACE3_DEGENERACY_TOLERANCE:
+            raise ProvenanceError("TRACE3 boundary face is degenerate")
+        surface += norm / 2.0
+        owners = [simplex for simplex in mesh.tetrahedra if set(face) < set(simplex)]
+        if len(owners) != 1:
+            raise ProvenanceError("TRACE3 boundary face has no unique owner")
+        opposite = next(index for index in owners[0] if index not in face)
+        inward = tuple(
+            mesh.vertices[opposite][index] - first[index] for index in range(3)
+        )
+        scale = max(1.0, norm * math.sqrt(sum(value * value for value in inward)))
+        if sum(a * b for a, b in zip(normal, inward, strict=True)) >= -1e-12 * scale:
+            raise ProvenanceError("TRACE3 boundary face is not outward oriented")
+
+    parent = list(range(len(mesh.tetrahedra)))
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    for left in range(len(mesh.tetrahedra)):
+        for right in range(left + 1, len(mesh.tetrahedra)):
+            if set(mesh.tetrahedra[left]) & set(mesh.tetrahedra[right]):
+                left_root, right_root = find(left), find(right)
+                parent[right_root] = left_root
+    regions = len({find(index) for index in range(len(mesh.tetrahedra))})
+    return sum(tetrahedron_volumes), surface, regions, radii
+
+
+def _trace3d_exact_contains(
+    vertices: list[tuple[float, float, float]],
+    point: list[float],
+) -> bool:
+    exact_vertices = [
+        cast(
+            tuple[Fraction, Fraction, Fraction],
+            tuple(Fraction.from_float(value) for value in vertex),
+        )
+        for vertex in vertices
+    ]
+    exact_point = cast(
+        tuple[Fraction, Fraction, Fraction],
+        tuple(Fraction.from_float(value) for value in point),
+    )
+
+    def determinant(points: list[tuple[Fraction, Fraction, Fraction]]) -> Fraction:
+        origin = points[0]
+        matrix = [
+            [points[column][row] - origin[row] for column in range(1, 4)]
+            for row in range(3)
+        ]
+        return (
+            matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1])
+            - matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0])
+            + matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0])
+        )
+
+    denominator = determinant(exact_vertices)
+    for replaced in range(4):
+        candidate = exact_vertices[:]
+        candidate[replaced] = exact_point
+        if determinant(candidate) * denominator < 0:
+            return False
+    return True
+
+
+def _trace3d_covers(mesh: _Trace3DMesh, point: list[float]) -> bool:
+    for simplex in mesh.tetrahedra:
+        vertices = [mesh.vertices[index] for index in simplex]
+        denominator = _tetrahedron_determinant(vertices)
+        weights: list[float] = []
+        for replaced in range(4):
+            candidate = vertices[:]
+            candidate[replaced] = cast(tuple[float, float, float], tuple(point))
+            weights.append(_tetrahedron_determinant(candidate) / denominator)
+        margin = min(weights)
+        if margin > _TRACE3_EXACT_PREDICATE_BAND:
+            return True
+        if margin >= -_TRACE3_EXACT_PREDICATE_BAND and _trace3d_exact_contains(
+            vertices,
+            point,
+        ):
+            return True
+    return False
+
+
+def _read_trace3d_inputs(
+    root: Path,
+    algorithm_labels: list[str],
+) -> tuple[list[str], list[list[float]], list[list[bool]], list[int], list[bool]]:
+    expected_z_header = ["Row", "z_1", "z_2", "z_3"]
+    z_header, z_rows = _read_csv_rows(root / "z.csv")
+    if z_header != expected_z_header or not z_rows:
+        raise ProvenanceError("TRACE3 inputs have an invalid coordinate schema")
+    row_labels = [row[0] for row in z_rows]
+    if len(set(row_labels)) != len(row_labels) or any(
+        not label for label in row_labels
+    ):
+        raise ProvenanceError("TRACE3 input row labels are invalid")
+    z = _read_numeric_csv(
+        root / "z.csv",
+        expected_header=expected_z_header,
+        row_labels=True,
+    )
+
+    def read_matrix(filename: str, columns: list[str]) -> list[list[float]]:
+        header, rows = _read_csv_rows(root / filename)
+        values = _read_numeric_csv(
+            root / filename,
+            expected_header=["Row", *columns],
+            row_labels=True,
+        )
+        if [row[0] for row in rows] != row_labels or len(values) != len(z):
+            raise ProvenanceError("TRACE3 input rows are not aligned")
+        return values
+
+    y_bin_numeric = read_matrix("y_bin.csv", algorithm_labels)
+    y_hat_numeric = read_matrix("y_hat.csv", algorithm_labels)
+    p_numeric = read_matrix("p.csv", ["p_best_algo"])
+    beta_numeric = read_matrix("beta.csv", ["beta"])
+    if any(value not in {0.0, 1.0} for row in y_bin_numeric for value in row):
+        raise ProvenanceError("TRACE3 y_bin is not logical")
+    if any(value != 0.0 for row in y_hat_numeric for value in row):
+        raise ProvenanceError("TRACE3 PYTHIA-skip evidence must have false y_hat")
+    if any(
+        not row[0].is_integer() or not 1 <= int(row[0]) <= len(algorithm_labels)
+        for row in p_numeric
+    ):
+        raise ProvenanceError("TRACE3 best-algorithm indices are invalid")
+    if any(row[0] not in {0.0, 1.0} for row in beta_numeric):
+        raise ProvenanceError("TRACE3 beta is not logical")
+    labels = _read_algorithm_labels(root / "algorithm_labels.csv")
+    if labels != algorithm_labels:
+        raise ProvenanceError("TRACE3 algorithm labels are inconsistent")
+    return (
+        row_labels,
+        z,
+        [[bool(value) for value in row] for row in y_bin_numeric],
+        [int(row[0]) for row in p_numeric],
+        [bool(row[0]) for row in beta_numeric],
+    )
+
+
+def _read_trace3d_metrics(path: Path) -> dict[tuple[str, str], dict[str, object]]:
+    header, rows = _read_csv_rows(path)
+    if tuple(header) != _TRACE3_METRICS_HEADER:
+        raise ProvenanceError("TRACE3 raw metrics have an invalid schema")
+    metrics: dict[tuple[str, str], dict[str, object]] = {}
+    for row in rows:
+        key = (row[0], row[1])
+        if key in metrics:
+            raise ProvenanceError("TRACE3 raw metrics contain duplicate rows")
+        parsed: dict[str, object] = {}
+        for index, name in enumerate(header):
+            if index in {0, 1, 3}:
+                parsed[name] = row[index]
+            elif name == "empty":
+                lowered = row[index].casefold()
+                if lowered not in {"0", "1", "false", "true"}:
+                    raise ProvenanceError("TRACE3 empty metric is not logical")
+                parsed[name] = lowered in {"1", "true"}
+            else:
+                try:
+                    value = float(row[index])
+                except ValueError as error:
+                    raise ProvenanceError("TRACE3 raw metric is not numeric") from error
+                if (
+                    name in _TRACE3_COUNT_METRICS
+                    and not (key == ("space", "") and name == "good_elements")
+                    and (
+                        not math.isfinite(value) or value < 0 or not value.is_integer()
+                    )
+                ):
+                    raise ProvenanceError(
+                        "TRACE3 count metric is not a nonnegative integer",
+                    )
+                parsed[name] = value
+        metrics[key] = parsed
+    return metrics
+
+
+def _metric_float(row: dict[str, object], name: str) -> float:
+    return cast(float, row[name])
+
+
+def _assert_close(actual: float, expected: float, message: str) -> None:
+    if not math.isclose(actual, expected, rel_tol=1e-10, abs_tol=1e-10):
+        raise ProvenanceError(message)
+
+
+def _matlab_round(value: float, digits: int) -> float:
+    scale = 10**digits
+    return math.copysign(math.floor(abs(value) * scale + 0.5) / scale, value)
+
+
+def _validate_trace3d_summary(
+    path: Path,
+    labels: list[str],
+    footprint_metrics: dict[tuple[str, str], dict[str, object]],
+    space_measure: float,
+    space_density: float,
+) -> None:
+    header, rows = _read_csv_rows(path)
+    expected_header = [
+        "Row",
+        "Volume_Good",
+        "Volume_Good_Normalized",
+        "Density_Good",
+        "Density_Good_Normalized",
+        "Purity_Good",
+        "Volume_Best",
+        "Volume_Best_Normalized",
+        "Density_Best",
+        "Density_Best_Normalized",
+        "Purity_Best",
+    ]
+    if header != expected_header or [row[0] for row in rows] != labels:
+        raise ProvenanceError("TRACE3 summary has an invalid schema")
+    for label, raw_row in zip(labels, rows, strict=True):
+        try:
+            actual = [float(value) for value in raw_row[1:]]
+        except ValueError as error:
+            raise ProvenanceError("TRACE3 summary is not numeric") from error
+        if not all(math.isfinite(value) for value in actual):
+            raise ProvenanceError("TRACE3 summary values must be finite")
+        expected: list[float] = []
+        for kind in ("good", "best"):
+            metric = footprint_metrics[(kind, label)]
+            measure = _metric_float(metric, "measure")
+            density = _metric_float(metric, "density")
+            purity = _metric_float(metric, "purity")
+            expected.extend(
+                [
+                    measure,
+                    measure / space_measure,
+                    density,
+                    density / space_density,
+                    purity,
+                ],
+            )
+        if any(
+            abs(a - _matlab_round(e, 3)) > _TRACE3_SUMMARY_TOLERANCE
+            for a, e in zip(actual, expected, strict=True)
+        ):
+            raise ProvenanceError("TRACE3 summary values do not match raw metrics")
+
+
+def _validate_trace3d_profile(  # noqa: PLR0912
+    bundle_root: Path,
+    options_by_variant: dict[str, dict[str, Any]],
+    algorithm_labels: list[str],
+) -> None:
+    variant = _TRACE3_3D_VARIANT
+    options = options_by_variant[variant]
+    if (
+        options["pilot"]["dims"] != _TRACE3_DIMENSIONS
+        or options["trace"]["method"] != "trace3"
+    ):
+        raise ProvenanceError("TRACE3 3D evidence does not use native 3D options")
+    if not options["pythia"]["skip"]:
+        raise ProvenanceError("TRACE3 3D evidence must use true-label fallback")
+
+    build_root = bundle_root / "build_data" / "trace" / variant
+    explore_root = bundle_root / "explore_data" / "trace" / variant
+    _, build_z, build_ybin, build_p, build_beta = _read_trace3d_inputs(
+        build_root / "inputs",
+        algorithm_labels,
+    )
+    pilot_build_z = _read_numeric_csv(
+        bundle_root / "build_data" / "pilot" / variant / "outputs" / "pilot_z.csv",
+        expected_header=["z_1", "z_2", "z_3"],
+    )
+    if not _matrices_close(build_z, pilot_build_z, tolerance=1e-14):
+        raise ProvenanceError("TRACE3 build coordinates do not match PILOT")
+
+    output_root = build_root / "outputs"
+    metrics = _read_trace3d_metrics(output_root / "raw_metrics.csv")
+    expected_keys = {
+        *((kind, label) for kind in ("good", "best") for label in algorithm_labels),
+        ("hard", ""),
+        ("space", ""),
+    }
+    if set(metrics) != expected_keys:
+        raise ProvenanceError("TRACE3 raw metrics have missing or extra footprints")
+
+    meshes: dict[tuple[str, str], _Trace3DMesh] = {}
+    for kind, label in sorted(expected_keys - {("space", "")}):
+        prefix = kind if not label else f"{kind}_{label}"
+        mesh = _read_trace3d_mesh(output_root, prefix)
+        meshes[(kind, label)] = mesh
+        metric = metrics[(kind, label)]
+        if metric["measure_label"] != "Volume":
+            raise ProvenanceError("TRACE3 footprint does not use Volume metrics")
+        if kind == "good":
+            algorithm_index = algorithm_labels.index(label)
+            support = [row[algorithm_index] for row in build_ybin]
+            truth = support
+        elif kind == "best":
+            algorithm_index = algorithm_labels.index(label)
+            support = [value == algorithm_index + 1 for value in build_p]
+            truth = support
+        else:
+            support = [not value for value in build_beta]
+            truth = support
+        expected_support = {
+            tuple(point)
+            for point, selected in zip(build_z, support, strict=True)
+            if selected
+        }
+        empty = cast(bool, metric["empty"])
+        if empty:
+            if mesh.vertices or mesh.tetrahedra or mesh.boundary_faces or mesh.spectrum:
+                raise ProvenanceError("TRACE3 empty footprint is not header-only")
+            numeric_zero = (
+                "measure",
+                "elements",
+                "good_elements",
+                "density",
+                "purity",
+                "region_count",
+                "tetrahedron_count",
+                "boundary_face_count",
+                "alpha_spectrum_count",
+                "volume",
+                "surface_area",
+            )
+            if any(_metric_float(metric, name) != 0 for name in numeric_zero):
+                raise ProvenanceError("TRACE3 empty footprint metrics are not zero")
+            if not (
+                math.isnan(_metric_float(metric, "alpha_radius"))
+                and math.isnan(_metric_float(metric, "region_threshold"))
+            ):
+                raise ProvenanceError("TRACE3 empty footprint alpha state is not NaN")
+            continue
+
+        if set(mesh.vertices) != expected_support:
+            raise ProvenanceError("TRACE3 mesh vertices do not match footprint support")
+        if not mesh.tetrahedra or not mesh.boundary_faces or not mesh.spectrum:
+            raise ProvenanceError("TRACE3 populated footprint topology is incomplete")
+        support_complex = _trace3d_support_complex(mesh.vertices)
+        if len(mesh.spectrum) != len(support_complex.spectrum) or any(
+            not _trace3d_radius_close(exported, recomputed)
+            for exported, recomputed in zip(
+                mesh.spectrum,
+                support_complex.spectrum,
+                strict=True,
+            )
+        ):
+            raise ProvenanceError(
+                "TRACE3 full support Delaunay spectrum mismatch",
+            )
+        volume, surface, regions, radii = _trace3d_geometry(mesh)
+        alpha = _metric_float(metric, "alpha_radius")
+        threshold = _metric_float(metric, "region_threshold")
+        if not math.isfinite(alpha) or not math.isfinite(threshold) or threshold < 0:
+            raise ProvenanceError("TRACE3 alpha state is invalid")
+        expected_threshold, expected_tetrahedra = _trace3d_replay_alpha_state(
+            support_complex,
+            alpha,
+        )
+        _assert_close(
+            threshold,
+            expected_threshold,
+            "TRACE3 RegionThreshold does not match prior-state volume",
+        )
+        if _trace3d_coordinate_tetrahedra(
+            mesh.vertices,
+            mesh.tetrahedra,
+        ) != _trace3d_coordinate_tetrahedra(
+            mesh.vertices,
+            expected_tetrahedra,
+        ):
+            raise ProvenanceError(
+                "TRACE3 tetrahedra do not match replayed alpha state",
+            )
+        if any(radius > alpha + 1e-10 for radius in radii):
+            raise ProvenanceError(
+                "TRACE3 tetrahedron exceeds the inclusive alpha radius",
+            )
+        if alpha < mesh.spectrum[-1] - 1e-10 or alpha > mesh.spectrum[0] + 1e-10:
+            raise ProvenanceError("TRACE3 alpha lies outside its spectrum")
+        for radius in radii:
+            if not any(
+                math.isclose(radius, item, rel_tol=1e-10, abs_tol=1e-10)
+                for item in mesh.spectrum
+            ):
+                raise ProvenanceError(
+                    "TRACE3 simplex radius is absent from alpha spectrum",
+                )
+        _assert_close(
+            _metric_float(metric, "measure"),
+            volume,
+            "TRACE3 measure mismatch",
+        )
+        _assert_close(_metric_float(metric, "volume"), volume, "TRACE3 volume mismatch")
+        _assert_close(
+            _metric_float(metric, "surface_area"),
+            surface,
+            "TRACE3 surface-area mismatch",
+        )
+        if int(_metric_float(metric, "region_count")) != regions:
+            raise ProvenanceError("TRACE3 region count mismatch")
+        if int(_metric_float(metric, "tetrahedron_count")) != len(mesh.tetrahedra):
+            raise ProvenanceError("TRACE3 tetrahedron count mismatch")
+        if int(_metric_float(metric, "boundary_face_count")) != len(
+            mesh.boundary_faces,
+        ):
+            raise ProvenanceError("TRACE3 boundary-face count mismatch")
+        if int(_metric_float(metric, "alpha_spectrum_count")) != len(mesh.spectrum):
+            raise ProvenanceError("TRACE3 alpha-spectrum count mismatch")
+        membership = [_trace3d_covers(mesh, point) for point in build_z]
+        elements = sum(membership)
+        good_elements = sum(
+            inside and good for inside, good in zip(membership, truth, strict=True)
+        )
+        if int(_metric_float(metric, "elements")) != elements:
+            raise ProvenanceError("TRACE3 element count mismatch")
+        if int(_metric_float(metric, "good_elements")) != good_elements:
+            raise ProvenanceError("TRACE3 good-element count mismatch")
+        _assert_close(
+            _metric_float(metric, "density"),
+            elements / volume,
+            "TRACE3 density mismatch",
+        )
+        _assert_close(
+            _metric_float(metric, "purity"),
+            good_elements / elements,
+            "TRACE3 purity mismatch",
+        )
+
+    space = metrics[("space", "")]
+    if space["measure_label"] != "Volume" or not cast(bool, space["empty"]):
+        raise ProvenanceError("TRACE3 space metrics are invalid")
+    space_measure = _metric_float(space, "measure")
+    space_density = _metric_float(space, "density")
+    try:
+        expected_space_measure = float(
+            ConvexHull(np.asarray(build_z, dtype=np.double)).volume,
+        )
+    except QhullError as error:
+        raise ProvenanceError("TRACE3 space has no finite convex hull") from error
+    if (
+        not math.isfinite(space_measure)
+        or not math.isfinite(space_density)
+        or space_measure <= 0
+        or space_density <= 0
+        or _metric_float(space, "elements") != len(build_z)
+        or _metric_float(space, "purity") != 1.0
+        or any(
+            _metric_float(space, name) != 0.0
+            for name in (
+                "region_count",
+                "tetrahedron_count",
+                "boundary_face_count",
+                "alpha_spectrum_count",
+            )
+        )
+        or not all(
+            math.isnan(_metric_float(space, name))
+            for name in (
+                "good_elements",
+                "alpha_radius",
+                "region_threshold",
+                "surface_area",
+            )
+        )
+    ):
+        raise ProvenanceError("TRACE3 space volume is invalid")
+    _assert_close(
+        space_measure,
+        expected_space_measure,
+        "TRACE3 space convex-hull volume mismatch",
+    )
+    _assert_close(
+        _metric_float(space, "volume"),
+        space_measure,
+        "TRACE3 space volume mismatch",
+    )
+    _assert_close(
+        space_density,
+        len(build_z) / space_measure,
+        "TRACE3 space density mismatch",
+    )
+    _validate_trace3d_summary(
+        output_root / "summary.csv",
+        algorithm_labels,
+        metrics,
+        space_measure,
+        space_density,
+    )
+
+    explore_labels, explore_z, explore_ybin, explore_p, _ = _read_trace3d_inputs(
+        explore_root / "inputs",
+        algorithm_labels,
+    )
+    pilot_explore_header, pilot_explore_rows = _read_csv_rows(
+        bundle_root / "explore_data" / "pilot" / variant / "outputs" / "pilot_z.csv",
+    )
+    if pilot_explore_header != ["Row", "z_1", "z_2", "z_3"] or (
+        [row[0] for row in pilot_explore_rows] != explore_labels
+        or not _matrices_close(
+            [list(map(float, row[1:])) for row in pilot_explore_rows],
+            explore_z,
+            tolerance=1e-14,
+        )
+    ):
+        raise ProvenanceError("TRACE3 explore coordinates do not match PILOT")
+
+    membership_path = explore_root / "outputs" / "membership.csv"
+    membership_header, membership_rows = _read_csv_rows(membership_path)
+    expected_membership_header = [
+        "Row",
+        *(f"in_good_{label}" for label in algorithm_labels),
+        *(f"in_best_{label}" for label in algorithm_labels),
+    ]
+    if (
+        membership_header != expected_membership_header
+        or [row[0] for row in membership_rows] != explore_labels
+    ):
+        raise ProvenanceError("TRACE3 explore membership schema is invalid")
+    rescored_metrics: dict[tuple[str, str], dict[str, object]] = {}
+    for index, label in enumerate(algorithm_labels):
+        for kind, column, truth in (
+            ("good", index, [row[index] for row in explore_ybin]),
+            (
+                "best",
+                len(algorithm_labels) + index,
+                [value == index + 1 for value in explore_p],
+            ),
+        ):
+            mesh = meshes[(kind, label)]
+            expected_membership = [_trace3d_covers(mesh, point) for point in explore_z]
+            try:
+                actual_membership = [float(row[column + 1]) for row in membership_rows]
+            except ValueError as error:
+                raise ProvenanceError(
+                    "TRACE3 explore membership is not numeric",
+                ) from error
+            if any(value not in {0.0, 1.0} for value in actual_membership):
+                raise ProvenanceError("TRACE3 explore membership is not logical")
+            actual_logical = [bool(value) for value in actual_membership]
+            if actual_logical != expected_membership:
+                raise ProvenanceError("TRACE3 explore membership mismatch")
+            trained = metrics[(kind, label)]
+            measure = _metric_float(trained, "measure")
+            elements = sum(actual_logical)
+            good_elements = sum(
+                inside and good
+                for inside, good in zip(actual_logical, truth, strict=True)
+            )
+            rescored_metrics[(kind, label)] = {
+                "measure": measure,
+                "density": elements / measure if measure and elements else 0.0,
+                "purity": good_elements / elements if elements else 0.0,
+            }
+    _validate_trace3d_summary(
+        explore_root / "outputs" / "eval_summary.csv",
+        algorithm_labels,
+        rescored_metrics,
+        space_measure,
+        space_density,
+    )
+
+
 def _fixed_reference_paths() -> set[str]:
     paths = {
         "shared_inputs/reference/metadata.csv",
@@ -1877,6 +2890,23 @@ def _fixed_reference_paths() -> set[str]:
                 f"explore_data/pilot/{variant}/outputs/pilot_z.csv",
             },
         )
+
+    trace3d_root = f"build_data/trace/{_TRACE3_3D_VARIANT}"
+    paths.update(f"{trace3d_root}/inputs/{name}" for name in trace_inputs)
+    paths.update(
+        {
+            f"{trace3d_root}/outputs/summary.csv",
+            f"{trace3d_root}/outputs/raw_metrics.csv",
+        },
+    )
+    trace3d_explore_root = f"explore_data/trace/{_TRACE3_3D_VARIANT}"
+    paths.update(f"{trace3d_explore_root}/inputs/{name}" for name in trace_inputs)
+    paths.update(
+        {
+            f"{trace3d_explore_root}/outputs/eval_summary.csv",
+            f"{trace3d_explore_root}/outputs/membership.csv",
+        },
+    )
     return paths
 
 
@@ -1903,6 +2933,22 @@ def _geometry_paths(labels: list[str]) -> set[str]:
         for kind in ("good", "best")
         for label in labels
     }
+
+
+def _trace3d_mesh_paths(labels: list[str]) -> set[str]:
+    prefixes = {
+        *(f"good_{label}" for label in labels),
+        *(f"best_{label}" for label in labels),
+        "hard",
+    }
+    suffixes = {
+        "vertices.csv",
+        "tetrahedra.csv",
+        "boundary_faces.csv",
+        "alpha_spectrum.csv",
+    }
+    root = f"build_data/trace/{_TRACE3_3D_VARIANT}/outputs"
+    return {f"{root}/{prefix}_{suffix}" for prefix in prefixes for suffix in suffixes}
 
 
 def _read_algorithm_labels(path: Path) -> list[str]:

@@ -3,7 +3,8 @@
 This directory provides the reproducible MATLAB reference-data workflow for issues
 [#278](https://github.com/andremun/pyInstanceSpace/issues/278) and
 [#310](https://github.com/andremun/pyInstanceSpace/issues/310), extended with PILOT
-evidence for [#262](https://github.com/andremun/pyInstanceSpace/issues/262).
+evidence for [#262](https://github.com/andremun/pyInstanceSpace/issues/262) and native
+3D TRACE evidence for [#265](https://github.com/andremun/pyInstanceSpace/issues/265).
 
 ## Trust contract
 
@@ -28,8 +29,8 @@ default resolution; partial `pythia`/`trace` overrides are not provenance.
 The verifier keeps the installed 229-file `reference-export/v1` contract frozen and
 enforces the additive `reference-export/v2` contract for new exports. V2 requires eight
 complete option artifacts, every declared build/explore stage, PILOT solver inputs and
-lineage, raw metrics, memberships, and all algorithm geometry. Deleting a file and its
-manifest entry therefore remains an error.
+lineage, raw metrics, memberships, and all 2D/3D algorithm geometry. Deleting a file
+and its manifest entry therefore remains an error.
 
 Verified v2 also pins the audited MATLAB commit, both canonical input hashes, their
 algorithm headers, and a versioned exporter-script hash. A gold-source, dataset, or
@@ -80,6 +81,15 @@ explore projection paths on fixed inputs, not a separate end-to-end SIFTED-3D ru
 Coordinate columns are emitted as `z_1` through `z_d`. Explore keeps MATLAB's public
 uncentred `Z=X*A'` inference behavior, including for PLS.
 
+The already-built `pilot_standard_analytic_3d` model also supplies the TRACE3 build
+and explore evidence. It does not add a duplicate resolved-options variant. Every
+good, best, and hard footprint has four explicit artifacts: alpha-shape vertices,
+tetrahedra, outward boundary faces, and the descending alpha spectrum. Indices are
+one-based. Empty footprints keep all four headers and no rows. Raw metrics retain the
+final alpha, stored `RegionThreshold`, region/tetrahedron/face counts, volume, surface
+area, and empty state; verification recomputes topology, orientation, geometry,
+membership, and rescored summaries without trusting row order.
+
 TRACE geometry is region-aware: each row identifies the part, ring, vertex, and
 whether the ring is a hole. Empty geometry is a header-only CSV. Raw footprint
 metrics and membership are exported separately; rounded summaries are not the
@@ -122,7 +132,7 @@ python -m tools.fixture_provenance install \
 
 The installed current oracle is the reviewed 229-file v1 bundle generated on 2026-08-18
 under MATLAB R2026a Update 4 from clean MATLAB `34c0129` and Python generator `b87179f`.
-On 2026-08-20 the prospective 323-file v2 profile completed all eight variants under
-R2026a and passed the strict verifier in diagnostic mode. It remains non-oracle until a
-clean verified run is reviewed and installed atomically. Historical snapshots retain
-their non-oracle trust classes.
+The prospective v2 profile contains 423 files after the additive 3D TRACE extension.
+A fresh R2026a diagnostic export passed the strict verifier on 2026-08-20. It remains
+non-oracle until a later clean verified run is reviewed and installed atomically.
+Historical snapshots retain their non-oracle trust classes.

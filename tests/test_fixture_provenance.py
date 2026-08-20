@@ -7,7 +7,7 @@ import json
 from collections.abc import Iterable
 from copy import deepcopy
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -28,6 +28,7 @@ from tools.fixture_provenance import (
     _fixed_reference_paths_v1,
     _geometry_paths,
     _pilot_numerical_trial_metrics,
+    _trace3d_mesh_paths,
     install_verified_bundle,
     sha256_file,
     validate_bundle,
@@ -61,7 +62,7 @@ _REFERENCE_ALGORITHM_LABELS = [
     "RandF",
 ]
 _ALGORITHM_LABELS = _REFERENCE_ALGORITHM_LABELS
-_FEATURE_LABELS = ["feature_a", "feature_b"]
+_FEATURE_LABELS = ["feature_a", "feature_b", "feature_c"]
 
 
 def _synthetic_x0() -> list[list[float]]:
@@ -74,12 +75,12 @@ def _synthetic_x0() -> list[list[float]]:
 def _synthetic_alpha() -> list[list[float]]:
     dims = 3
     projection = np.asarray(_synthetic_pilot_matrix(dims), dtype=np.double)
-    b = np.asarray([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=np.double)
+    b = np.eye(3, dtype=np.double)
     c = np.asarray(
         [
             [0.1 * (index + 1) for index in range(len(_ALGORITHM_LABELS))],
             [0.05 * (index + 1) for index in range(len(_ALGORITHM_LABELS))],
-            [0.0 for _ in _ALGORITHM_LABELS],
+            [0.02 * (index + 1) for index in range(len(_ALGORITHM_LABELS))],
         ],
         dtype=np.double,
     )
@@ -90,7 +91,7 @@ def _synthetic_alpha() -> list[list[float]]:
     first = np.concatenate(
         (
             np.asarray(
-                [[2.0, 0.0], [0.0, 0.25], [0.0, 0.0]],
+                [[2.0, 0.0, 0.0], [0.0, 0.25, 0.0], [0.0, 0.0, 0.5]],
             ).reshape(-1, order="F"),
             tail,
         ),
@@ -98,7 +99,7 @@ def _synthetic_alpha() -> list[list[float]]:
     third = np.concatenate(
         (
             np.asarray(
-                [[0.25, 0.0], [0.0, 2.0], [0.0, 0.0]],
+                [[0.25, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 0.5]],
             ).reshape(-1, order="F"),
             tail,
         ),
@@ -235,9 +236,9 @@ def _read_csv_for_mutation(path: Path) -> tuple[list[str], list[list[str]]]:
 
 
 def _synthetic_pilot_matrix(dims: int) -> list[list[float]]:
-    rows = [[1.0, 0.0], [0.0, 1.0]]
+    rows = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
     if dims == 3:  # noqa: PLR2004
-        rows.append([0.0, 0.0])
+        rows.append([0.0, 0.0, 1.0])
     return rows
 
 
@@ -249,23 +250,31 @@ def _write_pilot_profile_file(  # noqa: PLR0912
     dims = 2 if variant == "pilot_pls_2d" else 3
     z_header = [f"z_{index}" for index in range(1, dims + 1)]
     is_explore = relative.startswith("explore_data/")
-    x = [[1.0, 2.0], [3.0, 4.0], [5.0, 1.0]]
+    x = [
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, -1.0],
+    ]
+    if is_explore:
+        x[0] = [0.1, 0.1, 0.0]
     y = [
         [
-            (index + 1) * (0.1 * row[0] + 0.05 * row[1])
+            (index + 1) * (0.1 * row[0] + 0.05 * row[1] + 0.02 * row[2])
             for index in range(len(_ALGORITHM_LABELS))
         ]
         for row in x
     ]
     if variant.startswith("pilot_pls_"):
-        x = [[row[0] + 0.25, row[1] + 0.5] for row in x]
+        x = [[row[0] + 0.25, row[1] + 0.5, row[2] + 0.75] for row in x]
         y = [
             [value + 0.4 * (index + 1) for index, value in enumerate(row)] for row in y
         ]
     projection = _synthetic_pilot_matrix(dims)
     projection_x = x
     if variant.startswith("pilot_pls_") and not is_explore:
-        means = [sum(row[index] for row in x) / len(x) for index in range(2)]
+        means = [sum(row[index] for row in x) / len(x) for index in range(3)]
         projection_x = [
             [value - means[index] for index, value in enumerate(row)] for row in x
         ]
@@ -279,13 +288,18 @@ def _write_pilot_profile_file(  # noqa: PLR0912
     b = [
         [1.0, 0.0, *([0.0] if dims == 3 else [])],  # noqa: PLR2004
         [0.0, 1.0, *([0.0] if dims == 3 else [])],  # noqa: PLR2004
+        (
+            ([0.5, 0.5, 1.0] if dims == 3 else [0.5, 0.5])  # noqa: PLR2004
+            if variant.startswith("pilot_pls_")
+            else [0.0, 0.0, 1.0]
+        ),
     ]
     c = [
         [0.1 * (index + 1) for index in range(len(_ALGORITHM_LABELS))],
         [0.05 * (index + 1) for index in range(len(_ALGORITHM_LABELS))],
     ]
     if dims == 3:  # noqa: PLR2004
-        c.append([0.0 for _ in _ALGORITHM_LABELS])
+        c.append([0.02 * (index + 1) for index in range(len(_ALGORITHM_LABELS))])
     x_bar = np.column_stack((x, y))
     factors = np.vstack((b, np.asarray(c, dtype=np.double).T))
     reconstructed = np.asarray(z, dtype=np.double) @ factors.T
@@ -306,7 +320,7 @@ def _write_pilot_profile_file(  # noqa: PLR0912
             "upstream_snapshot": "build_data/pilot/default/inputs",
             "sifted_effective_pilot_dims": 2,
             "input_transform": "deterministic-column-shift" if is_pls else "none",
-            "feature_shift": [0.25, 0.5] if is_pls else [],
+            "feature_shift": [0.25, 0.5, 0.75] if is_pls else [],
             "algorithm_shift": (
                 [0.4 * (index + 1) for index in range(len(_ALGORITHM_LABELS))]
                 if is_pls
@@ -342,7 +356,7 @@ def _write_pilot_profile_file(  # noqa: PLR0912
             [[f"Z_{{{index + 1}}}", *row] for index, row in enumerate(projection)],
         )
     elif filename == "pilot_a_raw.csv":
-        _write_csv(target, ["col_1", "col_2"], projection)
+        _write_csv(target, ["col_1", "col_2", "col_3"], projection)
     elif filename == "pilot_b.csv":
         _write_csv(
             target,
@@ -453,6 +467,261 @@ def _write_pilot_profile_file(  # noqa: PLR0912
         raise AssertionError(f"Unhandled synthetic PILOT artifact: {relative}")
 
 
+def _synthetic_trace3d_faces() -> list[tuple[int, int, int]]:
+    vertices = np.asarray(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, -1.0],
+        ],
+        dtype=np.double,
+    )
+    tetrahedra = [(0, 1, 2, 3), (0, 2, 1, 4)]
+    counts: dict[tuple[int, int, int], int] = {}
+    owners: dict[tuple[int, int, int], tuple[int, int, int, int]] = {}
+    for simplex in tetrahedra:
+        for omitted in range(4):
+            face = cast(
+                tuple[int, int, int],
+                tuple(sorted(simplex[:omitted] + simplex[omitted + 1 :])),
+            )
+            counts[face] = counts.get(face, 0) + 1
+            owners[face] = simplex
+    oriented: list[tuple[int, int, int]] = []
+    for face in sorted(item for item, count in counts.items() if count == 1):
+        first, second, third = face
+        normal = np.cross(
+            vertices[second] - vertices[first],
+            vertices[third] - vertices[first],
+        )
+        opposite = next(index for index in owners[face] if index not in face)
+        if float(normal @ (vertices[opposite] - vertices[first])) >= 0:
+            second, third = third, second
+        oriented.append((first, second, third))
+    return oriented
+
+
+def _write_trace3d_profile_file(  # noqa: PLR0912
+    target: Path,
+    relative: str,
+) -> None:
+    points = [
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [0.0, 0.0, -1.0],
+    ]
+    if relative.startswith("explore_data/"):
+        points[0] = [0.1, 0.1, 0.0]
+    row_labels = [f"instance_{index}" for index in range(1, len(points) + 1)]
+    filename = target.name
+    is_input = "/inputs/" in relative
+    if is_input:
+        if filename == "z.csv":
+            _write_csv(
+                target,
+                ["Row", "z_1", "z_2", "z_3"],
+                [
+                    [label, *point]
+                    for label, point in zip(row_labels, points, strict=True)
+                ],
+            )
+        elif filename in {"y_bin.csv", "y_hat.csv"}:
+            input_rows = []
+            for label in row_labels:
+                values = [1, *([0] * (len(_ALGORITHM_LABELS) - 1))]
+                if filename == "y_hat.csv":
+                    values = [0] * len(_ALGORITHM_LABELS)
+                input_rows.append([label, *values])
+            _write_csv(target, ["Row", *_ALGORITHM_LABELS], input_rows)
+        elif filename == "p.csv":
+            _write_csv(
+                target,
+                ["Row", "p_best_algo"],
+                [[label, 1] for label in row_labels],
+            )
+        elif filename == "beta.csv":
+            _write_csv(target, ["Row", "beta"], [[label, 1] for label in row_labels])
+        elif filename == "algorithm_labels.csv":
+            _write_csv(
+                target,
+                ["algorithm_name"],
+                [[label] for label in _ALGORITHM_LABELS],
+            )
+        else:
+            raise AssertionError(f"Unhandled synthetic TRACE3 input: {relative}")
+        return
+
+    if filename in {"summary.csv", "eval_summary.csv"}:
+        header = [
+            "Row",
+            "Volume_Good",
+            "Volume_Good_Normalized",
+            "Density_Good",
+            "Density_Good_Normalized",
+            "Purity_Good",
+            "Volume_Best",
+            "Volume_Best_Normalized",
+            "Density_Best",
+            "Density_Best_Normalized",
+            "Purity_Best",
+        ]
+        populated_metrics = [0.333, 1.0, 15.0, 1.0, 1.0] * 2
+        summary_rows = [
+            [label, *(populated_metrics if index == 0 else [0.0] * 10)]
+            for index, label in enumerate(_ALGORITHM_LABELS)
+        ]
+        _write_csv(target, header, summary_rows)
+        return
+    if filename == "membership.csv":
+        header = [
+            "Row",
+            *(f"in_good_{label}" for label in _ALGORITHM_LABELS),
+            *(f"in_best_{label}" for label in _ALGORITHM_LABELS),
+        ]
+        values = [1, *([0] * (len(_ALGORITHM_LABELS) - 1))] * 2
+        _write_csv(target, header, [[label, *values] for label in row_labels])
+        return
+    if filename == "raw_metrics.csv":
+        header = [
+            "kind",
+            "algorithm",
+            "measure",
+            "measure_label",
+            "elements",
+            "good_elements",
+            "density",
+            "purity",
+            "alpha_radius",
+            "region_threshold",
+            "region_count",
+            "tetrahedron_count",
+            "boundary_face_count",
+            "alpha_spectrum_count",
+            "volume",
+            "surface_area",
+            "empty",
+        ]
+        alpha = np.sqrt(3.0) / 2.0
+        surface = 2.0 + np.sqrt(3.0)
+        metric_rows: list[list[object]] = []
+        for kind in ("good", "best"):
+            for index, label in enumerate(_ALGORITHM_LABELS):
+                if index == 0:
+                    metric_rows.append(
+                        [
+                            kind,
+                            label,
+                            1.0 / 3.0,
+                            "Volume",
+                            5,
+                            5,
+                            15.0,
+                            1.0,
+                            alpha,
+                            0.0,
+                            1,
+                            2,
+                            6,
+                            1,
+                            1.0 / 3.0,
+                            surface,
+                            0,
+                        ],
+                    )
+                else:
+                    metric_rows.append(
+                        [
+                            kind,
+                            label,
+                            0,
+                            "Volume",
+                            0,
+                            0,
+                            0,
+                            0,
+                            "NaN",
+                            "NaN",
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            1,
+                        ],
+                    )
+        metric_rows.append(
+            ["hard", "", 0, "Volume", 0, 0, 0, 0, "NaN", "NaN", 0, 0, 0, 0, 0, 0, 1],
+        )
+        metric_rows.append(
+            [
+                "space",
+                "",
+                1.0 / 3.0,
+                "Volume",
+                5,
+                "NaN",
+                15.0,
+                1,
+                "NaN",
+                "NaN",
+                0,
+                0,
+                0,
+                0,
+                1.0 / 3.0,
+                "NaN",
+                1,
+            ],
+        )
+        _write_csv(target, header, metric_rows)
+        return
+
+    prefix = filename
+    for suffix in (
+        "_vertices.csv",
+        "_tetrahedra.csv",
+        "_boundary_faces.csv",
+        "_alpha_spectrum.csv",
+    ):
+        if filename.endswith(suffix):
+            prefix = filename[: -len(suffix)]
+            break
+    is_populated = prefix in {"good_NB", "best_NB"}
+    if filename.endswith("_vertices.csv"):
+        _write_csv(
+            target,
+            ["vertex", "z_1", "z_2", "z_3"],
+            (
+                [[index, *point] for index, point in enumerate(points, start=1)]
+                if is_populated
+                else []
+            ),
+        )
+    elif filename.endswith("_tetrahedra.csv"):
+        tetrahedra = [[1, 1, 2, 3, 4], [2, 1, 3, 2, 5]] if is_populated else []
+        _write_csv(target, ["tetrahedron", "v_1", "v_2", "v_3", "v_4"], tetrahedra)
+    elif filename.endswith("_boundary_faces.csv"):
+        face_rows = (
+            [
+                [index, *(vertex + 1 for vertex in face)]
+                for index, face in enumerate(_synthetic_trace3d_faces(), start=1)
+            ]
+            if is_populated
+            else []
+        )
+        _write_csv(target, ["face", "v_1", "v_2", "v_3"], face_rows)
+    elif filename.endswith("_alpha_spectrum.csv"):
+        spectrum_rows = [[1, np.sqrt(3.0) / 2.0]] if is_populated else []
+        _write_csv(target, ["spectrum_index", "alpha"], spectrum_rows)
+    else:
+        raise AssertionError(f"Unhandled synthetic TRACE3 artifact: {relative}")
+
+
 def _write_profile_file(root: Path, relative: str) -> None:
     target = root / relative
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -465,6 +734,10 @@ def _write_profile_file(root: Path, relative: str) -> None:
             "options": _effective_options(variant),
         }
         target.write_text(json.dumps(artifact), encoding="utf-8")
+    elif "/trace/pilot_standard_analytic_3d/" in relative and not relative.endswith(
+        "algorithm_labels.csv",
+    ):
+        _write_trace3d_profile_file(target, relative)
     elif relative.endswith("algorithm_labels.csv"):
         _write_csv(
             target,
@@ -539,6 +812,8 @@ def _write_bundle(
     )
     variants = _VARIANTS if evidence_enabled else _VARIANTS[:3]
     profile_paths = fixed_paths | _geometry_paths(_ALGORITHM_LABELS)
+    if evidence_enabled:
+        profile_paths |= _trace3d_mesh_paths(_ALGORITHM_LABELS)
     for relative in sorted(profile_paths):
         _write_profile_file(root, relative)
     files = [_manifest_entry(root, relative) for relative in sorted(profile_paths)]
@@ -623,7 +898,9 @@ def test_verified_bundle_passes_full_integrity_check(tmp_path: Path) -> None:
     assert report.trust == VERIFIED_TRUST
     assert report.matlab_release == "R2026a"
     assert report.file_count == len(
-        _fixed_reference_paths() | _geometry_paths(_ALGORITHM_LABELS),
+        _fixed_reference_paths()
+        | _geometry_paths(_ALGORITHM_LABELS)
+        | _trace3d_mesh_paths(_ALGORITHM_LABELS),
     )
     assert report.total_bytes > 0
 
@@ -692,9 +969,13 @@ def test_verified_v2_labels_must_match_canonical_metadata(tmp_path: Path) -> Non
 
 def test_reference_profile_declares_the_documented_file_count() -> None:
     """Keep the fixed reference-study profile and documentation synchronized."""
-    profile = _fixed_reference_paths() | _geometry_paths(_REFERENCE_ALGORITHM_LABELS)
+    profile = (
+        _fixed_reference_paths()
+        | _geometry_paths(_REFERENCE_ALGORITHM_LABELS)
+        | _trace3d_mesh_paths(_REFERENCE_ALGORITHM_LABELS)
+    )
 
-    assert len(profile) == 323  # noqa: PLR2004
+    assert len(profile) == 423  # noqa: PLR2004
 
 
 def test_frozen_v1_profile_remains_valid(tmp_path: Path) -> None:
@@ -787,7 +1068,9 @@ def test_verified_bundle_installs_atomically_with_layout_intact(tmp_path: Path) 
 
     assert report.root == destination
     assert report.file_count == len(
-        _fixed_reference_paths() | _geometry_paths(_ALGORITHM_LABELS),
+        _fixed_reference_paths()
+        | _geometry_paths(_ALGORITHM_LABELS)
+        | _trace3d_mesh_paths(_ALGORITHM_LABELS),
     )
     assert (destination / "manifest.json").is_file()
     assert (
@@ -879,6 +1162,10 @@ def test_csv_shape_and_empty_status_are_verified(tmp_path: Path) -> None:
         "build_data/pilot/pilot_standard_numerical_3d_precalc/inputs/precalc_alpha.csv",
         "build_data/pilot/pilot_pls_3d_grouped/outputs/viewpoint_a.csv",
         "explore_data/pilot/pilot_pls_3d_grouped/outputs/pilot_z.csv",
+        "build_data/trace/pilot_standard_analytic_3d/inputs/z.csv",
+        "build_data/trace/pilot_standard_analytic_3d/outputs/good_NB_tetrahedra.csv",
+        "build_data/trace/pilot_standard_analytic_3d/outputs/hard_vertices.csv",
+        "explore_data/trace/pilot_standard_analytic_3d/outputs/membership.csv",
     ],
 )
 def test_profile_rejects_deleting_file_and_manifest_entry(
@@ -895,6 +1182,26 @@ def test_profile_rejects_deleting_file_and_manifest_entry(
 
     with pytest.raises(ProvenanceError, match="Reference export profile"):
         validate_bundle(tmp_path)
+
+
+def test_trace3d_reader_validates_a_broken_v2_instead_of_skipping(
+    tmp_path: Path,
+) -> None:
+    """Never turn a malformed declared-v2 oracle into a silent reader skip."""
+    from tests.test_current_matlab_trace3_3d_parity import (
+        _trace3d_bundle_available,
+    )
+
+    manifest = _write_bundle(tmp_path)
+    relative = "build_data/trace/pilot_standard_analytic_3d/outputs/raw_metrics.csv"
+    (tmp_path / relative).unlink()
+    manifest["files"] = [
+        entry for entry in manifest["files"] if entry["path"] != relative
+    ]
+    _rewrite_manifest(tmp_path, manifest)
+
+    with pytest.raises(ProvenanceError, match="Reference export profile"):
+        _trace3d_bundle_available(tmp_path, allow_diagnostic=False)
 
 
 def test_profile_rejects_an_internally_consistent_two_file_bundle(
@@ -1224,6 +1531,144 @@ def test_trace_geometry_schema_rejects_ambiguous_data(
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="TRACE geometry"):
+        validate_bundle(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("relative", "message", "mutate"),
+    [
+        (
+            "build_data/trace/pilot_standard_analytic_3d/outputs/good_NB_boundary_faces.csv",
+            "outward oriented",
+            "reverse_face",
+        ),
+        (
+            "build_data/trace/pilot_standard_analytic_3d/outputs/good_NB_tetrahedra.csv",
+            "connectivity index",
+            "invalid_index",
+        ),
+        (
+            "build_data/trace/pilot_standard_analytic_3d/outputs/good_NB_alpha_spectrum.csv",
+            "strictly descending",
+            "spectrum_order",
+        ),
+        (
+            "build_data/trace/pilot_standard_analytic_3d/outputs/raw_metrics.csv",
+            "volume mismatch",
+            "volume",
+        ),
+        (
+            "explore_data/trace/pilot_standard_analytic_3d/outputs/membership.csv",
+            "membership mismatch",
+            "membership",
+        ),
+        (
+            "build_data/trace/pilot_standard_analytic_3d/outputs/hard_vertices.csv",
+            "header-only",
+            "empty_vertex",
+        ),
+        (
+            "build_data/trace/pilot_standard_analytic_3d/outputs/summary.csv",
+            "summary values must be finite",
+            "summary_nan",
+        ),
+        (
+            "build_data/trace/pilot_standard_analytic_3d/outputs/raw_metrics.csv",
+            "nonnegative integer",
+            "fractional_count",
+        ),
+        (
+            "build_data/trace/pilot_standard_analytic_3d/outputs/raw_metrics.csv",
+            "nonnegative integer",
+            "negative_count",
+        ),
+        (
+            "build_data/trace/pilot_standard_analytic_3d/outputs/raw_metrics.csv",
+            "nonnegative integer",
+            "nonfinite_count",
+        ),
+        (
+            "build_data/trace/pilot_standard_analytic_3d/outputs/raw_metrics.csv",
+            "RegionThreshold",
+            "region_threshold",
+        ),
+        (
+            "build_data/trace/pilot_standard_analytic_3d/outputs/raw_metrics.csv",
+            "space",
+            "space_state",
+        ),
+        (
+            "build_data/trace/pilot_standard_analytic_3d/outputs/good_NB_vertices.csv",
+            "identifiers are not contiguous",
+            "fractional_identifier",
+        ),
+        (
+            "build_data/trace/pilot_standard_analytic_3d/outputs/good_NB_alpha_spectrum.csv",
+            "full support Delaunay spectrum",
+            "extra_spectrum",
+        ),
+    ],
+)
+def test_trace3d_scientific_mutations_are_rejected(  # noqa: PLR0912
+    tmp_path: Path,
+    relative: str,
+    message: str,
+    mutate: str,
+) -> None:
+    """Reject rehashed topology, alpha-state, metric, and membership corruption."""
+    manifest = _write_bundle(tmp_path)
+    target = tmp_path / relative
+    header, rows = _read_csv_for_mutation(target)
+    if mutate == "reverse_face":
+        rows[0][1], rows[0][2] = rows[0][2], rows[0][1]
+    elif mutate == "invalid_index":
+        rows[0][-1] = "99"
+    elif mutate == "spectrum_order":
+        rows[:] = [["1", "0.5"], ["2", rows[0][1]]]
+    elif mutate == "volume":
+        good_nb = next(row for row in rows if row[:2] == ["good", "NB"])
+        good_nb[14] = "9.0"
+    elif mutate == "membership":
+        rows[0][1] = "0"
+    elif mutate == "empty_vertex":
+        rows.append(["1", "0", "0", "0"])
+    elif mutate == "summary_nan":
+        rows[0][1] = "NaN"
+    elif mutate in {"fractional_count", "negative_count", "nonfinite_count"}:
+        good_nb = next(row for row in rows if row[:2] == ["good", "NB"])
+        replacements = {
+            "fractional_count": "1.5",
+            "negative_count": "-1",
+            "nonfinite_count": "Inf",
+        }
+        good_nb[header.index("region_count")] = replacements[mutate]
+    elif mutate == "region_threshold":
+        good_nb = next(row for row in rows if row[:2] == ["good", "NB"])
+        good_nb[header.index("region_threshold")] = "0.123456789"
+    elif mutate == "space_state":
+        space = next(row for row in rows if row[:2] == ["space", ""])
+        space[header.index("surface_area")] = "0"
+    elif mutate == "fractional_identifier":
+        rows[0][0] = "1.5"
+    elif mutate == "extra_spectrum":
+        rows[0][0] = "2"
+        rows.insert(0, ["1", "1.0"])
+        raw_target = target.parent / "raw_metrics.csv"
+        raw_header, raw_rows = _read_csv_for_mutation(raw_target)
+        good_nb = next(row for row in raw_rows if row[:2] == ["good", "NB"])
+        good_nb[raw_header.index("alpha_spectrum_count")] = "2"
+        _write_csv(raw_target, raw_header, raw_rows)
+        _refresh_entry(
+            tmp_path,
+            _entry_for(manifest, raw_target.relative_to(tmp_path).as_posix()),
+        )
+    else:
+        raise AssertionError(mutate)
+    _write_csv(target, header, rows)
+    _refresh_entry(tmp_path, _entry_for(manifest, relative))
+    _rewrite_manifest(tmp_path, manifest)
+
+    with pytest.raises(ProvenanceError, match=message):
         validate_bundle(tmp_path)
 
 
