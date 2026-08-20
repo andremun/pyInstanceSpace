@@ -22,20 +22,21 @@ from numpy.typing import NDArray
 from scipy import optimize, stats
 from sklearn.model_selection import train_test_split
 
-from instancespace.data.model import DataDense
+from instancespace.data.model import DataDense, PrelimOut
 from instancespace.data.options import (
     GeneralOptions,
     PerformanceOptions,
     PrelimOptions,
     SelvarsOptions,
 )
-from instancespace.stages.stage import Stage
+from instancespace.stages.stage import PredictiveStage, Stage
 from instancespace.utils.filter import do_filter
 
 # Fraction of instances with a best-algorithm performance of exactly zero above
 # which a data-quality warning fires (matches MATLAB's PRELIM.m,
 # ISA:PRELIM:manyZeroBest).
 _MANY_ZERO_BEST_THRESHOLD = 0.05
+_OOD_CLIPPED_FRACTION_THRESHOLD = 0.05
 
 
 def _log_many_zero_best_warning(y_best: NDArray[np.double], log_prefix: str) -> None:
@@ -284,6 +285,15 @@ class PrelimInput(NamedTuple):
     general_options: GeneralOptions
 
 
+class PrelimPredictInput(NamedTuple):
+    """Inputs for applying fitted PRELIM feature transformations."""
+
+    x: NDArray[np.double]
+    auto_preproc: bool
+    bound_enabled: bool
+    norm_enabled: bool
+
+
 # needs to be changes to output including prelim output, and data changed by stage
 class PrelimOutput(NamedTuple):
     """Outputs for the Prelim stage.
@@ -399,7 +409,10 @@ class _NormaliseOut:
     mu_y: NDArray[np.double]
 
 
-class PrelimStage(Stage[PrelimInput, PrelimOutput]):
+class PrelimStage(
+    Stage[PrelimInput, PrelimOutput],
+    PredictiveStage[PrelimPredictInput, PrelimOut, NDArray[np.double]],
+):
     """See file docstring."""
 
     # need to add variables for data changed by stage as null initially
@@ -450,6 +463,58 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
     @staticmethod
     def _outputs() -> type[PrelimOutput]:
         return PrelimOutput
+
+    @staticmethod
+    def predict(
+        inputs: PrelimPredictInput,
+        fitted: PrelimOut,
+    ) -> NDArray[np.double]:
+        """Apply fitted bounds and normalisation without re-fitting PRELIM."""
+        x = inputs.x
+        bound = inputs.auto_preproc and inputs.bound_enabled
+        norm = inputs.auto_preproc and inputs.norm_enabled
+
+        if bound:
+            clipped = np.any(
+                (x < fitted.lo_bound) | (x > fitted.hi_bound),
+                axis=1,
+            )
+            frac_clipped = np.mean(clipped)
+            if frac_clipped > _OOD_CLIPPED_FRACTION_THRESHOLD:
+                logger.warning(
+                    f"explore(): {frac_clipped:.1%} of test instances have at least "
+                    "one feature outside the training bounds and were clipped to "
+                    "them. This suggests the test set may not be well represented "
+                    "by the trained instance space; consider retraining with a "
+                    "combined dataset.",
+                )
+            x = apply_bound_clip(x, fitted.hi_bound, fitted.lo_bound)
+
+        if not norm:
+            return x
+
+        x_transformed = x.copy()
+        for i in range(x.shape[1]):
+            x_transformed[:, i] = x_transformed[:, i] - fitted.min_x[i] + 1
+            # MATLAB InstanceSpace.evaluateTestSet clamps shifted explore
+            # values before Box-Cox even when bound.flag is disabled. This
+            # protects the fitted transform's positive domain without
+            # pretending the raw observation was inside its training bounds.
+            finite_below_one = np.isfinite(x_transformed[:, i]) & (
+                x_transformed[:, i] < 1
+            )
+            x_transformed[finite_below_one, i] = 1
+
+            idx_valid = ~np.isnan(x_transformed[:, i])
+            if np.any(idx_valid):
+                x_transformed[idx_valid, i] = apply_boxcox_zscore(
+                    x_transformed[idx_valid, i],
+                    fitted.lambda_x[i],
+                    fitted.mu_x[i],
+                    fitted.sigma_x[i],
+                )
+
+        return x_transformed
 
     # will run prelim, filter_post_prelim, return prelim output and data changed by
     # stage

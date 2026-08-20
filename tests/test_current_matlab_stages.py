@@ -12,8 +12,10 @@ import numpy as np
 import pandas as pd
 import pytest
 from numpy.typing import NDArray
+from scipy.spatial.distance import cdist
 from sklearn.neighbors import KNeighborsClassifier
 
+from instancespace.data.model import PythiaOut
 from instancespace.data.options import (
     CloisterOptions,
     GeneralOptions,
@@ -28,7 +30,12 @@ from instancespace.instance_space import InstanceSpace
 from instancespace.stages.cloister import CloisterStage
 from instancespace.stages.pilot import PilotStage
 from instancespace.stages.prelim import PrelimStage
-from instancespace.stages.pythia import PythiaOutput, PythiaStage
+from instancespace.stages.pythia import (
+    PythiaEvaluateInput,
+    PythiaOutput,
+    PythiaPredictInput,
+    PythiaStage,
+)
 from instancespace.stages.sifted import SiftedStage
 
 _BUNDLE = Path(__file__).parent / "fixtures" / "matlab" / "current"
@@ -37,6 +44,9 @@ _EXPLORE = _BUNDLE / "explore_data"
 _KNN_METRICS = ("euclidean", "cityblock", "cosine", "correlation")
 _GOOD_PROBABILITY_CUTOFF = 0.5
 _QDA_GOOD_COUNT = 4
+_DISTANCE_TIE_TOLERANCE = 2e-12
+
+pytestmark = pytest.mark.usefixtures("verified_current_matlab_bundle")
 
 
 def _json_object(path: Path) -> dict[str, object]:
@@ -89,7 +99,7 @@ def _string(group: str, name: str) -> str:
 
 def _matrix(path: Path) -> NDArray[np.double]:
     """Read a numeric bundle CSV, removing its optional row-label column."""
-    frame = pd.read_csv(path)
+    frame = pd.read_csv(path, float_precision="round_trip")
     if str(frame.columns[0]) == "Row":
         frame = frame.iloc[:, 1:]
     matrix: NDArray[np.double] = frame.to_numpy(dtype=np.double)
@@ -103,13 +113,13 @@ def _vector(path: Path) -> NDArray[np.double]:
 
 def _labels(path: Path) -> list[str]:
     """Read a one-column text-label bundle CSV."""
-    frame = pd.read_csv(path)
+    frame = pd.read_csv(path, float_precision="round_trip")
     return frame.iloc[:, 0].astype(str).tolist()
 
 
 def _row_labels(path: Path) -> pd.Series:  # type: ignore[type-arg]
     """Read MATLAB's explicit row labels from a stage input."""
-    frame = pd.read_csv(path)
+    frame = pd.read_csv(path, float_precision="round_trip")
     assert str(frame.columns[0]) == "Row"
     return frame.iloc[:, 0].astype(str)
 
@@ -201,9 +211,15 @@ def _assert_knn_probability_semantics(
     expected: NDArray[np.double],
     predictions: NDArray[np.bool_],
     params: NDArray[np.double],
+    *,
+    training_z: NDArray[np.double],
+    training_good: NDArray[np.bool_],
+    query_z: NDArray[np.double],
 ) -> None:
-    """Compare exact KNN probabilities except correlation-distance tie choices."""
+    """Compare exact KNN probabilities or the exact boundary-tie envelope."""
     assert actual.shape == expected.shape == predictions.shape
+    assert training_good.shape == (training_z.shape[0], actual.shape[1])
+    assert query_z.shape[0] == actual.shape[0]
     assert np.all((actual >= 0) & (actual <= 1))
     assert np.all((expected >= 0) & (expected <= 1))
 
@@ -237,6 +253,68 @@ def _assert_knn_probability_semantics(
                 atol=2e-14,
                 rtol=0,
             )
+            continue
+
+        lower, upper = _correlation_knn_bad_probability_envelope(
+            training_z,
+            training_good[:, index],
+            query_z,
+            neighbors,
+        )
+        assert np.all(upper - lower < 1.0)
+        assert np.all(actual[:, index] >= lower - 2e-14)
+        assert np.all(actual[:, index] <= upper + 2e-14)
+        assert np.all(expected[:, index] >= lower - 2e-14)
+        assert np.all(expected[:, index] <= upper + 2e-14)
+        fixed = np.isclose(lower, upper, atol=2e-14, rtol=0)
+        np.testing.assert_allclose(
+            actual[fixed, index],
+            lower[fixed],
+            atol=2e-14,
+            rtol=0,
+        )
+        np.testing.assert_allclose(
+            expected[fixed, index],
+            lower[fixed],
+            atol=2e-14,
+            rtol=0,
+        )
+
+
+def _correlation_knn_bad_probability_envelope(
+    training_z: NDArray[np.double],
+    training_good: NDArray[np.bool_],
+    query_z: NDArray[np.double],
+    neighbors: int,
+) -> tuple[NDArray[np.double], NDArray[np.double]]:
+    """Return all valid bad-class posteriors at a KNN distance boundary tie."""
+    distances = cdist(query_z, training_z, metric="correlation")
+    assert np.all(np.isfinite(distances))
+    lower = np.empty(query_z.shape[0], dtype=np.double)
+    upper = np.empty(query_z.shape[0], dtype=np.double)
+    bad = ~training_good
+
+    for row_index, row in enumerate(distances):
+        cutoff = float(np.partition(row, neighbors - 1)[neighbors - 1])
+        boundary = np.isclose(
+            row,
+            cutoff,
+            atol=_DISTANCE_TIE_TOLERANCE,
+            rtol=_DISTANCE_TIE_TOLERANCE,
+        )
+        strictly_nearer = (row < cutoff) & ~boundary
+        remaining = neighbors - int(np.count_nonzero(strictly_nearer))
+        assert 0 < remaining <= int(np.count_nonzero(boundary))
+
+        fixed_bad = int(np.count_nonzero(bad & strictly_nearer))
+        boundary_bad = int(np.count_nonzero(bad & boundary))
+        boundary_good = int(np.count_nonzero(training_good & boundary))
+        minimum_bad = fixed_bad + max(0, remaining - boundary_good)
+        maximum_bad = fixed_bad + min(remaining, boundary_bad)
+        lower[row_index] = minimum_bad / neighbors
+        upper[row_index] = maximum_bad / neighbors
+
+    return lower, upper
 
 
 class _CurrentPythiaRun(NamedTuple):
@@ -254,7 +332,10 @@ def current_pythia_run() -> _CurrentPythiaRun:
     root = _BUILD / "pythia" / "trace3_default"
     inputs = root / "inputs"
     outputs = root / "outputs"
-    hyperparameters = pd.read_csv(outputs / "hyperparameters.csv")
+    hyperparameters = pd.read_csv(
+        outputs / "hyperparameters.csv",
+        float_precision="round_trip",
+    )
     params: NDArray[np.double] = hyperparameters[["param1", "param2"]].to_numpy(
         dtype=np.double,
     )
@@ -298,6 +379,8 @@ class _ExplorePythiaHarness:
         self._model = SimpleNamespace(
             pilot=SimpleNamespace(z=run.training_z),
             pythia=SimpleNamespace(
+                mu=run.output.mu,
+                sigma=run.output.sigma,
                 svm=run.output.svm,
                 precision=run.output.precision,
             ),
@@ -385,7 +468,10 @@ def test_current_matlab_prelim_numerical_output() -> None:
         _matrix(outputs / "prelim_ybin.csv").astype(bool),
     )
 
-    feature_params = pd.read_csv(outputs / "prelim_feature_params.csv")
+    feature_params = pd.read_csv(
+        outputs / "prelim_feature_params.csv",
+        float_precision="round_trip",
+    )
     for actual, column in (
         (min_x, "min_x"),
         (lambda_x, "lambda_x"),
@@ -403,7 +489,10 @@ def test_current_matlab_prelim_numerical_output() -> None:
             rtol=0,
         )
 
-    algorithm_params = pd.read_csv(outputs / "prelim_algo_params.csv")
+    algorithm_params = pd.read_csv(
+        outputs / "prelim_algo_params.csv",
+        float_precision="round_trip",
+    )
     for actual, column in (
         (lambda_y, "lambda_y"),
         (mu_y, "mu_y"),
@@ -417,7 +506,10 @@ def test_current_matlab_prelim_numerical_output() -> None:
         )
     assert min_y == pytest.approx(_vector(outputs / "prelim_scalars.csv")[0], abs=1e-15)
 
-    instances = pd.read_csv(outputs / "prelim_instance_outputs.csv")
+    instances = pd.read_csv(
+        outputs / "prelim_instance_outputs.csv",
+        float_precision="round_trip",
+    )
     np.testing.assert_allclose(
         y_best,
         instances["y_best"].to_numpy(dtype=np.double),
@@ -493,7 +585,10 @@ def test_current_matlab_sifted_numerical_output() -> None:
 
     selected = _vector(outputs / "selected_indices.csv").astype(np.intc) - 1
     ranked = (
-        pd.read_csv(outputs / "sifted_indices.csv")["original_index"].to_numpy(
+        pd.read_csv(
+            outputs / "sifted_indices.csv",
+            float_precision="round_trip",
+        )["original_index"].to_numpy(
             dtype=np.intc,
         )
         - 1
@@ -665,8 +760,9 @@ def test_current_matlab_pythia_build_numerical_output(
 
     Correlation distance in two dimensions creates many equidistant neighbours;
     MATLAB and sklearn can choose different tied neighbours, so those two posterior
-    columns are compared by their exact KNN probability lattice and class decision.
-    Non-correlation posteriors and every final prediction remain numerical oracles.
+    columns are checked against the exact probability envelope implied by neighbours
+    strictly inside and tied at the KNN distance boundary. Non-correlation posteriors
+    and every final prediction remain numerical oracles.
     Cross-validation fold assignment is implementation-specific and is not treated as
     a pseudo-oracle for final-model parity.
     """
@@ -693,7 +789,10 @@ def test_current_matlab_pythia_build_numerical_output(
     np.testing.assert_array_equal(output.k_scale, current_pythia_run.params[:, 1])
 
     labels = _labels(inputs / "algorithm_labels.csv")
-    hyperparameters = pd.read_csv(outputs / "hyperparameters.csv")
+    hyperparameters = pd.read_csv(
+        outputs / "hyperparameters.csv",
+        float_precision="round_trip",
+    )
     assert hyperparameters["algo"].astype(str).tolist() == labels
     for estimator, (neighbors_raw, metric_raw) in zip(
         output.svm,
@@ -709,6 +808,13 @@ def test_current_matlab_pythia_build_numerical_output(
         _matrix(outputs / "pr0hat.csv"),
         expected_y_hat,
         current_pythia_run.params,
+        training_z=(
+            current_pythia_run.training_z - np.asarray(output.mu, dtype=np.double)
+        )
+        / np.asarray(output.sigma, dtype=np.double),
+        training_good=_matrix(inputs / "y_bin.csv").astype(np.bool_),
+        query_z=(current_pythia_run.training_z - np.asarray(output.mu, dtype=np.double))
+        / np.asarray(output.sigma, dtype=np.double),
     )
 
     matlab_selection = _vector(outputs / "selection0.csv").astype(np.int_)
@@ -731,7 +837,7 @@ def test_current_matlab_pythia_explore_numerical_output(
     z = _matrix(root / "inputs" / "z.csv")
     harness = cast(InstanceSpace, _ExplorePythiaHarness(current_pythia_run))
 
-    y_hat, pr0_hat, selection0 = InstanceSpace._explore_pythia(  # noqa: SLF001
+    y_hat, pr0_hat, selection0 = InstanceSpace._explore_pythia(
         harness,
         z,
     )
@@ -742,9 +848,110 @@ def test_current_matlab_pythia_explore_numerical_output(
         _matrix(root / "outputs" / "probabilities.csv"),
         expected_y_hat,
         current_pythia_run.params,
+        training_z=(
+            current_pythia_run.training_z
+            - np.asarray(current_pythia_run.output.mu, dtype=np.double)
+        )
+        / np.asarray(current_pythia_run.output.sigma, dtype=np.double),
+        training_good=_matrix(
+            _BUILD / "pythia" / "trace3_default" / "inputs" / "y_bin.csv",
+        ).astype(np.bool_),
+        query_z=(z - np.asarray(current_pythia_run.output.mu, dtype=np.double))
+        / np.asarray(current_pythia_run.output.sigma, dtype=np.double),
     )
 
     assert np.all((selection0 >= -1) & (selection0 < y_hat.shape[1]))
     selected = selection0 >= 0
     rows = np.arange(y_hat.shape[0])[selected]
     assert np.all(y_hat[rows, selection0[selected]])
+
+
+def test_current_matlab_pythia_skip_oracle() -> None:
+    """Reproduce R2026a's empty-model prediction and evaluation semantics."""
+    build_root = _BUILD / "pythia" / "trace3_pythia_skip"
+    build_inputs = build_root / "inputs"
+    build_outputs = build_root / "outputs"
+    labels = _labels(build_inputs / "algorithm_labels.csv")
+    output = PythiaStage.pythia(
+        _matrix(build_inputs / "z.csv"),
+        _matrix(build_inputs / "y_raw.csv"),
+        _matrix(build_inputs / "y_bin.csv").astype(np.bool_),
+        _vector(build_inputs / "y_best.csv"),
+        labels,
+        PythiaOptions.default(
+            cv_folds=_integer("pythia", "kFold"),
+            is_poly_krnl=_boolean("pythia", "ispolykrnl"),
+            use_weights=_boolean("pythia", "useweights"),
+            classifier=_string("pythia", "classifier"),
+            tuning=_string("pythia", "tuning"),
+            n_tuning_iter=_integer("pythia", "nTuningIter"),
+            skip=True,
+        ),
+        _parallel_options(),
+        _general_options(),
+    )
+
+    assert output.svm == [None] * len(labels)
+    np.testing.assert_array_equal(
+        output.y_hat,
+        _matrix(build_outputs / "yhat.csv").astype(np.bool_),
+    )
+    np.testing.assert_array_equal(
+        output.pr0_hat,
+        _matrix(build_outputs / "pr0hat.csv"),
+    )
+    np.testing.assert_allclose(
+        output.mu,
+        _vector(build_outputs / "normalization_mu.csv"),
+        rtol=0,
+        atol=1e-14,
+    )
+    np.testing.assert_allclose(
+        output.sigma,
+        _vector(build_outputs / "normalization_sigma.csv"),
+        rtol=0,
+        atol=1e-14,
+    )
+
+    fitted = PythiaOut.from_stage_runner_output(output._asdict())
+    explore_root = _EXPLORE / "pythia" / "trace3_pythia_skip"
+    explore_inputs = explore_root / "inputs"
+    explore_outputs = explore_root / "outputs"
+    predicted = PythiaStage.predict(
+        PythiaPredictInput(_matrix(explore_inputs / "z.csv")),
+        fitted,
+    )
+    np.testing.assert_array_equal(
+        predicted.y_hat,
+        _matrix(explore_outputs / "predictions.csv").astype(np.bool_),
+    )
+    np.testing.assert_array_equal(
+        predicted.pr0_hat,
+        _matrix(explore_outputs / "probabilities.csv"),
+    )
+    np.testing.assert_array_equal(predicted.selection0, -1)
+
+    evaluated = PythiaStage.evaluate(
+        PythiaEvaluateInput(
+            _matrix(explore_inputs / "y_bin.csv").astype(np.bool_),
+            predicted.y_hat,
+        ),
+        fitted,
+    )
+    summary = pd.read_csv(
+        explore_outputs / "eval_summary.csv",
+        float_precision="round_trip",
+    ).iloc[: len(labels)]
+    for actual, column in (
+        (evaluated.accuracy, "CV_model_accuracy"),
+        (evaluated.precision, "CV_model_precision"),
+        (evaluated.recall, "CV_model_recall"),
+    ):
+        np.testing.assert_allclose(
+            actual,
+            summary[column].to_numpy(dtype=np.double),
+            rtol=0,
+            atol=0,
+            equal_nan=True,
+        )
+    np.testing.assert_array_equal(evaluated.cvcmat, 0)

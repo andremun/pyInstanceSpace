@@ -69,7 +69,7 @@ from instancespace.data.options import (
     PythiaOptions,
     TraceOptions,
 )
-from instancespace.stages.stage import Stage
+from instancespace.stages.stage import PredictiveStage, Stage
 from instancespace.utils.alpha_shape import (
     AlphaShape2D,
     AlphaShape3D,
@@ -174,7 +174,24 @@ class TraceOutputs(NamedTuple):
     trace_summary: pd.DataFrame
 
 
-class TraceStage(Stage[TraceInputs, TraceOutputs]):
+class TracePredictInput(NamedTuple):
+    """Inputs for testing unseen projected instances against fitted footprints."""
+
+    z: NDArray[np.double]
+    n_new_algos: int = 0
+
+
+class TracePredictOutput(NamedTuple):
+    """Inclusive good/best footprint-membership matrices."""
+
+    in_good: NDArray[np.bool_]
+    in_best: NDArray[np.bool_]
+
+
+class TraceStage(
+    Stage[TraceInputs, TraceOutputs],
+    PredictiveStage[TracePredictInput, TraceOut, TracePredictOutput],
+):
     """A class to manage the TRACE analysis process for performance footprints.
 
     The TRACE class is designed to analyze the performance of different algorithms by
@@ -341,6 +358,53 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 List of outputs for the stage
         """
         return TraceOutputs
+
+    @staticmethod
+    def predict(
+        inputs: TracePredictInput,
+        fitted: TraceOut,
+    ) -> TracePredictOutput:
+        """Apply trained TRACE geometry without rebuilding or mutating it."""
+        if inputs.z.ndim != TRACE_ARRAY_DIMENSIONS:
+            msg = "TRACE predict requires Z to be a two-dimensional matrix."
+            raise ValueError(msg)
+        explored_dimension = inputs.z.shape[1]
+        if explored_dimension not in TRACE_COORDINATE_COUNTS:
+            msg = "TRACE predict requires Z to have two or three coordinates."
+            raise ValueError(msg)
+        if inputs.n_new_algos < 0:
+            msg = "TRACE predict requires n_new_algos to be non-negative."
+            raise ValueError(msg)
+
+        space_dimension = TraceStage._footprint_dimension(fitted.space)
+        if space_dimension not in TRACE_COORDINATE_COUNTS:
+            msg = "TRACE predict fitted geometry must have two or three dimensions."
+            raise ValueError(msg)
+        trained_dimension = TraceStage._trace_dimension(fitted)
+        if explored_dimension != trained_dimension:
+            msg = (
+                "TRACE predict coordinate mismatch: trained geometry has "
+                f"{trained_dimension} dimensions but explored Z has "
+                f"{explored_dimension}."
+            )
+            raise ValueError(msg)
+        if len(fitted.good) != len(fitted.best):
+            msg = "TRACE predict requires matching good and best footprint counts."
+            raise ValueError(msg)
+
+        n_instances = inputs.z.shape[0]
+        n_trained = len(fitted.good)
+        n_algorithms = n_trained + inputs.n_new_algos
+        in_good = np.zeros((n_instances, n_algorithms), dtype=np.bool_)
+        in_best = np.zeros((n_instances, n_algorithms), dtype=np.bool_)
+        for index in range(n_trained):
+            good_geometry = fitted.good[index].polygon
+            best_geometry = fitted.best[index].polygon
+            if good_geometry is not None:
+                in_good[:, index] = pointwise_covers(good_geometry, inputs.z)
+            if best_geometry is not None:
+                in_best[:, index] = pointwise_covers(best_geometry, inputs.z)
+        return TracePredictOutput(in_good, in_best)
 
     @staticmethod
     def _run(inputs: TraceInputs) -> TraceOutputs:
@@ -846,14 +910,14 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         )
         columns = [
             f"{measure_label}_Good",
-            f"{measure_label}_Good_Normalised",
+            f"{measure_label}_Good_Normalized",
             "Density_Good",
-            "Density_Good_Normalised",
+            "Density_Good_Normalized",
             "Purity_Good",
             f"{measure_label}_Best",
-            f"{measure_label}_Best_Normalised",
+            f"{measure_label}_Best_Normalized",
             "Density_Best",
-            "Density_Best_Normalised",
+            "Density_Best_Normalized",
             "Purity_Best",
         ]
         rows: list[list[float]] = []

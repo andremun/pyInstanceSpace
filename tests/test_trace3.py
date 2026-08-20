@@ -30,7 +30,8 @@ EXPECTED_TRACE_BUILD_CALLS = 5
 SECOND_ALGORITHM_ONE_BASED = 2
 GRID_SPLIT = 3.0
 TRAINED_AREA = 4.0
-EXPECTED_INSIDE_ELEMENTS = 2
+EXPECTED_INSIDE_ELEMENTS = 3
+EXPECTED_BEST_GOOD_ELEMENTS = 2
 THREE_DIMENSIONS = 3
 EXPECTED_3D_INSIDE_ELEMENTS = 2
 MATLAB_ROUNDED_TIE = 0.313
@@ -93,7 +94,7 @@ def test_trace_summary_rounds_decimal_ties_away_from_zero() -> None:
     tied_footprint = Footprint(None, 1.0, 16, 5, 1.0, 0.3125)
     space = Footprint(None, 4.0, 16, 16, 4.0, 1.0)
 
-    summary = TraceStage._summary_table(  # noqa: SLF001
+    summary = TraceStage._summary_table(
         [tied_footprint],
         [tied_footprint],
         ["tie"],
@@ -111,9 +112,9 @@ def test_min_instances_is_an_exclusive_support_boundary() -> None:
     y_bin[:4, 0] = True
     trace = _stage(z, y_bin, purity=0.0, min_area_frac=0.0)
 
-    rejected = trace._build_trace3(y_bin[:, 0], None, 4.0)  # noqa: SLF001
+    rejected = trace._build_trace3(y_bin[:, 0], None, 4.0)
     y_bin[4, 0] = True
-    accepted = trace._build_trace3(y_bin[:, 0], None, 4.0)  # noqa: SLF001
+    accepted = trace._build_trace3(y_bin[:, 0], None, 4.0)
 
     assert rejected.polygon is None
     assert accepted.polygon is not None
@@ -128,8 +129,8 @@ def test_prediction_filter_requires_truth_and_prediction_consensus() -> None:
     y_hat[4, 0] = False
     trace = _stage(z, y_bin, y_hat=y_hat, purity=0.0, min_area_frac=0.0)
 
-    filtered = trace._build_trace3(y_bin[:, 0], y_hat[:, 0], 4.0)  # noqa: SLF001
-    fallback = trace._build_trace3(y_bin[:, 0], None, 4.0)  # noqa: SLF001
+    filtered = trace._build_trace3(y_bin[:, 0], y_hat[:, 0], 4.0)
+    fallback = trace._build_trace3(y_bin[:, 0], None, 4.0)
 
     assert filtered.polygon is None
     assert fallback.polygon is not None
@@ -144,7 +145,7 @@ def test_min_instances_counts_unique_supporting_points() -> None:
     y_bin = np.ones((z.shape[0], 1), dtype=np.bool_)
     trace = _stage(z, y_bin, purity=0.0, min_area_frac=0.0)
 
-    footprint = trace._build_trace3(y_bin[:, 0], None, 1.0)  # noqa: SLF001
+    footprint = trace._build_trace3(y_bin[:, 0], None, 1.0)
 
     assert footprint.polygon is None
 
@@ -251,7 +252,7 @@ def test_single_alpha_spectrum_returns_initial_shape_below_purity(
         classmethod(lambda _cls, _points: fake),
     )
 
-    footprint = trace._build_trace3(y_bin[:, 0], None, 1.0)  # noqa: SLF001
+    footprint = trace._build_trace3(y_bin[:, 0], None, 1.0)
 
     assert fake.calls == 1
     assert footprint.polygon is not None
@@ -271,8 +272,8 @@ def test_minimum_area_fraction_rejects_only_strictly_smaller_shapes(
         classmethod(lambda _cls, _points: _StaticAlphaShape()),
     )
 
-    boundary = trace._build_trace3(y_bin[:, 0], None, 400.0)  # noqa: SLF001
-    undersized = trace._build_trace3(y_bin[:, 0], None, 401.0)  # noqa: SLF001
+    boundary = trace._build_trace3(y_bin[:, 0], None, 400.0)
+    undersized = trace._build_trace3(y_bin[:, 0], None, 401.0)
 
     assert boundary.polygon is not None
     assert undersized.polygon is None
@@ -293,7 +294,7 @@ def test_trace3_evaluates_exactly_100_radii_with_stateful_threshold(
         classmethod(lambda _cls, _points: fake),
     )
 
-    footprint = trace._build_trace3(y_bin[:, 0], None, 1.0)  # noqa: SLF001
+    footprint = trace._build_trace3(y_bin[:, 0], None, 1.0)
 
     assert len(fake.calls) == EXPECTED_ALPHA_CALLS
     expected_radii = np.linspace(10.0, 1.0, 101)[1:]
@@ -323,7 +324,7 @@ def test_trace3_stateful_threshold_uses_volume_for_three_dimensions(
         classmethod(lambda _cls, _points: fake),
     )
 
-    footprint = trace._build_trace3(y_bin[:, 0], None, 1.0)  # noqa: SLF001
+    footprint = trace._build_trace3(y_bin[:, 0], None, 1.0)
 
     assert len(fake.calls) == EXPECTED_ALPHA_CALLS
     expected_radii = np.linspace(10.0, 1.0, 101)[1:]
@@ -350,7 +351,7 @@ def test_later_shape_collapse_returns_empty_not_previous_geometry(
         classmethod(lambda _cls, _points: fake),
     )
 
-    footprint = trace._build_trace3(y_bin[:, 0], None, 1.0)  # noqa: SLF001
+    footprint = trace._build_trace3(y_bin[:, 0], None, 1.0)
 
     assert footprint.polygon is None
     assert footprint.area == 0
@@ -409,7 +410,7 @@ def test_trace3_orchestration_uses_truth_portfolio_and_optional_predictions(
         pythia_options=PythiaOptions.default(skip=pythia_skipped),
     )
 
-    TraceStage._run(inputs)  # noqa: SLF001
+    TraceStage._run(inputs)
 
     assert len(observed) == EXPECTED_TRACE_BUILD_CALLS
     np.testing.assert_array_equal(observed[0][0], y_bin[:, 0])
@@ -446,7 +447,7 @@ def test_parallel_and_sequential_trace3_outputs_match() -> None:
     p = np.where(z[:, 0] <= z[:, 1], 0, 1).astype(np.int_)
     beta = np.logical_or(y_bin[:, 0], y_bin[:, 1])
 
-    sequential = _stage(z, y_bin, y_hat=y_hat, p=p, beta=beta)._trace()  # noqa: SLF001
+    sequential = _stage(z, y_bin, y_hat=y_hat, p=p, beta=beta)._trace()
     with ThreadPoolExecutor(max_workers=2) as executor:
         parallel_stage = _stage(
             z,
@@ -457,7 +458,7 @@ def test_parallel_and_sequential_trace3_outputs_match() -> None:
             parallel=True,
             executor=executor,
         )
-        parallel = parallel_stage._trace()  # noqa: SLF001
+        parallel = parallel_stage._trace()
 
     pd.testing.assert_frame_equal(sequential.trace_summary, parallel.trace_summary)
     for sequential_fp, parallel_fp in zip(
@@ -474,7 +475,7 @@ def test_trace3_builds_native_three_dimensional_footprints() -> None:
     y_bin = np.ones((z.shape[0], 1), dtype=np.bool_)
     trace = _stage(z, y_bin, purity=0.0, min_area_frac=0.0)
 
-    output = trace._trace()  # noqa: SLF001
+    output = trace._trace()
 
     assert output.space.dimension == THREE_DIMENSIONS
     assert output.space.area == pytest.approx(1.0)
@@ -492,7 +493,7 @@ def test_trace3_degenerate_three_dimensional_support_is_canonical_empty() -> Non
     y_bin = np.ones((5, 1), dtype=np.bool_)
     trace = _stage(z, y_bin)
 
-    output = trace._trace()  # noqa: SLF001
+    output = trace._trace()
 
     assert output.space.area == 0.0
     assert output.good[0] == Footprint(
@@ -545,7 +546,7 @@ def test_legacy_method_warns_and_dispatches_3d_to_trace3(
         general_options=GeneralOptions.default(),
     )
 
-    output = TraceStage._run(inputs)  # noqa: SLF001
+    output = TraceStage._run(inputs)
 
     assert len(warnings) == 1
     assert "dispatching" in warnings[0]
@@ -590,7 +591,7 @@ def test_legacy_3d_dispatch_uses_trace3_truth_portfolio_and_predictions(
         general_options=GeneralOptions.default(),
     )
 
-    TraceStage._run(inputs)  # noqa: SLF001
+    TraceStage._run(inputs)
 
     assert len(observed) == EXPECTED_TRACE_BUILD_CALLS
     for good_index, best_index, algorithm_index in ((0, 1, 0), (2, 3, 1)):
@@ -615,10 +616,10 @@ def test_legacy_3d_dispatch_uses_trace3_truth_portfolio_and_predictions(
     assert observed[-1][1] is None
 
 
-def test_rescore_keeps_geometry_and_adds_empty_new_algorithms(
+def test_rescore_keeps_all_geometry_and_rescores_each_truth_source(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Rescore preserves trained geometry and pads test-only algorithms."""
+    """Good, best, and hard evidence use Ybin, P, and ~beta respectively."""
     polygon = Polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
     trained_fp = Footprint(polygon, 4.0, 99, 98, 97.0, 0.1)
     empty = Footprint(None, 0, 0, 0, 0, 0)
@@ -629,9 +630,12 @@ def test_rescore_keeps_geometry_and_adds_empty_new_algorithms(
         hard=trained_fp,
         summary=pd.DataFrame(),
     )
-    z = np.array([[0.0, 0.0], [1.0, 1.0], [3.0, 3.0]], dtype=np.double)
+    z = np.array(
+        [[0.0, 0.0], [1.0, 1.0], [2.0, 1.0], [3.0, 3.0]],
+        dtype=np.double,
+    )
     y_bin = np.array(
-        [[True, False], [False, True], [True, True]],
+        [[False, False], [False, True], [True, True], [True, False]],
         dtype=np.bool_,
     )
     monkeypatch.setattr(
@@ -646,19 +650,32 @@ def test_rescore_keeps_geometry_and_adds_empty_new_algorithms(
         trained,
         z,
         y_bin,
-        np.array([1, 2, 2], dtype=np.int_),
-        np.array([False, True, False], dtype=np.bool_),
+        np.array([1, 1, 2, 1], dtype=np.int_),
+        np.array([False, False, False, True], dtype=np.bool_),
         ["trained", "new"],
     )
 
     assert rescored.space is trained.space
     assert rescored.good[0].polygon is polygon
+    assert rescored.best[0].polygon is polygon
+    assert rescored.hard.polygon is polygon
     assert rescored.good[0].area == TRAINED_AREA
+    assert rescored.best[0].area == TRAINED_AREA
+    assert rescored.hard.area == TRAINED_AREA
     assert rescored.good[0].elements == EXPECTED_INSIDE_ELEMENTS
     assert rescored.good[0].good_elements == 1
+    assert rescored.good[0].density == pytest.approx(0.75)
+    assert rescored.good[0].purity == pytest.approx(1 / 3)
+    assert rescored.best[0].elements == EXPECTED_INSIDE_ELEMENTS
+    assert rescored.best[0].good_elements == EXPECTED_BEST_GOOD_ELEMENTS
+    assert rescored.best[0].density == pytest.approx(0.75)
+    assert rescored.best[0].purity == pytest.approx(2 / 3)
+    assert rescored.hard.elements == EXPECTED_INSIDE_ELEMENTS
+    assert rescored.hard.good_elements == EXPECTED_INSIDE_ELEMENTS
+    assert rescored.hard.density == pytest.approx(0.75)
+    assert rescored.hard.purity == pytest.approx(1.0)
     assert rescored.good[1] == empty
     assert rescored.best[1] == empty
-    assert rescored.hard.polygon is polygon
     assert rescored.summary["Algorithm"].tolist() == ["trained", "new"]
 
 

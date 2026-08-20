@@ -126,7 +126,7 @@ def test_trace_pythia() -> None:
         GeneralOptions.default(),
     )
 
-    trace_output: TraceOutputs = TraceStage._run(trace_inputs)  # noqa: SLF001
+    trace_output: TraceOutputs = TraceStage._run(trace_inputs)
 
     correct_result_path = main_dir / "test_data/trace_csvs/correct_results_pythia.csv"
     expected_output = pd.read_csv(correct_result_path).sort_values("Algorithm")
@@ -247,7 +247,7 @@ def test_trace_run_normalises_only_the_experimental_portfolio(
         general_options=GeneralOptions.default(),
     )
 
-    output = TraceStage._run(inputs)  # noqa: SLF001
+    output = TraceStage._run(inputs)
 
     assert output is expected_output
     assert len(observed_portfolios) == 1
@@ -270,7 +270,7 @@ def test_trace_rejects_invalid_one_based_experimental_portfolios(
 ) -> None:
     """Malformed PRELIM portfolios fail at the explicit TRACE boundary."""
     with pytest.raises(ValueError, match="Experimental portfolio"):
-        TraceStage._experimental_portfolio_indices(  # noqa: SLF001
+        TraceStage._experimental_portfolio_indices(
             portfolio,  # type: ignore[arg-type]
             n_instances=2,
             n_algorithms=2,
@@ -288,7 +288,7 @@ def test_trace3_method_dispatches_to_trace3(
     expected = TraceOutputs(empty, [], [], empty, pd.DataFrame())
     monkeypatch.setattr(TraceStage, "_trace3", lambda _self: expected)
 
-    assert TraceStage._run(inputs) is expected  # noqa: SLF001
+    assert TraceStage._run(inputs) is expected
 
 
 def test_trace_contra_false_skips_contradiction_removal() -> None:
@@ -310,7 +310,7 @@ def test_trace_contra_false_skips_contradiction_removal() -> None:
             level="INFO",
         )
         try:
-            TraceStage._run(inputs)  # noqa: SLF001
+            TraceStage._run(inputs)
         finally:
             logger.remove(sink_id)
         return messages
@@ -418,7 +418,7 @@ def test_trace_simulation() -> None:
         GeneralOptions.default(),
     )
 
-    trace_output: TraceOutputs = TraceStage._run(trace_inputs)  # noqa: SLF001
+    trace_output: TraceOutputs = TraceStage._run(trace_inputs)
     regression_baseline_path = (
         script_dir / "test_data/trace_csvs/correct_results_simulation.csv"
     )
