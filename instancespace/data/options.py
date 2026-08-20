@@ -657,6 +657,15 @@ def _normalize_member(name: str, value: object, valid: tuple[str, ...]) -> str:
     raise ValueError(msg)
 
 
+def _canonical_json_option_key(
+    json_field: str,
+    field_mapping: dict[str, str],
+) -> str:
+    """Return the canonical dataclass field for a JSON option key."""
+    normalized_field = json_field.casefold()
+    return field_mapping.get(normalized_field, normalized_field)
+
+
 def _check_sifted_dims(name: str, value: object) -> None:
     if isinstance(value, bool) or not isinstance(value, numbers.Integral):
         msg = f"opts.{name} must be 2 or 3. Got {value!r}."
@@ -1345,7 +1354,7 @@ class InstanceSpaceOptions:
 
         for json_field, value in data.items():
             # Use field mapping if available, otherwise keep the original field name
-            mapped_field = field_mapping.get(json_field.lower(), json_field.lower())
+            mapped_field = _canonical_json_option_key(json_field, field_mapping)
 
             # Check for conflicts, i.e., if the JSON contains both 'pi' and 'purity'
             if mapped_field in mapped_json_fields:
@@ -1425,8 +1434,7 @@ class InstanceSpaceOptions:
         )
         mapped_fields: set[str] = set()
         for json_field, value in typed_data.items():
-            lowered_field = json_field.casefold()
-            mapped_field = field_mapping.get(lowered_field, lowered_field)
+            mapped_field = _canonical_json_option_key(json_field, field_mapping)
             if mapped_field == "_":
                 continue
             mapped_data[mapped_field] = value
