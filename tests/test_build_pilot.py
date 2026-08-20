@@ -23,7 +23,8 @@ from scipy.io import loadmat
 from scipy.spatial.distance import pdist
 
 from instancespace.data.options import GeneralOptions, ParallelOptions, PilotOptions
-from instancespace.stages.pilot import PilotStage
+from instancespace.stages.pilot import PilotInput, PilotStage
+from instancespace.stages.pilot_viewpoint import PilotViewpointResult
 
 script_dir = Path(__file__).parent
 
@@ -910,6 +911,31 @@ def test_pilot_dims_two_preserves_the_default_analytic_result() -> None:
     np.testing.assert_array_equal(implicit.c, explicit.c)
     np.testing.assert_array_equal(implicit.r2, explicit.r2)
     assert implicit.pilot_summary.equals(explicit.pilot_summary)
+    assert implicit.viewpoint is None
+    assert explicit.viewpoint is None
+
+
+def test_pilot_stage_run_skips_viewpoint_for_two_dimensions() -> None:
+    """The outer stage leaves historical 2D output unchanged."""
+    rng = np.random.default_rng(33)
+    x = rng.random((20, 4))
+    y = rng.random((20, 2))
+    options = PilotOptions.default(analytic=True, dims=2)
+    inputs = PilotInput(
+        x=x,
+        y=y,
+        feat_labels=[f"f{index}" for index in range(x.shape[1])],
+        pilot_options=options,
+        parallel_options=ParallelOptions(flag=False, n_cores=1),
+        general_options=GeneralOptions.default(verbose=False),
+        y_bin=np.zeros_like(y, dtype=np.bool_),
+    )
+
+    with patch("instancespace.stages.pilot.pilot_viewpoint") as calculate:
+        result = PilotStage._run(inputs)  # noqa: SLF001
+
+    assert result.viewpoint is None
+    calculate.assert_not_called()
 
 
 def test_pilot_analytic_supports_three_dimensions() -> None:
@@ -943,6 +969,62 @@ def test_pilot_analytic_supports_three_dimensions() -> None:
         result.pilot_summary.iloc[:, 1:].to_numpy(),
         np.round(result.a, 4),
     )
+    assert result.viewpoint is None
+
+
+def test_pilot_stage_run_attaches_viewpoint_for_three_dimensions() -> None:
+    """Compute a 3D viewpoint once at the outer stage boundary."""
+    rng = np.random.default_rng(39)
+    x = rng.random((20, 4))
+    y = rng.random((20, 2))
+    x0 = np.linspace(-1.0, 1.0, 16, dtype=np.double).reshape(8, 2)
+    options = PilotOptions.default(
+        analytic=True,
+        dims=3,
+        n_tries=7,
+        x0=x0,
+        view_groups=((1,), (0,)),
+    )
+    parallel_options = ParallelOptions(flag=False, n_cores=2)
+    inputs = PilotInput(
+        x=x,
+        y=y,
+        feat_labels=[f"f{index}" for index in range(x.shape[1])],
+        pilot_options=options,
+        parallel_options=parallel_options,
+        general_options=GeneralOptions.default(verbose=False),
+        y_bin=np.zeros_like(y, dtype=np.bool_),
+    )
+    expected = PilotViewpointResult(
+        groups=((1,), (0,)),
+        a=(
+            np.eye(2, 3, dtype=np.float64),
+            np.array(
+                [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                dtype=np.float64,
+            ),
+        ),
+        azimuth=(0.0, 0.0),
+        elevation=(np.pi / 2, 0.0),
+    )
+
+    with patch(
+        "instancespace.stages.pilot.pilot_viewpoint",
+        return_value=expected,
+    ) as calculate:
+        result = PilotStage._run(inputs)  # noqa: SLF001
+
+    assert result.viewpoint is expected
+    calculate.assert_called_once()
+    call_args = calculate.call_args
+    np.testing.assert_array_equal(call_args.args[0], result.z)
+    np.testing.assert_array_equal(call_args.args[1], y)
+    assert call_args.kwargs == {
+        "view_groups": options.view_groups,
+        "n_tries": options.n_tries,
+        "x0": options.x0,
+        "parallel_options": parallel_options,
+    }
 
 
 def test_pilot_numerical_supports_three_dimensions() -> None:

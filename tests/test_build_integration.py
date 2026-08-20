@@ -26,6 +26,7 @@ from instancespace.stages.trace import TraceStage
 
 @pytest.fixture(scope="module")
 def built_instance_space() -> Iterator[InstanceSpace]:
+    """Build one complete instance space for the integration assertions."""
     script_dir = Path(__file__).resolve().parent
     metadata_path = script_dir / "test_data/preprocessing/metadata.csv"
     options_path = script_dir / "test_data/preprocessing/options.json"
@@ -42,13 +43,15 @@ def built_instance_space() -> Iterator[InstanceSpace]:
 def test_build_produces_a_fully_populated_model(
     built_instance_space: InstanceSpace,
 ) -> None:
+    """Expose every completed stage, including the optional 2D viewpoint."""
     model = built_instance_space.model
     n_algos = len(model.data.algo_labels)
 
     assert model.data.x.shape[0] > 0
     assert model.prelim.mu_x.shape[0] > 0
     assert model.sifted.selvars.size > 0
-    assert model.pilot.z.shape[1] == 2
+    assert model.pilot.z.shape[1] == model.opts.pilot.dims
+    assert model.pilot.viewpoint is None
     assert model.cloister.z_edge.size > 0
     assert len(model.pythia.svm) == n_algos
     assert not model.pythia.summary.empty
