@@ -28,7 +28,10 @@ MATLAB keeps the nominal KNN search range at 1--25 and caps `NumNeighbors` separ
 when each cross-validation fold or final model is fitted. Python must preserve the requested
 MATLAB-facing value for Sobol, Bayesian, and precalculated parameters while applying the
 same per-fit cap internally. A global bound based on the smallest fold is incorrect because
-it changes models fitted on larger folds.
+it changes models fitted on larger folds. PYTHIA also derives each algorithm's folds and
+classifier/search randomness from `seed + i`, where `i` is one-based. Python mirrors that
+boundary and returns the actual per-algorithm splitters; identical integer seeds do not imply
+identical MATLAB/sklearn fold membership because the stratifiers differ.
 
 ### Alpha-boundary audit
 
@@ -66,7 +69,9 @@ Numerical serialization precedes plotting and interactive output.
 Issue #304 is evaluated with a new verified R2026a variant at equal evaluation budgets.
 Legacy-unknown CSVs are not optimization oracles. Defaults change only if current evidence
 shows a systematic implementation defect; otherwise the documented optimizer difference
-remains explicit.
+remains explicit. MATLAB explicitly uses expected-improvement-plus with four seed points;
+skopt's plain EI is the closest base acquisition but does not implement MATLAB's additional
+anti-overexploitation loop.
 
 ## Compatibility boundaries
 

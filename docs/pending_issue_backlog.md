@@ -24,7 +24,7 @@ results only; no issue was closed or edited remotely.
 | [#316](https://github.com/andremun/pyInstanceSpace/issues/316) | Medium | Design a shared train/infer stage contract before changing orchestration. |
 | [#305](https://github.com/andremun/pyInstanceSpace/issues/305) | Tracker | Reassess after #278 and #310. |
 | [#273](https://github.com/andremun/pyInstanceSpace/issues/273) | Tracker | Reassess after provenance and fixture work. |
-| [#304](https://github.com/andremun/pyInstanceSpace/issues/304) | Low | Benchmark Bayesian convergence before tuning defaults. |
+| [#304](https://github.com/andremun/pyInstanceSpace/issues/304) | Low | Export verified equal-budget, repeated-seed Bayesian traces before changing defaults. |
 | [#297](https://github.com/andremun/pyInstanceSpace/issues/297) | Tracker | Mark #302 addressed, then audit remaining linked work. |
 | [#272](https://github.com/andremun/pyInstanceSpace/issues/272) | Medium | Reproduce the alpha-boundary failure before adding retries. |
 | [#270](https://github.com/andremun/pyInstanceSpace/issues/270) | Tracker | Reassess after #272. |

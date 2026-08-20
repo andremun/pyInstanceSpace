@@ -3,6 +3,7 @@
 import warnings
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -10,10 +11,13 @@ import pytest
 from numpy.typing import NDArray
 from scipy import stats
 from sklearn.exceptions import UndefinedMetricWarning  # type: ignore[import-untyped]
+from sklearn.model_selection import StratifiedKFold
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
+from skopt import BayesSearchCV
 from skopt.space import Categorical
 
+import instancespace.stages.pythia as pythia_module
 from instancespace.data.options import GeneralOptions, ParallelOptions, PythiaOptions
 from instancespace.stages.pythia import PythiaStage
 from instancespace.utils.get_classifier_fcn import get_classifier_fcn
@@ -74,7 +78,11 @@ def test_compare_output() -> None:
     mu = np.genfromtxt(csv_path_mu_input, delimiter=",")
 
     assert np.allclose(mu, pythia_out[0])
-    assert pythia_out[3].get_n_splits() == opt.cv_folds
+    assert len(pythia_out.cp) == len(algo)
+    assert all(
+        splitter is not None and splitter.get_n_splits() == opt.cv_folds
+        for splitter in pythia_out.cp
+    )
 
 
 def test_pythia_does_not_mutate_y_raw() -> None:
@@ -144,6 +152,99 @@ def test_pythia_seed_reproducibility() -> None:
     assert not np.array_equal(pr0_hat_a, pr0_hat_c)
 
 
+def test_pythia_uses_repeatable_matlab_offset_seed_per_algorithm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each algorithm gets MATLAB's one-based ``seed + i`` RNG boundary."""
+    base_seed = 42
+    captures: list[
+        tuple[
+            int | None,
+            int | None,
+            int,
+            tuple[tuple[int, ...], ...],
+        ]
+    ] = []
+
+    def capture_fit(**kwargs: object) -> SimpleNamespace:
+        skf = cast(StratifiedKFold, kwargs["skf"])
+        labels = cast(NDArray[np.bool_], kwargs["y_bin"])
+        fit_z = cast(NDArray[np.double], kwargs["z"])
+        algorithm_options = cast(GeneralOptions, kwargs["general_options"])
+        folds = tuple(
+            tuple(test_indices.tolist()) for _, test_indices in skf.split(fit_z, labels)
+        )
+        captures.append(
+            (
+                algorithm_options.seed,
+                skf.random_state,
+                id(skf),
+                folds,
+            ),
+        )
+        probabilities = np.logical_not(labels).astype(np.double)
+        return SimpleNamespace(
+            classifier=SimpleNamespace(random_state=algorithm_options.seed),
+            Yhat=labels.copy(),
+            Ysub=labels.copy(),
+            Psub=probabilities,
+            Phat=probabilities,
+            c=1.0,
+            g=1.0,
+        )
+
+    monkeypatch.setattr(
+        PythiaStage,
+        "_fit_classifier",
+        staticmethod(capture_fit),
+    )
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    alternating = np.arange(y_bin_small.shape[0]) % 2 == 0
+    y_bin_small[:, 0] = alternating
+    y_bin_small[:, 1] = np.logical_not(alternating)
+    options = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        params=np.ones((2, 2), dtype=np.double),
+        classifier="svm",
+        tuning="none",
+    )
+
+    first = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        options,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=base_seed),
+    )
+    second = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        options,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=base_seed),
+    )
+
+    first_run = captures[:2]
+    second_run = captures[2:]
+    assert [item[0] for item in first_run] == [base_seed + 1, base_seed + 2]
+    assert [item[1] for item in first_run] == [base_seed + 1, base_seed + 2]
+    assert first_run[0][2] != first_run[1][2]
+    assert [item[3] for item in first_run] == [item[3] for item in second_run]
+    assert [splitter.random_state for splitter in first.cp if splitter is not None] == [
+        base_seed + 1,
+        base_seed + 2,
+    ]
+    np.testing.assert_array_equal(first.y_sub, second.y_sub)
+
+
 @pytest.mark.parametrize(
     ("is_poly_krnl", "expected_kernel"),
     [(False, "rbf"), (True, "poly")],
@@ -202,6 +303,61 @@ def test_bayes_svm_kernel_and_output_contract(
         assert svm_spec.param2.low <= kernel_scale <= svm_spec.param2.high
         if is_poly_krnl:
             assert estimator.degree == matlab_default_polynomial_order
+
+
+def test_bayes_search_uses_gold_configuration_and_exact_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pin MATLAB's four seeds, closest EI analogue, and total evaluation budget."""
+    budget = 4
+    base_seed = 42
+    constructor_calls: list[dict[str, object]] = []
+    searches: list[BayesSearchCV] = []
+    real_bayes_search = BayesSearchCV
+
+    def capture_constructor(**kwargs: object) -> BayesSearchCV:
+        constructor_calls.append(kwargs)
+        search = real_bayes_search(**kwargs)
+        searches.append(search)
+        return search
+
+    monkeypatch.setattr(pythia_module, "BayesSearchCV", capture_constructor)
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+
+    PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        PythiaOptions(
+            cv_folds=2,
+            is_poly_krnl=False,
+            use_weights=False,
+            params=None,
+            classifier="svm",
+            tuning="bayes",
+            n_tuning_iter=budget,
+        ),
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=base_seed),
+    )
+
+    assert len(constructor_calls) == len(algo_small)
+    for algorithm_index, (call, search) in enumerate(
+        zip(constructor_calls, searches, strict=True),
+    ):
+        expected_seed = base_seed + algorithm_index + 1
+        assert call["n_iter"] == budget
+        assert call["optimizer_kwargs"] == {
+            "n_initial_points": 4,
+            "acq_func": "EI",
+        }
+        assert call["random_state"] == expected_seed
+        assert cast(StratifiedKFold, call["cv"]).random_state == expected_seed
+        assert cast(SVC, call["estimator"]).random_state == expected_seed
+        assert len(search.cv_results_["params"]) == budget
+        assert len(search.optimizer_results_[0].x_iters) == budget
 
 
 def _small_pythia_dataset() -> tuple[
@@ -684,6 +840,8 @@ def test_pythia_degenerate_label_does_not_crash() -> None:
     np.testing.assert_allclose(out.pr0_sub[:, 0], 0.0)
     np.testing.assert_allclose(out.pr0_hat[:, 0], 0.0)
     assert np.isnan(out.box_consnt[0])
+    assert out.cp[0] is None
+    assert out.cp[1] is not None
     # The sentinel classifier must still behave like a real classifier for
     # any downstream consumer (e.g. InstanceSpace._explore_pythia) that
     # calls predict/predict_proba/classes_ on it without special-casing.
@@ -968,6 +1126,7 @@ def test_skip_mode_bypasses_training_and_returns_empty_output() -> None:
     assert not np.any(out.y_hat)
     assert np.all(out.selection0 == -1)
     assert np.all(out.selection1 == -1)
+    assert out.cp == [None] * nalgos
     assert all(np.isnan(v) for v in out.accuracy)
     assert all(np.isnan(v) for v in out.precision)
     assert all(np.isnan(v) for v in out.recall)
