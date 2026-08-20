@@ -18,7 +18,8 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Final, cast
 
 BUNDLE_SCHEMA: Final = "pyinstancespace.matlab-fixtures/v1"
-REFERENCE_PROFILE: Final = "pyinstancespace.reference-export/v1"
+REFERENCE_PROFILE_V1: Final = "pyinstancespace.reference-export/v1"
+REFERENCE_PROFILE: Final = "pyinstancespace.reference-export/v2"
 RESOLVED_OPTIONS_INDEX_SCHEMA: Final = "pyinstancespace.resolved-options-index/v1"
 RESOLVED_OPTIONS_SCHEMA: Final = "pyinstancespace.resolved-options/v1"
 INVENTORY_SCHEMA: Final = "pyinstancespace.fixture-inventory/v1"
@@ -58,11 +59,30 @@ _MIN_RING_VERTICES: Final = 3
 _SHARED_INPUT_PATH_DEPTH: Final = 3
 _RESOLVED_OPTION_PATH_DEPTH: Final = 2
 _STAGE_PATH_DEPTH: Final = 5
-_REFERENCE_VARIANTS: Final = (
+_DOWNSTREAM_VARIANTS: Final = (
     "trace3_default",
     "trace3_pythia_skip",
     "legacy_svm",
 )
+_PILOT_EVIDENCE_VARIANTS: Final = (
+    "pilot_standard_analytic_3d",
+    "pilot_standard_numerical_3d_x0",
+    "pilot_standard_numerical_3d_precalc",
+    "pilot_pls_2d",
+    "pilot_pls_3d_grouped",
+)
+_REFERENCE_VARIANTS: Final = _DOWNSTREAM_VARIANTS + _PILOT_EVIDENCE_VARIANTS
+_PILOT_VARIANT_DIMS: Final = {
+    "pilot_standard_analytic_3d": 3,
+    "pilot_standard_numerical_3d_x0": 3,
+    "pilot_standard_numerical_3d_precalc": 3,
+    "pilot_pls_2d": 2,
+    "pilot_pls_3d_grouped": 3,
+}
+_PILOT_OPTIONAL_FIELDS: Final = {
+    "pilot_standard_numerical_3d_x0": {"X0"},
+    "pilot_standard_numerical_3d_precalc": {"precalcAlpha"},
+}
 _REFERENCE_REQUIRED_TOOLBOXES: Final = {
     "MATLAB",
     "Statistics and Machine Learning Toolbox",
@@ -70,6 +90,19 @@ _REFERENCE_REQUIRED_TOOLBOXES: Final = {
     "Global Optimization Toolbox",
     "Financial Toolbox",
 }
+_GOLD_MATLAB_COMMIT: Final = "34c01293fef99b4eabd53323c393cb184cc95a8e"
+_CANONICAL_DATASET_SHA256: Final = {
+    "shared_inputs/reference/metadata.csv": (
+        "961c65397b619a6e8e40df0ea6f90fbda448b8deb8a56e5a319e1be8f442bf0c"
+    ),
+    "shared_inputs/reference/metadata_test.csv": (
+        "b1100ac00b60400faf354c95246ec57172bb53ed9963e5fb1b4cf34c613669ae"
+    ),
+}
+_EXPORTER_SCRIPT: Final = "tests/matlab_export/pyis_export_reference_data.m"
+_REFERENCE_V2_EXPORTER_SHA256: Final = (
+    "7a5d0e26f14fd858770b21f24e0ac028aebb38ed29c84a52691a06b878246182"
+)
 _BASE_STAGE_VARIANTS: Final = {
     ("build", "prelim", "default"),
     ("build", "sifted", "default"),
@@ -162,6 +195,8 @@ _INT_OPTION_FIELDS: Final = {
 }
 _LIST_OPTION_FIELDS: Final = {
     ("pilot", "viewGroups"),
+    ("pilot", "X0"),
+    ("pilot", "precalcAlpha"),
     ("pythia", "params"),
 }
 _TEXT_OPTION_FIELDS: Final = {
@@ -258,7 +293,9 @@ def validate_bundle(  # noqa: PLR0912
     manifest_path = bundle_root / "manifest.json"
     manifest = _load_object(manifest_path, "fixture manifest")
     _expect_equal(manifest, "schema_version", BUNDLE_SCHEMA)
-    _expect_equal(manifest, "profile", REFERENCE_PROFILE)
+    profile = _expect_text(manifest, "profile")
+    if profile not in {REFERENCE_PROFILE_V1, REFERENCE_PROFILE}:
+        raise ProvenanceError(f"Unsupported reference-export profile: {profile!r}")
     trust = _expect_text(manifest, "trust")
     if trust not in {VERIFIED_TRUST, DIAGNOSTIC_TRUST}:
         raise ProvenanceError(f"Unsupported generated fixture trust class: {trust!r}")
@@ -315,7 +352,13 @@ def validate_bundle(  # noqa: PLR0912
             raise ProvenanceError(
                 "Verified fixtures require clean MATLAB and generator repositories",
             )
-        if _release_key(matlab_release) < _release_key("R2025a"):
+        if profile == REFERENCE_PROFILE and matlab_release != "R2026a":
+            raise ProvenanceError(
+                "Reference-export/v2 requires MATLAB R2026a, " f"got {matlab_release}",
+            )
+        if profile == REFERENCE_PROFILE_V1 and _release_key(
+            matlab_release,
+        ) < _release_key("R2025a"):
             raise ProvenanceError(
                 "Verified fixtures require MATLAB R2025a or newer, "
                 f"got {matlab_release}",
@@ -412,11 +455,21 @@ def validate_bundle(  # noqa: PLR0912
             f"Manifest file-set mismatch. Missing={missing}; extra={extra}",
         )
 
+    canonical_algorithm_labels: list[str] | None = None
+    if trust == VERIFIED_TRUST and profile == REFERENCE_PROFILE:
+        canonical_algorithm_labels = _validate_verified_v2_identity(
+            bundle_root,
+            matlab,
+            generator,
+        )
+
     _validate_reference_profile(
         bundle_root,
         dataset,
         options,
         entries_by_path,
+        profile=profile,
+        canonical_algorithm_labels=canonical_algorithm_labels,
     )
 
     return BundleReport(
@@ -433,10 +486,17 @@ def _validate_reference_profile(  # noqa: PLR0912
     dataset: dict[str, Any],
     resolved_index: dict[str, Any],
     entries_by_path: dict[str, dict[str, Any]],
+    *,
+    profile: str,
+    canonical_algorithm_labels: list[str] | None,
 ) -> None:
     """Enforce the complete, canonical reference-export profile."""
     _expect_equal(resolved_index, "schema_version", RESOLVED_OPTIONS_INDEX_SCHEMA)
-    records = _resolved_option_records(resolved_index)
+    evidence_enabled = profile == REFERENCE_PROFILE
+    expected_variants = (
+        _REFERENCE_VARIANTS if evidence_enabled else _DOWNSTREAM_VARIANTS
+    )
+    records = _resolved_option_records(resolved_index, expected_variants)
 
     _expect_equal(
         dataset,
@@ -454,7 +514,9 @@ def _validate_reference_profile(  # noqa: PLR0912
     for relative, entry in entries_by_path.items():
         _validate_profile_entry(relative, entry)
 
-    required = _fixed_reference_paths()
+    required = (
+        _fixed_reference_paths() if evidence_enabled else _fixed_reference_paths_v1()
+    )
     missing = sorted(required - entries_by_path.keys())
     if missing:
         raise ProvenanceError(
@@ -493,7 +555,7 @@ def _validate_reference_profile(  # noqa: PLR0912
     _validate_variant_option_relationships(options_by_variant, dataset_seed)
 
     reference_labels: list[str] | None = None
-    for variant in _REFERENCE_VARIANTS:
+    for variant in _DOWNSTREAM_VARIANTS:
         trace_labels = _read_algorithm_labels(
             bundle_root / f"build_data/trace/{variant}/inputs/algorithm_labels.csv",
         )
@@ -524,6 +586,20 @@ def _validate_reference_profile(  # noqa: PLR0912
     )
     if prelim_labels != reference_labels:
         raise ProvenanceError("PRELIM and downstream algorithm labels differ")
+    if (
+        canonical_algorithm_labels is not None
+        and reference_labels != canonical_algorithm_labels
+    ):
+        raise ProvenanceError(
+            "Downstream algorithm labels do not match the canonical metadata headers",
+        )
+
+    if evidence_enabled:
+        _validate_pilot_evidence_profile(
+            bundle_root,
+            options_by_variant,
+            reference_labels,
+        )
 
     required.update(_geometry_paths(reference_labels))
     missing = sorted(required - entries_by_path.keys())
@@ -535,8 +611,68 @@ def _validate_reference_profile(  # noqa: PLR0912
         )
 
 
+def _validate_verified_v2_identity(
+    bundle_root: Path,
+    matlab: dict[str, Any],
+    generator: dict[str, Any],
+) -> list[str]:
+    """Pin a verified v2 oracle to the audited source, data, and exporter."""
+    matlab_commit = _expect_text(matlab, "repo_commit")
+    if matlab_commit != _GOLD_MATLAB_COMMIT:
+        raise ProvenanceError(
+            "Verified v2 fixtures must use the gold MATLAB commit "
+            f"{_GOLD_MATLAB_COMMIT}",
+        )
+
+    for relative, expected_hash in _CANONICAL_DATASET_SHA256.items():
+        target = bundle_root / relative
+        if not target.is_file():
+            raise ProvenanceError(
+                "Reference export profile is missing the canonical dataset: "
+                f"{relative}",
+            )
+        actual_hash = sha256_file(target)
+        if actual_hash != expected_hash:
+            raise ProvenanceError(
+                f"Verified v2 fixtures must use the canonical dataset: {relative}",
+            )
+
+    _expect_equal(generator, "script", _EXPORTER_SCRIPT)
+    if _expect_text(generator, "script_sha256") != _REFERENCE_V2_EXPORTER_SHA256:
+        raise ProvenanceError(
+            "Verified v2 fixtures do not match the pinned exporter script hash",
+        )
+
+    training_labels = _read_metadata_algorithm_labels(
+        bundle_root / "shared_inputs/reference/metadata.csv",
+    )
+    test_labels = _read_metadata_algorithm_labels(
+        bundle_root / "shared_inputs/reference/metadata_test.csv",
+    )
+    if training_labels != test_labels:
+        raise ProvenanceError(
+            "Canonical training and test metadata use different algorithm headers",
+        )
+    return training_labels
+
+
+def _read_metadata_algorithm_labels(path: Path) -> list[str]:
+    header, _ = _read_csv_rows(path)
+    labels = [
+        column[len("algo_") :]
+        for column in header
+        if column.casefold().startswith("algo_")
+    ]
+    if not labels or any(not label for label in labels):
+        raise ProvenanceError(f"Metadata has no valid algorithm headers: {path}")
+    if len({label.casefold() for label in labels}) != len(labels):
+        raise ProvenanceError(f"Metadata has duplicate algorithm headers: {path}")
+    return labels
+
+
 def _resolved_option_records(
     resolved_index: dict[str, Any],
+    expected_variants: tuple[str, ...],
 ) -> dict[str, dict[str, Any]]:
     if set(resolved_index) != {"schema_version", "variants"}:
         raise ProvenanceError("resolved_options index has an invalid structure")
@@ -555,10 +691,10 @@ def _resolved_option_records(
         if name in records:
             raise ProvenanceError(f"Duplicate resolved-options variant: {name!r}")
         records[name] = record
-    if set(records) != set(_REFERENCE_VARIANTS):
+    if set(records) != set(expected_variants):
         raise ProvenanceError(
             "resolved_options.variants must name exactly "
-            f"{list(_REFERENCE_VARIANTS)!r}",
+            f"{list(expected_variants)!r}",
         )
     return records
 
@@ -587,13 +723,26 @@ def _validate_profile_entry(  # noqa: PLR0912
         downstream = (
             expected_phase in {"build", "explore"}
             and expected_stage in {"pythia", "trace"}
-            and expected_variant in _REFERENCE_VARIANTS
+            and expected_variant in _DOWNSTREAM_VARIANTS
         )
-        if stage_variant not in _BASE_STAGE_VARIANTS and not downstream:
+        pilot_evidence = (
+            expected_phase in {"build", "explore"}
+            and expected_stage == "pilot"
+            and expected_variant in _PILOT_EVIDENCE_VARIANTS
+        )
+        if (
+            stage_variant not in _BASE_STAGE_VARIANTS
+            and not downstream
+            and not pilot_evidence
+        ):
             raise ProvenanceError(
                 f"Unsupported reference-export stage/variant: {stage_variant!r}",
             )
-        if expected_phase == "explore" and expected_stage not in {"pythia", "trace"}:
+        if expected_phase == "explore" and expected_stage not in {
+            "pilot",
+            "pythia",
+            "trace",
+        }:
             raise ProvenanceError(f"Unsupported explore stage: {expected_stage!r}")
     else:
         raise ProvenanceError(f"Noncanonical reference-export path: {relative}")
@@ -625,7 +774,10 @@ def _validate_effective_options(options: dict[str, Any], variant: str) -> None:
         )
     for group, expected_fields in _OPTION_FIELDS.items():
         values = _expect_object(options, group)
-        if set(values) != expected_fields:
+        variant_fields = set(expected_fields)
+        if group == "pilot":
+            variant_fields.update(_PILOT_OPTIONAL_FIELDS.get(variant, set()))
+        if set(values) != variant_fields:
             raise ProvenanceError(
                 f"Resolved options {variant!r}.{group} do not match the MATLAB schema",
             )
@@ -651,7 +803,7 @@ def _validate_effective_options(options: dict[str, Any], variant: str) -> None:
                 )
 
 
-def _validate_variant_option_relationships(
+def _validate_variant_option_relationships(  # noqa: PLR0912
     options_by_variant: dict[str, dict[str, Any]],
     dataset_seed: int,
 ) -> None:
@@ -669,7 +821,7 @@ def _validate_variant_option_relationships(
     if any(baseline["outputs"].values()):
         raise ProvenanceError("Reference export must disable toolkit output writers")
 
-    for variant in _REFERENCE_VARIANTS[1:]:
+    for variant in _DOWNSTREAM_VARIANTS[1:]:
         effective = options_by_variant[variant]
         for group in set(_OPTION_FIELDS) - {"pythia", "trace"}:
             if effective[group] != baseline[group]:
@@ -701,6 +853,870 @@ def _validate_variant_option_relationships(
             raise ProvenanceError(f"Resolved PYTHIA options mismatch for {variant!r}")
         if effective["trace"] != expected_trace:
             raise ProvenanceError(f"Resolved TRACE options mismatch for {variant!r}")
+
+    if set(options_by_variant) == set(_DOWNSTREAM_VARIANTS):
+        return
+
+    expected_pilot_settings = {
+        "pilot_standard_analytic_3d": ("standard", 3, True),
+        "pilot_standard_numerical_3d_x0": ("standard", 3, False),
+        "pilot_standard_numerical_3d_precalc": ("standard", 3, False),
+        "pilot_pls_2d": ("pls", 2, False),
+        "pilot_pls_3d_grouped": ("pls", 3, True),
+    }
+    for variant, (method, dims, analytic) in expected_pilot_settings.items():
+        effective = options_by_variant[variant]
+        for group in set(_OPTION_FIELDS) - {"pilot", "pythia", "trace"}:
+            if effective[group] != baseline[group]:
+                raise ProvenanceError(
+                    f"Resolved option group {group!r} differs in {variant!r}",
+                )
+
+        expected_pythia = dict(baseline["pythia"])
+        expected_pythia["skip"] = True
+        if effective["pythia"] != expected_pythia:
+            raise ProvenanceError(f"Resolved PYTHIA options mismatch for {variant!r}")
+        if effective["trace"] != baseline["trace"]:
+            raise ProvenanceError(f"Resolved TRACE options mismatch for {variant!r}")
+
+        pilot = effective["pilot"]
+        for key in _OPTION_FIELDS["pilot"] - {
+            "method",
+            "dims",
+            "analytic",
+            "ntries",
+            "viewGroups",
+            "alpha",
+        }:
+            if pilot[key] != baseline["pilot"][key]:
+                raise ProvenanceError(
+                    f"Resolved PILOT option {key!r} differs in {variant!r}",
+                )
+        if (
+            pilot["method"] != method
+            or pilot["dims"] != dims
+            or pilot["analytic"] is not analytic
+            or pilot["ntries"] != 1
+            or pilot["alpha"]
+            != (
+                3.0 if variant == "pilot_pls_3d_grouped" else baseline["pilot"]["alpha"]
+            )
+        ):
+            raise ProvenanceError(f"Resolved PILOT options mismatch for {variant!r}")
+        grouped = variant == "pilot_pls_3d_grouped"
+        if grouped != bool(pilot["viewGroups"]):
+            raise ProvenanceError(
+                f"Resolved PILOT viewpoint groups mismatch for {variant!r}",
+            )
+
+
+def _read_csv_rows(path: Path) -> tuple[list[str], list[list[str]]]:
+    with path.open("r", encoding="utf-8", newline="") as stream:
+        reader = csv.reader(stream)
+        try:
+            header = next(reader)
+        except StopIteration as error:
+            raise ProvenanceError(f"CSV has no header: {path}") from error
+        rows = list(reader)
+    if any(len(row) != len(header) for row in rows):
+        raise ProvenanceError(f"CSV has ragged rows: {path}")
+    return header, rows
+
+
+def _read_numeric_csv(
+    path: Path,
+    *,
+    expected_header: list[str] | None = None,
+    row_labels: bool = False,
+) -> list[list[float]]:
+    header, rows = _read_csv_rows(path)
+    if expected_header is not None and header != expected_header:
+        raise ProvenanceError(f"CSV has an invalid dimensional header: {path}")
+    offset = 1 if row_labels else 0
+    values: list[list[float]] = []
+    for row_number, row in enumerate(rows, start=2):
+        try:
+            numeric = [float(value) for value in row[offset:]]
+        except ValueError as error:
+            raise ProvenanceError(
+                f"CSV row {row_number} is not numeric: {path}",
+            ) from error
+        if not all(math.isfinite(value) for value in numeric):
+            raise ProvenanceError(
+                f"CSV row {row_number} contains non-finite data: {path}",
+            )
+        values.append(numeric)
+    return values
+
+
+def _json_numeric_matrix(value: object, name: str) -> list[list[float]]:
+    if not isinstance(value, list) or not value:
+        raise ProvenanceError(f"{name} must be a nonempty numeric matrix")
+    if all(
+        isinstance(item, int | float) and not isinstance(item, bool) for item in value
+    ):
+        rows = [[float(item)] for item in value]
+    elif all(isinstance(item, list) and item for item in value):
+        nested = cast(list[list[Any]], value)
+        width = len(nested[0])
+        if any(len(row) != width for row in nested):
+            raise ProvenanceError(f"{name} must be a rectangular numeric matrix")
+        rows = []
+        for row in nested:
+            if not all(
+                isinstance(item, int | float) and not isinstance(item, bool)
+                for item in row
+            ):
+                raise ProvenanceError(f"{name} must be a numeric matrix")
+            rows.append([float(item) for item in row])
+    else:
+        raise ProvenanceError(f"{name} must be a numeric matrix")
+    if not all(math.isfinite(item) for row in rows for item in row):
+        raise ProvenanceError(f"{name} must contain finite values")
+    return rows
+
+
+def _matrices_equal(
+    left: list[list[float]],
+    right: list[list[float]],
+) -> bool:
+    return len(left) == len(right) and all(
+        len(left_row) == len(right_row)
+        and all(a == b for a, b in zip(left_row, right_row, strict=True))
+        for left_row, right_row in zip(left, right, strict=True)
+    )
+
+
+def _matrices_close(
+    left: list[list[float]],
+    right: list[list[float]],
+    *,
+    tolerance: float = 1e-11,
+) -> bool:
+    return len(left) == len(right) and all(
+        len(left_row) == len(right_row)
+        and all(
+            math.isclose(a, b, rel_tol=tolerance, abs_tol=tolerance)
+            for a, b in zip(left_row, right_row, strict=True)
+        )
+        for left_row, right_row in zip(left, right, strict=True)
+    )
+
+
+def _transpose(matrix: list[list[float]]) -> list[list[float]]:
+    return [list(column) for column in zip(*matrix, strict=True)]
+
+
+def _matmul(
+    left: list[list[float]],
+    right: list[list[float]],
+) -> list[list[float]]:
+    right_columns = _transpose(right)
+    return [
+        [
+            sum(a * b for a, b in zip(row, column, strict=True))
+            for column in right_columns
+        ]
+        for row in left
+    ]
+
+
+def _column_means(matrix: list[list[float]]) -> list[float]:
+    return [sum(column) / len(matrix) for column in zip(*matrix, strict=True)]
+
+
+def _center(matrix: list[list[float]]) -> list[list[float]]:
+    means = _column_means(matrix)
+    return [[value - means[index] for index, value in enumerate(row)] for row in matrix]
+
+
+def _correlation_squared(left: list[float], right: list[float]) -> float:
+    return _correlation(left, right) ** 2
+
+
+def _correlation(left: list[float], right: list[float]) -> float:
+    left_mean = sum(left) / len(left)
+    right_mean = sum(right) / len(right)
+    left_delta = [value - left_mean for value in left]
+    right_delta = [value - right_mean for value in right]
+    numerator = sum(a * b for a, b in zip(left_delta, right_delta, strict=True))
+    denominator = math.sqrt(
+        sum(value * value for value in left_delta)
+        * sum(value * value for value in right_delta),
+    )
+    if denominator == 0:
+        raise ProvenanceError("PILOT correlation evidence has a constant vector")
+    return numerator / denominator
+
+
+def _pairwise_distances(matrix: list[list[float]]) -> list[float]:
+    return [
+        math.sqrt(
+            sum(
+                (left_value - right_value) ** 2
+                for left_value, right_value in zip(left, right, strict=True)
+            ),
+        )
+        for left_index, left in enumerate(matrix)
+        for right in matrix[left_index + 1 :]
+    ]
+
+
+def _decode_pilot_solution(
+    theta: list[float],
+    dims: int,
+    n_features: int,
+    n_algorithms: int,
+) -> tuple[list[list[float]], list[list[float]], list[list[float]]]:
+    split = dims * n_features
+    a_flat = theta[:split]
+    b_flat = theta[split:]
+    total_columns = n_features + n_algorithms
+    a = [
+        [a_flat[column * dims + row] for column in range(n_features)]
+        for row in range(dims)
+    ]
+    combined = [
+        [b_flat[dimension * total_columns + row] for dimension in range(dims)]
+        for row in range(total_columns)
+    ]
+    b = combined[:n_features]
+    c = _transpose(combined[n_features:])
+    return a, b, c
+
+
+def _pilot_numerical_trial_metrics(
+    alpha: list[list[float]],
+    x: list[list[float]],
+    y: list[list[float]],
+    dims: int,
+    cost_weight: float,
+) -> tuple[list[float], list[float]]:
+    """Recompute MATLAB PILOT's per-trial loss and topology score."""
+    n_features = len(x[0])
+    n_algorithms = len(y[0])
+    trial_count = len(alpha[0])
+    x_bar = [[*x_row, *y_row] for x_row, y_row in zip(x, y, strict=True)]
+    source_distances = _pairwise_distances(x)
+    objectives: list[float] = []
+    topology_scores: list[float] = []
+
+    for trial in range(trial_count):
+        theta = [row[trial] for row in alpha]
+        a, b, c = _decode_pilot_solution(
+            theta,
+            dims,
+            n_features,
+            n_algorithms,
+        )
+        z = _matmul(x, _transpose(a))
+        reconstruction_factors = [*b, *_transpose(c)]
+        reconstructed = _matmul(z, _transpose(reconstruction_factors))
+        column_errors = [
+            sum(
+                (actual[column] - estimate[column]) ** 2
+                for actual, estimate in zip(x_bar, reconstructed, strict=True)
+            )
+            / len(x_bar)
+            for column in range(n_features + n_algorithms)
+        ]
+        weighted = [
+            value * (1.0 if column < n_features else cost_weight)
+            for column, value in enumerate(column_errors)
+        ]
+        objectives.append(sum(weighted) / len(weighted))
+        topology_scores.append(
+            _correlation(source_distances, _pairwise_distances(z)),
+        )
+
+    return objectives, topology_scores
+
+
+def _validate_pilot_evidence_profile(  # noqa: PLR0912
+    bundle_root: Path,
+    options_by_variant: dict[str, dict[str, Any]],
+    algorithm_labels: list[str],
+) -> None:
+    """Validate the exact dimensional and solver-input PILOT evidence contract."""
+    x_by_variant: dict[str, list[list[float]]] = {}
+    y_by_variant: dict[str, list[list[float]]] = {}
+    outputs_by_variant: dict[str, dict[str, list[list[float]]]] = {}
+    recomputed_x0_perf: list[float] | None = None
+    for variant in _PILOT_EVIDENCE_VARIANTS:
+        dims = _PILOT_VARIANT_DIMS[variant]
+        coordinate_header = [f"z_{index}" for index in range(1, dims + 1)]
+        build_root = bundle_root / "build_data" / "pilot" / variant
+        explore_root = bundle_root / "explore_data" / "pilot" / variant
+
+        feature_header, feature_rows = _read_csv_rows(
+            build_root / "inputs" / "feature_labels.csv",
+        )
+        if (
+            feature_header != ["feature_name"]
+            or not feature_rows
+            or any(len(row) != 1 or not row[0] for row in feature_rows)
+        ):
+            raise ProvenanceError(
+                f"PILOT feature labels have an invalid schema for {variant!r}",
+            )
+        feature_labels = [row[0] for row in feature_rows]
+        n_features = len(feature_labels)
+        context = _load_object(
+            build_root / "inputs" / "stage_context.json",
+            "PILOT stage context",
+        )
+        if set(context) != {
+            "schema_version",
+            "scope",
+            "upstream_snapshot",
+            "sifted_effective_pilot_dims",
+            "input_transform",
+            "feature_shift",
+            "algorithm_shift",
+            "explore_projection",
+        }:
+            raise ProvenanceError(f"PILOT stage context mismatch for {variant!r}")
+        _expect_equal(
+            context,
+            "schema_version",
+            "pyinstancespace.pilot-evidence-context/v1",
+        )
+        _expect_equal(context, "scope", "pilot-stage")
+        _expect_equal(
+            context,
+            "upstream_snapshot",
+            "build_data/pilot/default/inputs",
+        )
+        if context.get("sifted_effective_pilot_dims") != 2:  # noqa: PLR2004
+            raise ProvenanceError(f"PILOT upstream dimensions mismatch for {variant!r}")
+        _expect_equal(
+            context,
+            "explore_projection",
+            "InstanceSpace.explore: Z=X*A' (uncentred)",
+        )
+        is_pls = variant.startswith("pilot_pls_")
+        expected_feature_shift = (
+            [0.25 * index for index in range(1, n_features + 1)] if is_pls else []
+        )
+        expected_algorithm_shift = (
+            [0.4 * index for index in range(1, len(algorithm_labels) + 1)]
+            if is_pls
+            else []
+        )
+        expected_transform = "deterministic-column-shift" if is_pls else "none"
+        if (
+            context.get("input_transform") != expected_transform
+            or context.get("feature_shift") != expected_feature_shift
+            or context.get("algorithm_shift") != expected_algorithm_shift
+        ):
+            raise ProvenanceError(f"PILOT input transform mismatch for {variant!r}")
+        x = _read_numeric_csv(
+            build_root / "inputs" / "x.csv",
+            expected_header=["Row", *feature_labels],
+            row_labels=True,
+        )
+        y = _read_numeric_csv(
+            build_root / "inputs" / "y.csv",
+            expected_header=["Row", *algorithm_labels],
+            row_labels=True,
+        )
+        if not x or len(x) != len(y):
+            raise ProvenanceError(f"PILOT build inputs mismatch for {variant!r}")
+        x_by_variant[variant] = x
+        y_by_variant[variant] = y
+
+        common_shapes = {
+            "pilot_a_raw.csv": (dims, n_features),
+            "pilot_b.csv": (n_features, dims),
+            "pilot_c.csv": (dims, len(algorithm_labels)),
+            "pilot_z.csv": (len(x), dims),
+            "pilot_r2.csv": (n_features + len(algorithm_labels), 1),
+            "pilot_error.csv": (1, 1),
+        }
+        output_matrices: dict[str, list[list[float]]] = {}
+        for filename, expected_shape in common_shapes.items():
+            expected_headers = {
+                "pilot_a_raw.csv": [
+                    f"col_{index}" for index in range(1, n_features + 1)
+                ],
+                "pilot_b.csv": [f"col_{index}" for index in range(1, dims + 1)],
+                "pilot_c.csv": [
+                    f"col_{index}" for index in range(1, len(algorithm_labels) + 1)
+                ],
+                "pilot_z.csv": coordinate_header,
+                "pilot_r2.csv": ["r2"],
+                "pilot_error.csv": ["error"],
+            }
+            matrix = _read_numeric_csv(
+                build_root / "outputs" / filename,
+                expected_header=expected_headers[filename],
+            )
+            actual_shape = (len(matrix), len(matrix[0]) if matrix else 0)
+            if actual_shape != expected_shape:
+                raise ProvenanceError(
+                    f"PILOT artifact {filename!r} has the wrong shape for {variant!r}",
+                )
+            output_matrices[filename] = matrix
+        outputs_by_variant[variant] = output_matrices
+
+        pilot_matrix_header, pilot_matrix_rows = _read_csv_rows(
+            build_root / "outputs" / "pilot_matrix.csv",
+        )
+        if (
+            pilot_matrix_header != ["Row", *feature_labels]
+            or len(
+                pilot_matrix_rows,
+            )
+            != dims
+        ):
+            raise ProvenanceError(
+                f"PILOT summary matrix has the wrong dimensions for {variant!r}",
+            )
+        summary_values: list[list[float]] = []
+        for index, row in enumerate(pilot_matrix_rows, start=1):
+            if row[0] != f"Z_{{{index}}}":
+                raise ProvenanceError(
+                    f"PILOT summary labels mismatch for {variant!r}",
+                )
+            try:
+                summary_values.append([float(value) for value in row[1:]])
+            except ValueError as error:
+                raise ProvenanceError(
+                    f"PILOT summary is not numeric for {variant!r}",
+                ) from error
+        rounded_a = [
+            [round(value, 4) for value in row]
+            for row in output_matrices["pilot_a_raw.csv"]
+        ]
+        if not _matrices_close(summary_values, rounded_a, tolerance=1e-12):
+            raise ProvenanceError(f"PILOT summary values mismatch for {variant!r}")
+
+        projection_input = _center(x) if variant.startswith("pilot_pls_") else x
+        expected_z = _matmul(
+            projection_input,
+            _transpose(output_matrices["pilot_a_raw.csv"]),
+        )
+        if not _matrices_close(expected_z, output_matrices["pilot_z.csv"]):
+            raise ProvenanceError(f"PILOT build projection mismatch for {variant!r}")
+
+        x_bar = [[*x_row, *y_row] for x_row, y_row in zip(x, y, strict=True)]
+        reconstruction_factors = [
+            *output_matrices["pilot_b.csv"],
+            *_transpose(output_matrices["pilot_c.csv"]),
+        ]
+        reconstructed = _matmul(
+            output_matrices["pilot_z.csv"],
+            _transpose(reconstruction_factors),
+        )
+        if variant.startswith("pilot_pls_"):
+            means = _column_means(x_bar)
+            reconstructed = [
+                [value + means[index] for index, value in enumerate(row)]
+                for row in reconstructed
+            ]
+            if max(abs(value) for value in means) < 0.1:  # noqa: PLR2004
+                raise ProvenanceError("PLS evidence does not exercise centring")
+        expected_error = sum(
+            (actual - estimate) ** 2
+            for actual_row, estimate_row in zip(x_bar, reconstructed, strict=True)
+            for actual, estimate in zip(actual_row, estimate_row, strict=True)
+        )
+        actual_error = output_matrices["pilot_error.csv"][0][0]
+        if not math.isclose(expected_error, actual_error, rel_tol=1e-10, abs_tol=1e-10):
+            raise ProvenanceError(
+                f"PILOT reconstruction error mismatch for {variant!r}",
+            )
+        actual_r2 = [row[0] for row in output_matrices["pilot_r2.csv"]]
+        expected_r2 = [
+            _correlation_squared(list(actual), list(estimate))
+            for actual, estimate in zip(
+                zip(*x_bar, strict=True),
+                zip(*reconstructed, strict=True),
+                strict=True,
+            )
+        ]
+        if not _matrices_close(
+            [[value] for value in expected_r2],
+            [[value] for value in actual_r2],
+        ):
+            raise ProvenanceError(f"PILOT R2 mismatch for {variant!r}")
+
+        pilot_options = options_by_variant[variant]["pilot"]
+        solver_rows = dims * (2 * n_features + len(algorithm_labels))
+        if variant == "pilot_standard_numerical_3d_x0":
+            option_x0 = _json_numeric_matrix(pilot_options["X0"], f"{variant}.X0")
+            trial_header = [f"col_{index}" for index in range(1, len(option_x0[0]) + 1)]
+            input_x0 = _read_numeric_csv(
+                build_root / "inputs" / "x0.csv",
+                expected_header=trial_header,
+            )
+            output_x0 = _read_numeric_csv(
+                build_root / "outputs" / "pilot_x0.csv",
+                expected_header=trial_header,
+            )
+            if (
+                len(option_x0) != solver_rows
+                or not option_x0
+                or len(option_x0[0]) != 3  # noqa: PLR2004
+                or not _matrices_close(option_x0, input_x0, tolerance=1e-14)
+                or not _matrices_close(option_x0, output_x0, tolerance=1e-14)
+            ):
+                raise ProvenanceError("PILOT X0 evidence is inconsistent")
+            alpha = _read_numeric_csv(
+                build_root / "outputs" / "pilot_alpha.csv",
+                expected_header=trial_header,
+            )
+            eoptim = _read_numeric_csv(
+                build_root / "outputs" / "pilot_eoptim.csv",
+                expected_header=["eoptim"],
+            )
+            perf = _read_numeric_csv(
+                build_root / "outputs" / "pilot_perf.csv",
+                expected_header=["perf"],
+            )
+            if (
+                len(alpha) != solver_rows
+                or len(alpha[0]) != len(option_x0[0])
+                or len(eoptim) != len(option_x0[0])
+                or len(perf) != len(option_x0[0])
+            ):
+                raise ProvenanceError("PILOT numerical diagnostics are incomplete")
+            recomputed_eoptim, recomputed_perf = _pilot_numerical_trial_metrics(
+                alpha,
+                x,
+                y,
+                dims,
+                float(pilot_options["alpha"]),
+            )
+            if not _matrices_close(
+                [[value] for value in recomputed_eoptim],
+                eoptim,
+                tolerance=1e-12,
+            ):
+                raise ProvenanceError("PILOT numerical trial objective mismatch")
+            if not _matrices_close(
+                [[value] for value in recomputed_perf],
+                perf,
+                tolerance=1e-12,
+            ):
+                raise ProvenanceError("PILOT numerical trial topology mismatch")
+            recomputed_x0_perf = recomputed_perf
+        elif variant == "pilot_standard_numerical_3d_precalc":
+            option_alpha = _json_numeric_matrix(
+                pilot_options["precalcAlpha"],
+                f"{variant}.precalcAlpha",
+            )
+            input_alpha = _read_numeric_csv(
+                build_root / "inputs" / "precalc_alpha.csv",
+                expected_header=["precalc_alpha"],
+            )
+            output_alpha = _read_numeric_csv(
+                build_root / "outputs" / "pilot_alpha.csv",
+                expected_header=["col_1"],
+            )
+            if (
+                len(option_alpha) != solver_rows
+                or len(option_alpha[0]) != 1
+                or not _matrices_close(option_alpha, input_alpha, tolerance=1e-14)
+                or not _matrices_close(option_alpha, output_alpha, tolerance=1e-14)
+            ):
+                raise ProvenanceError("PILOT precalculated evidence is inconsistent")
+
+        view_groups = pilot_options["viewGroups"]
+        if dims == 3:  # noqa: PLR2004
+            _validate_pilot_viewpoint_artifacts(
+                build_root / "outputs",
+                view_groups,
+                algorithm_labels,
+            )
+
+        explore_x = _read_numeric_csv(
+            explore_root / "inputs" / "x.csv",
+            expected_header=["Row", *feature_labels],
+            row_labels=True,
+        )
+        projection = _read_numeric_csv(
+            explore_root / "inputs" / "projection_a.csv",
+            expected_header=["Row", *feature_labels],
+            row_labels=True,
+        )
+        explore_z = _read_numeric_csv(
+            explore_root / "outputs" / "pilot_z.csv",
+            expected_header=["Row", *coordinate_header],
+            row_labels=True,
+        )
+        explore_x_rows = _read_csv_rows(explore_root / "inputs" / "x.csv")[1]
+        explore_z_rows = _read_csv_rows(
+            explore_root / "outputs" / "pilot_z.csv",
+        )[1]
+        projection_rows = _read_csv_rows(
+            explore_root / "inputs" / "projection_a.csv",
+        )[1]
+        if (
+            len(projection) != dims
+            or len(explore_x) != len(explore_z)
+            or not explore_x
+            or any(len(row) != dims for row in explore_z)
+            or not _matrices_close(
+                projection,
+                output_matrices["pilot_a_raw.csv"],
+            )
+        ):
+            raise ProvenanceError(f"PILOT explore evidence mismatch for {variant!r}")
+        if [row[0] for row in explore_x_rows] != [row[0] for row in explore_z_rows] or [
+            row[0] for row in projection_rows
+        ] != coordinate_header:
+            raise ProvenanceError(
+                f"PILOT explore row labels mismatch for {variant!r}",
+            )
+        projected = [
+            [
+                sum(
+                    value * projection[dimension][index]
+                    for index, value in enumerate(row)
+                )
+                for dimension in range(dims)
+            ]
+            for row in explore_x
+        ]
+        if not _matrices_close(projected, explore_z):
+            raise ProvenanceError(
+                f"PILOT explore projection is not reproducible for {variant!r}",
+            )
+
+    standard_variants = (
+        "pilot_standard_analytic_3d",
+        "pilot_standard_numerical_3d_x0",
+        "pilot_standard_numerical_3d_precalc",
+    )
+    standard_x = x_by_variant[standard_variants[0]]
+    standard_y = y_by_variant[standard_variants[0]]
+    if any(
+        not _matrices_equal(x_by_variant[variant], standard_x)
+        or not _matrices_equal(y_by_variant[variant], standard_y)
+        for variant in standard_variants[1:]
+    ):
+        raise ProvenanceError("Standard PILOT evidence variants use different inputs")
+    default_inputs = bundle_root / "build_data/pilot/default/inputs"
+    evidence_inputs = bundle_root / "build_data/pilot/pilot_standard_analytic_3d/inputs"
+    for filename in ("x.csv", "y.csv", "feature_labels.csv"):
+        if (default_inputs / filename).read_bytes() != (
+            evidence_inputs / filename
+        ).read_bytes():
+            raise ProvenanceError("PILOT evidence is not linked to the SIFTED snapshot")
+    default_feature_labels = (default_inputs / "feature_labels.csv").read_bytes()
+    default_x_rows = _read_csv_rows(default_inputs / "x.csv")[1]
+    default_y_rows = _read_csv_rows(default_inputs / "y.csv")[1]
+    for variant in _PILOT_EVIDENCE_VARIANTS:
+        inputs = bundle_root / "build_data" / "pilot" / variant / "inputs"
+        if (inputs / "feature_labels.csv").read_bytes() != default_feature_labels:
+            raise ProvenanceError("PILOT evidence variants use different features")
+        variant_x_rows = _read_csv_rows(inputs / "x.csv")[1]
+        variant_y_rows = _read_csv_rows(inputs / "y.csv")[1]
+        if [row[0] for row in variant_x_rows] != [row[0] for row in default_x_rows] or [
+            row[0] for row in variant_y_rows
+        ] != [row[0] for row in default_y_rows]:
+            raise ProvenanceError("PILOT evidence variants use different instances")
+
+    pls_2d = "pilot_pls_2d"
+    pls_3d = "pilot_pls_3d_grouped"
+    if not _matrices_equal(x_by_variant[pls_2d], x_by_variant[pls_3d]) or not (
+        _matrices_equal(y_by_variant[pls_2d], y_by_variant[pls_3d])
+    ):
+        raise ProvenanceError("PLS evidence variants use different shifted inputs")
+    expected_pls_x = [
+        [value + 0.25 * (index + 1) for index, value in enumerate(row)]
+        for row in standard_x
+    ]
+    expected_pls_y = [
+        [value + 0.4 * (index + 1) for index, value in enumerate(row)]
+        for row in standard_y
+    ]
+    if not _matrices_close(x_by_variant[pls_2d], expected_pls_x) or not (
+        _matrices_close(y_by_variant[pls_2d], expected_pls_y)
+    ):
+        raise ProvenanceError("PLS evidence shift is not reproducible")
+
+    pls_2d_outputs = outputs_by_variant[pls_2d]
+    pls_3d_outputs = outputs_by_variant[pls_3d]
+    component_relations = {
+        "pilot_a_raw.csv": pls_3d_outputs["pilot_a_raw.csv"][:2],
+        "pilot_b.csv": [row[:2] for row in pls_3d_outputs["pilot_b.csv"]],
+        "pilot_c.csv": pls_3d_outputs["pilot_c.csv"][:2],
+        "pilot_z.csv": [row[:2] for row in pls_3d_outputs["pilot_z.csv"]],
+    }
+    for filename, expected in component_relations.items():
+        if not _matrices_close(pls_2d_outputs[filename], expected):
+            raise ProvenanceError(
+                f"PILOT PLS 2D/3D component relation mismatch in {filename!r}",
+            )
+
+    x0_outputs = bundle_root / "build_data/pilot/pilot_standard_numerical_3d_x0/outputs"
+    precalc_root = bundle_root / "build_data/pilot/pilot_standard_numerical_3d_precalc"
+    x0_alpha = _read_numeric_csv(x0_outputs / "pilot_alpha.csv")
+    if recomputed_x0_perf is None:
+        raise ProvenanceError("PILOT numerical trial metrics were not validated")
+    best_index = max(
+        range(len(recomputed_x0_perf)),
+        key=recomputed_x0_perf.__getitem__,
+    )
+    selected = [[row[best_index]] for row in x0_alpha]
+    replayed = _read_numeric_csv(precalc_root / "inputs/precalc_alpha.csv")
+    if not _matrices_close(selected, replayed, tolerance=1e-14):
+        raise ProvenanceError(
+            "PILOT precalculated evidence is not the best exported X0 solution",
+        )
+    decoded_a, decoded_b, decoded_c = _decode_pilot_solution(
+        [row[0] for row in selected],
+        3,
+        len(standard_x[0]),
+        len(algorithm_labels),
+    )
+    for filename, decoded in {
+        "pilot_a_raw.csv": decoded_a,
+        "pilot_b.csv": decoded_b,
+        "pilot_c.csv": decoded_c,
+    }.items():
+        if not _matrices_close(decoded, _read_numeric_csv(x0_outputs / filename)):
+            raise ProvenanceError(
+                f"PILOT column-major solution decode mismatch in {filename!r}",
+            )
+    for filename in (
+        "pilot_a_raw.csv",
+        "pilot_b.csv",
+        "pilot_c.csv",
+        "pilot_z.csv",
+        "pilot_r2.csv",
+        "pilot_error.csv",
+    ):
+        if not _matrices_close(
+            _read_numeric_csv(x0_outputs / filename),
+            _read_numeric_csv(precalc_root / "outputs" / filename),
+        ):
+            raise ProvenanceError(
+                f"PILOT precalculated replay differs in {filename!r}",
+            )
+    x0_viewpoint = x0_outputs
+    precalc_viewpoint = precalc_root / "outputs"
+    if (x0_viewpoint / "viewpoint_groups.csv").read_bytes() != (
+        precalc_viewpoint / "viewpoint_groups.csv"
+    ).read_bytes():
+        raise ProvenanceError("PILOT replay changed the global viewpoint group")
+    for filename in ("viewpoint_a.csv", "viewpoint_angles.csv"):
+        if not _matrices_close(
+            _read_numeric_csv(x0_viewpoint / filename),
+            _read_numeric_csv(precalc_viewpoint / filename),
+        ):
+            raise ProvenanceError(
+                f"PILOT X0-shape fallback differs in {filename!r}",
+            )
+
+
+def _validate_pilot_viewpoint_artifacts(  # noqa: PLR0912
+    outputs: Path,
+    configured_groups: object,
+    algorithm_labels: list[str],
+) -> None:
+    if configured_groups == []:
+        expected_groups = [list(range(1, len(algorithm_labels) + 1))]
+    else:
+        if not isinstance(configured_groups, list) or not all(
+            isinstance(group, list) and group for group in configured_groups
+        ):
+            raise ProvenanceError("PILOT viewGroups must be a list of groups")
+        expected_groups = cast(list[list[int]], configured_groups)
+        if not all(
+            isinstance(index, int)
+            and not isinstance(index, bool)
+            and 1 <= index <= len(algorithm_labels)
+            for group in expected_groups
+            for index in group
+        ):
+            raise ProvenanceError("PILOT viewGroups contain invalid algorithm indices")
+        split = max(1, len(algorithm_labels) // 2 - 1)
+        if expected_groups != [
+            list(range(1, split + 1)),
+            list(range(split + 1, len(algorithm_labels) + 1)),
+        ]:
+            raise ProvenanceError("Grouped PILOT viewpoint partition is not canonical")
+
+    header, rows = _read_csv_rows(outputs / "viewpoint_groups.csv")
+    if header != ["group", "member", "algorithm_index", "algorithm"]:
+        raise ProvenanceError("PILOT viewpoint group artifact has an invalid header")
+    expected_rows = [
+        [
+            str(group_index),
+            str(member_index),
+            str(algorithm_index),
+            algorithm_labels[algorithm_index - 1],
+        ]
+        for group_index, group in enumerate(expected_groups, start=1)
+        for member_index, algorithm_index in enumerate(group, start=1)
+    ]
+    if rows != expected_rows:
+        raise ProvenanceError("PILOT viewpoint group artifact is inconsistent")
+
+    group_count = len(expected_groups)
+    viewpoint_a = _read_numeric_csv(
+        outputs / "viewpoint_a.csv",
+        expected_header=["group", "view_dimension", "z_1", "z_2", "z_3"],
+    )
+    angles = _read_numeric_csv(
+        outputs / "viewpoint_angles.csv",
+        expected_header=["group", "azimuth", "elevation"],
+    )
+    if len(viewpoint_a) != 2 * group_count or len(angles) != group_count:
+        raise ProvenanceError("PILOT viewpoint artifacts have the wrong group count")
+    if [int(row[0]) for row in angles] != list(range(1, group_count + 1)):
+        raise ProvenanceError("PILOT viewpoint angle groups are not contiguous")
+    expected_matrix_groups = [
+        group for group in range(1, group_count + 1) for _ in range(2)
+    ]
+    if [int(row[0]) for row in viewpoint_a] != expected_matrix_groups or [
+        int(row[1]) for row in viewpoint_a
+    ] != [dimension for _ in range(group_count) for dimension in (1, 2)]:
+        raise ProvenanceError("PILOT viewpoint matrix groups are not canonical")
+    for group_index in range(group_count):
+        first = viewpoint_a[2 * group_index][2:]
+        second = viewpoint_a[2 * group_index + 1][2:]
+        if not math.isclose(
+            math.sqrt(sum(value * value for value in first)),
+            1.0,
+            rel_tol=1e-10,
+            abs_tol=1e-10,
+        ) or not math.isclose(
+            math.sqrt(sum(value * value for value in second)),
+            1.0,
+            rel_tol=1e-10,
+            abs_tol=1e-10,
+        ):
+            raise ProvenanceError("PILOT viewpoint rows are not unit vectors")
+        cross = [
+            first[1] * second[2] - first[2] * second[1],
+            first[2] * second[0] - first[0] * second[2],
+            first[0] * second[1] - first[1] * second[0],
+        ]
+        horizontal = math.hypot(cross[0], cross[1])
+        if horizontal == 0 and cross[2] == 0:
+            raise ProvenanceError("PILOT viewpoint rows are collinear")
+        expected_azimuth = math.atan2(cross[1], cross[0])
+        expected_elevation = math.atan2(cross[2], horizontal)
+        actual = angles[group_index]
+        if not (
+            math.isclose(
+                actual[1],
+                expected_azimuth,
+                rel_tol=1e-10,
+                abs_tol=1e-10,
+            )
+            and math.isclose(
+                actual[2],
+                expected_elevation,
+                rel_tol=1e-10,
+                abs_tol=1e-10,
+            )
+        ):
+            raise ProvenanceError("PILOT viewpoint angles are inconsistent")
 
 
 def _fixed_reference_paths() -> set[str]:
@@ -784,7 +1800,7 @@ def _fixed_reference_paths() -> set[str]:
         "beta.csv",
         "algorithm_labels.csv",
     }
-    for variant in _REFERENCE_VARIANTS:
+    for variant in _DOWNSTREAM_VARIANTS:
         paths.update(
             f"build_data/pythia/{variant}/inputs/{name}" for name in pythia_inputs
         )
@@ -812,13 +1828,78 @@ def _fixed_reference_paths() -> set[str]:
             f"explore_data/trace/{variant}/outputs/{name}"
             for name in ("eval_summary.csv", "membership.csv")
         )
+
+    pilot_common_inputs = {
+        "x.csv",
+        "y.csv",
+        "feature_labels.csv",
+        "stage_context.json",
+    }
+    pilot_common_outputs = {
+        "pilot_matrix.csv",
+        "pilot_a_raw.csv",
+        "pilot_b.csv",
+        "pilot_c.csv",
+        "pilot_z.csv",
+        "pilot_r2.csv",
+        "pilot_error.csv",
+    }
+    for variant in _PILOT_EVIDENCE_VARIANTS:
+        inputs = set(pilot_common_inputs)
+        outputs = set(pilot_common_outputs)
+        if variant == "pilot_standard_numerical_3d_x0":
+            inputs.add("x0.csv")
+            outputs.update(
+                {
+                    "pilot_eoptim.csv",
+                    "pilot_perf.csv",
+                    "pilot_alpha.csv",
+                    "pilot_x0.csv",
+                },
+            )
+        elif variant == "pilot_standard_numerical_3d_precalc":
+            inputs.add("precalc_alpha.csv")
+            outputs.add("pilot_alpha.csv")
+        if _PILOT_VARIANT_DIMS[variant] == 3:  # noqa: PLR2004
+            outputs.update(
+                {
+                    "viewpoint_groups.csv",
+                    "viewpoint_a.csv",
+                    "viewpoint_angles.csv",
+                },
+            )
+        paths.update(f"build_data/pilot/{variant}/inputs/{name}" for name in inputs)
+        paths.update(f"build_data/pilot/{variant}/outputs/{name}" for name in outputs)
+        paths.update(
+            {
+                f"explore_data/pilot/{variant}/inputs/x.csv",
+                f"explore_data/pilot/{variant}/inputs/projection_a.csv",
+                f"explore_data/pilot/{variant}/outputs/pilot_z.csv",
+            },
+        )
     return paths
+
+
+def _fixed_reference_paths_v1() -> set[str]:
+    """Return the frozen 229-file profile installed before PILOT #262 evidence."""
+    paths = _fixed_reference_paths()
+    return {
+        relative
+        for relative in paths
+        if not (
+            relative.startswith("resolved_options/pilot_")
+            or (
+                len(PurePosixPath(relative).parts) >= 3  # noqa: PLR2004
+                and PurePosixPath(relative).parts[2] in _PILOT_EVIDENCE_VARIANTS
+            )
+        )
+    }
 
 
 def _geometry_paths(labels: list[str]) -> set[str]:
     return {
         f"build_data/trace/{variant}/outputs/{kind}_{label}.csv"
-        for variant in _REFERENCE_VARIANTS
+        for variant in _DOWNSTREAM_VARIANTS
         for kind in ("good", "best")
         for label in labels
     }
