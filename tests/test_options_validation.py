@@ -18,6 +18,7 @@ from typing import cast
 import numpy as np
 import pytest
 
+from instancespace.data.default_options import DEFAULT_PILOT_N_TRIES
 from instancespace.data.options import (
     AutoOptions,
     BoundOptions,
@@ -370,16 +371,28 @@ def test_pilot_option_matrices_are_validated_when_created(
         )
 
 
-def test_pilot_rejects_both_start_and_precalculated_matrices(
+def test_pilot_allows_precalculated_solution_alongside_start_matrix(
     valid_options: InstanceSpaceOptions,
 ) -> None:
-    """A precalculated solution and optimizer starts are mutually exclusive."""
-    with pytest.raises(ValueError, match="cannot both"):
-        dataclasses.replace(
-            valid_options.pilot,
-            x0=np.ones((2, 1)),
-            precalc_alpha=np.ones((2, 1)),
-        )
+    """MATLAB accepts both and gives a valid precalcAlpha precedence."""
+    options = dataclasses.replace(
+        valid_options.pilot,
+        x0=np.ones((2, 1)),
+        precalc_alpha=np.ones((2, 1)),
+    )
+
+    assert options.x0 is not None
+    assert options.precalc_alpha is not None
+
+
+def test_pilot_restart_default_matches_matlab() -> None:
+    """MATLAB ISAdefaults sets standalone PILOT to ten restarts."""
+    matlab_default_n_tries = 10
+    assert (
+        PilotOptions.default().n_tries
+        == DEFAULT_PILOT_N_TRIES
+        == matlab_default_n_tries
+    )
 
 
 def test_pilot_3d_options_load_and_round_trip_in_canonical_form() -> None:
