@@ -16,7 +16,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import pytest
-from shapely.geometry import Polygon
+from shapely.geometry import MultiPolygon, Polygon
 from sklearn.svm import SVC
 
 from instancespace.data.model import (
@@ -34,6 +34,11 @@ from instancespace.data.model import (
 from instancespace.data.options import InstanceSpaceOptions
 from instancespace.model import Model, ModelSignatureError
 from instancespace.stages.pilot_viewpoint import PilotViewpointResult
+from instancespace.utils.alpha_shape import AlphaShape3D, TetrahedralMesh
+
+TWO_DIMENSIONS = 2
+THREE_DIMENSIONS = 3
+LEGACY_FOOTPRINT_MEASURE = 2.5
 
 
 def _build_minimal_model() -> Model:
@@ -251,8 +256,8 @@ def _assert_models_equal(original: Model, loaded: Model) -> None:
 
     original_polygon = original.trace.space.polygon
     loaded_polygon = loaded.trace.space.polygon
-    assert original_polygon is not None
-    assert loaded_polygon is not None
+    assert isinstance(original_polygon, Polygon | MultiPolygon)
+    assert isinstance(loaded_polygon, Polygon | MultiPolygon)
     assert original_polygon.equals(loaded_polygon)
 
 
@@ -314,6 +319,14 @@ def test_from_legacy_stage_output_defaults_viewpoint_to_none() -> None:
     assert built.pilot.viewpoint is None
 
 
+def test_footprint_six_positional_constructor_remains_two_dimensional() -> None:
+    """Adding mesh metadata does not break the public legacy constructor."""
+    footprint = Footprint(None, LEGACY_FOOTPRINT_MEASURE, 4, 3, 1.6, 0.75)
+
+    assert footprint.area == footprint.measure == LEGACY_FOOTPRINT_MEASURE
+    assert footprint.dimension == TWO_DIMENSIONS
+
+
 def test_round_trip_unsigned(tmp_path: Path) -> None:
     """An unsigned model round-trips without creating a signature."""
     model = _build_minimal_model()
@@ -341,6 +354,48 @@ def test_round_trip_preserves_3d_projection_and_viewpoint(tmp_path: Path) -> Non
     assert loaded.pilot.viewpoint.a[0].shape == (2, 3)
 
 
+def test_round_trip_preserves_native_three_dimensional_trace_mesh(
+    tmp_path: Path,
+) -> None:
+    """The canonical joblib model retains complete immutable TRACE3 geometry."""
+    model = _build_minimal_3d_model()
+    vertices = np.array(
+        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        dtype=np.double,
+    )
+    shape = AlphaShape3D.from_points(vertices)
+    assert shape is not None
+    mesh = shape.geometry(shape.critical_radius)
+    assert mesh is not None
+    footprint = Footprint.from_polygon(
+        mesh,
+        vertices,
+        np.ones(vertices.shape[0], dtype=np.bool_),
+    )
+    trace = TraceOut(
+        space=Footprint(None, footprint.area, 4, 4, 24.0, 1.0, 3),
+        good=[footprint],
+        best=[footprint],
+        hard=footprint,
+        summary=pd.DataFrame({"Algorithm": ["algo_0"]}),
+    )
+    path = tmp_path / "model-3d-trace.joblib"
+
+    replace(model, trace=trace).save(path)
+    loaded = Model.load(path)
+
+    loaded_mesh = loaded.trace.good[0].polygon
+    assert isinstance(loaded_mesh, TetrahedralMesh)
+    assert loaded.trace.good[0].dimension == THREE_DIMENSIONS
+    assert loaded.trace.good[0].measure == pytest.approx(1.0 / 6.0)
+    np.testing.assert_array_equal(loaded_mesh.vertices, mesh.vertices)
+    np.testing.assert_array_equal(loaded_mesh.tetrahedra, mesh.tetrahedra)
+    np.testing.assert_array_equal(loaded_mesh.boundary_faces, mesh.boundary_faces)
+    assert loaded_mesh.volume == mesh.volume
+    assert loaded_mesh.surface_area == mesh.surface_area
+    assert not loaded_mesh.vertices.flags.writeable
+
+
 def test_loads_legacy_joblib_without_pilot_viewpoint(tmp_path: Path) -> None:
     """A pre-viewpoint PilotOut pickle resolves the additive field to None."""
     model = _build_minimal_model()
@@ -355,6 +410,22 @@ def test_loads_legacy_joblib_without_pilot_viewpoint(tmp_path: Path) -> None:
     assert loaded.pilot.viewpoint is None
     np.testing.assert_array_equal(loaded.pilot.a, legacy_pilot.a)
     np.testing.assert_array_equal(loaded.pilot.z, legacy_pilot.z)
+
+
+def test_loads_legacy_joblib_without_footprint_dimension(tmp_path: Path) -> None:
+    """Pre-3D footprints recover their formerly implicit 2D metadata."""
+    model = _build_minimal_model()
+    legacy_footprint = model.trace.space
+    object.__delattr__(legacy_footprint, "dimension")
+    assert "dimension" not in vars(legacy_footprint)
+    path = tmp_path / "legacy-footprint-model.joblib"
+    joblib.dump(model, path)
+
+    loaded = Model.load(path)
+
+    assert loaded.trace.space.dimension == TWO_DIMENSIONS
+    assert loaded.trace.good[0].dimension == TWO_DIMENSIONS
+    assert loaded.trace.space.polygon is not None
 
 
 def test_round_trip_signed(tmp_path: Path) -> None:

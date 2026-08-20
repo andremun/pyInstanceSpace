@@ -8,8 +8,8 @@ of good, best, and beta performance based on the clustering of instance data. Th
 footprints are further evaluated for their density and purity in relation to the
 performance metrics of the algorithms.
 
-This module provides the historical DBSCAN-based TRACE implementation and the
-two-dimensional form of MATLAB's current TRACE3 alpha-shape implementation.
+This module provides the historical DBSCAN-based TRACE implementation and MATLAB's
+current two- or three-dimensional TRACE3 alpha-shape implementation.
 
 The TRACE stage has several key steps:
 1. Cluster the instance data using DBSCAN to identify regions of interest.
@@ -69,11 +69,21 @@ from instancespace.data.options import (
     TraceOptions,
 )
 from instancespace.stages.stage import Stage
-from instancespace.utils.alpha_shape import AlphaShape2D, legacy_alpha_shape
+from instancespace.utils.alpha_shape import (
+    AlphaShape2D,
+    AlphaShape3D,
+    TetrahedralMesh,
+    legacy_alpha_shape,
+)
 
 POLYGON_MIN_POINT_REQUIREMENT = 3
-TRACE_DIMENSIONS = 2
+TRACE_ARRAY_DIMENSIONS = 2
+TRACE_2D_COORDINATES = 2
+TRACE_3D_COORDINATES = 3
+TRACE_COORDINATE_COUNTS = (TRACE_2D_COORDINATES, TRACE_3D_COORDINATES)
 MIN_ALPHA_SPECTRUM_SIZE = 2
+
+type TraceGeometry = Polygon | MultiPolygon | TetrahedralMesh
 
 
 class TraceInputs(NamedTuple):
@@ -336,7 +346,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             "================",
         )
 
-        if inputs.trace_options.method == "trace3":
+        if TraceStage._uses_trace3(inputs.z, inputs.trace_options):
             logger.info(
                 "[TRACE]   -> TRACE3 will use true performance labels and "
                 "experimental portfolio selections.",
@@ -530,6 +540,12 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         """
         if self.opts.method == "trace3":
             return self._trace3()
+        if self._uses_trace3(self.z, self.opts):
+            logger.warning(
+                "[TRACE] Legacy TRACE is two-dimensional; dispatching the "
+                "three-dimensional projection to TRACE3.",
+            )
+            return self._trace3()
         if self.opts.method != "legacy":
             msg = f"Unsupported TRACE method: {self.opts.method!r}."
             raise ValueError(msg)
@@ -607,7 +623,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         )
 
     def _trace3(self) -> TraceOutputs:
-        """Run the two-dimensional MATLAB TRACE3 footprint algorithm."""
+        """Run MATLAB's dimension-generic TRACE3 footprint algorithm."""
         self._validate_trace3_inputs()
         space = self._trace3_space_footprint()
         self._trace3_space_area = space.area
@@ -637,13 +653,16 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         return TraceOutputs(space, good, best, hard, summary)
 
     def _validate_trace3_inputs(self) -> None:
-        """Reject array shapes that cannot satisfy TRACE3's 2D contract."""
-        n_instances = self.z.shape[0] if self.z.ndim == TRACE_DIMENSIONS else -1
+        """Reject array shapes that cannot satisfy TRACE3's 2D/3D contract."""
+        n_instances = self.z.shape[0] if self.z.ndim == TRACE_ARRAY_DIMENSIONS else -1
         n_algorithms = (
-            self.y_bin.shape[1] if self.y_bin.ndim == TRACE_DIMENSIONS else -1
+            self.y_bin.shape[1] if self.y_bin.ndim == TRACE_ARRAY_DIMENSIONS else -1
         )
-        if self.z.ndim != TRACE_DIMENSIONS or self.z.shape[1] != TRACE_DIMENSIONS:
-            msg = "TRACE3 currently requires a two-dimensional Z matrix."
+        if (
+            self.z.ndim != TRACE_ARRAY_DIMENSIONS
+            or self.z.shape[1] not in TRACE_COORDINATE_COUNTS
+        ):
+            msg = "TRACE3 requires a Z matrix with two or three coordinates."
             raise ValueError(msg)
         if self.y_bin.shape != (n_instances, len(self.algo_labels)):
             msg = "TRACE3 Ybin must have one row per instance and column per algorithm."
@@ -662,7 +681,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             raise ValueError(msg)
 
     def _trace3_space_footprint(self) -> Footprint:
-        """Create MATLAB's convex-hull space metrics without storing its polygon."""
+        """Create MATLAB's convex-hull space metrics without storing geometry."""
         try:
             area = float(ConvexHull(self.z).volume)
         except QhullError:
@@ -676,6 +695,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             good_elements=n_instances,
             density=density,
             purity=1.0,
+            dimension=self.z.shape[1],
         )
 
     def _build_trace3(
@@ -718,7 +738,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 region_threshold=previous_region_threshold,
             )
             pre_measure = (
-                float(before_threshold_update.area)
+                self._geometry_measure(before_threshold_update)
                 if before_threshold_update is not None
                 else 0.0
             )
@@ -739,23 +759,25 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         self,
         y_bin: NDArray[np.bool_],
         y_hat: NDArray[np.bool_] | None,
-    ) -> AlphaShape2D | None:
+    ) -> AlphaShape2D | AlphaShape3D | None:
         """Create reusable alpha data when enough unique support exists."""
         support = y_bin if y_hat is None else np.logical_and(y_bin, y_hat)
         supporting_points = np.unique(self.z[support], axis=0)
         if supporting_points.shape[0] <= self.opts.min_instances:
             return None
-        return AlphaShape2D.from_points(supporting_points)
+        if self.z.shape[1] == TRACE_2D_COORDINATES:
+            return AlphaShape2D.from_points(supporting_points)
+        return AlphaShape3D.from_points(supporting_points)
 
     def _trace3_metrics(
         self,
-        polygon: Polygon | MultiPolygon | None,
+        polygon: TraceGeometry | None,
         y_bin: NDArray[np.bool_],
         alpha_radius: float,
     ) -> tuple[Footprint, bool]:
         """Calculate TRACE3 metrics and report whether the geometry is usable."""
         if polygon is None or polygon.is_empty or not np.isfinite(alpha_radius):
-            return Footprint(None, 0, 0, 0, 0, 0), False
+            return Footprint(None, 0, 0, 0, 0, 0, self.z.shape[1]), False
         footprint = Footprint.from_polygon(polygon, self.z, y_bin)
         valid = (
             footprint.polygon is not None
@@ -764,6 +786,27 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             and footprint.elements > 0
         )
         return footprint, bool(valid)
+
+    @staticmethod
+    def _geometry_measure(geometry: TraceGeometry) -> float:
+        """Return area for polygons or volume for retained tetrahedral meshes."""
+        return (
+            float(geometry.volume)
+            if isinstance(geometry, TetrahedralMesh)
+            else float(geometry.area)
+        )
+
+    @staticmethod
+    def _uses_trace3(z: NDArray[np.double], options: TraceOptions) -> bool:
+        """Return whether the configured method must use TRACE3 geometry."""
+        return bool(
+            options.method == "trace3"
+            or (
+                options.method == "legacy"
+                and z.ndim == TRACE_ARRAY_DIMENSIONS
+                and z.shape[1] == TRACE_3D_COORDINATES
+            ),
+        )
 
     @staticmethod
     def _summary_table(
@@ -781,14 +824,19 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 "counts."
             )
             raise ValueError(msg)
+        measure_label = (
+            "Volume"
+            if TraceStage._footprint_dimension(space) == TRACE_3D_COORDINATES
+            else "Area"
+        )
         columns = [
-            "Area_Good",
-            "Area_Good_Normalised",
+            f"{measure_label}_Good",
+            f"{measure_label}_Good_Normalised",
             "Density_Good",
             "Density_Good_Normalised",
             "Purity_Good",
-            "Area_Best",
-            "Area_Best_Normalised",
+            f"{measure_label}_Best",
+            f"{measure_label}_Best_Normalised",
             "Density_Best",
             "Density_Best_Normalised",
             "Purity_Best",
@@ -816,10 +864,20 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         algo_labels: list[str],
     ) -> TraceOut:
         """Re-evaluate trained geometry against new truth without rebuilding it."""
-        n_instances = z.shape[0]
-        n_algorithms = y_bin.shape[1] if y_bin.ndim == TRACE_DIMENSIONS else -1
-        if z.ndim != TRACE_DIMENSIONS or z.shape[1] != TRACE_DIMENSIONS:
-            msg = "TRACE rescore requires a two-dimensional Z matrix."
+        n_instances = z.shape[0] if z.ndim == TRACE_ARRAY_DIMENSIONS else -1
+        n_algorithms = y_bin.shape[1] if y_bin.ndim == TRACE_ARRAY_DIMENSIONS else -1
+        if (
+            z.ndim != TRACE_ARRAY_DIMENSIONS
+            or z.shape[1] not in TRACE_COORDINATE_COUNTS
+        ):
+            msg = "TRACE rescore requires a Z matrix with two or three coordinates."
+            raise ValueError(msg)
+        trained_dimension = TraceStage._trace_dimension(trained)
+        if z.shape[1] != trained_dimension:
+            msg = (
+                "TRACE rescore coordinate mismatch: trained geometry has "
+                f"{trained_dimension} dimensions but explored Z has {z.shape[1]}."
+            )
             raise ValueError(msg)
         if y_bin.shape != (n_instances, len(algo_labels)):
             msg = "TRACE rescore Ybin must match instances and algorithm labels."
@@ -837,7 +895,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             (
                 TraceStage._rescore_footprint(trained.good[i], z, y_bin[:, i])
                 if i < len(trained.good)
-                else Footprint(None, 0, 0, 0, 0, 0)
+                else Footprint(None, 0, 0, 0, 0, 0, trained_dimension)
             )
             for i in range(n_algorithms)
         ]
@@ -845,7 +903,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             (
                 TraceStage._rescore_footprint(trained.best[i], z, portfolio == i)
                 if i < len(trained.best)
-                else Footprint(None, 0, 0, 0, 0, 0)
+                else Footprint(None, 0, 0, 0, 0, 0, trained_dimension)
             )
             for i in range(n_algorithms)
         ]
@@ -868,7 +926,15 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         """Update only evidence metrics for one trained footprint."""
         polygon = trained.polygon
         if polygon is None or polygon.is_empty:
-            return Footprint(polygon, trained.area, 0, 0, 0, 0)
+            return Footprint(
+                polygon,
+                trained.area,
+                0,
+                0,
+                0,
+                0,
+                TraceStage._footprint_dimension(trained),
+            )
         inside = pointwise_covers(polygon, z)
         elements = int(np.sum(inside))
         good_elements = int(np.sum(np.logical_and(inside, y_bin)))
@@ -885,7 +951,27 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             good_elements=good_elements,
             density=density,
             purity=purity,
+            dimension=TraceStage._footprint_dimension(trained),
         )
+
+    @staticmethod
+    def _footprint_dimension(footprint: Footprint) -> int:
+        """Infer dimensionality while remaining compatible with old joblib data."""
+        geometry = footprint.polygon
+        if isinstance(geometry, TetrahedralMesh):
+            return TRACE_3D_COORDINATES
+        return int(getattr(footprint, "dimension", TRACE_2D_COORDINATES))
+
+    @staticmethod
+    def _trace_dimension(trained: TraceOut) -> int:
+        """Find a trained TRACE model's geometry coordinate count."""
+        space_dimension = TraceStage._footprint_dimension(trained.space)
+        if space_dimension == TRACE_3D_COORDINATES:
+            return space_dimension
+        for footprint in [*trained.good, *trained.best, trained.hard]:
+            if isinstance(footprint.polygon, TetrahedralMesh):
+                return TRACE_3D_COORDINATES
+        return TRACE_2D_COORDINATES
 
     def _remove_contradictions(
         self,
@@ -1022,6 +1108,12 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         """
         if base.polygon is None or test.polygon is None:
             return base, test
+        if not isinstance(base.polygon, Polygon | MultiPolygon) or not isinstance(
+            test.polygon,
+            Polygon | MultiPolygon,
+        ):
+            msg = "Legacy TRACE contradiction removal requires 2D polygons."
+            raise ValueError(msg)
 
         base_polygon = base.polygon
         test_polygon = test.polygon
@@ -1227,7 +1319,15 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             "        -> There are not enough instances to calculate a footprint.",
         )
         self._log_detail("        -> The subset of instances used is too small.")
-        return Footprint(None, 0, 0, 0, 0, 0)
+        z = getattr(self, "z", None)
+        dimension = (
+            z.shape[1]
+            if isinstance(z, np.ndarray)
+            and z.ndim == TRACE_ARRAY_DIMENSIONS
+            and z.shape[1] in TRACE_COORDINATE_COUNTS
+            else TRACE_2D_COORDINATES
+        )
+        return Footprint(None, 0, 0, 0, 0, 0, dimension)
 
     @staticmethod
     def run_dbscan(
@@ -1382,7 +1482,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         tuple[int, Footprint, Footprint]:
             The index of the algorithm, and its good and best performance footprints.
         """
-        if self.opts.method == "trace3":
+        if self._uses_trace3(self.z, self.opts):
             return self._process_algorithm_trace3(i)
 
         start_time = time.time()
@@ -1439,8 +1539,20 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         tuple[list[Footprint], list[Footprint]]:
             Lists of good and best performance footprints for each algorithm.
         """
-        good: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0) for _ in range(n_algos)]
-        best: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0) for _ in range(n_algos)]
+        z = getattr(self, "z", None)
+        dimension = (
+            z.shape[1]
+            if isinstance(z, np.ndarray)
+            and z.ndim == TRACE_ARRAY_DIMENSIONS
+            and z.shape[1] in TRACE_COORDINATE_COUNTS
+            else TRACE_2D_COORDINATES
+        )
+        good: list[Footprint] = [
+            Footprint(None, 0, 0, 0, 0, 0, dimension) for _ in range(n_algos)
+        ]
+        best: list[Footprint] = [
+            Footprint(None, 0, 0, 0, 0, 0, dimension) for _ in range(n_algos)
+        ]
 
         if not self.parallel_opts.flag:
             for i in range(n_algos):

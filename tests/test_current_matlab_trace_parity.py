@@ -452,6 +452,7 @@ def test_current_matlab_trace3_geometry_and_build_summary(variant: str) -> None:
         assert (actual is None) is (expected is None)
         if actual is None or expected is None:
             continue
+        assert isinstance(actual, Polygon | MultiPolygon)
         assert actual.is_valid
         assert expected.is_valid
         assert actual.hausdorff_distance(expected) <= _GEOMETRY_TOLERANCE
@@ -500,7 +501,7 @@ def test_current_matlab_trace3_explore_membership(variant: str) -> None:
         exported = _exported_geometry(_geometry_path(case, kind, algorithm))
         python_polygon = _footprint(case, kind, algorithm).polygon
         assert exported is not None
-        assert python_polygon is not None
+        assert isinstance(python_polygon, Polygon | MultiPolygon)
         point = Point(case.explore_z[row_index])
 
         # The rounded CSV puts `zoo` exactly on the exported vertex. MATLAB's
