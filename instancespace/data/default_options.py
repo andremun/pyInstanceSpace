@@ -59,7 +59,8 @@ DEFAULT_SIFTED_MUTATION_PROBABILITY = 0.05
 DEFAULT_SIFTED_STOP_CRITERIA = "saturate_5"
 
 DEFAULT_PILOT_ANALYTICS = False
-DEFAULT_PILOT_N_TRIES = 5
+# Standalone PILOT multi-start count from MATLAB's ISAdefaults.m.
+DEFAULT_PILOT_N_TRIES = 10
 DEFAULT_PILOT_ADJUST_ROTATION = False
 DEFAULT_PILOT_DIMS = 2
 # Scalar performance-reconstruction weight (MATLAB's opts.costWeight). 1.0

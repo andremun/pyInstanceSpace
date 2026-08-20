@@ -34,6 +34,9 @@ from instancespace.stages.pilot_viewpoint import (
     PilotViewpointResult,
     pilot_viewpoint,
 )
+from instancespace.stages.pilot_viewpoint import (
+    _default_starts as _matlab_default_starts,
+)
 from instancespace.stages.stage import Stage
 
 
@@ -228,7 +231,12 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         options: PilotOptions,
         expected_rows: int,
     ) -> None:
-        """Validate solver matrices after the PILOT dimensions are known."""
+        """Validate the highest-precedence solver matrix for this dataset.
+
+        MATLAB gives a valid ``precalcAlpha`` precedence over ``X0``. Unlike
+        MATLAB, Python rejects an explicitly supplied but wrongly shaped
+        ``precalcAlpha`` instead of silently falling through to ``X0``.
+        """
         if options.precalc_alpha is not None:
             expected_shape = (expected_rows, 1)
             if options.precalc_alpha.shape != expected_shape:
@@ -237,12 +245,25 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                     f"{expected_shape}. Got {options.precalc_alpha.shape}."
                 )
                 raise ValueError(msg)
+            return
         if options.x0 is not None and options.x0.shape[0] != expected_rows:
             msg = (
                 f"opts.pilot.x0 must have {expected_rows} rows. "
                 f"Got {options.x0.shape}."
             )
             raise ValueError(msg)
+
+    @staticmethod
+    def _default_numerical_starts(
+        parameter_count: int,
+        n_tries: int,
+    ) -> NDArray[np.double]:
+        """Return MATLAB `rng('default')` starts without touching global state.
+
+        PILOT and PILOTviewpoint share the same MT19937 seed-5489, legacy
+        53-bit conversion, and column-major matrix-fill contract.
+        """
+        return _matlab_default_starts(parameter_count, n_tries)
 
     @staticmethod
     def _pack_solution(
@@ -386,8 +407,10 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                         "  -> PILOT is using random starting points for BFGS.",
                         _do_output,
                     )
-                    rng = np.random.default_rng(seed=general_options.seed)
-                    x0 = 2 * rng.random((expected_rows, options.n_tries)) - 1
+                    x0 = PilotStage._default_numerical_starts(
+                        expected_rows,
+                        options.n_tries,
+                    )
                     n_tries = options.n_tries
 
                 alpha = np.zeros((expected_rows, n_tries))

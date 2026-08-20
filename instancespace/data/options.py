@@ -110,12 +110,12 @@ class GeneralOptions:
         per-classifier tuning progress), or only their top-level `[STAGE] message`
         lines.
     seed : int | None
-        Seed threaded through every stage's random-number generation (both
+        Seed threaded through general random-number generation (both
         `np.random.default_rng(seed=...)` and scikit-learn's `random_state=...`),
-        replacing the hardcoded `0` previously scattered across `pilot.py`,
-        `sifted.py`, `prelim.py`, and `pythia.py`. `None` requests a
-        non-deterministic run; the default `0` exactly matches that previously
-        hardcoded value, so leaving this unset changes nothing for existing callers.
+        except where MATLAB explicitly resets a stage-local stream. In particular,
+        numerical PILOT starts reproduce MATLAB's `rng('default')` and therefore
+        do not depend on this seed. `None` requests non-deterministic behavior from
+        consumers that support it.
     """
 
     verbose: bool
@@ -380,7 +380,9 @@ class PilotOptions:
     x0: NDArray[np.double] | None
     # Optional precomputed optimisation solution vector, shape (2*m + 2*n,)
     # (MATLAB's opts.precalcAlpha). Distinct from cost_weight below - this
-    # used to be conflated under one `alpha` field (#301 issue 1).
+    # used to be conflated under one `alpha` field (#301 issue 1). It may
+    # coexist with x0: a contextually valid precalculated solution takes
+    # precedence, matching MATLAB's dispatch order.
     precalc_alpha: NDArray[np.double] | None
     analytic: bool
     n_tries: int
@@ -405,15 +407,12 @@ class PilotOptions:
     view_groups: tuple[tuple[int, ...], ...] = ()
 
     def __post_init__(self) -> None:
-        """Normalize optional matrices and reject an ambiguous solver setup."""
+        """Normalize and validate optional solver matrices."""
         x0 = _coerce_optional_matrix("pilot.x0", self.x0)
         precalc_alpha = _coerce_optional_matrix(
             "pilot.precalcAlpha",
             self.precalc_alpha,
         )
-        if x0 is not None and precalc_alpha is not None:
-            msg = "opts.pilot.x0 and opts.pilot.precalcAlpha cannot both be set."
-            raise ValueError(msg)
         object.__setattr__(self, "x0", x0)
         object.__setattr__(self, "precalc_alpha", precalc_alpha)
         _validate_pilot_options(self)
