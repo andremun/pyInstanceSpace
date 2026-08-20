@@ -24,6 +24,7 @@ from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
 from scipy.stats import mode, pearsonr
 
+from instancespace.data.model import PilotOut
 from instancespace.data.options import (
     PILOT_3D_DIMS,
     GeneralOptions,
@@ -37,7 +38,7 @@ from instancespace.stages.pilot_viewpoint import (
 from instancespace.stages.pilot_viewpoint import (
     _default_starts as _matlab_default_starts,
 )
-from instancespace.stages.stage import Stage
+from instancespace.stages.stage import PredictiveStage, Stage
 
 
 class PilotInput(NamedTuple):
@@ -71,6 +72,12 @@ class PilotInput(NamedTuple):
     parallel_options: ParallelOptions
     general_options: GeneralOptions
     y_bin: NDArray[np.bool_]
+
+
+class PilotPredictInput(NamedTuple):
+    """Inputs for applying a fitted PILOT projection."""
+
+    x: NDArray[np.double]
 
 
 class PilotOutput(NamedTuple):
@@ -116,7 +123,10 @@ class PilotOutput(NamedTuple):
     viewpoint: PilotViewpointResult | None = None
 
 
-class PilotStage(Stage[PilotInput, PilotOutput]):
+class PilotStage(
+    Stage[PilotInput, PilotOutput],
+    PredictiveStage[PilotPredictInput, PilotOut, NDArray[np.double]],
+):
     """Class for PILOT stage."""
 
     def __init__(
@@ -151,6 +161,14 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
     @staticmethod
     def _outputs() -> type[PilotOutput]:
         return PilotOutput
+
+    @staticmethod
+    def predict(
+        inputs: PilotPredictInput,
+        fitted: PilotOut,
+    ) -> NDArray[np.double]:
+        """Apply MATLAB's public uncentred explore projection."""
+        return inputs.x @ fitted.a.T
 
     @staticmethod
     def _run(inputs: PilotInput) -> PilotOutput:

@@ -38,6 +38,7 @@ Functions:
 - _generate_summary: Generate a summary of the results.
 """
 
+import warnings
 from dataclasses import dataclass, replace
 from time import perf_counter
 from typing import Any, NamedTuple
@@ -52,11 +53,13 @@ from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 from skopt import BayesSearchCV
 
+from instancespace.data.model import PythiaOut
 from instancespace.data.options import GeneralOptions, ParallelOptions, PythiaOptions
-from instancespace.stages.stage import Stage
+from instancespace.stages.stage import PredictiveStage, Stage
 from instancespace.utils.get_classifier_fcn import ClassifierSpec, get_classifier_fcn
 
 LARGE_NUM_INSTANCE: int = 1000
+PYTHIA_ARRAY_DIMENSIONS = 2
 
 # MATLAB PYTHIA explicitly selects bayesopt's
 # ``expected-improvement-plus`` acquisition and leaves ``NumSeedPoints`` at
@@ -200,12 +203,13 @@ class PythiaOutput(NamedTuple):
     cp : list[StratifiedKFold | None]
         The per-algorithm Stratified K-Fold cross-validators. A degenerate or
         skipped algorithm has ``None``, matching MATLAB's empty cell entry.
-    svm : list[ClassifierMixin]
+    svm : list[ClassifierMixin | None]
         The trained classifiers, one per algorithm - `SVC` instances unless
         `PythiaOptions.classifier` selected a different registered type. The
         field is still named `svm` for backward compatibility; it holds
         whatever `PythiaOptions.classifier` chose to train, `'svm'` by
-        default.
+        default. A skipped algorithm has ``None``, matching MATLAB's empty
+        classifier cell.
     cvcmat : NDArray[np.double]
         Confusion matrix for each algorithm
     y_sub : NDArray[np.bool_]
@@ -241,7 +245,7 @@ class PythiaOutput(NamedTuple):
     sigma: list[float]
     w: NDArray[np.double]
     cp: list[StratifiedKFold | None]
-    svm: list[ClassifierMixin]
+    svm: list[ClassifierMixin | None]
     cvcmat: NDArray[np.double]
     y_sub: NDArray[np.bool_]
     y_hat: NDArray[np.bool_]
@@ -257,7 +261,41 @@ class PythiaOutput(NamedTuple):
     pythia_summary: pd.DataFrame
 
 
-class PythiaStage(Stage[PythiaInput, PythiaOutput]):
+class PythiaPredictInput(NamedTuple):
+    """Inputs for applying fitted PYTHIA classifiers to projected instances."""
+
+    z: NDArray[np.double]
+    n_new_algos: int = 0
+
+
+class PythiaPredictOutput(NamedTuple):
+    """Predictions and precision-weighted selections for unseen instances."""
+
+    y_hat: NDArray[np.bool_]
+    pr0_hat: NDArray[np.double]
+    selection0: NDArray[np.int_]
+
+
+class PythiaEvaluateInput(NamedTuple):
+    """Inputs for evaluating fitted-classifier predictions against test truth."""
+
+    y_true: NDArray[np.bool_]
+    y_pred: NDArray[np.bool_]
+
+
+class PythiaEvaluateOutput(NamedTuple):
+    """MATLAB-compatible per-algorithm confusion counts and rates."""
+
+    accuracy: NDArray[np.double]
+    precision: NDArray[np.double]
+    recall: NDArray[np.double]
+    cvcmat: NDArray[np.double]
+
+
+class PythiaStage(
+    Stage[PythiaInput, PythiaOutput],
+    PredictiveStage[PythiaPredictInput, PythiaOut, PythiaPredictOutput],
+):
     """Pythia stage for automated algorithm selection.
 
     The `PythiaStage` class is the main class for the Pythia stage. It
@@ -351,6 +389,177 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
     @staticmethod
     def _outputs() -> type[PythiaOutput]:
         return PythiaOutput
+
+    @staticmethod
+    def predict(
+        inputs: PythiaPredictInput,
+        fitted: PythiaOut,
+    ) -> PythiaPredictOutput:
+        """Apply persisted PYTHIA state without fitting or mutating classifiers.
+
+        This is MATLAB's ``PYTHIAevalMode`` prediction core: normalize new
+        coordinates with the parameters stored by the training run, apply each
+        fitted classifier, pad test-only algorithms with empty predictions, and
+        make the same precision-weighted recommendation as the build path.
+        """
+        if inputs.z.ndim != PYTHIA_ARRAY_DIMENSIONS:
+            msg = "PYTHIA predict requires Z to be a two-dimensional matrix."
+            raise ValueError(msg)
+        if inputs.n_new_algos < 0:
+            msg = "PYTHIA predict requires n_new_algos to be non-negative."
+            raise ValueError(msg)
+
+        mu = np.asarray(fitted.mu, dtype=np.double)
+        sigma = np.asarray(fitted.sigma, dtype=np.double)
+        if mu.shape != (inputs.z.shape[1],) or sigma.shape != mu.shape:
+            msg = "PYTHIA predict normalization parameters must match Z columns."
+            raise ValueError(msg)
+
+        classifiers = PythiaStage._fitted_classifier_slots(fitted)
+        precision = np.asarray(fitted.precision, dtype=np.double)
+        n_trained = len(classifiers)
+        if precision.shape != (n_trained,):
+            msg = "PYTHIA predict precision must have one value per classifier."
+            raise ValueError(msg)
+
+        z_norm = (inputs.z - mu) / sigma
+        n_instances = z_norm.shape[0]
+        n_algorithms = n_trained + inputs.n_new_algos
+        y_hat = np.zeros((n_instances, n_algorithms), dtype=np.bool_)
+        pr0_hat = np.zeros((n_instances, n_algorithms), dtype=np.double)
+
+        for index, classifier in enumerate(classifiers):
+            if classifier is None:
+                continue
+            y_hat[:, index] = np.asarray(
+                classifier.predict(z_norm),
+                dtype=np.bool_,
+            )
+            probabilities = np.asarray(
+                classifier.predict_proba(z_norm),
+                dtype=np.double,
+            )
+            pr0_hat[:, index] = PythiaStage._bad_class_proba(
+                classifier,
+                probabilities,
+            )
+
+        if n_algorithms == 0:
+            return PythiaPredictOutput(
+                y_hat,
+                pr0_hat,
+                np.full(n_instances, -1, dtype=np.int_),
+            )
+
+        selection_precision = np.zeros(n_algorithms, dtype=np.double)
+        selection_precision[:n_trained] = precision
+        best, selection0 = PythiaStage._weighted_selection(
+            n_algorithms,
+            selection_precision,
+            y_hat,
+        )
+        selection0[best <= 0] = -1
+        return PythiaPredictOutput(y_hat, pr0_hat, selection0)
+
+    @staticmethod
+    def evaluate(
+        inputs: PythiaEvaluateInput,
+        fitted: PythiaOut,
+    ) -> PythiaEvaluateOutput:
+        """Evaluate predictions with MATLAB's explicit confusion-count formulas.
+
+        MATLAB stores each confusion matrix as ``cm(:)'`` in column-major order,
+        hence ``[TN, FN, FP, TP]``. Every non-empty trained-classifier slot is
+        scored, including a reconciled training algorithm absent from the test
+        metadata (whose truth column is all false). Empty trained slots retain a
+        zero confusion row and therefore zero accuracy with undefined precision
+        and recall. Test-only algorithms also retain zero confusion rows, but
+        their rates stay ``NaN`` because no trained-model slot exists for them.
+        """
+        if (
+            inputs.y_true.ndim != PYTHIA_ARRAY_DIMENSIONS
+            or inputs.y_pred.ndim != PYTHIA_ARRAY_DIMENSIONS
+        ):
+            msg = "PYTHIA evaluate requires two-dimensional truth and predictions."
+            raise ValueError(msg)
+        if inputs.y_true.shape != inputs.y_pred.shape:
+            msg = "PYTHIA evaluate truth and predictions must have matching shapes."
+            raise ValueError(msg)
+
+        n_instances, n_algorithms = inputs.y_pred.shape
+        classifiers = PythiaStage._fitted_classifier_slots(fitted)
+        n_trained_algorithms = len(classifiers)
+        if n_trained_algorithms > n_algorithms:
+            msg = "PYTHIA evaluate has more trained classifiers than algorithms."
+            raise ValueError(msg)
+
+        y_true = np.asarray(inputs.y_true, dtype=np.bool_)
+        y_pred = np.asarray(inputs.y_pred, dtype=np.bool_)
+        accuracy = np.full(n_algorithms, np.nan, dtype=np.double)
+        precision = np.full(n_algorithms, np.nan, dtype=np.double)
+        recall = np.full(n_algorithms, np.nan, dtype=np.double)
+        cvcmat = np.zeros((n_algorithms, 4), dtype=np.double)
+
+        for index, classifier in enumerate(classifiers):
+            if classifier is None:
+                continue
+            truth = y_true[:, index]
+            prediction = y_pred[:, index]
+            true_positive = int(np.sum(truth & prediction))
+            true_negative = int(np.sum(~truth & ~prediction))
+            false_positive = int(np.sum(~truth & prediction))
+            false_negative = int(np.sum(truth & ~prediction))
+            cvcmat[index] = [
+                true_negative,
+                false_negative,
+                false_positive,
+                true_positive,
+            ]
+
+        for index in range(n_trained_algorithms):
+            true_negative, false_negative, false_positive, true_positive = cvcmat[index]
+            accuracy[index] = _safe_ratio(
+                true_positive + true_negative,
+                n_instances,
+            )
+            precision[index] = _safe_ratio(
+                true_positive,
+                true_positive + false_positive,
+            )
+            recall[index] = _safe_ratio(
+                true_positive,
+                true_positive + false_negative,
+            )
+
+        return PythiaEvaluateOutput(accuracy, precision, recall, cvcmat)
+
+    @staticmethod
+    def _fitted_classifier_slots(
+        fitted: PythiaOut,
+    ) -> list[ClassifierMixin | None]:
+        """Return fitted slots, recognizing pre-fix skip placeholders.
+
+        Current skip-mode models store ``None`` just like MATLAB's empty cell
+        entries. Older Python checkpoints stored an always-bad constant
+        classifier in every slot so inference could call a classifier-shaped
+        object unconditionally. That representation is safely identifiable as
+        skip mode only when every slot is that sentinel and all three recorded
+        model rates are ``NaN``; a genuinely trained always-bad algorithm has
+        finite accuracy and must keep returning ``P(bad)=1``.
+        """
+        classifiers: list[ClassifierMixin | None] = list(fitted.svm)
+        if not classifiers or not all(
+            isinstance(classifier, _ConstantClassifier) and not classifier.value
+            for classifier in classifiers
+        ):
+            return classifiers
+
+        expected_shape = (len(classifiers),)
+        for field in ("accuracy", "precision", "recall"):
+            values = np.asarray(getattr(fitted, field), dtype=np.double)
+            if values.shape != expected_shape or not np.all(np.isnan(values)):
+                return classifiers
+        return [None] * len(classifiers)
 
     @staticmethod
     def _run(inputs: PythiaInput) -> PythiaOutput:
@@ -508,7 +717,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             opts.classifier,
         )
         cp: list[StratifiedKFold | None] = [None] * nalgos
-        svm = []
+        svm: list[ClassifierMixin | None] = []
         cvcmat = np.zeros((nalgos, 4), dtype=int)
         box_consnt = []
         k_scale = []
@@ -755,9 +964,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
 
         Matches MATLAB's `emptyPYTHIAout` - every classifier-derived field is
         a placeholder rather than a real training result: `svm` holds one
-        never-fitted `_ConstantClassifier(False)` per algorithm (so every
-        consumer of `PythiaOutput.svm` can still call `.predict()`/
-        `.predict_proba()` without special-casing skip mode),
+        ``None`` entry per algorithm, matching MATLAB's empty classifier cells,
         `y_sub`/`y_hat` are all-False, `precision`/`accuracy`/`recall` are
         NaN, `cp` contains one ``None`` per algorithm, and
         `selection0`/`selection1` are both -1 - Python's
@@ -770,7 +977,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         these immediately after, so eval-mode callers can still normalise
         new data correctly.
         """
-        svm: list[ClassifierMixin] = [_ConstantClassifier(False) for _ in range(nalgos)]
+        svm: list[ClassifierMixin | None] = [None] * nalgos
         y_sub = np.zeros((ninst, nalgos), dtype=bool)
         y_hat = np.zeros((ninst, nalgos), dtype=bool)
         pr0sub = np.zeros((ninst, nalgos), dtype=np.double)
@@ -1274,7 +1481,18 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         """
         n_dims = 2 if spec.param2 is not None else 1
         sampler = stats.qmc.Sobol(d=n_dims, scramble=True, seed=seed)
-        points = sampler.random(n_iter)
+        # MATLAB accepts an arbitrary tuning budget (20 by default).  SciPy's
+        # warning merely notes that non-power-of-two prefixes lose one Sobol
+        # balance property; it does not indicate an invalid search.  Filter
+        # only that exact advisory so all other numerical warnings stay loud.
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="The balance properties of Sobol.*",
+                category=UserWarning,
+                module=r"scipy\.stats\._qmc",
+            )
+            points = sampler.random(n_iter)
 
         candidates, errs = PythiaStage._evaluate_sobol_candidates(
             estimator,

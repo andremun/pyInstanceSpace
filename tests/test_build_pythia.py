@@ -58,7 +58,7 @@ def test_compute_znorm() -> None:
     znorm = np.genfromtxt(csv_path_znorm_input, delimiter=",")
 
     pythia = PythiaStage(z, y, y_bin, y_best, algo)
-    _, _, znorm_test = pythia._compute_znorm(z)  # noqa: SLF001
+    _, _, znorm_test = pythia._compute_znorm(z)
     assert np.allclose(znorm, znorm_test)
 
 
@@ -305,11 +305,13 @@ def test_bayes_svm_kernel_and_output_contract(
             assert estimator.degree == matlab_default_polynomial_order
 
 
-def test_bayes_search_uses_gold_configuration_and_exact_budget(
+def test_bayes_search_uses_documented_analogue_and_guided_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Pin MATLAB's four seeds, closest EI analogue, and total evaluation budget."""
-    budget = 4
+    """Pin four seeds, the documented EI analogue, and guided evaluations."""
+    initial_points = 4
+    guided_points = 2
+    budget = initial_points + guided_points
     base_seed = 42
     constructor_calls: list[dict[str, object]] = []
     searches: list[BayesSearchCV] = []
@@ -350,7 +352,7 @@ def test_bayes_search_uses_gold_configuration_and_exact_budget(
         expected_seed = base_seed + algorithm_index + 1
         assert call["n_iter"] == budget
         assert call["optimizer_kwargs"] == {
-            "n_initial_points": 4,
+            "n_initial_points": initial_points,
             "acq_func": "EI",
         }
         assert call["random_state"] == expected_seed
@@ -358,6 +360,7 @@ def test_bayes_search_uses_gold_configuration_and_exact_budget(
         assert cast(SVC, call["estimator"]).random_state == expected_seed
         assert len(search.cv_results_["params"]) == budget
         assert len(search.optimizer_results_[0].x_iters) == budget
+        assert len(search.optimizer_results_[0].models) >= guided_points
 
 
 def _small_pythia_dataset() -> tuple[
@@ -711,6 +714,7 @@ def test_pythia_precalc_params_knn_distance_round_trips_through_category_index()
 
     np.testing.assert_allclose(out.k_scale, [2.0, 2.0])
     for clf in out.svm:
+        assert clf is not None
         assert clf.metric == "cityblock"
 
 
@@ -754,7 +758,7 @@ def test_compute_znorm_mu_sigma_are_from_raw_z() -> None:
     rng = np.random.default_rng(0)
     z_raw = rng.normal(loc=50.0, scale=10.0, size=(30, 3))
 
-    mu, sigma, z_norm = PythiaStage._compute_znorm(z_raw)  # noqa: SLF001
+    mu, sigma, z_norm = PythiaStage._compute_znorm(z_raw)
 
     np.testing.assert_allclose(mu, np.mean(z_raw, axis=0))
     np.testing.assert_allclose(sigma, np.std(z_raw, ddof=1, axis=0))
@@ -846,6 +850,7 @@ def test_pythia_degenerate_label_does_not_crash() -> None:
     # any downstream consumer (e.g. InstanceSpace._explore_pythia) that
     # calls predict/predict_proba/classes_ on it without special-casing.
     sentinel = out.svm[0]
+    assert sentinel is not None
     probe = np.zeros((5, 2))
     np.testing.assert_array_equal(sentinel.predict(probe), np.full(5, True))
     proba = sentinel.predict_proba(probe)
@@ -1029,7 +1034,7 @@ def test_determine_selections_uses_negative_one_for_no_selection() -> None:
         dtype=bool,
     )
 
-    selection0, selection1 = PythiaStage._determine_selections(  # noqa: SLF001
+    selection0, selection1 = PythiaStage._determine_selections(
         nalgos,
         precision,
         y_hat,
@@ -1044,7 +1049,7 @@ def test_determine_selections_uses_negative_one_for_no_selection() -> None:
 def test_weighted_selection_single_algorithm_uses_common_formula() -> None:
     """#314: shared weighting is zero-based and build retains its -1 sentinel."""
     y_hat = np.array([[True], [False]])
-    best, raw_selection = PythiaStage._weighted_selection(  # noqa: SLF001
+    best, raw_selection = PythiaStage._weighted_selection(
         1,
         [0.75],
         y_hat,
@@ -1053,7 +1058,7 @@ def test_weighted_selection_single_algorithm_uses_common_formula() -> None:
     np.testing.assert_allclose(best, [0.75, 0.0])
     np.testing.assert_array_equal(raw_selection, [0, 0])
 
-    selection0, selection1 = PythiaStage._determine_selections(  # noqa: SLF001
+    selection0, selection1 = PythiaStage._determine_selections(
         1,
         [0.75],
         y_hat,
@@ -1092,9 +1097,9 @@ def test_pythia_single_algorithm_build_selects_index_zero() -> None:
 def test_skip_mode_bypasses_training_and_returns_empty_output() -> None:
     """#298 Issue 10: `opts.skip=True` matches MATLAB's `emptyPYTHIAout`.
 
-    No classifier is trained (`svm` holds only never-fitted
-    `_ConstantClassifier` placeholders), every prediction-derived field is a
-    "nothing trained" placeholder, and `mu`/`sigma` still describe the real
+    No classifier is trained (`svm` holds MATLAB-compatible empty slots),
+    every prediction-derived field is a "nothing trained" placeholder, and
+    `mu`/`sigma` still describe the real
     `z` (needed so a later eval-mode caller can normalise new data
     correctly, matching MATLAB's `emptyPYTHIAout` caller overwriting its own
     zeroed mu/sigma with the real zscore parameters).
@@ -1122,6 +1127,7 @@ def test_skip_mode_bypasses_training_and_returns_empty_output() -> None:
     )
 
     assert len(out.svm) == nalgos
+    assert out.svm == [None] * nalgos
     assert not np.any(out.y_sub)
     assert not np.any(out.y_hat)
     assert np.all(out.selection0 == -1)
@@ -1187,7 +1193,7 @@ def test_undefined_metrics_are_nan_without_warnings() -> None:
 @pytest.mark.filterwarnings("error::RuntimeWarning")
 def test_summary_uses_matlab_sample_standard_deviation() -> None:
     """Summary standard deviations use N-1 and return zero for one value."""
-    summary = PythiaStage._generate_summary(  # noqa: SLF001
+    summary = PythiaStage._generate_summary(
         nalgos=2,
         algo_labels=["a0", "a1"],
         y=np.array([[1.0, np.nan], [3.0, 5.0], [5.0, np.nan]]),
@@ -1215,7 +1221,7 @@ def test_summary_uses_matlab_sample_standard_deviation() -> None:
 @pytest.mark.filterwarnings("error::RuntimeWarning")
 def test_summary_excludes_selector_fallback_from_selected_performance() -> None:
     """Selector selected-performance statistics use selection0, not selection1."""
-    summary = PythiaStage._generate_summary(  # noqa: SLF001
+    summary = PythiaStage._generate_summary(
         nalgos=2,
         algo_labels=["a0", "a1"],
         y=np.array([[1.0, 10.0], [3.0, 20.0]]),
@@ -1245,7 +1251,7 @@ def test_pythia_rejects_contextual_parameter_shape() -> None:
     spec = get_classifier_fcn("svm")
 
     with pytest.raises(ValueError, match=r"shape \(2, 2\)"):
-        PythiaStage._check_precalcparams(  # noqa: SLF001
+        PythiaStage._check_precalcparams(
             np.ones((1, 2)),
             nalgos=2,
             spec=spec,
@@ -1272,7 +1278,7 @@ def test_pythia_accepts_finite_precalculated_values_outside_tuning_ranges(
     spec = get_classifier_fcn(classifier)
     params_array = np.asarray(params, dtype=np.double)
 
-    checked = PythiaStage._check_precalcparams(  # noqa: SLF001
+    checked = PythiaStage._check_precalcparams(
         params_array,
         nalgos=1,
         spec=spec,
@@ -1299,7 +1305,7 @@ def test_pythia_rejects_nonfinite_or_nonreal_precalculated_values(
     spec = get_classifier_fcn("svm")
 
     with pytest.raises(ValueError, match=message):
-        PythiaStage._check_precalcparams(  # noqa: SLF001
+        PythiaStage._check_precalcparams(
             params,
             nalgos=1,
             spec=spec,
@@ -1325,7 +1331,7 @@ def test_pythia_rejects_nonpositive_continuous_precalculated_values(
     spec = get_classifier_fcn(classifier)
 
     with pytest.raises(ValueError, match=rf"{parameter_name}.*strictly positive"):
-        PythiaStage._check_precalcparams(  # noqa: SLF001
+        PythiaStage._check_precalcparams(
             np.asarray(params, dtype=np.double),
             nalgos=1,
             spec=spec,

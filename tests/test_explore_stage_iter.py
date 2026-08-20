@@ -9,6 +9,7 @@ The stage methods' numerical fidelity is covered against MATLAB by the per-stage
 validation suites.
 """
 
+from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -20,6 +21,10 @@ from numpy.typing import NDArray
 from instancespace.data.metadata import Metadata
 from instancespace.data.model import Footprint, TraceOut
 from instancespace.instance_space import ExploreStage, InstanceSpace, _EvaluationResult
+from instancespace.stages.pilot import PilotStage
+from instancespace.stages.prelim import PrelimStage
+from instancespace.stages.pythia import PythiaStage
+from instancespace.stages.sifted import SiftedStage
 from instancespace.stages.trace import TraceStage
 
 # A ground-truth-free stand-in for `Metadata`: these tests exercise stage
@@ -83,13 +88,87 @@ def test_explore_stage_iter_yields_the_five_stages_in_order() -> None:
     assert ExploreStage.EVALUATION not in stages
 
 
+def test_explore_stage_iter_delegates_science_to_predictive_stages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The production explore path contains orchestration, not duplicate science."""
+    model = SimpleNamespace(
+        data=_FakeData(),
+        prelim="fitted-prelim",
+        sifted="fitted-sifted",
+        pilot="fitted-pilot",
+        pythia="fitted-pythia",
+        trace="fitted-trace",
+    )
+    space = InstanceSpace.__new__(InstanceSpace)
+    stubbed = cast(Any, space)
+    stubbed._validate_for_explore = lambda _md: None
+    stubbed._extract_features = lambda _md: "raw"
+    stubbed._require_model = lambda: model
+    stubbed._options = SimpleNamespace(
+        auto=SimpleNamespace(preproc=True),
+        bound=SimpleNamespace(flag=True),
+        norm=SimpleNamespace(flag=True),
+    )
+    calls: list[tuple[str, object, object]] = []
+
+    def record(
+        name: str,
+        output: object,
+    ) -> Callable[[object, object], object]:
+        def predict(inputs: object, fitted: object) -> object:
+            calls.append((name, inputs, fitted))
+            return output
+
+        return predict
+
+    monkeypatch.setattr(PrelimStage, "predict", record("prelim", "prelim-x"))
+    monkeypatch.setattr(SiftedStage, "predict", record("sifted", "sifted-x"))
+    monkeypatch.setattr(PilotStage, "predict", record("pilot", "z"))
+    monkeypatch.setattr(
+        PythiaStage,
+        "predict",
+        record("pythia", ("yhat", "pr0", "selection")),
+    )
+    monkeypatch.setattr(
+        TraceStage,
+        "predict",
+        record("trace", ("in-good", "in-best")),
+    )
+
+    outputs = list(space.explore_stage_iter(_NO_GROUND_TRUTH))
+
+    assert [call[0] for call in calls] == [
+        "prelim",
+        "sifted",
+        "pilot",
+        "pythia",
+        "trace",
+    ]
+    assert [call[2] for call in calls] == [
+        "fitted-prelim",
+        "fitted-sifted",
+        "fitted-pilot",
+        "fitted-pythia",
+        "fitted-trace",
+    ]
+    assert [item.output for item in outputs] == [
+        "prelim-x",
+        "sifted-x",
+        "z",
+        ("yhat", "pr0", "selection"),
+        ("in-good", "in-best"),
+    ]
+
+
 def test_3d_stage_iter_yields_native_trace_membership() -> None:
     """Matching 3D projections now advance through the lazy TRACE boundary."""
     z = np.array([[1.0, 2.0, 3.0]], dtype=np.double)
+    empty = Footprint(None, 0, 0, 0, 0, 0, 3)
     model = SimpleNamespace(
         data=_FakeData(),
         pilot=SimpleNamespace(z=np.zeros((2, 3), dtype=np.double)),
-        trace=SimpleNamespace(good=[], best=[]),
+        trace=TraceOut(empty, [], [], empty, pd.DataFrame()),
     )
     space = InstanceSpace.__new__(InstanceSpace)
     stubbed = cast(Any, space)
@@ -125,10 +204,11 @@ def test_3d_stage_iter_yields_native_trace_membership() -> None:
 def test_projection_mismatch_fails_only_when_lazy_trace_is_requested() -> None:
     """Earlier explore stages remain inspectable before TRACE rejects a mismatch."""
     z = np.array([[1.0, 2.0, 3.0]], dtype=np.double)
+    empty = Footprint(None, 0, 0, 0, 0, 0, 2)
     model = SimpleNamespace(
         data=_FakeData(),
         pilot=SimpleNamespace(z=np.zeros((2, 2), dtype=np.double)),
-        trace=SimpleNamespace(good=[], best=[]),
+        trace=TraceOut(empty, [], [], empty, pd.DataFrame()),
     )
     space = InstanceSpace.__new__(InstanceSpace)
     stubbed = cast(Any, space)
@@ -311,6 +391,54 @@ def test_explore_stage_iter_defers_evaluation_until_after_trace_yield(
     assert events == ["trace"]
     assert next(stages).stage is ExploreStage.EVALUATION
     assert events == ["trace", "evaluate", "rescore"]
+
+
+def test_explore_stage_iter_uses_fresh_model_for_lazy_rescore(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A resumed iterator must not combine cached and freshly loaded model state."""
+    with_ground_truth = type("_FakeMetadata", (), {"algorithm_names": ["algo1"]})()
+    space = InstanceSpace.__new__(InstanceSpace)
+    _stub_stages(space)
+    models = iter(
+        [
+            SimpleNamespace(data=_FakeData(), trace="initial-trace"),
+            SimpleNamespace(data=_FakeData(), trace="refreshed-trace"),
+        ],
+    )
+    stubbed = cast(Any, space)
+    stubbed._require_model = lambda: next(models)
+    evaluation = _EvaluationResult(
+        y_actual=np.zeros((1, 1), dtype=np.bool_),
+        y_best_actual=np.zeros(1, dtype=np.double),
+        p_actual=np.ones(1, dtype=np.int_),
+        beta_actual=np.zeros(1, dtype=np.bool_),
+        accuracy_actual=np.zeros(1, dtype=np.double),
+        precision_actual=np.zeros(1, dtype=np.double),
+        recall_actual=np.zeros(1, dtype=np.double),
+        cvcmat_actual=np.zeros((1, 4), dtype=np.double),
+        algo_labels=["algo1"],
+    )
+    space._explore_evaluate = lambda *_args: evaluation  # type: ignore[method-assign]
+    trained_trace: list[object] = []
+
+    def fake_rescore(trained: object, *_args: object) -> TraceOut:
+        trained_trace.append(trained)
+        empty = Footprint(None, 0, 0, 0, 0, 0)
+        return TraceOut(empty, [], [], empty, pd.DataFrame())
+
+    monkeypatch.setattr(TraceStage, "rescore", fake_rescore)
+    stages = space.explore_stage_iter(cast(Metadata, with_ground_truth))
+
+    assert [next(stages).stage for _ in range(5)] == [
+        ExploreStage.PRELIM,
+        ExploreStage.SIFTED,
+        ExploreStage.PILOT,
+        ExploreStage.PYTHIA,
+        ExploreStage.TRACE,
+    ]
+    assert next(stages).stage is ExploreStage.EVALUATION
+    assert trained_trace == ["refreshed-trace"]
 
 
 def test_3d_stage_iter_rescores_after_trace_membership(

@@ -16,11 +16,17 @@ paying its cost twice.
 
 from collections.abc import Iterator
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
+from instancespace.data.metadata import from_csv_file
 from instancespace.instance_space import InstanceSpace, instance_space_from_files
 from instancespace.stages.cloister import CloisterStage
+from instancespace.stages.pilot import PilotStage
+from instancespace.stages.prelim import PrelimStage
+from instancespace.stages.pythia import PythiaStage
+from instancespace.stages.sifted import SiftedStage
 from instancespace.stages.trace import TraceStage
 
 
@@ -60,6 +66,52 @@ def test_build_produces_a_fully_populated_model(
     assert not model.trace.summary.empty
 
 
+def test_explore_applies_every_fitted_stage_without_retraining(
+    built_instance_space: InstanceSpace,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exercise the real build-to-explore path, including truth-aware rescore."""
+    metadata_path = Path(__file__).parent / "test_data/preprocessing/metadata.csv"
+    metadata = from_csv_file(metadata_path)
+    assert metadata is not None
+
+    for stage, method_name in (
+        (PrelimStage, "prelim"),
+        (SiftedStage, "sifted"),
+        (PilotStage, "pilot"),
+        (PythiaStage, "pythia"),
+        (TraceStage, "trace"),
+    ):
+        monkeypatch.setattr(
+            stage,
+            method_name,
+            Mock(side_effect=AssertionError(f"{method_name} retrained during explore")),
+        )
+
+    result = built_instance_space.explore(metadata, dataset_id="training-replay")
+    n_instances = metadata.features.shape[0]
+    n_algorithms = len(built_instance_space.model.data.algo_labels)
+    dimensions = built_instance_space.model.pilot.a.shape[0]
+
+    assert result.y_hat is not None
+    assert result.pr0_hat is not None
+    assert result.selection0 is not None
+    assert result.in_good is not None
+    assert result.in_best is not None
+    assert result.x.shape[0] == n_instances
+    assert result.z.shape == (n_instances, dimensions)
+    assert result.y_hat.shape == (n_instances, n_algorithms)
+    assert result.pr0_hat.shape == (n_instances, n_algorithms)
+    assert result.selection0.shape == (n_instances,)
+    assert result.in_good.shape == (n_instances, n_algorithms)
+    assert result.in_best.shape == (n_instances, n_algorithms)
+    assert result.y_actual is not None
+    assert result.y_actual.shape == (n_instances, n_algorithms)
+    assert result.trace_out is not None
+    assert len(result.trace_out.good) == n_algorithms
+    assert len(result.trace_out.best) == n_algorithms
+
+
 def test_rerunning_cloister_does_not_invalidate_pythias_output(
     built_instance_space: InstanceSpace,
 ) -> None:
@@ -69,14 +121,14 @@ def test_rerunning_cloister_does_not_invalidate_pythias_output(
     being rolled back to - since Pythia and Cloister are in the same wave,
     rerunning Cloister must not touch Pythia's already-computed output at all.
     """
-    runner = built_instance_space._runner  # noqa: SLF001
-    svm_before = runner._available_arguments["svm"]  # noqa: SLF001
-    y_hat_before = runner._available_arguments["y_hat"]  # noqa: SLF001
+    runner = built_instance_space._runner
+    svm_before = runner._available_arguments["svm"]
+    y_hat_before = runner._available_arguments["y_hat"]
 
     built_instance_space.run_stage(CloisterStage)
 
-    assert runner._available_arguments["svm"] is svm_before  # noqa: SLF001
-    assert runner._available_arguments["y_hat"] is y_hat_before  # noqa: SLF001
+    assert runner._available_arguments["svm"] is svm_before
+    assert runner._available_arguments["y_hat"] is y_hat_before
 
 
 def test_rerunning_cloister_leaves_trace_runnable(
