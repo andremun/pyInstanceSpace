@@ -41,6 +41,7 @@ sifted(x, y, y_bin, x_raw, y_raw, beta, num_good_algos, y_best, p,
     and performance optimization using provided datasets and configuration options.
 """
 
+from dataclasses import replace
 from typing import NamedTuple
 
 import numpy as np
@@ -140,6 +141,7 @@ class SiftedInput(NamedTuple):
     data_dense: DataDense | None
     parallel_options: ParallelOptions
     general_options: GeneralOptions
+    pilot_options: PilotOptions = PilotOptions.default()
 
 
 class SiftedOutput(NamedTuple):
@@ -383,12 +385,20 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         SiftedOutput
             Output of the sifted stage.
         """
+        # MATLAB's outer InstanceSpace owns projection dimensionality under
+        # opts.pilot and injects that value into a private SIFTED options copy.
+        # Keep SiftedOptions.dims for direct SIFTED calls, but prevent aggregate
+        # pipeline configuration from carrying two conflicting dimensions.
+        effective_options = replace(
+            inputs.sifted_options,
+            dims=inputs.pilot_options.dims,
+        )
         return SiftedStage.sifted(
             x=inputs.x,
             y=inputs.y,
             y_bin=inputs.y_bin,
             feat_labels=inputs.feat_labels,
-            opts=inputs.sifted_options,
+            opts=effective_options,
             opts_selvars=inputs.selvars_options,
             data_dense=inputs.data_dense,
             x_raw=inputs.x_raw,
@@ -913,6 +923,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             PilotOptions.default(
                 analytic=SiftedStage._GA_FITNESS_PILOT_ANALYTIC,
                 n_tries=SiftedStage._GA_FITNESS_PILOT_NTRIES,
+                dims=instance.dims,
             ),
             instance.general_options,
             _do_output=False,

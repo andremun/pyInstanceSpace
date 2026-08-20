@@ -315,6 +315,8 @@ def test_absolute_performance_epsilon_accepts_any_finite_real(
         ("pilot", "adjust_rotation", 1, "True or False"),
         ("pilot", "cost_weight", np.nan, "finite real"),
         ("pilot", "method", "bad", "one of"),
+        ("pilot", "dims", 2.0, "2 or 3"),
+        ("pilot", "view_groups", [[-1]], "zero-based"),
         ("cloister", "p_val", np.nan, "finite real"),
         ("cloister", "c_thres", 1.1, "unit range"),
         ("cloister", "max_features", 0, "positive"),
@@ -378,6 +380,98 @@ def test_pilot_rejects_both_start_and_precalculated_matrices(
             x0=np.ones((2, 1)),
             precalc_alpha=np.ones((2, 1)),
         )
+
+
+def test_pilot_3d_options_load_and_round_trip_in_canonical_form() -> None:
+    """MATLAB names load while the public object stores immutable Python indices."""
+    dims = 3
+    options = InstanceSpaceOptions.from_dict(
+        {
+            "pilot": {
+                "dims": dims,
+                "viewGroups": [[0, 2, 2], [1]],
+            },
+        },
+    )
+
+    assert options.pilot.dims == dims
+    assert options.pilot.view_groups == ((0, 2, 2), (1,))
+
+    round_tripped = InstanceSpaceOptions.from_dict(dataclasses.asdict(options))
+    assert round_tripped.pilot.view_groups == options.pilot.view_groups
+
+
+def test_pilot_dimension_additions_preserve_positional_2d_defaults() -> None:
+    """Existing four-argument construction remains 2D with one global view."""
+    dims = 2
+    options = PilotOptions(None, None, False, 5)
+
+    assert options.dims == dims
+    assert options.view_groups == ()
+
+
+@pytest.mark.parametrize(
+    ("value", "expected_dims"),
+    [(False, 2), (True, 3)],
+)
+def test_legacy_isa3d_json_maps_unambiguously_to_dims(
+    value: bool,
+    expected_dims: int,
+) -> None:
+    """The MATLAB legacy boolean remains a JSON-only dimensionality alias."""
+    options = InstanceSpaceOptions.from_dict({"pilot": {"ISA3D": value}})
+
+    assert options.pilot.dims == expected_dims
+
+
+def test_consistent_legacy_isa3d_and_dims_are_accepted() -> None:
+    """Equivalent legacy and current fields have one unambiguous meaning."""
+    dims = 3
+    options = InstanceSpaceOptions.from_dict(
+        {"pilot": {"ISA3D": True, "dims": dims}},
+    )
+
+    assert options.pilot.dims == dims
+
+
+def test_conflicting_legacy_isa3d_and_dims_are_rejected() -> None:
+    """Conflicting dimensionality fields cannot be resolved by precedence."""
+    with pytest.raises(ValueError, match="different projection dimensions"):
+        InstanceSpaceOptions.from_dict(
+            {"pilot": {"ISA3D": False, "dims": 3}},
+        )
+
+
+@pytest.mark.parametrize("value", [0, 1, "true", None])
+def test_legacy_isa3d_requires_a_json_boolean(value: object) -> None:
+    """Numeric and text truthiness must not silently select a dimension."""
+    with pytest.raises(ValueError, match="True or False"):
+        InstanceSpaceOptions.from_dict({"pilot": {"ISA3D": value}})
+
+
+@pytest.mark.parametrize(
+    "view_groups",
+    [None, [0, 1], [[]], [[-1]], [[True]], [[1.0]], "0,1"],
+)
+def test_pilot_view_groups_reject_malformed_or_non_zero_based_indices(
+    view_groups: object,
+) -> None:
+    """Every supplied viewpoint group is a non-empty integer index vector."""
+    with pytest.raises(ValueError, match="viewGroups"):
+        PilotOptions.default(view_groups=view_groups)
+
+
+def test_pilot_view_groups_accept_lists_and_tuples_without_deduplicating() -> None:
+    """MATLAB-permitted overlaps and duplicate indices retain their ordering."""
+    options = PilotOptions.default(view_groups=[[0, 0], (0, 2)])
+
+    assert options.view_groups == ((0, 0), (0, 2))
+
+
+def test_adjust_rotation_is_rejected_for_a_3d_projection() -> None:
+    """The existing centroid-angle rotation is defined only for 2D PILOT."""
+    with pytest.raises(ValueError, match="only supported.*dims=2"):
+        PilotOptions.default(dims=3, adjust_rotation=True)
 
 
 @pytest.mark.parametrize(
