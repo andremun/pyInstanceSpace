@@ -9,8 +9,9 @@ from `v0.9.0/development-branch-QSF` at `3a7f21a`, which contains branch 1
 
 MATLAB InstanceSpace `34c0129` under R2026a Update 4 is the behavioral authority. The
 verified 423-file v2 oracle is installed. Implementation and scientific gates are complete.
-Full-suite accounting is 988 passed with 63 documented warnings: 987 passed in the sandbox,
-and the sole macOS semaphore-permission failure passed 1/1 outside it.
+All 1,038 collected tests are accounted for: 1,037 passed in the warning-strict sandbox
+run, and the sole process-pool test passed 1/1 outside it. Branch coverage was 91.86%,
+with no uncaught warnings under `-W error`.
 
 ## Delivery status
 
@@ -57,12 +58,19 @@ and the sole macOS semaphore-permission failure passed 1/1 outside it.
 8. **Closed out provenance and documentation — focused gates complete**
    - Generated and installed verified `reference-export/v2`: 423 files from clean MATLAB
      `34c0129` and Python generator `cf3cde0`.
-   - Passed 84 provenance tests and 36 current-gold readers, including 3/3 native 3D TRACE
+   - Passed 86 provenance tests and 40 current-gold readers, including 3/3 native 3D TRACE
      readers.
    - Updated implemented fixes, architecture, and the pending backlog.
-   - Recorded the platform-split full-suite result: 987 sandbox passes plus the sole
-     semaphore-permission test passing 1/1 outside the sandbox, for 988 passed and 63
-     documented warnings.
+   - Recorded the platform-split full-suite result: 1,037 sandbox passes plus the sole
+     process-pool test passing 1/1 outside the sandbox, for all 1,038 collected tests.
+
+9. **Completed #316 stage-owned inference — complete and verified**
+   - Added the typed `PredictiveStage` contract without changing build-only plugins or
+     `StageRunner`.
+   - Moved fitted inference into PRELIM, SIFTED, PILOT, PYTHIA, and TRACE while retaining
+     `InstanceSpace` orchestration and temporary compatibility wrappers.
+   - Verified delegation, no-refit behavior, fitted-state immutability, stage order, and
+     current-MATLAB readers.
 
 ## Test policy
 

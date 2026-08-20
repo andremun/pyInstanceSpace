@@ -25,6 +25,14 @@ active simplex filter remains because MATLAB joins alpha-shape simplices that sh
 vertex. Issue #321 is resolved by one `casefold()` JSON-key canonicalizer shared by validation
 and loading, including conflict detection for casefold-equivalent keys.
 
+### Stage-owned inference
+
+Issue #316 is implemented through a separate typed `PredictiveStage` contract. PRELIM,
+SIFTED, PILOT, PYTHIA, and TRACE own their fitted inference; `InstanceSpace` retains
+metadata alignment, stage ordering, evaluation assembly, and temporary compatibility
+wrappers. The build-only `Stage`/`StageRunner` contract and persisted model schemas are
+unchanged.
+
 ### PYTHIA
 
 MATLAB keeps KNN's nominal neighbour range at 1--25 and caps `NumNeighbors` at each fold
@@ -139,8 +147,8 @@ profile remains readable; diagnostic and historical bundles remain non-oracles.
 ## Acceptance evidence
 
 - Strict v2 provenance and semantic verification: 423 files.
-- Provenance tests: 84 passed.
-- Current-gold readers: 36 passed, including native 3D TRACE at 3/3 passed.
-- Full-suite accounting: 988 passed with 63 documented warnings. The sandbox run reached
-  987 passed and one macOS semaphore-permission failure; that exact test passed 1/1
-  outside the sandbox.
+- Provenance tests: 86 passed.
+- Current-gold readers: 40 passed, including native 3D TRACE at 3/3 passed.
+- Full-suite accounting: 1,038 collected. The warning-strict sandbox run passed 1,037;
+  the sole process-pool test passed 1/1 outside the sandbox. Branch coverage was 91.86%,
+  with no uncaught warnings under `-W error`.

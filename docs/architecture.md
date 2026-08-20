@@ -93,8 +93,10 @@ The deliberate compatibility choices are:
 - `adjust_rotation` is an optional Python 2D visualization aid and is not a MATLAB parity
   requirement.
 
-Build logic remains in stage classes while explore orchestration remains in
-`InstanceSpace`; shared formulas and stored artifacts prevent scientific drift.
+Build logic remains in stage classes. PRELIM, SIFTED, PILOT, PYTHIA, and TRACE also own
+their fitted inference through the typed `PredictiveStage.predict()` contract implemented
+for #316. `InstanceSpace` retains explore orchestration and compatibility wrappers; see
+`docs/stage_inference_architecture.md`.
 
 ## Verified MATLAB oracle
 

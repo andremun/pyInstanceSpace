@@ -10,7 +10,7 @@
 - Branch 3 integration merge: `030937d`
 - Gold implementation: MATLAB InstanceSpace at `34c0129`, run with R2026a Update 4
 - Installed oracle: verified `reference-export/v2`, 423 files
-- Review date: 2026-08-20
+- Review date: 2026-08-21
 
 This branch carries both predecessor branches and completes the largest remaining 3D,
 TRACE3, output, and current-MATLAB evidence gaps. GitHub reports are audit leads; MATLAB
@@ -29,6 +29,7 @@ source and reproduced R2026a behavior decide parity.
 | [#278](https://github.com/andremun/pyInstanceSpace/issues/278) | Extended the clean-source R2026a provenance profile to 423 files with PILOT and 3D TRACE evidence. |
 | [#310](https://github.com/andremun/pyInstanceSpace/issues/310) | Installed the verified v2 bundle atomically at `tests/fixtures/matlab/current/`; historical data remains separately classified. |
 | [#304](https://github.com/andremun/pyInstanceSpace/issues/304) | Corrected the proven per-algorithm RNG boundary. The reported convergence premise used unverified rounded metrics, so optimizer-trace evidence remains pending and defaults did not change. |
+| [#316](https://github.com/andremun/pyInstanceSpace/issues/316) | Added a typed `PredictiveStage` contract for PRELIM, SIFTED, PILOT, PYTHIA, and TRACE. `InstanceSpace` now orchestrates stage-owned inference without changing `StageRunner` or persisted model schemas. |
 
 The stacked predecessor work also resolved #302, #314, and #317 and rejected #315's
 boundary-exclusive proposal. Those four issues are already closed upstream.
@@ -100,9 +101,10 @@ boundary-exclusive proposal. Those four issues are already closed upstream.
   Optimization, and Financial Toolbox.
 - Exporter identity:
   `d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
-- Provenance, strict-profile, identity, and semantic mutation tests: **84 passed**.
-- Current-gold scientific readers: **36 passed**, including native 3D TRACE build,
+- Provenance, strict-profile, identity, and semantic mutation tests: **86 passed**.
+- Current-gold scientific readers: **40 passed**, including native 3D TRACE build,
   topology, spectra, membership, and rescore at **3/3 passed**.
-- Full-suite accounting: **988 passed** with **63 documented warnings**. The sandbox
-  run reached 987 passed and one macOS semaphore-permission failure; that exact test
-  passed 1/1 outside the sandbox.
+- Full-suite accounting: **1,038 collected**. The warning-strict sandbox run passed
+  **1,037**; `test_numerical_solve_parallel_matches_sequential`, the sole process-pool
+  test, passed **1/1** outside the sandbox. Branch coverage was **91.86%**, with no
+  uncaught warnings under `-W error`.
