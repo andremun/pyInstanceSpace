@@ -6,6 +6,16 @@ behaviour, `test_explore_<stage>.py` for its `explore()`-time inference counterp
 See the roadmap's T7 section (`docs/pyIS_docs_quality_roadmap.md`) for the full decision
 and file-by-file mapping.
 
+## Current MATLAB oracle
+
+`tests/fixtures/matlab/current/` is the canonical `matlab-verified` oracle: 423 files
+under `reference-export/v2`, generated with MATLAB R2026a Update 4 from gold source
+`34c01293fef99b4eabd53323c393cb184cc95a8e` and Python generator
+`cf3cde0da5a3067300bd94a48d4d09ff5cf20b0c`. Its exporter SHA-256 is
+`d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
+The provenance suite passes 84 tests and the current scientific readers pass 36.
+The frozen 229-file v1 format remains readable, but is not the installed oracle.
+
 ## Naming Convention
 
 | Prefix | Covers | Example |
@@ -28,8 +38,8 @@ existing name.
 Historical stage tests feed stored training artifacts and previous-stage outputs into
 each Python stage. Data under `tests/matlab_reference/` is `legacy-unknown`: useful for
 regression detection, but not a verified MATLAB oracle. Current parity tests use the
-manifest-verified bundle under `tests/fixtures/matlab/current/`. Run with `-s` to see
-comparison diagnostics.
+manifest-verified v2 bundle under `tests/fixtures/matlab/current/`. Run with `-s` to see
+comparison diagnostics. No legacy fixture can establish MATLAB parity.
 
 ### Unit tests
 
@@ -49,9 +59,20 @@ poetry run pytest -v
 
 # One stage's explore()-time tests, with validation statistics printed
 poetry run pytest tests/test_explore_trace.py -v -s
+
+# Strict provenance and all current-gold scientific readers
+poetry run pytest tests/test_fixture_provenance.py -q
+poetry run pytest tests/test_current_matlab_*.py -q
 ```
 
-## Validation Criteria
+## Validation criteria
+
+Current-gold readers validate the manifest and use exact comparisons or narrowly scoped
+numeric tolerances documented beside each assertion. They include standard and SIMPLS
+PILOT in 2D/3D, viewpoints, TRACE/TRACE3 geometry, topology, membership, and rescoring.
+
+The table below records the older `legacy-unknown` regression thresholds. Passing these
+tests detects drift but is not a current MATLAB parity claim.
 
 Every threshold is documented, with its rationale, in the docstring of the test that
 asserts it:

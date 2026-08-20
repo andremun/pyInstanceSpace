@@ -2,102 +2,107 @@
 
 ## Scope
 
-- Branch: `codex/validation-serialization-trace3`
-- Base: `d175048` from `codex/open-issue-big-rocks`
-- Reference: MATLAB InstanceSpace at `34c0129`
-- Review date: 2026-08-18
+- Branch: `codex/matlab-parity-next-wave`
+- Integration base: `v0.9.0/development-branch-QSF` at `3a7f21a`
+- Branch 1: `codex/open-issue-big-rocks` at `d175048`, merged by PR #319 as
+  `324830c`
+- Branch 2: `codex/validation-serialization-trace3` at `67c73de`
+- Branch 3 integration merge: `030937d`
+- Gold implementation: MATLAB InstanceSpace at `34c0129`, run with R2026a Update 4
+- Installed oracle: verified `reference-export/v2`, 423 files
+- Review date: 2026-08-20
 
-This pass extends the earlier correctness work with strict validation, safe
-serialization, fixture provenance tooling, warning cleanup, and an opt-in
-two-dimensional TRACE3 port. Three-dimensional TRACE3 and a default-method switch are
-deliberately deferred.
+This branch carries both predecessor branches and completes the largest remaining 3D,
+TRACE3, output, and current-MATLAB evidence gaps. GitHub reports are audit leads; MATLAB
+source and reproduced R2026a behavior decide parity.
 
-## GitHub issues
+## GitHub issue outcomes
 
-| Issue | Result |
+| Issue | Local result |
 |---|---|
-| [#302](https://github.com/andremun/pyInstanceSpace/issues/302) | Repaired legacy TRACE masks, contradiction refinement, empty geometry, zero-support triangles, no-cluster output, 1D distances, and DBSCAN dtypes. |
-| [#314](https://github.com/andremun/pyInstanceSpace/issues/314) | Single-algorithm PYTHIA portfolios now select index `0`; `-1` remains the no-selection value. |
-| [#317](https://github.com/andremun/pyInstanceSpace/issues/317) | PYTHIA summary accuracy and precision now map to the correct columns. |
-| [#315](https://github.com/andremun/pyInstanceSpace/issues/315) | No requested code change. MATLAB `polyshape.isinterior` includes boundary points, so Python retains inclusive membership and adds a regression test. |
-| [#313](https://github.com/andremun/pyInstanceSpace/issues/313) | Ported MATLAB TRACE3 for two-dimensional spaces behind `method="trace3"`, including trained-geometry explore rescoring. Legacy remains the Python default. |
-| [#278](https://github.com/andremun/pyInstanceSpace/issues/278) | Generated and independently verified the complete 229-file profile from clean source under MATLAB R2026a Update 4 with all required toolboxes. |
-| [#310](https://github.com/andremun/pyInstanceSpace/issues/310) | Installed the reviewed bundle atomically at `tests/fixtures/matlab/current/`, classified it as `matlab-verified`, and added current-layout numerical readers. |
+| [#320](https://github.com/andremun/pyInstanceSpace/issues/320) | Removed the unused polygon-region filter. TRACE3 retains the active vertex-connected simplex-region implementation. |
+| [#321](https://github.com/andremun/pyInstanceSpace/issues/321) | Validation and loading now share one `casefold()` JSON-key canonicalizer and reject casefold-equivalent conflicts. |
+| [#262](https://github.com/andremun/pyInstanceSpace/issues/262) | Completed 2D/3D PILOT across analytic, numerical, and SIMPLS paths, including SIFTED propagation, MATLAB-order solver contracts, restart defaults, and persisted grouped viewpoints. |
+| [#265](https://github.com/andremun/pyInstanceSpace/issues/265) | Added native 3D projections, camera-aware plots, TRACE meshes, and versioned numerical serialization without changing the 2D geometry schema. |
+| [#313](https://github.com/andremun/pyInstanceSpace/issues/313) | Completed native 2D/3D TRACE3 construction, membership, metrics, parallel execution, and fixed-geometry explore rescoring. Legacy remains selectable. |
+| [#272](https://github.com/andremun/pyInstanceSpace/issues/272) | Superseded by R2026a evidence: the all-points alpha can intentionally contain multiple regions, so Python preserves them and adds no single-region retry. |
+| [#278](https://github.com/andremun/pyInstanceSpace/issues/278) | Extended the clean-source R2026a provenance profile to 423 files with PILOT and 3D TRACE evidence. |
+| [#310](https://github.com/andremun/pyInstanceSpace/issues/310) | Installed the verified v2 bundle atomically at `tests/fixtures/matlab/current/`; historical data remains separately classified. |
+| [#304](https://github.com/andremun/pyInstanceSpace/issues/304) | Corrected the proven per-algorithm RNG boundary. The reported convergence premise used unverified rounded metrics, so optimizer-trace evidence remains pending and defaults did not change. |
 
-## Audit fixes
+The stacked predecessor work also resolved #302, #314, and #317 and rejected #315's
+boundary-exclusive proposal. Those four issues are already closed upstream.
 
-- Convert one-based PRELIM `p` only at TRACE and plotting boundaries; preserve
-  zero-based PYTHIA `selection0`.
-- Validate portfolio indices before TRACE and fix portfolio labels and masks.
-- Normalize PRELIM's derived performance matrix, including sparse NaNs.
-- Honor preprocessing, SIFTED, and parallel disable flags.
-- Validate one-based subset files and retain the final valid instance index.
-- Apply SIFTED density filtering after every enabled selection path.
-- Preserve PRELIM's dense data separately in saved models.
-- Isolate runner snapshots, persist successful overrides, and make
-  `run_until_stage()` inclusive.
-- Invalidate stale models after staged reruns and finalize generators only after
-  complete execution.
-- Avoid creating TRACE worker pools when parallel execution is disabled.
-- Normalize empty TRACE footprints to `polygon=None`.
-- Reject malformed metadata, invalid active options, and nonviable build/explore
-  dimensions before stage execution.
-- Make serialization model-preserving, path-safe, region-aware, and structurally safe
-  for archives.
-- Classify every fixture by trust level and verify hashes, schemas, source state, complete
-  effective options, canonical stage coverage, and exact file sets before installation.
-- Export explicit build and explore inputs so stage parity, membership, and rescoring are
-  reproducible without rerunning MATLAB preprocessing.
-- Replace legacy TRACE's warning-producing alpha dependency with a local Delaunay
-  implementation while preserving its regression output.
-- Remove the unused `alphashape` package and its orphaned lockfile dependencies; update
-  the live demo dependency description.
-- Implement TRACE3's true-label/prediction contract, all-points alpha radius, exact
-  100-step tightening loop, shared-vertex region threshold, parallel parity, and
-  fixed-geometry explore rescoring.
-- Translate MATLAB SVM `KernelScale` to scikit-learn `gamma` at the estimator boundary,
-  preserve MATLAB units in public output, and validate contextual PYTHIA parameters.
-- Replace permissive, provenance-free Bayesian metric comparisons with deterministic
-  integration and estimator-unit contracts. The old CSVs remain `legacy-unknown` data.
-- Correct numerical PILOT's MATLAB-to-Python slice so its reported `C` matrix retains
-  every algorithm column and reconstructs the complete fitted response.
-- Allow MATLAB-supported sparse-class cross-validation with a named warning while still
-  rejecting splits that leave an unusable training fold. This unblocks the verified
-  default KNN variant without weakening impossible-layout checks.
+## Additional corrections
 
-## Compatibility notes
+- Preserve KNN's MATLAB-facing search range of 1--25 while capping neighbours at each
+  fold or final fit; reported parameters retain the requested value.
+- Derive PYTHIA folds and classifier/search randomness from one-based `seed + i` and
+  retain the actual splitter per algorithm.
+- Match MATLAB PILOT's ten default restarts, stage-local MT19937 starts, valid
+  `precalcAlpha` precedence, column-major packing, loss axes, and rank fallback.
+- Persist 3D viewpoint matrices and radian angles; an empty group list means one global
+  view and overlapping groups remain valid.
+- Add a tetrahedral alpha complex with strict volume thresholds, vertex-connected
+  regions, outward boundary faces, volume and surface metrics, and descending spectra.
+- Resolve near-face 3D membership with exact predicates over the stored IEEE-754 values.
+  Boundaries are inclusive without admitting an exterior tolerance shell.
+- Label 3D TRACE summaries with `Volume_*` and use MATLAB's three-decimal,
+  half-away-from-zero rounding for build and explore.
+- Serialize 3D footprints as `pyinstancespace.trace-mesh/v1`: a manifest plus one-based
+  vertex, tetrahedron, and boundary-face tables with explicit empty records.
+- Render native 3D scatter and mesh plots with persisted group cameras or MATLAB's
+  `view(3)` fallback. Footprint overlays use experimental truth regardless of
+  `trace.use_sim`.
+- Preserve trained TRACE geometry during explore and rescore only membership and raw
+  evidence metrics.
 
-- Correct inclusive boundary membership can materially change TRACE geometry on
-  boundary-heavy data.
-- `correct_results_simulation.csv` is a Python regression baseline, not a verified
-  MATLAB oracle.
-- The R2024a bundle remains diagnostic evidence. The committed current oracle was generated
-  under R2026a Update 4 from clean MATLAB and Python commits with all five required
-  toolboxes, then passed the strict verifier before installation.
-- TRACE3 is opt-in and two-dimensional. Legacy remains the default; 3D support and a
-  default switch require separate review.
-- The public mixed index contract is intentional and documented in
-  `docs/architecture.md`.
+## Carried-forward reliability work
+
+- Strictly validate metadata, active options, selection files, stage viability, and
+  dimensional contracts before execution.
+- Keep PRELIM's one-based portfolio and PYTHIA's zero-based `selection0` boundaries
+  explicit; `-1` remains no selection.
+- Isolate stage-runner snapshots, invalidate stale models, and honor disabled
+  preprocessing, SIFTED, and parallel paths.
+- Keep serialization model-preserving, path-safe, region-aware, deterministic, and safe
+  for structured archives.
+- Preserve empty footprints canonically, all 2D polygon parts and holes, and trained
+  classifiers through model save/load.
+- Keep legacy and historical fixtures explicitly separate from manifest-verified MATLAB
+  evidence.
+
+## Intentional compatibility boundaries
+
+- Python keeps `trace.method="legacy"` as its default; MATLAB defaults to TRACE3. A
+  default switch requires a separate versioned decision. A 3D legacy request warns and
+  dispatches to TRACE3 because legacy geometry is two-dimensional.
+- MATLAB uses expected-improvement-plus for Bayesian tuning. skopt plain EI is the
+  closest available base acquisition and lacks MATLAB's anti-overexploitation loop.
+- MATLAB and sklearn stratifiers may choose different folds even after matching the
+  `seed + i` boundary.
+- Python rejects a malformed explicit `precalcAlpha`; MATLAB can silently fall through
+  to `X0`.
+- `CloisterOptions.hull_dims="all"` keeps a native n-dimensional hull. Set it to `2` for
+  MATLAB's legacy first-two-coordinate hull.
+- Python preserves all multi-region CSV geometry instead of reproducing MATLAB's
+  first-boundary-cycle legacy output-helper defect.
+- Python retains a useful whole-space `good_elements` count in memory; MATLAB leaves the
+  corresponding exported field unset.
+- `Footprint.area` remains the compatibility field for 2D area or 3D volume;
+  `Footprint.measure` is the dimension-neutral alias.
 
 ## Verification
 
-- Repository-wide integration checkpoint: **787 passed** with normal process
-  permissions; no failures or exclusions.
-- Both R2024a TRACE3 variants matched every exported good, best, hard, and space
-  geometry and raw metric to floating-point precision.
-- Focused TRACE3, alpha-shape, build, explore, viability, and provenance checks:
-  **98 passed**; Ruff, Black, and strict mypy are clean on the affected files.
-- Fixture provenance and strict-profile checks: **42 passed**, including mutations that
-  remove both required files and their manifest entries.
-- MATLAB R2026a `checkcode` reports no exporter findings. Its first diagnostic run stopped
-  at PRELIM because Financial Toolbox was absent; after installation, verified mode
-  completed all three variants in 54.4 seconds and published 229 manifest-listed files.
-- Current-gold TRACE3 build geometry and raw metrics match both exported variants to
-  about `1.3e-13`. Explore fallback is exact; the default variant has two explicitly
-  pinned CSV-boundary ambiguities and exact agreement for every off-boundary membership.
-- Current-gold stage readers: **16 passed** across PRELIM, SIFTED, PILOT, CLOISTER,
-  PYTHIA build/explore, and TRACE build/explore. They account explicitly for randomized
-  PRELIM ties, equivalent PILOT rotations/reflections, and tied-neighbour KNN scores.
-- Ruff, Black, strict mypy, lock consistency, and patch-whitespace checks pass across all
-  36 changed Python files. The full suite reports 70 known third-party warnings, recorded
-  in `docs/pending_issue_backlog.md`.
+- The installed v2 oracle contains 423 manifest-listed files generated from clean MATLAB
+  `34c0129` and clean Python generator `cf3cde0` under R2026a Update 4.
+- The run records MATLAB plus Statistics and Machine Learning, Optimization, Global
+  Optimization, and Financial Toolbox.
+- Exporter identity:
+  `d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
+- Provenance, strict-profile, identity, and semantic mutation tests: **84 passed**.
+- Current-gold scientific readers: **36 passed**, including native 3D TRACE build,
+  topology, spectra, membership, and rescore at **3/3 passed**.
+- Full-suite accounting: **988 passed** with **63 documented warnings**. The sandbox
+  run reached 987 passed and one macOS semaphore-permission failure; that exact test
+  passed 1/1 outside the sandbox.

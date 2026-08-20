@@ -26,11 +26,11 @@ CSV shapes, semantic roles, and explicit empty artifacts. Each variant links a s
 JSON artifact containing the complete effective option tree after MATLAB validation and
 default resolution; partial `pythia`/`trace` overrides are not provenance.
 
-The verifier keeps the installed 229-file `reference-export/v1` contract frozen and
-enforces the additive `reference-export/v2` contract for new exports. V2 requires eight
-complete option artifacts, every declared build/explore stage, PILOT solver inputs and
-lineage, raw metrics, memberships, and all 2D/3D algorithm geometry. Deleting a file
-and its manifest entry therefore remains an error.
+The verifier keeps the 229-file `reference-export/v1` contract frozen and readable.
+The canonical installed oracle uses the additive 423-file `reference-export/v2`
+contract. V2 requires eight complete option artifacts, every declared build/explore
+stage, PILOT solver inputs and lineage, raw metrics, memberships, and all 2D/3D
+algorithm geometry. Deleting a file and its manifest entry therefore remains an error.
 
 Verified v2 also pins the audited MATLAB commit, both canonical input hashes, their
 algorithm headers, and a versioned exporter-script hash. A gold-source, dataset, or
@@ -130,9 +130,13 @@ python -m tools.fixture_provenance install \
 
 ## Current execution status
 
-The installed current oracle is the reviewed 229-file v1 bundle generated on 2026-08-18
-under MATLAB R2026a Update 4 from clean MATLAB `34c0129` and Python generator `b87179f`.
-The prospective v2 profile contains 423 files after the additive 3D TRACE extension.
-A fresh R2026a diagnostic export passed the strict verifier on 2026-08-20. It remains
-non-oracle until a later clean verified run is reviewed and installed atomically.
-Historical snapshots retain their non-oracle trust classes.
+The canonical oracle at `tests/fixtures/matlab/current/` is a reviewed, installed
+`reference-export/v2` bundle with 423 files and `matlab-verified` trust. It was generated
+under MATLAB R2026a Update 4 from clean MATLAB
+`34c01293fef99b4eabd53323c393cb184cc95a8e` and clean Python generator
+`cf3cde0da5a3067300bd94a48d4d09ff5cf20b0c`. The exporter identity is pinned to
+`d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
+
+The final provenance suite passed 84 tests; the current-gold scientific readers passed
+36. Frozen v1 bundles remain verifiable, but they are not the installed current oracle.
+Diagnostic and `legacy-unknown` snapshots remain non-oracles.

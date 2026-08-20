@@ -7,11 +7,13 @@
 
 ---
 
-> **Current provenance note (2026-08-18):** numerical files predating the manifest
-> exporter are `legacy-unknown`, even where this historical roadmap called them MATLAB
-> golden/reference data. The permissive PYTHIA Bayesian metric comparisons were replaced
-> by deterministic estimator-unit and integration contracts. Current parity claims require
-> the verified bundle under `tests/fixtures/matlab/current/`.
+> **Historical roadmap; current-status banner (2026-08-20).** Status rows and
+> “not started” claims below are preserved as dated history. Current parity uses the
+> installed 423-file, `matlab-verified` R2026a Update 4 v2 oracle (84 provenance tests;
+> 36 current readers). Predating numerical files are `legacy-unknown`, even where this
+> roadmap called them MATLAB golden/reference data; they are not MATLAB oracles. See
+> `docs/architecture.md`, `docs/implemented_fixes.md`, and
+> `docs/pending_issue_backlog.md` for current status.
 
 ## 1. Purpose and scope
 
