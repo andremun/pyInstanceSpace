@@ -26,10 +26,14 @@ mpl.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from mpl_toolkits.mplot3d import Axes3D  # type: ignore[import-untyped]
+from mpl_toolkits.mplot3d.art3d import (  # type: ignore[import-untyped]
+    Poly3DCollection,
+)
 from shapely.geometry import Polygon
 
 from instancespace import plotting
 from instancespace.stages.pilot_viewpoint import PilotViewpointResult
+from instancespace.utils.alpha_shape import TetrahedralMesh
 
 _THREE_DIMENSIONS = 3
 
@@ -81,6 +85,30 @@ def _viewpoint(
         ),
         azimuth=(np.deg2rad(15.0), np.deg2rad(75.0)),
         elevation=(np.deg2rad(25.0), np.deg2rad(45.0)),
+    )
+
+
+def _unit_tetrahedral_mesh() -> TetrahedralMesh:
+    return TetrahedralMesh(
+        vertices=np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0],
+            ],
+            dtype=np.double,
+        ),
+        tetrahedra=np.array([[0, 1, 2, 3]], dtype=np.int_),
+        boundary_faces=np.array(
+            [[1, 2, 3], [0, 3, 2], [0, 1, 3], [0, 2, 1]],
+            dtype=np.int_,
+        ),
+        alpha=float(np.sqrt(3) / 2),
+        region_threshold=0.01,
+        region_count=1,
+        volume=1 / 6,
+        surface_area=float(1.5 + np.sqrt(3) / 2),
     )
 
 
@@ -154,12 +182,64 @@ def test_3d_projection_rejects_user_supplied_2d_axis(ax: Axes) -> None:
         plotting.plot_portfolio(_fake_model(dimensions=3), ax=ax)
 
 
-def test_3d_footprint_plot_is_unavailable_until_native_geometry_exists() -> None:
-    """A Shapely 2D polygon is never presented as a 3D footprint."""
+def test_3d_footprint_plot_draws_native_mesh_with_algorithm_camera() -> None:
+    """Every boundary face is native 3D and uses the algorithm's first group."""
     model = _fake_model(dimensions=3, viewpoint=_viewpoint())
+    mesh = _unit_tetrahedral_mesh()
+    model.trace.good[1].polygon = mesh
+
+    axis = plotting.plot_footprint(model, 1)
+    try:
+        assert isinstance(axis, Axes3D)
+        assert getattr(axis, "azim") == pytest.approx(75.0)
+        assert getattr(axis, "elev") == pytest.approx(45.0)
+        mesh_collections = [
+            collection
+            for collection in axis.collections
+            if isinstance(collection, Poly3DCollection)
+        ]
+        assert len(mesh_collections) == 1
+        axis.get_figure().canvas.draw()
+        assert len(mesh_collections[0].get_paths()) == len(mesh.boundary_faces)
+        _, _, plotted_z = getattr(axis.collections[0], "_offsets3d")
+        np.testing.assert_array_equal(plotted_z, model.pilot.z[:, 2])
+        z_lower, z_upper = axis.get_zlim()
+        assert z_lower <= float(np.min(mesh.vertices[:, 2]))
+        assert z_upper >= float(np.max(model.pilot.z[:, 2]))
+    finally:
+        plt.close(axis.get_figure())
+
+
+def test_3d_footprint_rejects_shapely_geometry() -> None:
+    model = _fake_model(dimensions=3)
     model.trace.good[0].polygon = Polygon([(0, 0), (1, 0), (0, 1)])
 
-    with pytest.raises(NotImplementedError, match="3D footprint meshes"):
+    with pytest.raises(ValueError, match="TetrahedralMesh.*Shapely"):
+        plotting.plot_footprint(model, 0)
+
+
+def test_2d_footprint_rejects_tetrahedral_geometry(ax: Axes) -> None:
+    model = _fake_model()
+    model.trace.good[0].polygon = _unit_tetrahedral_mesh()
+
+    with pytest.raises(ValueError, match="2D projection.*TetrahedralMesh"):
+        plotting.plot_footprint(model, 0, ax=ax)
+
+
+def test_3d_footprint_rejects_user_supplied_2d_axis(ax: Axes) -> None:
+    model = _fake_model(dimensions=3)
+    model.trace.good[0].polygon = _unit_tetrahedral_mesh()
+
+    with pytest.raises(ValueError, match="3D projection.*axis"):
+        plotting.plot_footprint(model, 0, ax=ax)
+
+
+def test_3d_footprint_rejects_2d_footprint_metadata() -> None:
+    model = _fake_model(dimensions=3)
+    model.trace.good[0].polygon = _unit_tetrahedral_mesh()
+    model.trace.good[0].dimension = 2
+
+    with pytest.raises(ValueError, match="metadata.*projection dimensions"):
         plotting.plot_footprint(model, 0)
 
 

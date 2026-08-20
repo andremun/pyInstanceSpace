@@ -14,15 +14,19 @@ than an ``InstanceSpace``.
 
 from __future__ import annotations
 
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, cast
 
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.pyplot import figure, gca
 from mpl_toolkits.mplot3d import Axes3D  # type: ignore[import-untyped]
-from shapely.geometry import MultiPolygon
+from mpl_toolkits.mplot3d.art3d import (  # type: ignore[import-untyped]
+    Poly3DCollection,
+)
+from shapely.geometry import MultiPolygon, Polygon
 
 from instancespace.stages.pilot_viewpoint import PilotViewpointResult
+from instancespace.utils.alpha_shape import TetrahedralMesh
 
 _PROJECTION_ARRAY_DIMENSIONS = 2
 _TWO_DIMENSIONAL = 2
@@ -149,6 +153,37 @@ def _model_view_angle(
     return _resolve_view_angle(getattr(model.pilot, "viewpoint", None), algorithm_index)
 
 
+def _draw_tetrahedral_mesh(
+    ax: Axes,
+    mesh: TetrahedralMesh,
+    *,
+    facecolor: Any,  # noqa: ANN401
+    edgecolor: Any,  # noqa: ANN401
+    alpha: float,
+) -> Poly3DCollection | None:
+    """Draw every outward boundary face on native 3D axes."""
+    if not isinstance(ax, Axes3D):
+        raise ValueError("A TetrahedralMesh requires a three-dimensional axis.")
+    if mesh.is_empty:
+        return None
+
+    faces = mesh.vertices[mesh.boundary_faces]
+    collection = Poly3DCollection(
+        faces,
+        facecolors=facecolor,
+        edgecolors=edgecolor,
+        linewidths=1.5,
+        alpha=alpha,
+    )
+    ax.add_collection3d(collection)
+    ax.auto_scale_xyz(
+        mesh.vertices[:, 0],
+        mesh.vertices[:, 1],
+        mesh.vertices[:, 2],
+    )
+    return collection
+
+
 def _resolve_algo_index(model: Any, algo: str | int) -> int:  # noqa: ANN401
     if isinstance(algo, int):
         return algo
@@ -241,33 +276,67 @@ def plot_footprint(
     kind: str = "good",
     ax: Axes | None = None,
 ) -> Axes:
-    """Draw one algorithm's 2D footprint over the training instances.
+    """Draw one algorithm's native 2D polygon or 3D tetrahedral footprint.
 
     ``kind`` is ``"good"`` (region where good performance is statistically inferred)
     or ``"best"`` (region where this algorithm is expected to dominate), matching
-    ``model.trace.good``/``model.trace.best``. Three-dimensional footprint rendering
-    remains unavailable until Python has native 3D TRACE geometry.
+    ``model.trace.good``/``model.trace.best``.
     """
     if kind not in ("good", "best"):
         raise ValueError(f"kind must be 'good' or 'best', got {kind!r}")
     j = _resolve_algo_index(model, algo)
     z = np.asarray(model.pilot.z)
     dimensions = _projection_dimensions(z)
-    if dimensions == _THREE_DIMENSIONAL:
-        raise NotImplementedError(
-            "3D footprint meshes are not implemented; no 2D polygon projection "
-            "will be drawn.",
-        )
-
     algo_name = model.data.algo_labels[j]
     footprints = model.trace.good if kind == "good" else model.trace.best
-    footprint = footprints[j].polygon
+    footprint = footprints[j]
+    footprint_dimension = getattr(footprint, "dimension", dimensions)
+    if footprint_dimension != dimensions:
+        raise ValueError(
+            "Footprint metadata and PILOT projection dimensions do not match.",
+        )
+    geometry = footprint.polygon
+    if (
+        dimensions == _THREE_DIMENSIONAL
+        and geometry is not None
+        and not isinstance(
+            geometry,
+            TetrahedralMesh,
+        )
+    ):
+        raise ValueError(
+            "A 3D projection requires TetrahedralMesh footprint geometry; "
+            "Shapely polygons cannot be projected into 3D.",
+        )
+    if dimensions == _TWO_DIMENSIONAL and isinstance(geometry, TetrahedralMesh):
+        raise ValueError("A 2D projection cannot draw TetrahedralMesh geometry.")
+    if (
+        dimensions == _TWO_DIMENSIONAL
+        and geometry is not None
+        and not isinstance(
+            geometry,
+            Polygon | MultiPolygon,
+        )
+    ):
+        raise ValueError("A 2D projection requires Shapely polygon geometry.")
 
     ax = _prepare_axis(z, ax)
     _scatter_projection(ax, z, c="0.8", s=20, label="training instances")
-    if dimensions == _TWO_DIMENSIONAL and footprint is not None:
-        is_multi = isinstance(footprint, MultiPolygon)
-        regions = footprint.geoms if is_multi else [footprint]
+    if dimensions == _THREE_DIMENSIONAL and isinstance(geometry, TetrahedralMesh):
+        _draw_tetrahedral_mesh(
+            ax,
+            geometry,
+            facecolor="tab:blue",
+            edgecolor="tab:blue",
+            alpha=0.15,
+        )
+        if geometry.vertices.size:
+            combined = np.vstack((z, geometry.vertices))
+            axis_3d = cast(Any, ax)
+            axis_3d.auto_scale_xyz(combined[:, 0], combined[:, 1], combined[:, 2])
+    elif isinstance(geometry, Polygon | MultiPolygon):
+        is_multi = isinstance(geometry, MultiPolygon)
+        regions = geometry.geoms if is_multi else [geometry]
         for region in regions:
             xs, ys = region.exterior.xy
             ax.fill(
