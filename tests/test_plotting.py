@@ -51,7 +51,7 @@ def _fake_model(
     source: "pd.Series[str] | None" = None,
     dimensions: int = 2,
     viewpoint: PilotViewpointResult | None = None,
-) -> Any:  # noqa: ANN401
+) -> Any:
     z = np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [3.0, 3.0]])
     if dimensions == _THREE_DIMENSIONS:
         z = np.column_stack((z, np.array([10.0, 11.0, 12.0, 13.0])))
@@ -116,11 +116,11 @@ def test_viewpoint_resolution_matches_matlab_group_rules() -> None:
     """Global, uncovered, and overlapping groups all use MATLAB's first rule."""
     viewpoint = _viewpoint(groups=((0, 1), (1, 2)))
 
-    fallback = plotting._resolve_view_angle(None, None)  # noqa: SLF001
-    global_view = plotting._resolve_view_angle(viewpoint, None)  # noqa: SLF001
-    uncovered = plotting._resolve_view_angle(viewpoint, 99)  # noqa: SLF001
-    overlapping = plotting._resolve_view_angle(viewpoint, 1)  # noqa: SLF001
-    second_group = plotting._resolve_view_angle(viewpoint, 2)  # noqa: SLF001
+    fallback = plotting._resolve_view_angle(None, None)
+    global_view = plotting._resolve_view_angle(viewpoint, None)
+    uncovered = plotting._resolve_view_angle(viewpoint, 99)
+    overlapping = plotting._resolve_view_angle(viewpoint, 1)
+    second_group = plotting._resolve_view_angle(viewpoint, 2)
 
     assert fallback == pytest.approx((-37.5, 30.0))
     assert global_view == pytest.approx((15.0, 25.0))

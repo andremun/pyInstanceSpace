@@ -86,9 +86,7 @@ def test_integrated_prepro_n_prelim() -> None:
         pd.read_csv(csv_output_prelim_instlabels_run, header=None).iloc[:, 0].values
     )
     num_good_algos_output_run = (
-        pd.read_csv(csv_output_prelim_num_good_algos_run, header=None)
-        .iloc[:, 0]
-        .values
+        pd.read_csv(csv_output_prelim_num_good_algos_run, header=None).iloc[:, 0].values
     )
 
     prelim_opts = PrelimOptions(

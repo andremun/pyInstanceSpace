@@ -64,14 +64,14 @@ def test_save_with_parallelism_disabled_loads_without_an_executor(
 ) -> None:
     # This fixture's options set parallel.flag=false, so staged execution must
     # not create a pool merely for checkpointing.
-    assert two_stage_instance_space._executor is None  # noqa: SLF001
+    assert two_stage_instance_space._executor is None
     path = tmp_path / "checkpoint.joblib"
 
     two_stage_instance_space.save(path)
     loaded = InstanceSpace.load(path)
 
-    assert loaded._executor is None  # noqa: SLF001
-    assert loaded._executor_workers is None  # noqa: SLF001
+    assert loaded._executor is None
+    assert loaded._executor_workers is None
 
 
 def test_loaded_checkpoint_resumes_and_matches_an_uninterrupted_run(
@@ -85,12 +85,10 @@ def test_loaded_checkpoint_resumes_and_matches_an_uninterrupted_run(
     loaded.run_stage(SiftedStage)
     two_stage_instance_space.run_stage(SiftedStage)
 
-    loaded_runner = loaded._runner  # noqa: SLF001
-    uninterrupted_runner = two_stage_instance_space._runner  # noqa: SLF001
-    loaded_selvars = loaded_runner._available_arguments["selvars"]  # noqa: SLF001
-    uninterrupted_selvars = uninterrupted_runner._available_arguments[  # noqa: SLF001
-        "selvars"
-    ]
+    loaded_runner = loaded._runner
+    uninterrupted_runner = two_stage_instance_space._runner
+    loaded_selvars = loaded_runner._available_arguments["selvars"]
+    uninterrupted_selvars = uninterrupted_runner._available_arguments["selvars"]
     assert np.array_equal(loaded_selvars, uninterrupted_selvars)
 
 
@@ -103,7 +101,7 @@ def test_signed_round_trip_and_tamper_detection(
 
     two_stage_instance_space.save(path, secret_key=secret_key)
     loaded = InstanceSpace.load(path, secret_key=secret_key)
-    assert loaded._executor is None  # noqa: SLF001
+    assert loaded._executor is None
 
     with pytest.raises(ModelSignatureError):
         InstanceSpace.load(path, secret_key=b"wrong-key")
@@ -117,7 +115,7 @@ def test_signed_round_trip_and_tamper_detection(
 # ---------------------------------------------------------------------------
 
 
-def _bare_instance_space(reporter: Any = None) -> InstanceSpace:  # noqa: ANN401
+def _bare_instance_space(reporter: Any = None) -> InstanceSpace:
     metadata = Metadata(
         feature_names=["f1"],
         algorithm_names=["a1"],
@@ -160,7 +158,7 @@ def test_run_stage_reports_completion_but_not_job_completed_mid_schedule() -> No
     space._runner = cast(
         Any,
         SimpleNamespace(
-            run_stage=lambda stage, **kwargs: "output",  # noqa: ARG005
+            run_stage=lambda stage, **kwargs: "output",
             _available_arguments={"already": "seeded"},
             _current_schedule_item=1,
             _stage_order=[["wave0"], ["wave1"], ["wave2"]],
@@ -184,7 +182,7 @@ def test_run_stage_reports_job_completed_when_schedule_finishes() -> None:
     space._runner = cast(
         Any,
         SimpleNamespace(
-            run_stage=lambda stage, **kwargs: "output",  # noqa: ARG005
+            run_stage=lambda stage, **kwargs: "output",
             _available_arguments={"already": "seeded"},
             _current_schedule_item=2,
             _stage_order=[["wave0"], ["wave1"]],
@@ -231,7 +229,7 @@ def test_run_stage_seeds_initial_inputs_on_a_truly_fresh_runner() -> None:
     captured: dict[str, Any] = {}
 
     def fake_run_stage(stage: object, **kwargs: object) -> str:
-        captured.update(space._runner._available_arguments)  # noqa: SLF001
+        captured.update(space._runner._available_arguments)
         return "output"
 
     space._runner = cast(
@@ -271,7 +269,7 @@ def test_run_stage_does_not_reseed_a_partially_completed_runner() -> None:
 
     space.run_stage(FakeStage)  # type: ignore[arg-type]
 
-    assert space._runner._available_arguments is previously_seeded  # noqa: SLF001
+    assert space._runner._available_arguments is previously_seeded
     space.close()
 
 
@@ -302,13 +300,13 @@ def test_build_reports_each_stage_and_job_completed(
     monkeypatch.setattr(
         Model,
         "from_stage_runner_output",
-        classmethod(lambda cls, output, options: "fresh-model"),  # noqa: ARG005
+        classmethod(lambda cls, output, options: "fresh-model"),
     )
 
     result = space.build()
 
     assert cast(str, result) == "fresh-model"
-    assert reporter.report_stage_completed.call_count == 2  # noqa: PLR2004
+    assert reporter.report_stage_completed.call_count == 2
     reported_names = [
         call.args[0] for call in reporter.report_stage_completed.call_args_list
     ]
@@ -362,22 +360,22 @@ def test_run_iter_finalizes_only_after_full_exhaustion(
     monkeypatch.setattr(
         Model,
         "from_stage_runner_output",
-        classmethod(lambda cls, output, options: "fresh-model"),  # noqa: ARG005
+        classmethod(lambda cls, output, options: "fresh-model"),
     )
 
     outputs = space.run_iter()
     first = next(outputs)
 
     assert cast(str, first.output) == "partial"
-    assert space._model is None  # noqa: SLF001
-    assert space._final_output is None  # noqa: SLF001
+    assert space._model is None
+    assert space._final_output is None
     with pytest.raises(StageRunningError, match="not been completely"):
         _ = space.model
 
     with pytest.raises(StopIteration):
         next(outputs)
 
-    assert space._final_output == {"fresh": True}  # noqa: SLF001
+    assert space._final_output == {"fresh": True}
     assert cast(str, space.model) == "fresh-model"
     space.close()
 
@@ -413,8 +411,8 @@ def test_run_until_stage_forwards_overrides_without_exposing_partial_model() -> 
 
     assert output == {"partial": True}
     assert captured["threshold"] == threshold
-    assert space._model is None  # noqa: SLF001
-    assert space._final_output is None  # noqa: SLF001
+    assert space._model is None
+    assert space._final_output is None
     with pytest.raises(StageRunningError, match="not been completely"):
         _ = space.model
     space.close()
@@ -428,7 +426,7 @@ def test_completed_run_stage_replaces_a_stale_cached_model(
     space._runner = cast(
         Any,
         SimpleNamespace(
-            run_stage=lambda stage, **kwargs: "output",  # noqa: ARG005
+            run_stage=lambda stage, **kwargs: "output",
             _available_arguments={"fresh": True},
             _current_schedule_item=1,
             _stage_order=[[FakeStage]],
@@ -439,13 +437,13 @@ def test_completed_run_stage_replaces_a_stale_cached_model(
     monkeypatch.setattr(
         Model,
         "from_stage_runner_output",
-        classmethod(lambda cls, output, options: "fresh-model"),  # noqa: ARG005
+        classmethod(lambda cls, output, options: "fresh-model"),
     )
 
     space.run_stage(FakeStage)  # type: ignore[arg-type]
 
     assert cast(str, space.model) == "fresh-model"
-    assert space._final_output == {"fresh": True}  # noqa: SLF001
+    assert space._final_output == {"fresh": True}
     space.close()
 
 

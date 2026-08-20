@@ -53,7 +53,7 @@ def _pack_parameters(view: FloatArray, reconstruction: FloatArray) -> FloatArray
 
 def _fixed_trial_runner(
     captured_starts: list[FloatArray],
-) -> Any:  # noqa: ANN401
+) -> Any:
     """Return a trial-runner stub that records starts and emits a fixed view."""
 
     def run(

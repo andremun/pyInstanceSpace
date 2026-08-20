@@ -141,7 +141,7 @@ def test_bound() -> None:
         selvars_opts,
         GeneralOptions.default(),
     )
-    prelim_bound = prelim._bound()  # noqa: SLF001
+    prelim_bound = prelim._bound()
     x = prelim_bound.x
     hi_bound = prelim_bound.hi_bound
     lo_bound = prelim_bound.lo_bound
@@ -362,11 +362,11 @@ def test_prelim_run() -> None:
         inst_labels,
         data_dense,
         s,
-    ) = PrelimStage._run(  # noqa: SLF001
+    ) = PrelimStage._run(
         inputs,
     )
 
-    assert np.allclose(x.shape, x_output_run.shape)
+    np.testing.assert_allclose(x, x_output_run, rtol=0, atol=2e-13)
     assert np.allclose(y, y_output_run)
     assert np.allclose(y_bin, ybin_output_run)
     assert np.allclose(
@@ -400,7 +400,7 @@ def test_prelim_many_zero_best_warning_fires_above_threshold() -> None:
     prelim_stage = PrelimStage.__new__(PrelimStage)
     # 2 of 10 instances (20%) have a best-algorithm performance of exactly zero.
     y_best = np.concatenate([np.zeros(2), np.ones(8)])
-    warn_many_zero_best = prelim_stage._warn_many_zero_best  # noqa: SLF001
+    warn_many_zero_best = prelim_stage._warn_many_zero_best
 
     messages = _collect_warnings(warn_many_zero_best, y_best)
 
@@ -411,7 +411,7 @@ def test_prelim_many_zero_best_warning_silent_below_threshold() -> None:
     """No warning when at most 5% of instances have Ybest == 0."""
     prelim_stage = PrelimStage.__new__(PrelimStage)
     y_best = np.ones(10)  # none are zero
-    warn_many_zero_best = prelim_stage._warn_many_zero_best  # noqa: SLF001
+    warn_many_zero_best = prelim_stage._warn_many_zero_best
 
     messages = _collect_warnings(warn_many_zero_best, y_best)
 
@@ -718,7 +718,7 @@ def test_prelim_normalises_relative_performance_with_sparse_nans() -> None:
         selvars_opts,
         GeneralOptions.default(),
     )
-    expected = expected_stage._normalise()  # noqa: SLF001
+    expected = expected_stage._normalise()
 
     result = PrelimStage.prelim(
         x.copy(),
