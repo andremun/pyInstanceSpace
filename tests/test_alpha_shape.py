@@ -8,7 +8,6 @@ from shapely.geometry import MultiPoint, MultiPolygon
 
 from instancespace.data.model import pointwise_covers
 from instancespace.utils.alpha_shape import (
-    BARYCENTRIC_TOLERANCE,
     AlphaShape2D,
     AlphaShape3D,
     TetrahedralMesh,
@@ -155,27 +154,162 @@ def test_3d_unit_tetrahedron_measure_boundary_and_membership() -> None:
         assert np.dot(outward, centroid - first) < 0
 
 
-def test_3d_membership_tolerance_distinguishes_boundary_roundoff() -> None:
-    """The 1e-12 barycentric shell is inclusive but remains tightly bounded."""
+def test_3d_membership_exactly_resolves_adjacent_floats_at_a_face() -> None:
+    """A face is inclusive while its nearest inside/outside floats stay distinct."""
     shape = AlphaShape3D.from_points(_unit_tetrahedron())
     assert shape is not None
     mesh = shape.geometry(shape.critical_radius)
     assert mesh is not None
-    coordinate = 1.0 / 3.0
+    coordinate = 0.25
     probes = np.array(
         [
-            [coordinate, coordinate, coordinate - 4 * BARYCENTRIC_TOLERANCE],
-            [coordinate, coordinate, coordinate],
-            [coordinate, coordinate, coordinate + BARYCENTRIC_TOLERANCE / 4],
-            [coordinate, coordinate, coordinate + 4 * BARYCENTRIC_TOLERANCE],
+            [0.5, coordinate, np.nextafter(coordinate, -np.inf)],
+            [0.5, coordinate, coordinate],
+            [0.5, coordinate, np.nextafter(coordinate, np.inf)],
         ],
         dtype=np.double,
     )
 
     np.testing.assert_array_equal(
         mesh.covers(probes),
-        [True, True, True, False],
+        [True, True, False],
     )
+
+
+def test_3d_membership_is_robust_for_an_ill_conditioned_tetrahedron() -> None:
+    """Adaptive exact fallback resolves a one-ULP move across a thin face."""
+    height = np.ldexp(1.0, -42)
+    vertices = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, height],
+        ],
+        dtype=np.double,
+    )
+    mesh = TetrahedralMesh(
+        vertices=vertices,
+        tetrahedra=np.array([[0, 1, 2, 3]], dtype=np.int_),
+        boundary_faces=np.array(
+            [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]],
+            dtype=np.int_,
+        ),
+        alpha=1.0,
+        region_threshold=0.0,
+        region_count=1,
+        volume=height / 6.0,
+        surface_area=1.0,
+    )
+    face_height = height / 2.0
+    probes = np.array(
+        [
+            [0.25, 0.25, np.nextafter(face_height, -np.inf)],
+            [0.25, 0.25, face_height],
+            [0.25, 0.25, np.nextafter(face_height, np.inf)],
+        ],
+        dtype=np.double,
+    )
+
+    np.testing.assert_array_equal(mesh.covers(probes), [True, True, False])
+
+
+def test_3d_mesh_accepts_an_exactly_nonzero_subnormal_height() -> None:
+    """Exact validation does not discard a valid tetrahedron that float det loses."""
+    height = np.nextafter(0.0, 1.0)
+    vertices = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, height],
+        ],
+        dtype=np.double,
+    )
+
+    mesh = TetrahedralMesh(
+        vertices=vertices,
+        tetrahedra=np.array([[0, 1, 2, 3]], dtype=np.int_),
+        boundary_faces=np.empty((0, 3), dtype=np.int_),
+        alpha=1.0,
+        region_threshold=0.0,
+        region_count=1,
+        volume=0.0,
+        surface_area=1.0,
+    )
+
+    assert not mesh.is_empty
+
+
+def test_3d_mesh_rejects_an_exactly_planar_tetrahedron() -> None:
+    """A pseudoinverse must not turn a zero-volume simplex into solid geometry."""
+    vertices = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [1.0, 1.0, 0.0],
+        ],
+        dtype=np.double,
+    )
+
+    with pytest.raises(ValueError, match="nonzero exact signed volume"):
+        TetrahedralMesh(
+            vertices=vertices,
+            tetrahedra=np.array([[0, 1, 2, 3]], dtype=np.int_),
+            boundary_faces=np.empty((0, 3), dtype=np.int_),
+            alpha=1.0,
+            region_threshold=0.0,
+            region_count=1,
+            volume=0.0,
+            surface_area=1.0,
+        )
+
+
+@pytest.mark.parametrize("nonfinite", [np.nan, np.inf, -np.inf])
+def test_3d_mesh_rejects_nonfinite_vertices(nonfinite: float) -> None:
+    """Invalid mesh state is rejected before exact predicates can raise."""
+    vertices = _unit_tetrahedron()
+    vertices[3, 2] = nonfinite
+
+    with pytest.raises(ValueError, match="only finite values"):
+        TetrahedralMesh(
+            vertices=vertices,
+            tetrahedra=np.array([[0, 1, 2, 3]], dtype=np.int_),
+            boundary_faces=np.empty((0, 3), dtype=np.int_),
+            alpha=1.0,
+            region_threshold=0.0,
+            region_count=1,
+            volume=0.0,
+            surface_area=1.0,
+        )
+
+
+def test_3d_membership_rejects_invalid_ambiguity_tolerances() -> None:
+    """The public fallback-band control accepts only finite nonnegative widths."""
+    shape = AlphaShape3D.from_points(_unit_tetrahedron())
+    assert shape is not None
+    mesh = shape.geometry(shape.critical_radius)
+    assert mesh is not None
+
+    with pytest.raises(ValueError, match="finite and nonnegative"):
+        mesh.covers(np.zeros((1, 3), dtype=np.double), tolerance=-1.0)
+    with pytest.raises(ValueError, match="finite and nonnegative"):
+        mesh.covers(np.zeros((1, 3), dtype=np.double), tolerance=np.nan)
+
+
+def test_3d_membership_treats_nonfinite_queries_as_outside() -> None:
+    """Nonfinite probes retain the prior false-membership contract."""
+    shape = AlphaShape3D.from_points(_unit_tetrahedron())
+    assert shape is not None
+    mesh = shape.geometry(shape.critical_radius)
+    assert mesh is not None
+    probes = np.array(
+        [[np.nan, 0.0, 0.0], [0.0, np.inf, 0.0], [0.1, 0.1, 0.1]],
+        dtype=np.double,
+    )
+
+    np.testing.assert_array_equal(mesh.covers(probes), [False, False, True])
 
 
 def test_3d_cube_has_six_tetrahedra_and_twelve_boundary_faces() -> None:

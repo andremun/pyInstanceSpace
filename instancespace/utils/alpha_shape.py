@@ -7,6 +7,7 @@ from __future__ import annotations
 import itertools
 from collections.abc import Iterable
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import cast
 
 import numpy as np
@@ -21,10 +22,13 @@ THREE_DIMENSIONS = 3
 TRIANGLE_POINT_COUNT = 3
 TETRAHEDRON_POINT_COUNT = 4
 LEGACY_CONVEX_HULL_LIMIT = 4
-# Barycentric coordinates are dimensionless. This narrow shell absorbs solve
-# round-off at retained faces without admitting points materially outside them.
-BARYCENTRIC_TOLERANCE = 1e-12
+# Barycentric coordinates are dimensionless. Values within this ambiguity band
+# are resolved with exact predicates; the band is not an inclusion tolerance.
+BARYCENTRIC_TOLERANCE = 1e-10
 MAX_BARYCENTRIC_EVALUATIONS = 262_144
+ORIENTATION_ROUNDOFF_FACTOR = 64.0
+
+type ExactPoint3D = tuple[Fraction, Fraction, Fraction]
 
 
 def _triangle_circumradii(
@@ -172,6 +176,62 @@ def _tetrahedron_volumes(
     )
 
 
+def _exact_point(point: NDArray[np.double]) -> ExactPoint3D:
+    """Convert one stored IEEE-754 point to its exact rational value."""
+    return (
+        Fraction.from_float(float(point[0])),
+        Fraction.from_float(float(point[1])),
+        Fraction.from_float(float(point[2])),
+    )
+
+
+def _exact_orientation(
+    first: ExactPoint3D,
+    second: ExactPoint3D,
+    third: ExactPoint3D,
+    fourth: ExactPoint3D,
+) -> Fraction:
+    """Return the exact signed volume determinant of four stored points."""
+    ab_x = second[0] - first[0]
+    ab_y = second[1] - first[1]
+    ab_z = second[2] - first[2]
+    ac_x = third[0] - first[0]
+    ac_y = third[1] - first[1]
+    ac_z = third[2] - first[2]
+    ad_x = fourth[0] - first[0]
+    ad_y = fourth[1] - first[1]
+    ad_z = fourth[2] - first[2]
+    return (
+        ab_x * (ac_y * ad_z - ac_z * ad_y)
+        - ab_y * (ac_x * ad_z - ac_z * ad_x)
+        + ab_z * (ac_x * ad_y - ac_y * ad_x)
+    )
+
+
+def _exact_tetrahedron_covers(
+    point: NDArray[np.double],
+    tetrahedron: NDArray[np.double],
+) -> bool:
+    """Test inclusive tetrahedron membership using exact float predicates."""
+    if not np.all(np.isfinite(point)) or not np.all(np.isfinite(tetrahedron)):
+        return False
+    query = _exact_point(point)
+    first, second, third, fourth = (_exact_point(vertex) for vertex in tetrahedron)
+    denominator = _exact_orientation(first, second, third, fourth)
+    if denominator == 0:
+        return False
+
+    numerators = (
+        _exact_orientation(query, second, third, fourth),
+        _exact_orientation(first, query, third, fourth),
+        _exact_orientation(first, second, query, fourth),
+        _exact_orientation(first, second, third, query),
+    )
+    if denominator > 0:
+        return all(numerator >= 0 for numerator in numerators)
+    return all(numerator <= 0 for numerator in numerators)
+
+
 def _outward_boundary_faces(
     points: NDArray[np.double],
     tetrahedra: NDArray[np.int_],
@@ -247,6 +307,22 @@ class TetrahedralMesh:
         ):
             msg = "Boundary-face indices must reference retained mesh vertices."
             raise ValueError(msg)
+        if not np.all(np.isfinite(vertices)):
+            msg = "Tetrahedral mesh vertices must contain only finite values."
+            raise ValueError(msg)
+        exact_vertices = tuple(_exact_point(vertex) for vertex in vertices)
+        if any(
+            _exact_orientation(
+                exact_vertices[int(tetrahedron[0])],
+                exact_vertices[int(tetrahedron[1])],
+                exact_vertices[int(tetrahedron[2])],
+                exact_vertices[int(tetrahedron[3])],
+            )
+            == 0
+            for tetrahedron in tetrahedra
+        ):
+            msg = "Tetrahedra must have nonzero exact signed volume."
+            raise ValueError(msg)
 
         object.__setattr__(
             self,
@@ -291,19 +367,24 @@ class TetrahedralMesh:
         *,
         tolerance: float = BARYCENTRIC_TOLERANCE,
     ) -> NDArray[np.bool_]:
-        """Return inclusive point membership using bounded barycentric batches.
+        """Return robust inclusive membership using bounded vectorized batches.
 
-        ``tolerance`` is applied to dimensionless barycentric coordinates. The
-        default ``1e-12`` includes exact faces plus a round-off shell of that size;
-        points beyond the shell remain outside.
+        The fast path classifies unambiguous barycentric coordinates. Values near
+        a face are resolved from the exact rational values of the stored floats,
+        so true faces remain included without admitting an outside tolerance shell.
+        ``tolerance`` controls only the minimum width of that exact-fallback band.
         """
         query = np.asarray(points, dtype=np.double)
         if query.ndim != TWO_DIMENSIONS or query.shape[1] != THREE_DIMENSIONS:
             msg = "Three-dimensional mesh membership requires an (n, 3) matrix."
             raise ValueError(msg)
+        if not np.isfinite(tolerance) or tolerance < 0:
+            msg = "The barycentric ambiguity tolerance must be finite and nonnegative."
+            raise ValueError(msg)
         covered = np.zeros(query.shape[0], dtype=np.bool_)
         if self.is_empty or query.shape[0] == 0:
             return covered
+        finite_query = np.all(np.isfinite(query), axis=1)
 
         tetrahedron_count = self.tetrahedra.shape[0]
         tetrahedron_batch_size = min(tetrahedron_count, 1024)
@@ -326,8 +407,19 @@ class TetrahedralMesh:
                     [np.linalg.pinv(matrix) for matrix in edge_matrices],
                     dtype=np.double,
                 )
+            matrix_norms = np.linalg.norm(
+                edge_matrices,
+                ord=np.inf,
+                axis=(1, 2),
+            )
+            inverse_norms = np.linalg.norm(
+                inverse_matrices,
+                ord=np.inf,
+                axis=(1, 2),
+            )
+            condition_estimates = matrix_norms * inverse_norms
 
-            active = np.flatnonzero(~covered)
+            active = np.flatnonzero(np.logical_and(~covered, finite_query))
             if active.size == 0:
                 break
             point_batch_size = max(
@@ -343,11 +435,45 @@ class TetrahedralMesh:
                     offsets,
                 )
                 first_coordinate = 1.0 - np.sum(coordinates, axis=2)
-                inside = np.logical_and(
-                    np.all(coordinates >= -tolerance, axis=2),
-                    first_coordinate >= -tolerance,
+                minimum_coordinate = np.minimum(
+                    np.min(coordinates, axis=2),
+                    first_coordinate,
                 )
-                covered[point_indices] = np.any(inside, axis=1)
+                coordinate_scale = np.maximum(
+                    1.0,
+                    np.maximum(
+                        np.max(np.abs(coordinates), axis=2),
+                        np.abs(first_coordinate),
+                    ),
+                )
+                roundoff_band = (
+                    ORIENTATION_ROUNDOFF_FACTOR
+                    * np.finfo(np.double).eps
+                    * condition_estimates[None, :]
+                    * coordinate_scale
+                )
+                ambiguity_band = np.maximum(tolerance, roundoff_band)
+                clear_inside = minimum_coordinate > ambiguity_band
+                covered_in_batch = np.any(clear_inside, axis=1)
+                covered[point_indices[covered_in_batch]] = True
+
+                ambiguous = np.logical_or(
+                    ~np.isfinite(minimum_coordinate),
+                    np.logical_and(
+                        minimum_coordinate >= -ambiguity_band,
+                        minimum_coordinate <= ambiguity_band,
+                    ),
+                )
+                ambiguous[covered_in_batch] = False
+                for point_offset, tetrahedron_offset in np.argwhere(ambiguous):
+                    point_index = int(point_indices[point_offset])
+                    if covered[point_index]:
+                        continue
+                    if _exact_tetrahedron_covers(
+                        query[point_index],
+                        tetrahedron_vertices[tetrahedron_offset],
+                    ):
+                        covered[point_index] = True
         return covered
 
     def __eq__(self, other: object) -> bool:
