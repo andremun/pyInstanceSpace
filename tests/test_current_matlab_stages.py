@@ -320,7 +320,7 @@ def test_current_bundle_is_verified_r2026a_source() -> None:
     assert matlab["repo_dirty"] is False
     assert matlab["release"] == "R2026a"
     assert matlab["platform"] == "MACA64"
-    assert generator["repo_commit"] == "b87179f092f6abd08f2a2414ac159e54729696ba"
+    assert generator["repo_commit"] == "cf3cde0da5a3067300bd94a48d4d09ff5cf20b0c"
     assert generator["repo_dirty"] is False
     assert _RESOLVED_DOCUMENT["schema_version"] == (
         "pyinstancespace.resolved-options/v1"
