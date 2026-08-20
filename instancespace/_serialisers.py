@@ -2,6 +2,7 @@
 # Copyright (c) 2024-2026 Mario Andrés Muñoz
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from pathlib import Path
@@ -16,6 +17,7 @@ from matplotlib.colors import Normalize
 from matplotlib.figure import Figure
 from matplotlib.patches import PathPatch
 from matplotlib.path import Path as MatplotlibPath
+from mpl_toolkits.mplot3d import Axes3D  # type: ignore[import-untyped]
 from numpy.typing import NDArray
 from scipy.io import savemat
 from shapely import MultiPolygon, Polygon
@@ -34,13 +36,26 @@ from instancespace.data.model import (
 from instancespace.data.options import InstanceSpaceOptions
 from instancespace.plotting import (
     _apply_view_angle,
+    _draw_tetrahedral_mesh,
     _projection_dimensions,
     _resolve_view_angle,
     _scatter_projection,
     _ViewAngle,
 )
+from instancespace.utils.alpha_shape import TetrahedralMesh
 
 _FOOTPRINT_COLUMNS = ["Row", "Part", "Ring", "Vertex", "z_1", "z_2"]
+_TRACE_MESH_SCHEMA = "pyinstancespace.trace-mesh/v1"
+_TRACE_MESH_MANIFEST = "footprint_meshes.json"
+_TRACE_MESH_VERTEX_COLUMNS = ["vertex", "z_1", "z_2", "z_3"]
+_TRACE_MESH_TETRAHEDRON_COLUMNS = [
+    "tetrahedron",
+    "v_1",
+    "v_2",
+    "v_3",
+    "v_4",
+]
+_TRACE_MESH_FACE_COLUMNS = ["face", "v_1", "v_2", "v_3"]
 _PROJECTION_ARRAY_DIMENSIONS = 2
 _FOOTPRINT_DIMENSIONS = 2
 _THREE_DIMENSIONS = 3
@@ -135,6 +150,244 @@ def _footprint_boundary_frame(polygon: Polygon | MultiPolygon) -> pd.DataFrame:
     return pd.DataFrame.from_records(records, columns=_FOOTPRINT_COLUMNS)
 
 
+def _trace_mesh_frames(
+    mesh: TetrahedralMesh | None,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Build the three one-based tables for one 3D TRACE footprint."""
+    vertices = np.empty((0, 3), dtype=np.double) if mesh is None else mesh.vertices
+    tetrahedra = (
+        np.empty((0, 4), dtype=np.int_) if mesh is None else mesh.tetrahedra + 1
+    )
+    boundary_faces = (
+        np.empty((0, 3), dtype=np.int_) if mesh is None else mesh.boundary_faces + 1
+    )
+
+    vertex_frame = pd.DataFrame(vertices, columns=_TRACE_MESH_VERTEX_COLUMNS[1:])
+    vertex_frame.insert(
+        0,
+        _TRACE_MESH_VERTEX_COLUMNS[0],
+        np.arange(1, len(vertex_frame) + 1, dtype=np.int_),
+    )
+    tetrahedron_frame = pd.DataFrame(
+        tetrahedra,
+        columns=_TRACE_MESH_TETRAHEDRON_COLUMNS[1:],
+    )
+    tetrahedron_frame.insert(
+        0,
+        _TRACE_MESH_TETRAHEDRON_COLUMNS[0],
+        np.arange(1, len(tetrahedron_frame) + 1, dtype=np.int_),
+    )
+    face_frame = pd.DataFrame(
+        boundary_faces,
+        columns=_TRACE_MESH_FACE_COLUMNS[1:],
+    )
+    face_frame.insert(
+        0,
+        _TRACE_MESH_FACE_COLUMNS[0],
+        np.arange(1, len(face_frame) + 1, dtype=np.int_),
+    )
+    return vertex_frame, tetrahedron_frame, face_frame
+
+
+def _mesh_metric(value: float, name: str) -> float:
+    """Return one standards-compliant finite JSON mesh metric."""
+    metric = float(value)
+    if not np.isfinite(metric):
+        raise ValueError(f"3D TRACE mesh {name} must be finite, got {metric!r}.")
+    return metric
+
+
+def _write_trace_mesh_footprint(
+    output_directory: Path,
+    footprint: Footprint,
+    *,
+    kind: str,
+    stem: str,
+    algorithm: str | None,
+    algorithm_index: int | None,
+) -> dict[str, Any]:
+    """Write one footprint's mesh tables and return its manifest record."""
+    if footprint.dimension != _THREE_DIMENSIONS:
+        raise ValueError(
+            "A 3D TRACE mesh export requires three-dimensional Footprint metadata.",
+        )
+    geometry = footprint.polygon
+    if geometry is not None and not isinstance(geometry, TetrahedralMesh):
+        raise ValueError(
+            "A 3D TRACE mesh export cannot serialize Shapely 2D geometry.",
+        )
+    mesh = geometry
+    footprint_volume = _mesh_metric(footprint.area, "footprint volume")
+    elements = int(footprint.elements)
+    good_elements = int(footprint.good_elements)
+    density = _mesh_metric(footprint.density, "density")
+    purity = _mesh_metric(footprint.purity, "purity")
+    if (
+        elements < 0
+        or good_elements < 0
+        or good_elements > elements
+        or elements != footprint.elements
+        or good_elements != footprint.good_elements
+        or density < 0
+        or not 0 <= purity <= 1
+    ):
+        raise ValueError("3D TRACE footprint statistics are inconsistent.")
+    if mesh is None and any(
+        value != 0
+        for value in (
+            footprint_volume,
+            elements,
+            good_elements,
+            density,
+            purity,
+        )
+    ):
+        raise ValueError("An empty 3D TRACE footprint must have zero statistics.")
+    if mesh is not None and not np.isclose(
+        footprint_volume,
+        mesh.volume,
+        rtol=1e-12,
+        atol=1e-12,
+    ):
+        raise ValueError("Footprint volume does not match its TetrahedralMesh.")
+    if mesh is not None:
+        expected_density = elements / mesh.volume if mesh.volume > 0 else 0.0
+        expected_purity = good_elements / elements if elements > 0 else 0.0
+        if not np.isclose(
+            density,
+            expected_density,
+            rtol=1e-12,
+            atol=1e-12,
+        ) or not np.isclose(
+            purity,
+            expected_purity,
+            rtol=1e-12,
+            atol=1e-12,
+        ):
+            raise ValueError(
+                "Footprint density or purity does not match its mesh statistics.",
+            )
+
+    if mesh is None:
+        alpha: float | None = None
+        region_threshold: float | None = None
+        region_count = 0
+        volume = 0.0
+        surface_area = 0.0
+        empty = True
+    else:
+        alpha = _mesh_metric(mesh.alpha, "alpha")
+        region_threshold = _mesh_metric(mesh.region_threshold, "region threshold")
+        region_count = int(mesh.region_count)
+        volume = _mesh_metric(mesh.volume, "volume")
+        surface_area = _mesh_metric(mesh.surface_area, "surface area")
+        if (
+            mesh.is_empty
+            or alpha <= 0
+            or region_threshold < 0
+            or region_count <= 0
+            or volume <= 0
+            or surface_area <= 0
+        ):
+            raise ValueError(
+                "A present TetrahedralMesh must be nonempty with positive geometry.",
+            )
+        empty = False
+
+    base = f"footprint_{stem}"
+    files = {
+        "vertices": f"{base}_vertices.csv",
+        "tetrahedra": f"{base}_tetrahedra.csv",
+        "boundary_faces": f"{base}_boundary_faces.csv",
+    }
+    frames = _trace_mesh_frames(mesh)
+    for filename, frame in zip(files.values(), frames, strict=True):
+        _write_dataframe_to_csv(frame, output_directory / filename)
+
+    return {
+        "kind": kind,
+        "algorithm": algorithm,
+        "algorithm_index": algorithm_index,
+        "empty": empty,
+        "mesh_present": mesh is not None,
+        "files": files,
+        "alpha": alpha,
+        "region_threshold": region_threshold,
+        "region_count": region_count,
+        "volume": volume,
+        "surface_area": surface_area,
+        "elements": elements,
+        "good_elements": good_elements,
+        "density": density,
+        "purity": purity,
+    }
+
+
+def _write_trace_mesh_bundle(
+    output_directory: Path,
+    algorithm_labels: list[str],
+    trace_out: TraceOut,
+) -> None:
+    """Write the additive versioned 3D TRACE mesh interchange."""
+    if len(trace_out.good) != len(algorithm_labels) or len(trace_out.best) != len(
+        algorithm_labels,
+    ):
+        raise ValueError("TRACE footprint counts must match the algorithm labels.")
+
+    records: list[dict[str, Any]] = []
+    stems = _portable_stems(algorithm_labels, "algorithm")
+    for index, (algorithm, stem) in enumerate(
+        zip(algorithm_labels, stems, strict=True),
+        start=1,
+    ):
+        records.append(
+            _write_trace_mesh_footprint(
+                output_directory,
+                trace_out.good[index - 1],
+                kind="good",
+                stem=f"{stem}_good",
+                algorithm=algorithm,
+                algorithm_index=index,
+            ),
+        )
+        records.append(
+            _write_trace_mesh_footprint(
+                output_directory,
+                trace_out.best[index - 1],
+                kind="best",
+                stem=f"{stem}_best",
+                algorithm=algorithm,
+                algorithm_index=index,
+            ),
+        )
+    records.append(
+        _write_trace_mesh_footprint(
+            output_directory,
+            trace_out.hard,
+            kind="hard",
+            stem="hard",
+            algorithm=None,
+            algorithm_index=None,
+        ),
+    )
+
+    manifest = {
+        "schema_version": _TRACE_MESH_SCHEMA,
+        "coordinate_dimension": _THREE_DIMENSIONS,
+        "algorithm_index_base": 1,
+        "mesh_index_base": 1,
+        "footprints": records,
+    }
+    target = output_directory / _TRACE_MESH_MANIFEST
+    try:
+        target.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False) + "\n",
+            encoding="utf-8",
+        )
+    except Exception as exc:
+        raise SerializationError(f"Could not write JSON file '{target}'.") from exc
+
+
 def _projection_column_names(z: NDArray[Any]) -> pd.Series[str]:
     """Return MATLAB-compatible coordinate names for a 2D or 3D projection."""
     projection = np.asarray(z)
@@ -165,8 +418,6 @@ def save_instance_space_to_csv(
     num_algorithms = data.y.shape[1]
     algorithm_stems = _portable_stems(data.algo_labels, "algorithm")
 
-    # TRACE footprints are Shapely's two-dimensional polygons. MATLAB likewise
-    # omits boundary CSVs for a 3D projection instead of flattening them.
     if projection_dimensions == _FOOTPRINT_DIMENSIONS:
         for i in range(num_algorithms):
             best = trace_out.best[i]
@@ -190,6 +441,8 @@ def save_instance_space_to_csv(
                     _footprint_boundary_frame(good.polygon),
                     output_directory / f"footprint_{algorithm_stems[i]}_good.csv",
                 )
+    else:
+        _write_trace_mesh_bundle(output_directory, data.algo_labels, trace_out)
 
     _write_array_to_csv(
         pilot_out.z,
@@ -373,7 +626,7 @@ def save_instance_space_graphs(
     num_algorithms = data.y.shape[1]
     feature_stems = _portable_stems(data.feat_labels, "feature")
     algorithm_stems = _portable_stems(data.algo_labels, "algorithm")
-    projection_dimensions = _projection_dimensions(pilot.z)
+    _projection_dimensions(pilot.z)
     viewpoint = getattr(pilot, "viewpoint", None)
     global_view = _resolve_view_angle(viewpoint, None)
 
@@ -384,12 +637,10 @@ def save_instance_space_graphs(
     y_log[log_domain] = np.log10(data.y_raw[log_domain] + 1)
     y_glb = _minmax_scale(y_log, axis=None)
 
-    if options.trace.use_sim:
-        y_foot = pythia.y_hat
-        p_foot = pythia.selection0
-    else:
-        y_foot = data.y_bin
-        p_foot = data.p - 1
+    # MATLAB scriptpng always labels trained footprints with experimental truth.
+    # TRACE's build-time useSim choice does not change the output overlay contract.
+    y_foot = data.y_bin
+    p_foot = data.p - 1
 
     for i in range(num_feats):
         filename = f"distribution_feature_{feature_stems[i]}.png"
@@ -440,15 +691,14 @@ def save_instance_space_graphs(
             algorithm_view,
         )
 
-        if projection_dimensions == _FOOTPRINT_DIMENSIONS:
-            _draw_good_bad_footprint(
-                pilot.z,
-                trace.good[i],
-                y_foot[:, i],
-                algo_label.replace("_", " ") + " Footprint",
-                output_directory / f"footprint_{algo_stem}.png",
-                algorithm_view,
-            )
+        _draw_good_bad_footprint(
+            pilot.z,
+            trace.good[i],
+            y_foot[:, i],
+            algo_label.replace("_", " ") + " Footprint",
+            output_directory / f"footprint_{algo_stem}.png",
+            algorithm_view,
+        )
 
     _draw_scatter(
         pilot.z,
@@ -492,15 +742,14 @@ def save_instance_space_graphs(
             global_view,
         )
 
-    if projection_dimensions == _FOOTPRINT_DIMENSIONS:
-        _draw_portfolio_footprint(
-            pilot.z,
-            trace.best,
-            p_foot,
-            np.array(data.algo_labels),
-            output_directory / "footprint_portfolio.png",
-            global_view,
-        )
+    _draw_portfolio_footprint(
+        pilot.z,
+        trace.best,
+        p_foot,
+        np.array(data.algo_labels),
+        output_directory / "footprint_portfolio.png",
+        global_view,
+    )
 
 
 def _write_array_to_csv(
@@ -762,7 +1011,6 @@ def _draw_portfolio_footprint(
     num_algorithms = len(algorithm_labels)
 
     cmap = plt.colormaps["viridis"]
-    projection_dimensions = _projection_dimensions(z)
     fig, ax2 = _new_projection_figure(z)
     try:
         ax: Axes = ax2
@@ -787,7 +1035,7 @@ def _draw_portfolio_footprint(
                 ),
             )
 
-            if selection >= 0 and projection_dimensions == _FOOTPRINT_DIMENSIONS:
+            if selection >= 0:
                 _draw_footprint(ax, best[selection], colour, 0.3)
 
         _configure_projection_axes(ax, z, view_angle)
@@ -808,7 +1056,6 @@ def _draw_good_bad_footprint(
     orange = (1.0, 0.6471, 0.0, 1.0)
     blue = (0.0, 0.0, 1.0, 1.0)
 
-    projection_dimensions = _projection_dimensions(z)
     fig, ax2 = _new_projection_figure(z)
     try:
         ax: Axes = ax2
@@ -833,8 +1080,7 @@ def _draw_good_bad_footprint(
                 c=[blue],
                 label="GOOD",
             )
-            if projection_dimensions == _FOOTPRINT_DIMENSIONS:
-                _draw_footprint(ax, good, blue, 0.3)
+            _draw_footprint(ax, good, blue, 0.3)
 
         _configure_projection_axes(ax, z, view_angle)
         _add_legend_if_present(ax)
@@ -849,14 +1095,32 @@ def _draw_footprint(
     colour: tuple[float, float, float, float],
     alpha: float,
 ) -> None:
-    if footprint.polygon is None or footprint.polygon.is_empty:
+    geometry = footprint.polygon
+    axis_is_3d = isinstance(ax, Axes3D)
+    expected_dimension = _THREE_DIMENSIONS if axis_is_3d else _FOOTPRINT_DIMENSIONS
+    if footprint.dimension != expected_dimension:
+        raise ValueError(
+            "Footprint metadata and matplotlib axis dimensions do not match.",
+        )
+    if geometry is None:
+        return
+    if isinstance(geometry, TetrahedralMesh):
+        if not axis_is_3d:
+            raise ValueError("A TetrahedralMesh requires a three-dimensional axis.")
+        _draw_tetrahedral_mesh(
+            ax,
+            geometry,
+            facecolor=colour,
+            edgecolor=colour,
+            alpha=alpha,
+        )
+        return
+    if axis_is_3d:
+        raise ValueError("Shapely 2D footprint geometry cannot be drawn on a 3D axis.")
+    if geometry.is_empty:
         return
 
-    parts = (
-        footprint.polygon.geoms
-        if isinstance(footprint.polygon, MultiPolygon)
-        else [footprint.polygon]
-    )
+    parts = geometry.geoms if isinstance(geometry, MultiPolygon) else [geometry]
     for part in parts:
         oriented = orient(part, sign=1.0)
         vertices: list[tuple[float, float]] = []

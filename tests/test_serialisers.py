@@ -1,5 +1,7 @@
 """Test module for serialisers."""
 
+import hashlib
+import json
 import os
 import shutil
 import warnings
@@ -22,6 +24,9 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.path import Path as MatplotlibPath
 from mpl_toolkits.mplot3d import Axes3D  # type: ignore[import-untyped]
+from mpl_toolkits.mplot3d.art3d import (  # type: ignore[import-untyped]
+    Poly3DCollection,
+)
 from numpy.typing import NDArray
 from scipy.io import loadmat
 from shapely.geometry import MultiPolygon, Polygon
@@ -57,8 +62,11 @@ from instancespace.data.options import (
 )
 from instancespace.model import Model
 from instancespace.stages.pilot_viewpoint import PilotViewpointResult
+from instancespace.utils.alpha_shape import TetrahedralMesh
 
 script_dir = Path(__file__).parent
+_SECOND_ALGORITHM_INDEX = 2
+_THREE_DIMENSIONS = 3
 
 # Clear the output before running the test
 for directory in ["csv", "web", "png"]:
@@ -323,7 +331,7 @@ class _MatlabResults:
 
 
 def _three_dimensional_model(model: Model) -> Model:
-    """Extend the MATLAB 2D fixture without inventing 3D TRACE geometry."""
+    """Extend the MATLAB fixture with native, deterministic 3D TRACE geometry."""
     third_coordinate = np.linspace(-1.0, 1.0, model.pilot.z.shape[0])
     projection = np.column_stack((model.pilot.z, third_coordinate))
     projection_matrix = np.vstack(
@@ -353,6 +361,24 @@ def _three_dimensional_model(model: Model) -> Model:
         1.5,
         model.cloister.z_ecorr.shape[0],
     )
+    mesh = _unit_tetrahedral_mesh()
+    mesh_footprint = Footprint(
+        mesh,
+        mesh.volume,
+        4,
+        4,
+        4 / mesh.volume,
+        1.0,
+        dimension=3,
+    )
+    empty_footprint = Footprint(None, 0, 0, 0, 0, 0, dimension=3)
+    algorithm_count = len(model.trace.good)
+    good = [mesh_footprint, empty_footprint] + [
+        mesh_footprint for _ in range(max(0, algorithm_count - 2))
+    ]
+    best = [mesh_footprint, empty_footprint] + [
+        mesh_footprint for _ in range(max(0, algorithm_count - 2))
+    ]
     return replace(
         model,
         pilot=replace(
@@ -369,6 +395,38 @@ def _three_dimensional_model(model: Model) -> Model:
             z_edge=np.column_stack((model.cloister.z_edge, edge_coordinate)),
             z_ecorr=np.column_stack((model.cloister.z_ecorr, pruned_coordinate)),
         ),
+        trace=replace(
+            model.trace,
+            space=mesh_footprint,
+            good=good,
+            best=best,
+            hard=mesh_footprint,
+        ),
+    )
+
+
+def _unit_tetrahedral_mesh() -> TetrahedralMesh:
+    """Return one unit tetrahedron with outward-oriented boundary faces."""
+    return TetrahedralMesh(
+        vertices=np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0],
+            ],
+            dtype=np.double,
+        ),
+        tetrahedra=np.array([[0, 1, 2, 3]], dtype=np.int_),
+        boundary_faces=np.array(
+            [[1, 2, 3], [0, 3, 2], [0, 1, 3], [0, 2, 1]],
+            dtype=np.int_,
+        ),
+        alpha=float(np.sqrt(3) / 2),
+        region_threshold=0.01,
+        region_count=1,
+        volume=1 / 6,
+        surface_area=float(1.5 + np.sqrt(3) / 2),
     )
 
 
@@ -420,10 +478,10 @@ def test_save_to_csv() -> None:
             pd.testing.assert_frame_equal(expected_data, actual_data)
 
 
-def test_3d_csv_export_uses_three_coordinates_and_omits_footprints(
+def test_3d_csv_export_uses_coordinates_and_versioned_trace_meshes(
     tmp_path: Path,
 ) -> None:
-    """A 3D projection keeps numeric outputs but never projects Shapely polygons."""
+    """A 3D projection keeps numeric outputs and writes native TRACE meshes."""
     model = _three_dimensional_model(_MatlabResults().get_model())
 
     model.save_to_csv(tmp_path)
@@ -444,11 +502,218 @@ def test_3d_csv_export_uses_three_coordinates_and_omits_footprints(
 
     assert not list(tmp_path.glob("footprint_*_best.csv"))
     assert not list(tmp_path.glob("footprint_*_good.csv"))
+    assert (tmp_path / "footprint_meshes.json").is_file()
+    assert list(tmp_path.glob("footprint_*_vertices.csv"))
+    assert list(tmp_path.glob("footprint_*_tetrahedra.csv"))
+    assert list(tmp_path.glob("footprint_*_boundary_faces.csv"))
     assert (tmp_path / "footprint_performance.csv").is_file()
     assert (tmp_path / "projection_matrix.csv").is_file()
     assert (
         len(pd.read_csv(tmp_path / "projection_matrix.csv")) == model.pilot.z.shape[1]
     )
+
+
+def test_3d_trace_mesh_interchange_round_trips_empty_and_oriented_geometry(
+    tmp_path: Path,
+) -> None:
+    """The additive mesh schema is lossless, one-based, and explicit for empties."""
+    model = _three_dimensional_model(_MatlabResults().get_model())
+
+    model.save_to_csv(tmp_path)
+
+    manifest = json.loads((tmp_path / "footprint_meshes.json").read_text())
+    assert manifest["schema_version"] == "pyinstancespace.trace-mesh/v1"
+    assert manifest["coordinate_dimension"] == _THREE_DIMENSIONS
+    assert manifest["algorithm_index_base"] == 1
+    assert manifest["mesh_index_base"] == 1
+    expected_records = 2 * len(model.data.algo_labels) + 1
+    assert len(manifest["footprints"]) == expected_records
+
+    record = next(
+        item
+        for item in manifest["footprints"]
+        if item["kind"] == "good" and item["algorithm_index"] == 1
+    )
+    assert record["algorithm"] == model.data.algo_labels[0]
+    assert record["empty"] is False
+    assert record["mesh_present"] is True
+    assert record["elements"] == model.trace.good[0].elements
+    assert record["good_elements"] == model.trace.good[0].good_elements
+    assert record["density"] == pytest.approx(model.trace.good[0].density)
+    assert record["purity"] == pytest.approx(model.trace.good[0].purity)
+    vertices = pd.read_csv(tmp_path / record["files"]["vertices"])
+    tetrahedra = pd.read_csv(tmp_path / record["files"]["tetrahedra"])
+    faces = pd.read_csv(tmp_path / record["files"]["boundary_faces"])
+    assert list(vertices) == ["vertex", "z_1", "z_2", "z_3"]
+    assert list(tetrahedra) == ["tetrahedron", "v_1", "v_2", "v_3", "v_4"]
+    assert list(faces) == ["face", "v_1", "v_2", "v_3"]
+    np.testing.assert_array_equal(vertices["vertex"], np.arange(1, 5))
+    np.testing.assert_array_equal(tetrahedra.iloc[:, 1:].to_numpy(), [[1, 2, 3, 4]])
+
+    reconstructed = TetrahedralMesh(
+        vertices=vertices.iloc[:, 1:].to_numpy(dtype=np.double),
+        tetrahedra=tetrahedra.iloc[:, 1:].to_numpy(dtype=np.int_) - 1,
+        boundary_faces=faces.iloc[:, 1:].to_numpy(dtype=np.int_) - 1,
+        alpha=record["alpha"],
+        region_threshold=record["region_threshold"],
+        region_count=record["region_count"],
+        volume=record["volume"],
+        surface_area=record["surface_area"],
+    )
+    expected = cast(TetrahedralMesh, model.trace.good[0].polygon)
+    assert reconstructed == expected
+    restored_footprint = Footprint(
+        reconstructed,
+        record["volume"],
+        record["elements"],
+        record["good_elements"],
+        record["density"],
+        record["purity"],
+        dimension=_THREE_DIMENSIONS,
+    )
+    assert restored_footprint == model.trace.good[0]
+
+    tetrahedron = set(reconstructed.tetrahedra[0])
+    for face in reconstructed.boundary_faces:
+        opposite_index = next(iter(tetrahedron - set(face)))
+        first, second, third = reconstructed.vertices[face]
+        opposite = reconstructed.vertices[opposite_index]
+        normal = np.cross(second - first, third - first)
+        assert float(np.dot(normal, opposite - first)) < 0
+
+    empty = next(
+        item
+        for item in manifest["footprints"]
+        if item["kind"] == "good" and item["algorithm_index"] == _SECOND_ALGORITHM_INDEX
+    )
+    assert empty == {
+        "algorithm": model.data.algo_labels[1],
+        "algorithm_index": 2,
+        "alpha": None,
+        "empty": True,
+        "elements": 0,
+        "files": empty["files"],
+        "good_elements": 0,
+        "kind": "good",
+        "mesh_present": False,
+        "density": 0.0,
+        "purity": 0.0,
+        "region_count": 0,
+        "region_threshold": None,
+        "surface_area": 0.0,
+        "volume": 0.0,
+    }
+    assert all(
+        pd.read_csv(tmp_path / filename).empty for filename in empty["files"].values()
+    )
+    restored_empty = Footprint(
+        None,
+        empty["volume"],
+        0,
+        0,
+        0,
+        0,
+        dimension=_THREE_DIMENSIONS,
+    )
+    assert restored_empty.polygon is None
+    assert restored_empty.dimension == _THREE_DIMENSIONS
+
+
+def test_3d_trace_mesh_export_rejects_inconsistent_footprint_metrics(
+    tmp_path: Path,
+) -> None:
+    """Manifest statistics cannot disagree with their retained geometry."""
+    model = _three_dimensional_model(_MatlabResults().get_model())
+    original = model.trace.good[0]
+    inconsistent = replace(original, area=original.area + 1.0)
+    model = replace(
+        model,
+        trace=replace(model.trace, good=[inconsistent, *model.trace.good[1:]]),
+    )
+
+    with pytest.raises(ValueError, match="volume does not match"):
+        model.save_to_csv(tmp_path)
+
+
+def test_3d_trace_mesh_export_rejects_present_empty_mesh(tmp_path: Path) -> None:
+    """Canonical empty output is polygon=None, never a fake present mesh."""
+    model = _three_dimensional_model(_MatlabResults().get_model())
+    empty_mesh = TetrahedralMesh(
+        vertices=np.empty((0, 3), dtype=np.double),
+        tetrahedra=np.empty((0, 4), dtype=np.int_),
+        boundary_faces=np.empty((0, 3), dtype=np.int_),
+        alpha=0.0,
+        region_threshold=0.0,
+        region_count=0,
+        volume=0.0,
+        surface_area=0.0,
+    )
+    wrong = Footprint(empty_mesh, 0, 0, 0, 0, 0, dimension=_THREE_DIMENSIONS)
+    model = replace(
+        model,
+        trace=replace(model.trace, good=[wrong, *model.trace.good[1:]]),
+    )
+
+    with pytest.raises(ValueError, match="present TetrahedralMesh.*nonempty"):
+        model.save_to_csv(tmp_path)
+
+
+def test_3d_trace_mesh_paths_are_safe_unique_and_deterministic(tmp_path: Path) -> None:
+    """Unsafe/colliding labels cannot escape the output directory or vary by run."""
+    model = _three_dimensional_model(_MatlabResults().get_model())
+    labels = list(model.data.algo_labels)
+    labels[:4] = ["../../same", "..\\..\\same", "CON", "con"]
+    model = replace(model, data=replace(model.data, algo_labels=labels))
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+
+    model.save_to_csv(first)
+    model.save_to_csv(second)
+
+    first_manifest = (first / "footprint_meshes.json").read_bytes()
+    assert first_manifest == (second / "footprint_meshes.json").read_bytes()
+    manifest = json.loads(first_manifest)
+    filenames = [
+        filename
+        for record in manifest["footprints"]
+        for filename in record["files"].values()
+    ]
+    assert len({filename.casefold() for filename in filenames}) == len(filenames)
+    assert all(Path(filename).name == filename for filename in filenames)
+    assert all("\\" not in filename for filename in filenames)
+    assert all((first / filename).is_file() for filename in filenames)
+    assert {path.name: path.read_bytes() for path in first.glob("footprint_*.*")} == {
+        path.name: path.read_bytes() for path in second.glob("footprint_*.*")
+    }
+
+
+def test_2d_csv_byte_contract_remains_frozen(tmp_path: Path) -> None:
+    """Adding 3D interchange must not change representative 2D output bytes."""
+    model = _MatlabResults().get_model()
+
+    model.save_to_csv(tmp_path)
+
+    expected_hashes = {
+        "coordinates.csv": (
+            "1b55451d906b458b29dd1fdd2afc45abd846e056942c493733e2f3a6080773bf"
+        ),
+        "footprint_CART_best.csv": (
+            "3f8d2bff9723dc98a77f2648cb4b77b19cba2dff78fdccb6cc201d1eb018a9c7"
+        ),
+        "footprint_performance.csv": (
+            "af43b86bcfbabc9a9fe42081b93044981f3f3507c1c1b9a2bc5cfafb30b62f0a"
+        ),
+        "projection_matrix.csv": (
+            "23ce24c701367a6025f6a8481b690ce311b2ed89df5bc30207559fc11942b81d"
+        ),
+    }
+    assert not (tmp_path / "footprint_meshes.json").exists()
+    for filename, expected_hash in expected_hashes.items():
+        assert hashlib.sha256((tmp_path / filename).read_bytes()).hexdigest() == (
+            expected_hash
+        )
 
 
 def test_save_for_web() -> None:
@@ -562,13 +827,14 @@ def test_3d_graph_scatter_uses_native_axis_camera_and_z_coordinates(
     assert (tmp_path / "scatter.png").is_file()
 
 
-def test_3d_graph_export_skips_footprints_but_keeps_binary_scatters(
+def test_3d_graph_export_renders_mesh_footprints_and_binary_scatters(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """No footprint-named 3D PNG implies geometry that Python does not have."""
+    """Native meshes enable footprint PNGs without losing binary scatters."""
     model = _three_dimensional_model(_MatlabResults().get_model())
     binary_outputs: list[str] = []
+    footprint_outputs: list[tuple[str, object]] = []
 
     def no_draw(*_args: object, **_kwargs: object) -> None:
         pass
@@ -576,29 +842,34 @@ def test_3d_graph_export_skips_footprints_but_keeps_binary_scatters(
     def capture_binary(*args: object, **_kwargs: object) -> None:
         binary_outputs.append(cast(Path, args[3]).name)
 
-    def fail_footprint(*_args: object, **_kwargs: object) -> None:
-        pytest.fail("3D graph export attempted to render a footprint")
+    def capture_footprint(*args: object, **_kwargs: object) -> None:
+        footprint_outputs.append((cast(Path, args[4]).name, args[5]))
+
+    def capture_portfolio(*args: object, **_kwargs: object) -> None:
+        footprint_outputs.append((cast(Path, args[4]).name, args[5]))
 
     monkeypatch.setattr(serialisers, "_draw_scatter", no_draw)
     monkeypatch.setattr(serialisers, "_draw_binary_performance", capture_binary)
-    monkeypatch.setattr(serialisers, "_draw_good_bad_footprint", fail_footprint)
+    monkeypatch.setattr(serialisers, "_draw_good_bad_footprint", capture_footprint)
     monkeypatch.setattr(serialisers, "_draw_sources", no_draw)
     monkeypatch.setattr(serialisers, "_draw_portfolio_selections", no_draw)
-    monkeypatch.setattr(serialisers, "_draw_portfolio_footprint", fail_footprint)
+    monkeypatch.setattr(serialisers, "_draw_portfolio_footprint", capture_portfolio)
 
     model.save_graphs(tmp_path)
 
     num_algorithms = model.data.y.shape[1]
     assert len(binary_outputs) == 2 * num_algorithms + 1
     assert "distribution_beta_score.png" in binary_outputs
-    assert not list(tmp_path.glob("footprint*.png"))
+    assert len(footprint_outputs) == num_algorithms + 1
+    assert footprint_outputs[-1][0] == "footprint_portfolio.png"
+    assert footprint_outputs[0][1] == pytest.approx((0.0, 90.0))
 
 
 def test_graph_portfolio_boundaries_use_zero_based_internal_indices(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """Graph orchestration converts only Data.p and leaves PYTHIA unchanged."""
+    """Footprints always use MATLAB's true Ybin/P overlay contract."""
     data = cast(
         Data,
         SimpleNamespace(
@@ -632,6 +903,7 @@ def test_graph_portfolio_boundaries_use_zero_based_internal_indices(
     )
     selection_calls: list[NDArray[np.int_]] = []
     footprint_calls: list[NDArray[np.int_]] = []
+    good_bad_calls: list[NDArray[np.bool_]] = []
 
     def no_draw(*args: object, **kwargs: object) -> None:
         del args, kwargs
@@ -644,9 +916,13 @@ def test_graph_portfolio_boundaries_use_zero_based_internal_indices(
         del kwargs
         footprint_calls.append(np.asarray(args[2], dtype=np.int_).copy())
 
+    def capture_good_bad(*args: object, **kwargs: object) -> None:
+        del kwargs
+        good_bad_calls.append(np.asarray(args[2], dtype=np.bool_).copy())
+
     monkeypatch.setattr(serialisers, "_draw_scatter", no_draw)
     monkeypatch.setattr(serialisers, "_draw_binary_performance", no_draw)
-    monkeypatch.setattr(serialisers, "_draw_good_bad_footprint", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_good_bad_footprint", capture_good_bad)
     monkeypatch.setattr(serialisers, "_draw_sources", no_draw)
     monkeypatch.setattr(serialisers, "_draw_portfolio_selections", capture_selections)
     monkeypatch.setattr(serialisers, "_draw_portfolio_footprint", capture_footprint)
@@ -681,7 +957,12 @@ def test_graph_portfolio_boundaries_use_zero_based_internal_indices(
     np.testing.assert_array_equal(selection_calls[2], [0, 1])
     np.testing.assert_array_equal(selection_calls[3], [0, -1])
     np.testing.assert_array_equal(footprint_calls[0], [0, 1])
-    np.testing.assert_array_equal(footprint_calls[1], [0, -1])
+    np.testing.assert_array_equal(footprint_calls[1], [0, 1])
+    assert len(good_bad_calls) == 2 * data.y.shape[1]
+    np.testing.assert_array_equal(good_bad_calls[0], data.y_bin[:, 0])
+    np.testing.assert_array_equal(good_bad_calls[1], data.y_bin[:, 1])
+    np.testing.assert_array_equal(good_bad_calls[2], data.y_bin[:, 0])
+    np.testing.assert_array_equal(good_bad_calls[3], data.y_bin[:, 1])
 
 
 def test_draw_portfolio_selections_labels_every_internal_selection(
@@ -915,6 +1196,59 @@ def test_compound_footprint_paths_keep_holes_and_components() -> None:
         assert move_counts == [2, 1]
     finally:
         plt.close(fig)
+
+
+def test_draw_footprint_adds_native_boundary_face_collection() -> None:
+    """The internal graph renderer consumes every 3D boundary face directly."""
+    mesh = _unit_tetrahedral_mesh()
+    footprint = Footprint(mesh, mesh.volume, 4, 4, 24.0, 1.0, dimension=3)
+    fig = plt.figure()
+    axis = fig.add_subplot(projection="3d")
+    try:
+        serialisers._draw_footprint(  # noqa: SLF001
+            axis,
+            footprint,
+            (0.0, 0.0, 1.0, 1.0),
+            0.3,
+        )
+
+        collections = [
+            collection
+            for collection in axis.collections
+            if isinstance(collection, Poly3DCollection)
+        ]
+        assert len(collections) == 1
+        fig.canvas.draw()
+        assert len(collections[0].get_paths()) == len(mesh.boundary_faces)
+        x_limits = axis.get_xlim()
+        y_limits = axis.get_ylim()
+        z_limits = cast(Any, axis).get_zlim()
+        for lower, upper in (x_limits, y_limits, z_limits):
+            assert lower <= 0
+            assert upper >= 1
+    finally:
+        plt.close(fig)
+
+
+def test_3d_csv_export_rejects_shapely_geometry(tmp_path: Path) -> None:
+    """A 2D polygon cannot be mislabeled as native 3D TRACE output."""
+    model = _three_dimensional_model(_MatlabResults().get_model())
+    wrong = Footprint(
+        Polygon([(0, 0), (1, 0), (0, 1)]),
+        0.5,
+        3,
+        3,
+        6.0,
+        1.0,
+        dimension=3,
+    )
+    model = replace(
+        model,
+        trace=replace(model.trace, good=[wrong, *model.trace.good[1:]]),
+    )
+
+    with pytest.raises(ValueError, match="cannot serialize Shapely"):
+        model.save_to_csv(tmp_path)
 
 
 def test_portable_stems_are_safe_unique_and_deterministic() -> None:
