@@ -19,20 +19,23 @@ five prioritized follow-ups. `main` is not an integration source.
    - Remove only genuinely dead alpha-region code; retain simplex semantics.
    - Use one JSON-key canonicalizer and cover Unicode-equivalent conflicts.
 
-3. **Constrain PYTHIA KNN tuning**
-   - Derive the smallest cross-validation training-fold size.
-   - Apply it to Sobol and Bayesian KNN parameter generation.
-   - Promote invalid-neighbour warnings to errors in focused tests.
+3. **Match PYTHIA KNN fitting semantics**
+   - Preserve MATLAB's nominal 1--25 Sobol and Bayesian search range.
+   - Cap neighbours independently when each fold or final model is fitted, while retaining
+     the requested parameter in reports.
+   - Remove the incompatible precalculated upper rejection and promote invalid-neighbour
+     warnings to errors in focused tests.
 
-4. **Re-audit #272**
-   - Reproduce the reported boundary case with the local engine.
-   - Compare multi-region topology and membership with R2026a.
-   - Fix only a confirmed mismatch; otherwise document the issue as superseded.
+4. **Dispose of #272 as superseded**
+   - Pin the R2026a two-region all-points contract.
+   - Retain valid `MultiPolygon` topology; add no single-region retry.
+   - Record the separate MATLAB CSV helper defect for the MATLAB repository.
 
 5. **Complete #262**
-   - Add validated 2D/3D PILOT options and result shapes.
-   - Generalize analytic, numerical, and PLS projection paths.
-   - Port MATLAB viewpoint grouping/selection.
+   - Add validated 2D/3D PILOT options; make PILOT own SIFTED dimensionality.
+   - Generalize analytic, numerical, and PLS projection paths, including MATLAB-order
+     solution packing, NaN-loss axes, rank fallback, and double-precision outputs.
+   - Port MATLAB viewpoint grouping/selection with `2 x 3` view matrices and radian angles.
    - Add R2026a 3D fixtures and prove existing 2D parity.
 
 6. **Re-baseline #304**

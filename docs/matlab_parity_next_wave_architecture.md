@@ -24,23 +24,37 @@ both validation and loading must use one canonicalizer.
 
 ### PYTHIA tuning constraints
 
-KNN tuning bounds are stage-context data. The largest candidate neighbour count must not
-exceed the smallest training fold used by cross-validation. The same runtime bound applies
-to Sobol and Bayesian search; public/precalculated parameters keep their existing named
-validation. Bounds remain expressed in MATLAB-facing units.
+MATLAB keeps the nominal KNN search range at 1--25 and caps `NumNeighbors` separately
+when each cross-validation fold or final model is fitted. Python must preserve the requested
+MATLAB-facing value for Sobol, Bayesian, and precalculated parameters while applying the
+same per-fit cap internally. A global bound based on the smallest fold is incorrect because
+it changes models fitted on larger folds.
 
 ### Alpha-boundary audit
 
-Issue #272 predates the local Delaunay engine. Multi-region geometry is valid and must not
-be collapsed into a single polygon. Retry logic is added only for a reproducible mismatch
-against current MATLAB; otherwise the issue is documented as superseded.
+R2026a disproves issue #272's Python premise. Its default all-points alpha may intentionally
+produce multiple regions; on the pinned two-cluster cloud MATLAB and the local Delaunay
+engine both use radius `sqrt(0.5)`, retain two regions with area 1, and include all six
+points. TRACE3 preserves that topology instead of retrying toward one polygon. Python
+geometry, membership, plotting, and CSV v2 already retain every component. The confirmed
+defect is limited to MATLAB's legacy `output/scriptcsv.m::traceAlphaBoundary`, which traces
+only the first boundary cycle and is not used by Python.
 
 ### Three-dimensional pipeline
 
 PILOT owns the projection dimensionality contract. `dims` is restricted to 2 or 3 and
-flows through analytic, numerical, and PLS paths. Existing 2D arrays and numerical results
-remain compatible. Three-dimensional PILOT adds viewpoint results without making a
-viewpoint part of the fitted projection itself.
+flows into SIFTED and through analytic, numerical, and PLS paths. MATLAB numerical vectors
+use column-major packing and its loss averages instances before columns; both conventions
+are explicit stage boundaries. Rank-deficient analytic input falls back to the numerical
+solver. Existing 2D scientific results remain pinned while MATLAB-backed dtype, summary,
+and precalculated-vector defects are corrected.
+
+Three-dimensional PILOT adds viewpoint results without making a viewpoint part of the
+fitted projection itself. Each configured zero-based algorithm group yields one `2 x 3`
+view matrix and azimuth/elevation in radians. The objective uses MATLAB's soft
+`0.2 * abs(dot(unit(v1), unit(v2)))` penalty. The empty group list means one global group;
+overlapping groups remain valid. Python retains its existing PLS build/explore centering
+asymmetry because an R2026a probe confirms MATLAB has the same behavior.
 
 After PILOT is stable, output code gains an explicit 3D geometry representation rather
 than overloading Shapely polygons. TRACE3 then uses a tetrahedral alpha complex, volume
