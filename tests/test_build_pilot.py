@@ -58,7 +58,7 @@ class SampleDataNum:
         self.y_sample = data["Y_test"]
         feat_labels = data["featlabels"][0]
         self.feat_labels_sample = [str(label[0]) for label in feat_labels]
-        analytic = data["optsPilot"][0, 0]["analytic"][0, 0]
+        analytic = bool(data["optsPilot"][0, 0]["analytic"][0, 0])
         n_tries = int(data["optsPilot"][0, 0]["ntries"][0, 0])
         self.opts_sample = PilotOptions(None, None, analytic, n_tries)
 
@@ -144,6 +144,50 @@ def test_run_numerical() -> None:
     if eoptim is not None and perf is not None:
         np.testing.assert_almost_equal(eoptim, mtr.data["eoptim"][0], decimal=6)
         np.testing.assert_almost_equal(perf, mtr.data["perf"][0], decimal=1)
+
+
+def test_numerical_c_keeps_every_algorithm_reconstruction_column() -> None:
+    """Translate MATLAB's one-based B(n+1:m, :) slice without dropping Y[:, 0]."""
+    x = np.array(
+        [
+            [0.1, 0.4],
+            [0.2, 0.8],
+            [0.7, 0.3],
+            [0.9, 0.6],
+        ],
+    )
+    y = np.array(
+        [
+            [0.2, 0.5, 0.8],
+            [0.4, 0.3, 0.7],
+            [0.6, 0.9, 0.1],
+            [0.8, 0.2, 0.4],
+        ],
+    )
+    n_features = x.shape[1]
+    total_columns = n_features + y.shape[1]
+    alpha = np.arange(1, 2 * total_columns + 2 * n_features + 1, dtype=float)
+    alpha = (alpha / 10.0).reshape(-1, 1)
+
+    output = PilotStage.pilot(
+        x,
+        y,
+        ["f0", "f1"],
+        PilotOptions.default(analytic=False, precalc_alpha=alpha),
+        GeneralOptions.default(verbose=False),
+        _do_output=False,
+    )
+
+    full_reconstruction = alpha[2 * n_features :, 0].reshape(total_columns, 2)
+    np.testing.assert_array_equal(
+        output.c,
+        full_reconstruction[n_features:total_columns].T,
+    )
+    assert output.c.shape == (2, y.shape[1])
+
+    reconstructed = output.z @ np.vstack((output.b, output.c.T)).T
+    expected_error = np.sum((np.column_stack((x, y)) - reconstructed) ** 2)
+    assert output.error == pytest.approx(expected_error)
 
 
 def test_pilot_seed_reproducibility() -> None:
@@ -373,6 +417,67 @@ def test_pilot_precalculated_alpha_does_not_crash() -> None:
 
     assert result.a.shape == (2, n)
     assert result.z.shape == (15, 2)
+
+
+@pytest.mark.parametrize(
+    ("options", "message"),
+    [
+        (
+            PilotOptions(None, np.ones((15, 1)), False, 1),
+            "precalcAlpha must have shape",
+        ),
+        (
+            PilotOptions(np.ones((15, 1)), None, False, 2),
+            "x0 must have 16 rows",
+        ),
+    ],
+)
+def test_pilot_rejects_contextually_wrong_solver_matrix_shapes(
+    options: PilotOptions,
+    message: str,
+) -> None:
+    """PILOT checks option matrix dimensions after feature counts are known."""
+    x = np.ones((5, 3))
+    y = np.ones((5, 2))
+
+    with pytest.raises(ValueError, match=message):
+        PilotStage.pilot(
+            x,
+            y,
+            ["one", "two", "three"],
+            options,
+            GeneralOptions(verbose=False, seed=0),
+            _do_output=False,
+        )
+
+
+def test_pilot_x0_columns_define_the_numerical_restart_count() -> None:
+    """A supplied X0 matrix overrides the configured random restart count."""
+    x = np.arange(15, dtype=np.double).reshape(5, 3)
+    y = np.arange(10, dtype=np.double).reshape(5, 2)
+    expected_rows = 16
+    x0 = np.ones((expected_rows, 3))
+    options = PilotOptions(x0, None, False, 1)
+
+    with patch.object(
+        PilotStage,
+        "_solve_one_trial",
+        return_value=(np.ones(expected_rows), 0.0, 1.0),
+    ) as solve_trial:
+        result = PilotStage.pilot(
+            x,
+            y,
+            ["one", "two", "three"],
+            options,
+            GeneralOptions(verbose=False, seed=0),
+            _do_output=False,
+        )
+
+    assert solve_trial.call_count == x0.shape[1]
+    assert result.X0 is not None
+    assert result.X0.shape == x0.shape
+    assert result.eoptim is not None
+    assert result.eoptim.shape == (x0.shape[1],)
 
 
 def test_pilot_analytic_handles_rank_deficient_x() -> None:

@@ -4,15 +4,16 @@
 
 import hashlib
 import hmac
-import os
+import re
 import zipfile
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, TypeVar
 
 import joblib
 
 from instancespace._serialisers import (
+    SerializationError,
     save_instance_space_for_web,
     save_instance_space_graphs,
     save_instance_space_output_mat,
@@ -31,7 +32,16 @@ from instancespace.data.model import (
 )
 from instancespace.data.options import InstanceSpaceOptions
 
-DEFAULT_DIRECTARY_NAME = "output"
+DEFAULT_DIRECTORY_NAME = "output"
+_INVALID_ARCHIVE_NAME = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_WINDOWS_RESERVED_ARCHIVE_STEMS = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
 
 
 class ModelSignatureError(Exception):
@@ -41,6 +51,19 @@ class ModelSignatureError(Exception):
     given, and a present signature when `secret_key` was not given (the
     downgrade-attack case - see `Model.load()`).
     """
+
+
+def _validate_archive_name(zip_filename: str) -> None:
+    """Reject archive names that are unsafe on common filesystems."""
+    if (
+        not zip_filename
+        or zip_filename in {".", ".."}
+        or _INVALID_ARCHIVE_NAME.search(zip_filename) is not None
+        or zip_filename.rstrip(" .") != zip_filename
+        or zip_filename.split(".", maxsplit=1)[0].upper()
+        in _WINDOWS_RESERVED_ARCHIVE_STEMS
+    ):
+        raise ValueError("zip_filename must be one safe filename without a path.")
 
 
 @dataclass(frozen=True)
@@ -253,7 +276,7 @@ class Model:
         )
 
     def save_zip(self, zip_filename: str, output_directory: Path | str) -> None:
-        """Save serializer outputs into a zip used for the web frontend."""
+        """Save serializer outputs in a structured ZIP archive."""
         print(
             "=========================================================================",
         )
@@ -261,16 +284,42 @@ class Model:
         if isinstance(output_directory, str):
             output_directory = Path(output_directory)
 
-        dir_name = DEFAULT_DIRECTARY_NAME
-        ignored_files = [".gitignore", zip_filename]
-        with zipfile.ZipFile(
-            output_directory / zip_filename,
-            "w",
-            zipfile.ZIP_DEFLATED,
-        ) as zf:
-            for root, _, files in os.walk(output_directory):
-                for filename in files:
-                    if filename in ignored_files:
-                        continue
-                    zf.write(Path(root) / filename, arcname=Path(dir_name) / filename)
+        if not output_directory.is_dir():
+            raise ValueError("output_directory must be an existing directory.")
+        _validate_archive_name(zip_filename)
+
+        output_root = output_directory.resolve()
+        archive_path = output_root / zip_filename
+        if archive_path.is_symlink():
+            raise ValueError(f"ZIP target must not be a symlink: '{archive_path}'.")
+        members: list[tuple[Path, str]] = []
+        member_names: set[str] = set()
+
+        for source in sorted(output_root.rglob("*"), key=lambda path: path.as_posix()):
+            if source == archive_path:
+                continue
+            if source.is_symlink():
+                raise ValueError(f"ZIP input must not be a symlink: '{source}'.")
+            if not source.is_file() or source.name == ".gitignore":
+                continue
+
+            relative = source.relative_to(output_root)
+            member_name = str(PurePosixPath(DEFAULT_DIRECTORY_NAME, *relative.parts))
+            if member_name in member_names:
+                raise ValueError(f"Duplicate ZIP member: '{member_name}'.")
+            member_names.add(member_name)
+            members.append((source, member_name))
+
+        try:
+            with zipfile.ZipFile(
+                archive_path,
+                "w",
+                zipfile.ZIP_DEFLATED,
+            ) as archive:
+                for source, member_name in members:
+                    archive.write(source, arcname=member_name)
+        except Exception as exc:
+            raise SerializationError(
+                f"Could not write ZIP file '{archive_path}'.",
+            ) from exc
         print(f"-> Successfully saved files into {zip_filename}.")

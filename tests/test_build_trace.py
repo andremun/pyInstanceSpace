@@ -277,18 +277,18 @@ def test_trace_rejects_invalid_one_based_experimental_portfolios(
         )
 
 
-def test_trace_method_other_than_legacy_raises() -> None:
-    """F11: `TraceOptions.method` other than 'legacy' fails loudly, not silently.
-
-    Only MATLAB's TRACE_legacy.m algorithm is ported; requesting 'trace3'
-    (or any other value) must not silently run legacy anyway.
-    """
+def test_trace3_method_dispatches_to_trace3(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The additive TRACE3 method no longer falls through to legacy."""
     inputs = _load_trace_fixture()._replace(
         trace_options=TraceOptions.default(method="trace3"),
     )
+    empty = Footprint(None, 0, 0, 0, 0, 0)
+    expected = TraceOutputs(empty, [], [], empty, pd.DataFrame())
+    monkeypatch.setattr(TraceStage, "_trace3", lambda _self: expected)
 
-    with pytest.raises(NotImplementedError, match="trace3"):
-        TraceStage._run(inputs)  # noqa: SLF001
+    assert TraceStage._run(inputs) is expected  # noqa: SLF001
 
 
 def test_trace_contra_false_skips_contradiction_removal() -> None:

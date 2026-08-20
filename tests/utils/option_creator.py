@@ -55,12 +55,12 @@ default_sifted = SiftedOptions(
     sol_per_pop=50,
     parent_selection_type="tournament",
     k_tournament=3,
-    keep_elitism=True,
+    keep_elitism=1,
     crossover_type="single_point",
     cross_over_probability=0.8,
     mutation_type="random",
     mutation_probability=0.2,
-    stop_criteria="max_generations",
+    stop_criteria="saturate_5",
 )
 default_pilot = PilotOptions.default(
     analytic=False,

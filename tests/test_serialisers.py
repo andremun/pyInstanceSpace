@@ -2,19 +2,27 @@
 
 import os
 import shutil
+import warnings
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
+import joblib
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
 import pytest
+
+mpl.use("Agg")
+
+import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
+from matplotlib.path import Path as MatplotlibPath
 from numpy.typing import NDArray
 from scipy.io import loadmat
-from shapely.geometry import Polygon
+from shapely.geometry import MultiPolygon, Polygon
 
 from instancespace import _serialisers as serialisers
 from instancespace.data.model import (
@@ -106,7 +114,7 @@ class _MatlabResults:
             small_scale_flag=bool(opts["selvars"]["smallscaleflag"]),
             small_scale=opts["selvars"]["smallscale"],
             file_idx_flag=bool(opts["selvars"]["fileidxflag"]),
-            file_idx=opts["selvars"]["fileidx"],
+            file_idx="",
             feats=None,
             algos=None,
             # workspace.mat stores this as the literal typo 'Ftr&&Good' -
@@ -331,7 +339,31 @@ def test_save_to_csv() -> None:
         expected_data = pd.read_csv(expected_file_path)
         actual_data = pd.read_csv(actual_file_path)
 
-        pd.testing.assert_frame_equal(expected_data, actual_data)
+        if csv_file.endswith(("_best.csv", "_good.csv")):
+            assert list(actual_data.columns) == [
+                "Row",
+                "Part",
+                "Ring",
+                "Vertex",
+                "z_1",
+                "z_2",
+            ]
+            np.testing.assert_array_equal(
+                actual_data["Row"],
+                np.arange(1, len(actual_data) + 1),
+            )
+            np.testing.assert_array_equal(actual_data["Part"], 1)
+            np.testing.assert_array_equal(actual_data["Ring"], "exterior")
+            np.testing.assert_array_equal(
+                actual_data["Vertex"],
+                np.arange(1, len(actual_data) + 1),
+            )
+            pd.testing.assert_frame_equal(
+                expected_data[["z_1", "z_2"]],
+                actual_data[["z_1", "z_2"]],
+            )
+        else:
+            pd.testing.assert_frame_equal(expected_data, actual_data)
 
 
 def test_save_for_web() -> None:
@@ -632,6 +664,309 @@ def test_save_zip() -> None:
         assert all(
             item in file_list for item in required_files
         ), f"Missing files: {set(required_files) - set(file_list)}"
+
+        assert "output/csv/coordinates.csv" in zf.namelist()
+        assert "output/mat/model.mat" in zf.namelist()
+
+
+def test_csv_export_is_read_only_and_idempotent(tmp_path: Path) -> None:
+    """Repeated CSV exports must not change any model-owned state."""
+    model = _MatlabResults().get_model()
+    model_hash_before = joblib.hash(model)
+    trace_before = model.trace.summary.copy(deep=True)
+    pilot_summary = model.pilot.summary
+    assert pilot_summary is not None
+    pilot_before = pilot_summary.copy(deep=True)
+    pythia_before = model.pythia.summary.copy(deep=True)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", pd.errors.SettingWithCopyWarning)
+        model.save_to_csv(tmp_path)
+    first_export = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+
+    model.save_to_csv(tmp_path)
+    second_export = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+
+    pd.testing.assert_frame_equal(model.trace.summary, trace_before)
+    pd.testing.assert_frame_equal(pilot_summary, pilot_before)
+    pd.testing.assert_frame_equal(model.pythia.summary, pythia_before)
+    assert joblib.hash(model) == model_hash_before
+    assert second_export == first_export
+
+
+def test_footprint_csv_v2_preserves_parts_and_holes() -> None:
+    """The footprint table must keep each component and interior ring separate."""
+    first = Polygon(
+        [(0, 0), (4, 0), (4, 4), (0, 4)],
+        holes=[[(1, 1), (1, 2), (2, 2), (2, 1)]],
+    )
+    second = Polygon([(10, 10), (12, 10), (12, 12), (10, 12)])
+
+    frame = serialisers._footprint_boundary_frame(  # noqa: SLF001
+        MultiPolygon([first, second]),
+    )
+
+    assert list(frame.columns) == ["Row", "Part", "Ring", "Vertex", "z_1", "z_2"]
+    assert frame.groupby(["Part", "Ring"], sort=False).size().to_dict() == {
+        (1, "exterior"): 4,
+        (1, "hole_1"): 4,
+        (2, "exterior"): 4,
+    }
+    np.testing.assert_array_equal(frame["Row"], np.arange(1, 13))
+    assert not np.any(
+        np.logical_and(
+            frame["z_1"] == frame["z_1"].shift(),
+            frame["z_2"] == frame["z_2"].shift(),
+        ),
+    )
+
+
+def test_compound_footprint_paths_keep_holes_and_components() -> None:
+    """Each polygon part must have one path, and each hole must start a subpath."""
+    first = Polygon(
+        [(0, 0), (4, 0), (4, 4), (0, 4)],
+        holes=[[(1, 1), (1, 2), (2, 2), (2, 1)]],
+    )
+    second = Polygon([(10, 10), (12, 10), (12, 12), (10, 12)])
+    footprint = Footprint(MultiPolygon([first, second]), 0, 0, 0, 0, 0)
+    expected_parts = 2
+    fig, ax = plt.subplots()
+    try:
+        serialisers._draw_footprint(  # noqa: SLF001
+            ax,
+            footprint,
+            (0.0, 0.0, 1.0, 1.0),
+            0.3,
+        )
+        assert len(ax.patches) == expected_parts
+        move_counts = [
+            int(np.count_nonzero(patch.get_path().codes == MatplotlibPath.MOVETO))
+            for patch in ax.patches
+        ]
+        assert move_counts == [2, 1]
+    finally:
+        plt.close(fig)
+
+
+def test_portable_stems_are_safe_unique_and_deterministic() -> None:
+    """Unsafe and colliding labels must map to unique portable stems."""
+    labels = ["../../same", "..\\..\\same", "CON", "con", "", "A:B", "A?B"]
+
+    stems = serialisers._portable_stems(labels, "algorithm")  # noqa: SLF001
+
+    assert stems == serialisers._portable_stems(labels, "algorithm")  # noqa: SLF001
+    assert len({stem.casefold() for stem in stems}) == len(stems)
+    assert all("/" not in stem and "\\" not in stem for stem in stems)
+    assert all(stem not in {"", ".", ".."} for stem in stems)
+    assert all(stem.split(".", maxsplit=1)[0].upper() != "CON" for stem in stems)
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+@pytest.mark.filterwarnings("error::UserWarning")
+def test_scaling_and_scatter_handle_constant_and_missing_data(tmp_path: Path) -> None:
+    """Constant and missing values must scale and plot without warnings."""
+    values = np.array([[5.0, np.nan, 1.0], [5.0, np.nan, 3.0]])
+
+    scaled = serialisers._minmax_scale(values, axis=0)  # noqa: SLF001
+    np.testing.assert_allclose(scaled[:, [0, 2]], [[0.0, 0.0], [0.0, 1.0]])
+    assert np.all(np.isnan(scaled[:, 1]))
+    colours = serialisers._colour_scale(values)  # noqa: SLF001
+    np.testing.assert_allclose(colours[:, [0, 2]], [[0, 0], [0, 255]])
+    assert np.all(np.isnan(colours[:, 1]))
+    serialisers._write_colour_array_to_csv(  # noqa: SLF001
+        colours,
+        pd.Series(["constant", "missing", "range"]),
+        pd.Series(["row_1", "row_2"]),
+        tmp_path / "colours.csv",
+    )
+    written_colours = pd.read_csv(tmp_path / "colours.csv")
+    assert np.all(np.isnan(written_colours["missing"]))
+    serialisers._draw_scatter(  # noqa: SLF001
+        np.array([[0.0, 0.0], [1.0, 1.0]]),
+        np.array([np.nan, np.nan]),
+        "Missing",
+        tmp_path / "missing.png",
+    )
+    assert (tmp_path / "missing.png").is_file()
+
+
+def test_graph_scaling_matches_matlab_axis_contract(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Individual performance uses columns, and global performance uses one range."""
+    data = cast(
+        Data,
+        SimpleNamespace(
+            x=np.array([[4.0], [4.0]]),
+            y=np.ones((2, 2)),
+            y_raw=np.array([[0.0, 9.0], [9.0, 99.0]]),
+            y_bin=np.zeros((2, 2), dtype=np.bool_),
+            feat_labels=["feature"],
+            algo_labels=["first", "second"],
+            num_good_algos=np.zeros(2),
+            p=np.ones(2, dtype=np.int_),
+            beta=np.zeros(2, dtype=np.bool_),
+            s=None,
+        ),
+    )
+    pythia = cast(
+        PythiaOut,
+        SimpleNamespace(
+            y_hat=np.zeros((2, 2), dtype=np.bool_),
+            selection0=np.full(2, -1, dtype=np.int_),
+        ),
+    )
+    pilot = cast(PilotOut, SimpleNamespace(z=np.array([[0.0, 0.0], [1.0, 1.0]])))
+    empty = Footprint(None, 0, 0, 0, 0, 0)
+    trace = cast(TraceOut, SimpleNamespace(good=[empty, empty], best=[empty, empty]))
+    options = cast(
+        InstanceSpaceOptions,
+        SimpleNamespace(trace=SimpleNamespace(use_sim=True)),
+    )
+    scatter_values: dict[str, NDArray[np.double]] = {}
+
+    def capture_scatter(
+        _z: NDArray[np.double],
+        values: NDArray[np.double],
+        _title: str,
+        output: Path,
+    ) -> None:
+        scatter_values[output.name] = np.asarray(values).copy()
+
+    def no_draw(*_args: object, **_kwargs: object) -> None:
+        pass
+
+    monkeypatch.setattr(serialisers, "_draw_scatter", capture_scatter)
+    monkeypatch.setattr(serialisers, "_draw_binary_performance", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_good_bad_footprint", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_portfolio_selections", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_portfolio_footprint", no_draw)
+
+    serialisers.save_instance_space_graphs(
+        tmp_path,
+        data,
+        options,
+        pythia,
+        pilot,
+        trace,
+    )
+
+    np.testing.assert_allclose(
+        scatter_values["distribution_performance_individual_normalized_first.png"],
+        [0.0, 1.0],
+    )
+    np.testing.assert_allclose(
+        scatter_values["distribution_performance_individual_normalized_second.png"],
+        [0.0, 1.0],
+    )
+    np.testing.assert_allclose(
+        scatter_values["distribution_performance_global_normalized_first.png"],
+        [0.0, 0.5],
+    )
+    np.testing.assert_allclose(
+        scatter_values["distribution_performance_global_normalized_second.png"],
+        [0.5, 1.0],
+    )
+
+
+def test_save_errors_include_the_operation_and_target(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """CSV, image, and MAT failures must raise contextual errors."""
+    csv_target = tmp_path / "table.csv"
+
+    def fail_csv(*_args: object, **_kwargs: object) -> None:
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(pd.DataFrame, "to_csv", fail_csv)
+    with pytest.raises(serialisers.SerializationError, match="table.csv") as csv_error:
+        serialisers._write_dataframe_to_csv(  # noqa: SLF001
+            pd.DataFrame({"a": [1]}),
+            csv_target,
+        )
+    assert isinstance(csv_error.value.__cause__, PermissionError)
+
+    fig = plt.figure()
+    try:
+        monkeypatch.setattr(fig, "savefig", fail_csv)
+        with pytest.raises(serialisers.SerializationError, match="plot.png"):
+            serialisers._save_figure(fig, tmp_path / "plot.png")  # noqa: SLF001
+    finally:
+        plt.close(fig)
+
+    monkeypatch.setattr(serialisers, "savemat", fail_csv)
+    data = cast(Data, SimpleNamespace(algo_labels=["algorithm"]))
+    with pytest.raises(serialisers.SerializationError, match="model.mat"):
+        serialisers.save_instance_space_output_mat(tmp_path, data)
+
+
+def test_zip_preserves_relative_paths_and_unique_members(tmp_path: Path) -> None:
+    """Duplicate basenames in separate folders must stay separate in the archive."""
+    model = object.__new__(Model)
+    (tmp_path / "csv").mkdir()
+    (tmp_path / "web").mkdir()
+    (tmp_path / "csv" / "summary.txt").write_text("csv", encoding="utf-8")
+    (tmp_path / "web" / "summary.txt").write_text("web", encoding="utf-8")
+
+    model.save_zip("bundle.zip", tmp_path)
+    model.save_zip("bundle.zip", tmp_path)
+
+    with zipfile.ZipFile(tmp_path / "bundle.zip") as archive:
+        names = archive.namelist()
+        assert names == ["output/csv/summary.txt", "output/web/summary.txt"]
+        assert len(names) == len(set(names))
+        assert archive.read("output/csv/summary.txt") == b"csv"
+        assert archive.read("output/web/summary.txt") == b"web"
+
+
+@pytest.mark.parametrize(
+    "archive_name",
+    [
+        "../escape.zip",
+        "nested/file.zip",
+        "bad\\file.zip",
+        "CON.zip",
+        "trailing.zip.",
+    ],
+)
+def test_zip_rejects_unsafe_archive_names(
+    tmp_path: Path,
+    archive_name: str,
+) -> None:
+    """An archive name must not contain a path."""
+    model = object.__new__(Model)
+
+    with pytest.raises(ValueError, match="safe filename"):
+        model.save_zip(archive_name, tmp_path)
+
+
+def test_zip_rejects_symlink_inputs(tmp_path: Path) -> None:
+    """Archives must not follow symlinks inside the output tree."""
+    model = object.__new__(Model)
+    target = tmp_path / "target.txt"
+    target.write_text("data", encoding="utf-8")
+    (tmp_path / "linked.txt").symlink_to(target)
+
+    with pytest.raises(ValueError, match="ZIP input must not be a symlink"):
+        model.save_zip("bundle.zip", tmp_path)
+
+
+def test_zip_write_errors_include_target(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Archive creation failures must identify the failed target."""
+    model = object.__new__(Model)
+
+    def fail_zip(*_args: object, **_kwargs: object) -> None:
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(zipfile, "ZipFile", fail_zip)
+    with pytest.raises(serialisers.SerializationError, match="bundle.zip") as error:
+        model.save_zip("bundle.zip", tmp_path)
+    assert isinstance(error.value.__cause__, PermissionError)
 
 
 def clean_dir(path: Path) -> None:
