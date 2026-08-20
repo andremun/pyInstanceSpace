@@ -18,6 +18,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 from scipy.io import loadmat
 from scipy.spatial.distance import pdist
 
@@ -87,6 +88,57 @@ class MatlabResultsNum:
         """Initialize the sample data for the Pilot stage."""
         fp_outdata = script_dir / "test_data/pilot/output/matlab_results_num.mat"
         self.data = loadmat(fp_outdata)
+
+
+def _matlab_simpls_reference(
+    x: NDArray[np.double],
+    y: NDArray[np.double],
+    dims: int,
+) -> tuple[
+    NDArray[np.double],
+    NDArray[np.double],
+    NDArray[np.double],
+    NDArray[np.double],
+]:
+    """Evaluate MATLAB R2026a `plsregress.m` lines 142-203 directly."""
+    x_centered = x - x.mean(axis=0)
+    y_centered = y - y.mean(axis=0)
+    x_loadings = np.zeros((x.shape[1], dims), dtype=np.double)
+    y_loadings = np.zeros((y.shape[1], dims), dtype=np.double)
+    x_scores = np.zeros((x.shape[0], dims), dtype=np.double)
+    weights = np.zeros((x.shape[1], dims), dtype=np.double)
+    basis = np.zeros((x.shape[1], dims), dtype=np.double)
+    covariance = x_centered.T @ y_centered
+
+    for component in range(dims):
+        left, singular_values, right_t = np.linalg.svd(
+            covariance,
+            full_matrices=False,
+        )
+        x_weight = left[:, 0]
+        y_weight = right_t[0, :]
+        score = x_centered @ x_weight
+        score_norm = np.linalg.norm(score)
+        score /= score_norm
+        x_loading = x_centered.T @ score
+
+        x_loadings[:, component] = x_loading
+        y_loadings[:, component] = singular_values[0] * y_weight / score_norm
+        x_scores[:, component] = score
+        weights[:, component] = x_weight / score_norm
+
+        basis_vector = x_loading.copy()
+        for _ in range(2):
+            for previous in range(component):
+                previous_basis = basis[:, previous]
+                basis_vector -= (previous_basis @ basis_vector) * previous_basis
+        basis_vector /= np.linalg.norm(basis_vector)
+        basis[:, component] = basis_vector
+        covariance -= np.outer(basis_vector, basis_vector @ covariance)
+        current_basis = basis[:, : component + 1]
+        covariance -= current_basis @ (current_basis.T @ covariance)
+
+    return x_loadings, y_loadings, x_scores, weights
 
 
 def test_run_analytic() -> None:
@@ -178,7 +230,12 @@ def test_numerical_c_keeps_every_algorithm_reconstruction_column() -> None:
         _do_output=False,
     )
 
-    full_reconstruction = alpha[2 * n_features :, 0].reshape(total_columns, 2)
+    _, full_reconstruction = PilotStage._unpack_solution(  # noqa: SLF001
+        alpha[:, 0],
+        2,
+        n_features,
+        total_columns,
+    )
     np.testing.assert_array_equal(
         output.c,
         full_reconstruction[n_features:total_columns].T,
@@ -480,31 +537,42 @@ def test_pilot_x0_columns_define_the_numerical_restart_count() -> None:
     assert result.eoptim.shape == (x0.shape[1],)
 
 
-def test_pilot_analytic_handles_rank_deficient_x() -> None:
-    """The analytic branch must not crash on a rank-deficient feature matrix.
-
-    Regression test: `analytic_solve()` used `np.linalg.inv`, which raises
-    `LinAlgError` for a singular `X @ X.T`. Duplicating a column makes `X`
-    rank-deficient by construction.
-    """
+def test_pilot_analytic_rank_deficiency_falls_back_to_numerical() -> None:
+    """Match MATLAB's warning and numerical fallback for rank-deficient X."""
     rng = np.random.default_rng(1)
     x_base = rng.random((20, 2))
     x = np.column_stack([x_base, x_base[:, 0]])
     y = rng.random((20, 2))
     feat_labels = ["f0", "f1", "f2"]
-    opts = PilotOptions(None, None, True, 1)
-
-    result = PilotStage.pilot(
-        x,
-        y,
-        feat_labels,
-        opts,
-        GeneralOptions(verbose=False, seed=0),
-        _do_output=False,
+    n = x.shape[1]
+    m = n + y.shape[1]
+    expected_a = rng.random((2, n))
+    expected_full_b = rng.random((m, 2))
+    precalc_alpha = PilotStage._pack_solution(  # noqa: SLF001
+        expected_a,
+        expected_full_b,
+    ).reshape(-1, 1)
+    opts = PilotOptions.default(
+        analytic=True,
+        n_tries=1,
+        precalc_alpha=precalc_alpha,
     )
 
-    assert np.all(np.isfinite(result.a))
-    assert np.all(np.isfinite(result.z))
+    with patch("instancespace.stages.pilot.logger.warning") as warning:
+        result = PilotStage.pilot(
+            x,
+            y,
+            feat_labels,
+            opts,
+            GeneralOptions(verbose=False, seed=0),
+            _do_output=False,
+        )
+
+    warning.assert_called_once_with(
+        "Feature matrix rank-deficient; falling back to numerical solution.",
+    )
+    np.testing.assert_array_equal(result.a, expected_a)
+    np.testing.assert_array_equal(result.z, x @ expected_a.T)
 
 
 def test_pilot_numerical_r2_has_one_value_per_column() -> None:
@@ -541,9 +609,8 @@ def test_pilot_numerical_solve_keeps_full_precision() -> None:
 
     Regression test: the solver previously downcast the whole `alpha` matrix
     to `float16` before returning it, discarding precision that then fed
-    into the projection matrices A/B/C/Z computed from it. A *separate*,
-    intentional float16 cast still happens later in `pilot()`, only for the
-    copy stored in `PilotOutput.alpha`, and is unaffected by this fix.
+    into the projection matrices A/B/C/Z computed from it and into the raw
+    solver result exposed in `PilotOutput.alpha`.
     """
     rng = np.random.default_rng(3)
     x = rng.random((15, 3))
@@ -574,6 +641,17 @@ def test_pilot_numerical_solve_keeps_full_precision() -> None:
     )
 
     assert out_alpha.dtype == np.float64
+
+    result = PilotStage.pilot(
+        x,
+        y,
+        ["f0", "f1", "f2"],
+        PilotOptions.default(analytic=False, precalc_alpha=out_alpha[:, :1]),
+        GeneralOptions.default(verbose=False),
+        _do_output=False,
+    )
+    assert result.alpha is not None
+    assert result.alpha.dtype == np.float64
 
 
 def test_pilot_options_precalc_alpha_is_keyword_settable() -> None:
@@ -651,6 +729,64 @@ def test_analytic_solve_cost_weight_changes_projection() -> None:
     assert not np.allclose(c1, c2)
 
 
+def test_analytic_solve_weighted_a_matches_matlab_formula() -> None:
+    """Use weighted Xbar when deriving A, matching MATLAB PILOT.m."""
+    rng = np.random.default_rng(47)
+    x = rng.random((24, 4))
+    y = rng.random((24, 3))
+    n = x.shape[1]
+    x_bar = np.column_stack((x, y))
+    m = x_bar.shape[1]
+    cost_weight = 9.0
+
+    a, _z, c, b, _error, _r2 = PilotStage.analytic_solve(
+        x,
+        x_bar,
+        n,
+        m,
+        cost_weight=cost_weight,
+        _do_output=False,
+    )
+
+    weighted_x_bar = x_bar.copy()
+    weighted_x_bar[:, n:m] *= np.sqrt(cost_weight)
+    weighted_loadings = np.vstack((b, c.T * np.sqrt(cost_weight)))
+    x_transpose = x.T
+    x_right_inverse = x_transpose.T @ np.linalg.pinv(
+        x_transpose @ x_transpose.T,
+    )
+    expected_a = weighted_loadings.T @ weighted_x_bar.T @ x_right_inverse
+    old_unweighted_a = weighted_loadings.T @ x_bar.T @ x_right_inverse
+
+    np.testing.assert_allclose(a, expected_a)
+    assert not np.allclose(a, old_unweighted_a)
+
+
+def test_analytic_solve_preserves_sixth_positional_output_argument() -> None:
+    """The historical sixth positional argument remains `_do_output`."""
+    rng = np.random.default_rng(53)
+    x = rng.random((20, 4))
+    y = rng.random((20, 2))
+    n = x.shape[1]
+    x_bar = np.column_stack((x, y))
+    m = x_bar.shape[1]
+
+    positional = PilotStage.analytic_solve(x, x_bar, n, m, 1.0, False)
+    keyword = PilotStage.analytic_solve(
+        x,
+        x_bar,
+        n,
+        m,
+        cost_weight=1.0,
+        _do_output=False,
+        dims=2,
+    )
+
+    assert positional[0].shape == (2, n)
+    for positional_value, keyword_value in zip(positional, keyword, strict=True):
+        np.testing.assert_array_equal(positional_value, keyword_value)
+
+
 def test_error_function_default_cost_weight_matches_unweighted() -> None:
     """`error_function`'s `cost_weight` defaults to 1.0, an exact no-op."""
     rng = np.random.default_rng(19)
@@ -681,6 +817,212 @@ def test_error_function_cost_weight_reweights_performance_columns() -> None:
     err_weighted = PilotStage.error_function(alpha, x_bar, n, m, cost_weight=10.0)
 
     assert err_unweighted != err_weighted
+
+
+def test_numerical_solution_vector_uses_matlab_column_major_order() -> None:
+    """PILOT packs ``[A(:); B(:)]`` exactly as MATLAB does."""
+    theta = np.arange(1, 15, dtype=np.double)
+    expected_a = np.array([[1.0, 3.0, 5.0], [2.0, 4.0, 6.0]])
+    expected_b = np.array(
+        [
+            [7.0, 11.0],
+            [8.0, 12.0],
+            [9.0, 13.0],
+            [10.0, 14.0],
+        ],
+    )
+
+    a, b = PilotStage._unpack_solution(  # noqa: SLF001
+        theta,
+        dims=2,
+        n=3,
+        m=4,
+    )
+
+    np.testing.assert_array_equal(a, expected_a)
+    np.testing.assert_array_equal(b, expected_b)
+    np.testing.assert_array_equal(
+        PilotStage._pack_solution(a, b),  # noqa: SLF001
+        theta,
+    )
+
+
+def test_error_function_matches_matlab_columnwise_nanmean_order() -> None:
+    """Average instances within each column before averaging the columns."""
+    x_bar = np.array(
+        [
+            [1.0, 1.0, np.nan, 2.0],
+            [2.0, np.nan, 10.0, np.nan],
+            [3.0, 3.0, 20.0, 4.0],
+        ],
+    )
+    n = 1
+    m = x_bar.shape[1]
+    theta = np.zeros(2 * (n + m), dtype=np.double)
+
+    result = PilotStage.error_function(
+        theta,
+        x_bar,
+        n,
+        m,
+        cost_weight=2.0,
+        d=2,
+    )
+
+    expected = np.mean(
+        [
+            np.mean([1.0, 4.0, 9.0]),
+            2.0 * np.mean([1.0, 9.0]),
+            2.0 * np.mean([100.0, 400.0]),
+            2.0 * np.mean([4.0, 16.0]),
+        ],
+    )
+    assert result == pytest.approx(expected)
+
+
+def test_pilot_dims_two_preserves_the_default_analytic_result() -> None:
+    """Making the historical two-dimensional default explicit is a no-op."""
+    rng = np.random.default_rng(31)
+    x = rng.random((24, 5))
+    y = rng.random((24, 3))
+    labels = [f"f{index}" for index in range(x.shape[1])]
+
+    implicit = PilotStage.pilot(
+        x,
+        y,
+        labels,
+        PilotOptions.default(analytic=True),
+        GeneralOptions.default(verbose=False),
+        _do_output=False,
+    )
+    explicit = PilotStage.pilot(
+        x,
+        y,
+        labels,
+        PilotOptions.default(analytic=True, dims=2),
+        GeneralOptions.default(verbose=False),
+        _do_output=False,
+    )
+
+    np.testing.assert_array_equal(implicit.a, explicit.a)
+    np.testing.assert_array_equal(implicit.z, explicit.z)
+    np.testing.assert_array_equal(implicit.b, explicit.b)
+    np.testing.assert_array_equal(implicit.c, explicit.c)
+    np.testing.assert_array_equal(implicit.r2, explicit.r2)
+    assert implicit.pilot_summary.equals(explicit.pilot_summary)
+
+
+def test_pilot_analytic_supports_three_dimensions() -> None:
+    """The standard analytic branch exposes consistent 3D matrices."""
+    rng = np.random.default_rng(37)
+    x = rng.random((30, 5))
+    y = rng.random((30, 3))
+    labels = [f"f{index}" for index in range(x.shape[1])]
+    x_bar = np.column_stack((x, y))
+
+    result = PilotStage.pilot(
+        x,
+        y,
+        labels,
+        PilotOptions.default(analytic=True, dims=3),
+        GeneralOptions.default(verbose=False),
+        _do_output=False,
+    )
+
+    assert result.a.shape == (3, x.shape[1])
+    assert result.z.shape == (x.shape[0], 3)
+    assert result.b.shape == (x.shape[1], 3)
+    assert result.c.shape == (3, y.shape[1])
+    assert result.r2.dtype == np.float64
+    np.testing.assert_allclose(result.z, x @ result.a.T)
+    reconstruction = result.z @ np.vstack((result.b, result.c.T)).T
+    assert result.error == pytest.approx(np.sum((x_bar - reconstruction) ** 2))
+    assert result.pilot_summary.shape == (3, x.shape[1] + 1)
+    assert result.pilot_summary.iloc[:, 0].tolist() == ["Z_{1}", "Z_{2}", "Z_{3}"]
+    np.testing.assert_array_equal(
+        result.pilot_summary.iloc[:, 1:].to_numpy(),
+        np.round(result.a, 4),
+    )
+
+
+def test_pilot_numerical_supports_three_dimensions() -> None:
+    """The standard numerical caller and output preserve a 3D solution."""
+    rng = np.random.default_rng(41)
+    x = rng.random((18, 4))
+    y = rng.random((18, 2))
+    labels = [f"f{index}" for index in range(x.shape[1])]
+    n = x.shape[1]
+    m = n + y.shape[1]
+    dims = 3
+    expected_a = rng.random((3, n))
+    expected_full_b = rng.random((m, 3))
+    theta = PilotStage._pack_solution(  # noqa: SLF001
+        expected_a,
+        expected_full_b,
+    ).reshape(-1, 1)
+
+    with patch.object(
+        PilotStage,
+        "_solve_one_trial",
+        return_value=(theta[:, 0], 0.0, 1.0),
+    ) as solve_trial:
+        result = PilotStage.pilot(
+            x,
+            y,
+            labels,
+            PilotOptions.default(analytic=False, dims=dims, x0=theta),
+            GeneralOptions.default(verbose=False),
+            _do_output=False,
+        )
+
+    assert solve_trial.call_args.args[-1] == dims
+    assert result.alpha is not None
+    assert result.alpha.dtype == np.float64
+    assert result.r2.dtype == np.float64
+    np.testing.assert_array_equal(result.a, expected_a)
+    np.testing.assert_array_equal(result.z, x @ expected_a.T)
+    np.testing.assert_array_equal(result.b, expected_full_b[:n, :])
+    np.testing.assert_array_equal(result.c, expected_full_b[n:m, :].T)
+    reconstruction = result.z @ expected_full_b.T
+    expected_error = np.sum((np.column_stack((x, y)) - reconstruction) ** 2)
+    assert result.error == pytest.approx(expected_error)
+
+
+def test_pilot_numerical_three_dimensional_bfgs_smoke() -> None:
+    """Run one real fixed-start 3D BFGS solve without a numeric pseudo-oracle."""
+    rng = np.random.default_rng(71)
+    x = rng.normal(size=(10, 3))
+    y = rng.normal(size=(10, 1))
+    n = x.shape[1]
+    m = n + y.shape[1]
+    dims = 3
+    x0 = np.linspace(-0.4, 0.4, dims * (n + m), dtype=np.double).reshape(-1, 1)
+
+    result = PilotStage.pilot(
+        x,
+        y,
+        ["f0", "f1", "f2"],
+        PilotOptions.default(analytic=False, dims=dims, n_tries=1, x0=x0),
+        GeneralOptions.default(verbose=False),
+        _do_output=False,
+        parallel_options=ParallelOptions(flag=False, n_cores=1),
+    )
+
+    assert result.alpha is not None
+    assert result.eoptim is not None
+    assert result.perf is not None
+    assert result.a.shape == (dims, n)
+    assert result.z.shape == (x.shape[0], dims)
+    assert result.b.shape == (n, dims)
+    assert result.c.shape == (dims, y.shape[1])
+    assert np.all(np.isfinite(result.alpha))
+    assert np.all(np.isfinite(result.eoptim))
+    assert np.all(np.isfinite(result.perf))
+    assert np.all(np.isfinite(result.r2))
+    np.testing.assert_allclose(result.z, x @ result.a.T)
+    reconstruction = result.z @ np.vstack((result.b, result.c.T)).T
+    expected_error = np.sum((np.column_stack((x, y)) - reconstruction) ** 2)
+    assert float(result.error) == pytest.approx(expected_error, abs=1e-10)
 
 
 def test_numerical_solve_parallel_matches_sequential() -> None:
@@ -810,18 +1152,7 @@ def test_pls_solve_produces_correct_shapes() -> None:
 
 
 def test_pls_solve_a_reprojects_new_instances_correctly() -> None:
-    """`out_a` must satisfy Z = (X - mean) @ A.T for reprojecting new instances.
-
-    Regression test: MATLAB's `out.A = stats.W'` is documented as "used by
-    exploreIS to reproject new instances via Z=X*A'" - that identity only
-    holds for `stats.W` because MATLAB's `plsregress` uses SIMPLS
-    (deflates the cross-covariance, not X). sklearn's `PLSRegression` uses
-    a NIPALS-based algorithm that deflates X across components, so
-    `x_weights_` does *not* satisfy this identity beyond the first
-    component (empirically ~0.16 max error on a 3-component fit) - only
-    `x_rotations_` does (~1e-16). Using the wrong matrix here would
-    silently break future explore-time reprojection for `method='pls'`.
-    """
+    """SIMPLS weights satisfy Z = (X - mean) @ A.T."""
     rng = np.random.default_rng(1)
     x = rng.random((30, 6))
     y = rng.random((30, 4))
@@ -841,14 +1172,132 @@ def test_pls_solve_a_reprojects_new_instances_correctly() -> None:
     np.testing.assert_allclose(z, z_reprojected, atol=1e-8)
 
 
-def test_pls_solve_is_dims_generic_with_no_code_changes() -> None:
-    """`pls_solve` must work at `dims=3` unmodified (F2's 3D work, #262).
+@pytest.mark.parametrize("dims", [2, 3])
+def test_pls_solve_matches_matlab_simpls_formula_up_to_component_sign(
+    dims: int,
+) -> None:
+    """Match the R2026a SIMPLS source for deterministic 2D and 3D fits."""
+    rng = np.random.default_rng(61)
+    x = rng.normal(size=(32, 6))
+    coefficients = rng.normal(size=(6, 4))
+    y = x @ coefficients + 0.1 * rng.normal(size=(32, 4))
+    x_bar = np.column_stack((x, y))
+    m = x_bar.shape[1]
+    expected_b, expected_y_loadings, expected_z, expected_weights = (
+        _matlab_simpls_reference(x, y, dims)
+    )
 
-    Not a public option yet (no `PilotOptions.dims` field exists today),
-    but the solver itself is written to accept `dims` as a parameter
-    specifically so a future public `dims` option needs no changes here -
-    only the caller passing a different value.
-    """
+    a, z, c, b, error, _r2 = PilotStage.pls_solve(
+        x,
+        y,
+        x_bar,
+        m,
+        dims=dims,
+        _do_output=False,
+    )
+
+    # SVD component signs are arbitrary across LAPACK implementations. Align
+    # each component before comparing factors; do not assert raw sign identity.
+    sign_alignment = np.sign(np.sum(a * expected_weights.T, axis=1))
+    sign_alignment[sign_alignment == 0] = 1
+    np.testing.assert_allclose(
+        a * sign_alignment[:, None],
+        expected_weights.T,
+        atol=2e-13,
+        rtol=0,
+    )
+    np.testing.assert_allclose(
+        z * sign_alignment[None, :],
+        expected_z,
+        atol=2e-13,
+        rtol=0,
+    )
+    np.testing.assert_allclose(
+        b * sign_alignment[None, :],
+        expected_b,
+        atol=2e-13,
+        rtol=0,
+    )
+    np.testing.assert_allclose(
+        c * sign_alignment[:, None],
+        expected_y_loadings.T,
+        atol=2e-13,
+        rtol=0,
+    )
+
+    np.testing.assert_allclose(
+        z,
+        (x - x.mean(axis=0)) @ a.T,
+        atol=2e-13,
+        rtol=0,
+    )
+    reconstruction = z @ np.vstack((b, c.T)).T + np.concatenate(
+        (x.mean(axis=0), y.mean(axis=0)),
+    )
+    assert float(error) == pytest.approx(
+        np.sum((x_bar - reconstruction) ** 2),
+        abs=2e-12,
+    )
+
+
+def test_pls_solve_does_not_call_sklearn_plsregression() -> None:
+    """Guard the MATLAB-gold SIMPLS port against a sklearn backend regression."""
+    rng = np.random.default_rng(67)
+    x = rng.normal(size=(20, 5))
+    y = rng.normal(size=(20, 3))
+    x_bar = np.column_stack((x, y))
+
+    with patch(
+        "sklearn.cross_decomposition.PLSRegression.fit",
+        side_effect=AssertionError("PILOT must not call sklearn PLSRegression"),
+    ):
+        result = PilotStage.pls_solve(
+            x,
+            y,
+            x_bar,
+            x_bar.shape[1],
+            dims=3,
+            _do_output=False,
+        )
+
+    assert result[0].shape == (3, x.shape[1])
+
+
+def test_simpls_rejects_a_degenerate_component_with_named_error() -> None:
+    """Report an actionable error instead of propagating non-finite factors."""
+    x_centered = np.zeros((8, 4), dtype=np.double)
+    y_centered = np.zeros((8, 3), dtype=np.double)
+
+    with pytest.raises(
+        ValueError,
+        match=r"PILOT SIMPLS component 1.*X-score norm",
+    ):
+        PilotStage._simpls(  # noqa: SLF001
+            x_centered,
+            y_centered,
+            n_components=2,
+        )
+
+
+def test_pls_solve_rejects_more_than_matlab_maximum_components() -> None:
+    """Match `plsregress`'s `min(n_instances - 1, n_features)` limit."""
+    x = np.arange(15, dtype=np.double).reshape(3, 5)
+    y = np.arange(9, dtype=np.double).reshape(3, 3)
+    x_bar = np.column_stack((x, y))
+
+    with pytest.raises(ValueError, match="between 1 and 2"):
+        PilotStage.pls_solve(
+            x,
+            y,
+            x_bar,
+            x_bar.shape[1],
+            dims=3,
+            _do_output=False,
+        )
+
+
+def test_pls_solve_is_dims_generic_with_no_code_changes() -> None:
+    """`pls_solve` must work at `dims=3` (#262)."""
     rng = np.random.default_rng(2)
     x = rng.random((25, 6))
     y = rng.random((25, 4))
@@ -901,6 +1350,31 @@ def test_pilot_method_pls_dispatches_correctly() -> None:
     assert result.alpha is None
     assert result.X0 is None
     assert np.all(np.isfinite(result.z))
+
+
+def test_pilot_method_pls_passes_three_dimensions_through_public_dispatch() -> None:
+    """The public PLS branch passes `PilotOptions.dims` to its solver."""
+    rng = np.random.default_rng(43)
+    x = rng.random((30, 6))
+    y = rng.random((30, 4))
+    feat_labels = [f"f{index}" for index in range(x.shape[1])]
+
+    result = PilotStage.pilot(
+        x,
+        y,
+        feat_labels,
+        PilotOptions.default(method="pls", analytic=True, dims=3),
+        GeneralOptions.default(verbose=False),
+        _do_output=False,
+    )
+
+    assert result.a.shape == (3, x.shape[1])
+    assert result.z.shape == (x.shape[0], 3)
+    assert result.b.shape == (x.shape[1], 3)
+    assert result.c.shape == (3, y.shape[1])
+    assert result.r2.dtype == np.float64
+    np.testing.assert_allclose(result.z, (x - x.mean(axis=0)) @ result.a.T)
+    assert result.pilot_summary.iloc[:, 0].tolist() == ["Z_{1}", "Z_{2}", "Z_{3}"]
 
 
 def test_pilot_options_default_method_is_standard() -> None:
