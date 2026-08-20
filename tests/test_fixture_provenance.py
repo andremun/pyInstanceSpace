@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
+import shutil
 from collections.abc import Iterable
 from copy import deepcopy
 from pathlib import Path
@@ -16,6 +18,7 @@ from tools.fixture_provenance import (
     _EXPORTER_SCRIPT,
     _GOLD_MATLAB_COMMIT,
     _REFERENCE_V2_EXPORTER_SHA256,
+    _VERIFIED_V2_CONTENT_ROOT_SHA256,
     BUNDLE_SCHEMA,
     DIAGNOSTIC_TRUST,
     REFERENCE_PROFILE,
@@ -237,12 +240,12 @@ def _read_csv_for_mutation(path: Path) -> tuple[list[str], list[list[str]]]:
 
 def _synthetic_pilot_matrix(dims: int) -> list[list[float]]:
     rows = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]
-    if dims == 3:  # noqa: PLR2004
+    if dims == 3:
         rows.append([0.0, 0.0, 1.0])
     return rows
 
 
-def _write_pilot_profile_file(  # noqa: PLR0912
+def _write_pilot_profile_file(
     target: Path,
     relative: str,
     variant: str,
@@ -286,10 +289,10 @@ def _write_pilot_profile_file(  # noqa: PLR0912
         for row in projection_x
     ]
     b = [
-        [1.0, 0.0, *([0.0] if dims == 3 else [])],  # noqa: PLR2004
-        [0.0, 1.0, *([0.0] if dims == 3 else [])],  # noqa: PLR2004
+        [1.0, 0.0, *([0.0] if dims == 3 else [])],
+        [0.0, 1.0, *([0.0] if dims == 3 else [])],
         (
-            ([0.5, 0.5, 1.0] if dims == 3 else [0.5, 0.5])  # noqa: PLR2004
+            ([0.5, 0.5, 1.0] if dims == 3 else [0.5, 0.5])
             if variant.startswith("pilot_pls_")
             else [0.0, 0.0, 1.0]
         ),
@@ -298,7 +301,7 @@ def _write_pilot_profile_file(  # noqa: PLR0912
         [0.1 * (index + 1) for index in range(len(_ALGORITHM_LABELS))],
         [0.05 * (index + 1) for index in range(len(_ALGORITHM_LABELS))],
     ]
-    if dims == 3:  # noqa: PLR2004
+    if dims == 3:
         c.append([0.02 * (index + 1) for index in range(len(_ALGORITHM_LABELS))])
     x_bar = np.column_stack((x, y))
     factors = np.vstack((b, np.asarray(c, dtype=np.double).T))
@@ -445,7 +448,7 @@ def _write_pilot_profile_file(  # noqa: PLR0912
                 group,
                 dimension,
                 float(dimension == 1),
-                float(dimension == 2),  # noqa: PLR2004
+                float(dimension == 2),
                 0.0,
             ]
             for group in range(1, group_count + 1)
@@ -503,7 +506,7 @@ def _synthetic_trace3d_faces() -> list[tuple[int, int, int]]:
     return oriented
 
 
-def _write_trace3d_profile_file(  # noqa: PLR0912
+def _write_trace3d_profile_file(
     target: Path,
     relative: str,
 ) -> None:
@@ -752,7 +755,7 @@ def _write_profile_file(root: Path, relative: str) -> None:
         )
     elif (
         "/pilot/" in relative
-        and len(Path(relative).parts) >= 3  # noqa: PLR2004
+        and len(Path(relative).parts) >= 3
         and Path(relative).parts[2] in _VARIANTS[3:]
     ):
         _write_pilot_profile_file(target, relative, Path(relative).parts[2])
@@ -800,7 +803,7 @@ def _manifest_entry(root: Path, relative: str) -> dict[str, Any]:
 def _write_bundle(
     root: Path,
     *,
-    trust: str = VERIFIED_TRUST,
+    trust: str = DIAGNOSTIC_TRUST,
     release: str = "R2026a",
     matlab_dirty: bool = False,
     profile: str = REFERENCE_PROFILE,
@@ -876,6 +879,15 @@ def _write_bundle(
     return manifest
 
 
+def _copy_verified_bundle(root: Path) -> dict[str, Any]:
+    """Copy the installed audited oracle for verified-identity tests."""
+    shutil.copytree(_CURRENT_FIXTURES, root, dirs_exist_ok=True)
+    return cast(
+        dict[str, Any],
+        json.loads((root / "manifest.json").read_text(encoding="utf-8")),
+    )
+
+
 def _rewrite_manifest(root: Path, manifest: dict[str, Any]) -> None:
     (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
@@ -891,7 +903,7 @@ def _refresh_entry(root: Path, entry: dict[str, Any]) -> None:
 
 def test_verified_bundle_passes_full_integrity_check(tmp_path: Path) -> None:
     """Accept an intact current-release bundle with complete provenance."""
-    _write_bundle(tmp_path)
+    _copy_verified_bundle(tmp_path)
 
     report = validate_bundle(tmp_path)
 
@@ -912,9 +924,51 @@ def test_reference_v2_exporter_identity_matches_checked_in_script() -> None:
     assert sha256_file(exporter) == _REFERENCE_V2_EXPORTER_SHA256
 
 
+def test_verified_v2_content_root_matches_installed_oracle() -> None:
+    """Pin all 423 audited artifact identities, not only source metadata."""
+    manifest = cast(
+        dict[str, Any],
+        json.loads((_CURRENT_FIXTURES / "manifest.json").read_text(encoding="utf-8")),
+    )
+    digest = hashlib.sha256()
+    for entry in sorted(manifest["files"], key=lambda item: item["path"]):
+        digest.update(entry["path"].encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(entry["sha256"].encode("ascii"))
+        digest.update(b"\n")
+
+    assert digest.hexdigest() == _VERIFIED_V2_CONTENT_ROOT_SHA256
+
+
+def test_verified_v2_rejects_coherent_viewpoint_rehash(tmp_path: Path) -> None:
+    """A coherent A/angle substitution cannot self-declare verified trust."""
+    manifest = _copy_verified_bundle(tmp_path)
+    root = "build_data/pilot/pilot_standard_analytic_3d/outputs"
+    matrix_relative = f"{root}/viewpoint_a.csv"
+    angles_relative = f"{root}/viewpoint_angles.csv"
+    matrix = tmp_path / matrix_relative
+    angles = tmp_path / angles_relative
+    _write_csv(
+        matrix,
+        ["group", "view_dimension", "z_1", "z_2", "z_3"],
+        [[1, 1, 1.0, 0.0, 0.0], [1, 2, 0.0, 1.0, 0.0]],
+    )
+    _write_csv(
+        angles,
+        ["group", "azimuth", "elevation"],
+        [[1, 0.0, np.pi / 2.0]],
+    )
+    _refresh_entry(tmp_path, _entry_for(manifest, matrix_relative))
+    _refresh_entry(tmp_path, _entry_for(manifest, angles_relative))
+    _rewrite_manifest(tmp_path, manifest)
+
+    with pytest.raises(ProvenanceError, match="content root"):
+        validate_bundle(tmp_path)
+
+
 def test_verified_v2_requires_the_gold_matlab_commit(tmp_path: Path) -> None:
     """Reject a clean but self-declared MATLAB source identity."""
-    manifest = _write_bundle(tmp_path)
+    manifest = _copy_verified_bundle(tmp_path)
     manifest["matlab"]["repo_commit"] = "f" * 40
     _rewrite_manifest(tmp_path, manifest)
 
@@ -926,7 +980,7 @@ def test_verified_v2_requires_the_canonical_dataset_after_rehash(
     tmp_path: Path,
 ) -> None:
     """Reject a substituted input even when its manifest metadata is refreshed."""
-    manifest = _write_bundle(tmp_path)
+    manifest = _copy_verified_bundle(tmp_path)
     relative = "shared_inputs/reference/metadata.csv"
     target = tmp_path / relative
     contents = target.read_text(encoding="utf-8")
@@ -941,7 +995,7 @@ def test_verified_v2_requires_the_canonical_dataset_after_rehash(
 
 def test_verified_v2_requires_the_pinned_exporter_hash(tmp_path: Path) -> None:
     """Reject a syntactically valid self-declared exporter identity."""
-    manifest = _write_bundle(tmp_path)
+    manifest = _copy_verified_bundle(tmp_path)
     manifest["generator"]["script_sha256"] = "f" * 64
     _rewrite_manifest(tmp_path, manifest)
 
@@ -949,9 +1003,11 @@ def test_verified_v2_requires_the_pinned_exporter_hash(tmp_path: Path) -> None:
         validate_bundle(tmp_path)
 
 
-def test_verified_v2_labels_must_match_canonical_metadata(tmp_path: Path) -> None:
-    """Tie every downstream algorithm position to the canonical input headers."""
-    manifest = _write_bundle(tmp_path)
+def test_verified_v2_rejects_rehashed_algorithm_label_substitution(
+    tmp_path: Path,
+) -> None:
+    """Tie every audited algorithm-label artifact to the verified content root."""
+    manifest = _copy_verified_bundle(tmp_path)
     for entry in manifest["files"]:
         relative = entry["path"]
         if not relative.endswith("algorithm_labels.csv"):
@@ -963,7 +1019,7 @@ def test_verified_v2_labels_must_match_canonical_metadata(tmp_path: Path) -> Non
         _refresh_entry(tmp_path, entry)
     _rewrite_manifest(tmp_path, manifest)
 
-    with pytest.raises(ProvenanceError, match="canonical metadata headers"):
+    with pytest.raises(ProvenanceError, match="content root"):
         validate_bundle(tmp_path)
 
 
@@ -975,14 +1031,14 @@ def test_reference_profile_declares_the_documented_file_count() -> None:
         | _trace3d_mesh_paths(_REFERENCE_ALGORITHM_LABELS)
     )
 
-    assert len(profile) == 423  # noqa: PLR2004
+    assert len(profile) == 423
 
 
 def test_frozen_v1_profile_remains_valid(tmp_path: Path) -> None:
     """Keep the installed 229-file oracle readable during the v2 migration."""
     _write_bundle(tmp_path, profile=REFERENCE_PROFILE_V1)
 
-    report = validate_bundle(tmp_path)
+    report = validate_bundle(tmp_path, allow_diagnostic=True)
 
     assert report.file_count == len(
         _fixed_reference_paths_v1() | _geometry_paths(_ALGORITHM_LABELS),
@@ -991,7 +1047,9 @@ def test_frozen_v1_profile_remains_valid(tmp_path: Path) -> None:
 
 def test_verified_v2_profile_requires_r2026a(tmp_path: Path) -> None:
     """Pin SIMPLS/viewpoint evidence to the audited MATLAB release."""
-    _write_bundle(tmp_path, release="R2025a")
+    manifest = _copy_verified_bundle(tmp_path)
+    manifest["matlab"]["release"] = "R2025a"
+    _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="v2 requires MATLAB R2026a"):
         validate_bundle(tmp_path)
@@ -1010,7 +1068,7 @@ def test_file_set_or_hash_changes_are_rejected(tmp_path: Path, mutation: str) ->
         target.unlink()
 
     with pytest.raises(ProvenanceError):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_duplicate_casefolded_paths_are_rejected(tmp_path: Path) -> None:
@@ -1022,7 +1080,7 @@ def test_duplicate_casefolded_paths_are_rejected(tmp_path: Path) -> None:
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="case-colliding"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 @pytest.mark.parametrize(
@@ -1036,12 +1094,15 @@ def test_noncanonical_manifest_paths_are_rejected(tmp_path: Path, unsafe: str) -
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="Unsafe|noncanonical"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_verified_bundle_requires_clean_current_matlab(tmp_path: Path) -> None:
     """Require clean sources and the declared gold MATLAB release."""
-    _write_bundle(tmp_path, release="R2024a", matlab_dirty=True)
+    manifest = _copy_verified_bundle(tmp_path)
+    manifest["matlab"]["release"] = "R2024a"
+    manifest["matlab"]["repo_dirty"] = True
+    _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="clean MATLAB"):
         validate_bundle(tmp_path)
@@ -1061,7 +1122,7 @@ def test_verified_bundle_installs_atomically_with_layout_intact(tmp_path: Path) 
     """Install only a validated bundle and preserve every relative path."""
     source = tmp_path / "source"
     source.mkdir()
-    _write_bundle(source)
+    _copy_verified_bundle(source)
     destination = tmp_path / "fixtures" / "matlab" / "current"
 
     report = install_verified_bundle(source, destination)
@@ -1106,7 +1167,7 @@ def test_install_rejects_diagnostic_or_existing_destination(tmp_path: Path) -> N
 
     verified = tmp_path / "verified"
     verified.mkdir()
-    _write_bundle(verified)
+    _copy_verified_bundle(verified)
     destination.mkdir()
     with pytest.raises(ProvenanceError, match="already exists"):
         install_verified_bundle(verified, destination)
@@ -1119,7 +1180,7 @@ def test_missing_required_toolbox_is_rejected(tmp_path: Path) -> None:
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="Financial Toolbox"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_profile_cannot_omit_a_required_toolbox_from_both_lists(
@@ -1132,7 +1193,7 @@ def test_profile_cannot_omit_a_required_toolbox_from_both_lists(
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="reference-export dependencies"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_csv_shape_and_empty_status_are_verified(tmp_path: Path) -> None:
@@ -1142,7 +1203,7 @@ def test_csv_shape_and_empty_status_are_verified(tmp_path: Path) -> None:
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="row-count"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 @pytest.mark.parametrize(
@@ -1181,7 +1242,7 @@ def test_profile_rejects_deleting_file_and_manifest_entry(
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="Reference export profile"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_trace3d_reader_validates_a_broken_v2_instead_of_skipping(
@@ -1201,7 +1262,7 @@ def test_trace3d_reader_validates_a_broken_v2_instead_of_skipping(
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="Reference export profile"):
-        _trace3d_bundle_available(tmp_path, allow_diagnostic=False)
+        _trace3d_bundle_available(tmp_path, allow_diagnostic=True)
 
 
 def test_profile_rejects_an_internally_consistent_two_file_bundle(
@@ -1222,7 +1283,7 @@ def test_profile_rejects_an_internally_consistent_two_file_bundle(
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="Reference export profile"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_profile_rejects_self_consistent_stale_artifact(tmp_path: Path) -> None:
@@ -1234,7 +1295,7 @@ def test_profile_rejects_self_consistent_stale_artifact(tmp_path: Path) -> None:
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="file-set mismatch.*stale.csv"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 @pytest.mark.parametrize("missing", ["perf", "outputs"])
@@ -1253,7 +1314,7 @@ def test_resolved_options_require_every_top_level_group(
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="exact option groups"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_resolved_options_require_every_nested_field(tmp_path: Path) -> None:
@@ -1268,7 +1329,7 @@ def test_resolved_options_require_every_nested_field(tmp_path: Path) -> None:
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="pythia.*MATLAB schema"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_resolved_options_index_must_link_the_matching_artifact(
@@ -1282,7 +1343,7 @@ def test_resolved_options_index_must_link_the_matching_artifact(
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="Resolved-options path"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_resolved_options_index_requires_complete_records(tmp_path: Path) -> None:
@@ -1292,7 +1353,7 @@ def test_resolved_options_index_requires_complete_records(tmp_path: Path) -> Non
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="invalid structure"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_resolved_options_artifact_name_must_match_variant(tmp_path: Path) -> None:
@@ -1307,7 +1368,7 @@ def test_resolved_options_artifact_name_must_match_variant(tmp_path: Path) -> No
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="artifact name"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_resolved_variant_values_must_match_export_profile(tmp_path: Path) -> None:
@@ -1322,7 +1383,7 @@ def test_resolved_variant_values_must_match_export_profile(tmp_path: Path) -> No
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="PYTHIA options mismatch"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 @pytest.mark.parametrize(
@@ -1351,7 +1412,7 @@ def test_pilot_evidence_options_are_exact(
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="PILOT"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 @pytest.mark.parametrize(
@@ -1394,7 +1455,7 @@ def test_pilot_evidence_artifact_mutations_are_rejected(
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match=message):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 @pytest.mark.parametrize(
@@ -1428,7 +1489,7 @@ def test_pilot_trial_metrics_reject_hash_consistent_mutations(
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match=message):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_pilot_stage_lineage_is_required(tmp_path: Path) -> None:
@@ -1443,7 +1504,7 @@ def test_pilot_stage_lineage_is_required(tmp_path: Path) -> None:
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="upstream dimensions"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_profile_rejects_path_metadata_mismatch(tmp_path: Path) -> None:
@@ -1457,7 +1518,7 @@ def test_profile_rejects_path_metadata_mismatch(tmp_path: Path) -> None:
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="Manifest metadata"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_trace_geometry_schema_accepts_parts_and_holes(tmp_path: Path) -> None:
@@ -1486,7 +1547,7 @@ def test_trace_geometry_schema_accepts_parts_and_holes(tmp_path: Path) -> None:
     )
     _rewrite_manifest(tmp_path, manifest)
 
-    validate_bundle(tmp_path)
+    validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 @pytest.mark.parametrize(
@@ -1531,7 +1592,7 @@ def test_trace_geometry_schema_rejects_ambiguous_data(
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match="TRACE geometry"):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 @pytest.mark.parametrize(
@@ -1609,7 +1670,7 @@ def test_trace_geometry_schema_rejects_ambiguous_data(
         ),
     ],
 )
-def test_trace3d_scientific_mutations_are_rejected(  # noqa: PLR0912
+def test_trace3d_scientific_mutations_are_rejected(
     tmp_path: Path,
     relative: str,
     message: str,
@@ -1669,7 +1730,7 @@ def test_trace3d_scientific_mutations_are_rejected(  # noqa: PLR0912
     _rewrite_manifest(tmp_path, manifest)
 
     with pytest.raises(ProvenanceError, match=message):
-        validate_bundle(tmp_path)
+        validate_bundle(tmp_path, allow_diagnostic=True)
 
 
 def test_repository_inventory_classifies_every_historical_fixture() -> None:
