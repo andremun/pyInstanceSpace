@@ -154,6 +154,9 @@ _EXPORTER_SCRIPT: Final = "tests/matlab_export/pyis_export_reference_data.m"
 _REFERENCE_V2_EXPORTER_SHA256: Final = (
     "d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c"
 )
+_VERIFIED_V2_CONTENT_ROOT_SHA256: Final = (
+    "a35e30a9553051f436da779c0e87b79324ddf7a1b181ec906fc786e9a130e4fa"
+)
 _BASE_STAGE_VARIANTS: Final = {
     ("build", "prelim", "default"),
     ("build", "sifted", "default"),
@@ -516,6 +519,7 @@ def validate_bundle(  # noqa: PLR0912
             bundle_root,
             matlab,
             generator,
+            entries_by_path,
         )
 
     _validate_reference_profile(
@@ -678,6 +682,7 @@ def _validate_verified_v2_identity(
     bundle_root: Path,
     matlab: dict[str, Any],
     generator: dict[str, Any],
+    entries_by_path: dict[str, dict[str, Any]],
 ) -> list[str]:
     """Pin a verified v2 oracle to the audited source, data, and exporter."""
     matlab_commit = _expect_text(matlab, "repo_commit")
@@ -706,6 +711,12 @@ def _validate_verified_v2_identity(
             "Verified v2 fixtures do not match the pinned exporter script hash",
         )
 
+    content_root = _manifest_content_root(entries_by_path)
+    if content_root != _VERIFIED_V2_CONTENT_ROOT_SHA256:
+        raise ProvenanceError(
+            "Verified v2 fixture content root does not match the audited oracle",
+        )
+
     training_labels = _read_metadata_algorithm_labels(
         bundle_root / "shared_inputs/reference/metadata.csv",
     )
@@ -717,6 +728,17 @@ def _validate_verified_v2_identity(
             "Canonical training and test metadata use different algorithm headers",
         )
     return training_labels
+
+
+def _manifest_content_root(entries_by_path: dict[str, dict[str, Any]]) -> str:
+    """Hash sorted manifest path/content-hash pairs into one oracle identity."""
+    digest = hashlib.sha256()
+    for relative in sorted(entries_by_path):
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(_expect_text(entries_by_path[relative], "sha256").encode("ascii"))
+        digest.update(b"\n")
+    return digest.hexdigest()
 
 
 def _read_metadata_algorithm_labels(path: Path) -> list[str]:

@@ -19,13 +19,14 @@ from scipy.spatial.distance import pdist
 from instancespace.data.options import GeneralOptions, ParallelOptions, PilotOptions
 from instancespace.instance_space import InstanceSpace
 from instancespace.model import Model
-from instancespace.stages.pilot import PilotOutput, PilotStage
+from instancespace.stages.pilot import PilotInput, PilotOutput, PilotStage
 from instancespace.stages.pilot_viewpoint import PilotViewpointResult, pilot_viewpoint
 from tools.fixture_provenance import validate_bundle
 
 _CURRENT = Path(__file__).parent / "fixtures" / "matlab" / "current"
 _BUNDLE = Path(os.environ.get("PYIS_MATLAB_REFERENCE_BUNDLE", str(_CURRENT)))
 _ALLOW_DIAGNOSTIC = os.environ.get("PYIS_ALLOW_DIAGNOSTIC_FIXTURES") == "1"
+
 _PROFILE_V2 = "pyinstancespace.reference-export/v2"
 _VERIFIED_TRUST = "matlab-verified"
 _DIAGNOSTIC_TRUST = "matlab-diagnostic"
@@ -49,8 +50,9 @@ _VIEW_VARIANTS = (
 _MIN_TOPOLOGY_SCORE = 0.60
 _ORTHOGONALITY_WEIGHT = 0.2
 # R2026a/SciPy observed refitted-objective gaps are 17.2% (analytic), 2.95%
-# (numerical X0), and below 1e-7 (PLS). These limits leave a small solver margin
-# while comparing the optimized scientific quantity instead of raw coordinates.
+# (numerical X0), and non-positive (PLS). These limits leave a small solver
+# margin while comparing the optimized scientific quantity instead of raw
+# coordinates; PLS identity is additionally pinned by its projection plane.
 _MAX_RELATIVE_VIEW_OBJECTIVE_GAP = {
     "pilot_standard_analytic_3d": 0.20,
     "pilot_standard_numerical_3d_x0": 0.05,
@@ -59,12 +61,16 @@ _MAX_RELATIVE_VIEW_OBJECTIVE_GAP = {
 _MAX_VIEW_TOPOLOGY_DROP = {
     "pilot_standard_analytic_3d": 0.20,
     "pilot_standard_numerical_3d_x0": 0.02,
-    "pilot_pls_3d_grouped": 1e-7,
+    "pilot_pls_3d_grouped": 2e-4,
 }
 # On the numerical-X0 oracle, only 19 of these 256 deterministic random planes
 # pass the objective/topology contract. Keep at least 90% discrimination.
 _RANDOM_VIEW_TRIALS = 256
 _MAX_RANDOM_VIEW_PASS_FRACTION = 0.10
+# The integrated Python PILOT->viewpoint path reaches a locally equivalent PLS
+# plane with 1-cos(theta)=5.34e-4; a 1e-3 cap remains far below the 0.19 gap
+# produced by replacing either MATLAB plane with the raw XY coordinate plane.
+_PLS_PLANE_COSINE_TOLERANCE = 1e-3
 
 
 def _has_v2_bundle() -> bool:
@@ -103,7 +109,7 @@ class _PilotCase:
 
 
 def _frame(path: Path) -> pd.DataFrame:
-    return pd.read_csv(path)
+    return pd.read_csv(path, float_precision="round_trip")
 
 
 def _matrix(path: Path) -> NDArray[np.double]:
@@ -168,14 +174,16 @@ def _case(variant: str) -> _PilotCase:
     outputs = root / "outputs"
     x = _matrix(inputs / "x.csv")
     y = _matrix(inputs / "y.csv")
-    output = PilotStage.pilot(
-        x,
-        y,
-        _labels(inputs / "feature_labels.csv"),
-        _pilot_options(variant),
-        GeneralOptions.default(verbose=False, seed=42),
-        _do_output=False,
-        parallel_options=ParallelOptions.default(flag=False, n_cores=1),
+    output = PilotStage._run(
+        PilotInput(
+            x=x,
+            y=y,
+            feat_labels=_labels(inputs / "feature_labels.csv"),
+            pilot_options=_pilot_options(variant),
+            parallel_options=ParallelOptions.default(flag=False, n_cores=1),
+            general_options=GeneralOptions.default(verbose=False, seed=42),
+            y_bin=np.zeros_like(y, dtype=np.bool_),
+        ),
     )
     return _PilotCase(
         variant=variant,
@@ -337,11 +345,11 @@ def test_current_matlab_pilot_explore_projection_is_dimension_generic(
     a = _matrix(root / "inputs" / "projection_a.csv")
 
     space = InstanceSpace.__new__(InstanceSpace)
-    space._model = cast(  # noqa: SLF001
+    space._model = cast(
         Model,
         SimpleNamespace(pilot=SimpleNamespace(a=a)),
     )
-    actual = space._explore_pilot(x)  # noqa: SLF001
+    actual = space._explore_pilot(x)
 
     np.testing.assert_allclose(
         actual,
@@ -421,15 +429,8 @@ def _unit_normal(view: NDArray[np.double]) -> NDArray[np.double]:
 @cache
 def _python_viewpoint(variant: str) -> PilotViewpointResult:
     case = _case(variant)
-    options = _pilot_options(variant)
-    return pilot_viewpoint(
-        case.expected_z,
-        case.y,
-        view_groups=options.view_groups,
-        n_tries=options.n_tries,
-        x0=options.x0,
-        parallel_options=ParallelOptions.default(flag=False, n_cores=1),
-    )
+    assert case.output.viewpoint is not None
+    return case.output.viewpoint
 
 
 @pytest.mark.parametrize("variant", _VIEW_VARIANTS)
@@ -454,8 +455,15 @@ def test_current_matlab_pilot_3d_viewpoint_scientific_parity(variant: str) -> No
             atol=2e-14,
             rtol=0,
         )
+        component_signs = _component_signs(case.output.a, case.expected_a)
+        aligned_actual_view = actual_view * component_signs[None, :]
         expected_quality = _view_quality(case.expected_z, case.y, group, expected_view)
-        actual_quality = _view_quality(case.expected_z, case.y, group, actual_view)
+        actual_quality = _view_quality(
+            case.expected_z,
+            case.y,
+            group,
+            aligned_actual_view,
+        )
         assert _view_meets_quality_contract(
             variant,
             expected_quality,
@@ -464,6 +472,16 @@ def test_current_matlab_pilot_3d_viewpoint_scientific_parity(variant: str) -> No
             f"{variant} viewpoint quality {actual_quality} does not preserve "
             f"MATLAB's objective/topology {expected_quality}"
         )
+        if variant == "pilot_pls_3d_grouped":
+            plane_cosine = abs(
+                float(
+                    _unit_normal(expected_view) @ _unit_normal(aligned_actual_view),
+                ),
+            )
+            assert plane_cosine == pytest.approx(
+                1.0,
+                abs=_PLS_PLANE_COSINE_TOLERANCE,
+            )
 
         actual_normal = _unit_normal(actual_view)
         actual_azimuth = float(np.arctan2(actual_normal[1], actual_normal[0]))
@@ -495,9 +513,70 @@ def test_current_matlab_numerical_view_quality_rejects_random_planes() -> None:
     assert passing / _RANDOM_VIEW_TRIALS <= _MAX_RANDOM_VIEW_PASS_FRACTION
 
 
+@pytest.mark.parametrize(
+    ("variant", "candidate"),
+    [
+        (
+            "pilot_standard_analytic_3d",
+            np.asarray([[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.double),
+        ),
+        (
+            "pilot_standard_numerical_3d_x0",
+            np.asarray([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.double),
+        ),
+    ],
+)
+def test_current_matlab_view_quality_rejects_deterministic_corruption(
+    variant: str,
+    candidate: NDArray[np.double],
+) -> None:
+    """Each solver-invariant contract rejects a fixed incoherent plane."""
+    case = _case(variant)
+    groups, expected_views = _exported_viewpoint(variant)
+    expected = _view_quality(case.expected_z, case.y, groups[0], expected_views[0])
+    corrupted = _view_quality(case.expected_z, case.y, groups[0], candidate)
+    assert not _view_meets_quality_contract(variant, expected, corrupted)
+
+
+def test_current_matlab_pls_plane_rejects_coherent_xy_substitution() -> None:
+    """PLS' identifiable plane rejects an otherwise high-quality XY substitute."""
+    variant = "pilot_pls_3d_grouped"
+    case = _case(variant)
+    groups, expected_views = _exported_viewpoint(variant)
+    xy_view = np.asarray(
+        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+        dtype=np.double,
+    )
+    xy_normal = _unit_normal(xy_view)
+
+    for group, expected_view in zip(groups, expected_views, strict=True):
+        expected_quality = _view_quality(
+            case.expected_z,
+            case.y,
+            group,
+            expected_view,
+        )
+        xy_quality = _view_quality(case.expected_z, case.y, group, xy_view)
+        assert _view_meets_quality_contract(variant, expected_quality, xy_quality)
+        plane_cosine = abs(float(_unit_normal(expected_view) @ xy_normal))
+        assert not np.isclose(
+            plane_cosine,
+            1.0,
+            atol=_PLS_PLANE_COSINE_TOLERANCE,
+            rtol=0,
+        )
+
+
 def test_current_matlab_pilot_replay_viewpoint_fallback_is_stable() -> None:
     """Pin MATLAB/Python fallback when solver X0 has the wrong viewpoint shape."""
-    x0 = _python_viewpoint("pilot_standard_numerical_3d_x0")
+    x0_case = _case("pilot_standard_numerical_3d_x0")
+    x0 = pilot_viewpoint(
+        x0_case.expected_z,
+        x0_case.y,
+        n_tries=1,
+        x0=_pilot_options("pilot_standard_numerical_3d_x0").x0,
+        parallel_options=ParallelOptions.default(flag=False, n_cores=1),
+    )
     precalc = pilot_viewpoint(
         _case("pilot_standard_numerical_3d_precalc").expected_z,
         _case("pilot_standard_numerical_3d_precalc").y,

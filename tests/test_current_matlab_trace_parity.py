@@ -42,6 +42,8 @@ _DEFAULT_BOUNDARY_AMBIGUITIES = frozenset(
     },
 )
 
+pytestmark = pytest.mark.usefixtures("verified_current_matlab_bundle")
+
 
 @dataclass(frozen=True)
 class _AlphaCall:
@@ -79,7 +81,7 @@ class _TraceCase:
 
 def _indexed_frame(path: Path) -> pd.DataFrame:
     """Read one row-labelled matrix from the current bundle."""
-    return pd.read_csv(path, index_col=0)
+    return pd.read_csv(path, index_col=0, float_precision="round_trip")
 
 
 def _double_matrix(path: Path) -> NDArray[np.double]:
@@ -102,7 +104,7 @@ def _int_vector(path: Path) -> NDArray[np.int_]:
 
 def _labels(path: Path) -> tuple[str, ...]:
     """Read the ordered algorithm labels exported by MATLAB."""
-    values = pd.read_csv(path)["algorithm_name"].tolist()
+    values = pd.read_csv(path, float_precision="round_trip")["algorithm_name"].tolist()
     return tuple(str(value) for value in values)
 
 
@@ -139,7 +141,7 @@ def _run_with_alpha_diagnostics(
         return geometry
 
     with patch.object(AlphaShape2D, "geometry", record_geometry):
-        outputs = TraceStage._run(inputs)  # noqa: SLF001
+        outputs = TraceStage._run(inputs)
     return outputs, tuple(calls)
 
 
@@ -243,7 +245,10 @@ def _case(variant: str) -> _TraceCase:
         build_rows=tuple(str(value) for value in build_z_frame.index),
         build_z=build_z,
         built=built,
-        raw_metrics=pd.read_csv(build_root / "outputs" / "raw_metrics.csv"),
+        raw_metrics=pd.read_csv(
+            build_root / "outputs" / "raw_metrics.csv",
+            float_precision="round_trip",
+        ),
         alpha_calls=alpha_calls,
         explore_rows=tuple(str(value) for value in explore_z_frame.index),
         explore_z=explore_z,
@@ -284,7 +289,7 @@ def _geometry_path(case: _TraceCase, kind: str, algorithm: str | None) -> Path:
 @cache
 def _exported_geometry(path: Path) -> Polygon2D | None:
     """Reconstruct all exported parts and holes without false connecting edges."""
-    frame = pd.read_csv(path)
+    frame = pd.read_csv(path, float_precision="round_trip")
     if frame.empty:
         return None
 
@@ -363,17 +368,9 @@ def _alpha_component_count(call: _AlphaCall) -> int:
     return len({find(index) for index in range(simplices.shape[0])})
 
 
-def _normalised_summary(frame: pd.DataFrame) -> pd.DataFrame:
-    """Normalize only MATLAB/Python's documented spelling difference."""
-    return frame.rename(
-        columns={
-            "Row": "Algorithm",
-            "Area_Good_Normalised": "Area_Good_Normalized",
-            "Density_Good_Normalised": "Density_Good_Normalized",
-            "Area_Best_Normalised": "Area_Best_Normalized",
-            "Density_Best_Normalised": "Density_Best_Normalized",
-        },
-    )
+def _matlab_summary(frame: pd.DataFrame) -> pd.DataFrame:
+    """Align MATLAB's row-label header without hiding scientific schema drift."""
+    return frame.rename(columns={"Row": "Algorithm"})
 
 
 @pytest.mark.parametrize("variant", _TRACE3_VARIANTS)
@@ -458,10 +455,13 @@ def test_current_matlab_trace3_geometry_and_build_summary(variant: str) -> None:
         assert actual.hausdorff_distance(expected) <= _GEOMETRY_TOLERANCE
         assert actual.symmetric_difference(expected).area <= _GEOMETRY_TOLERANCE
 
-    expected_summary = _normalised_summary(
-        pd.read_csv(case.build_root / "outputs" / "summary.csv"),
+    expected_summary = _matlab_summary(
+        pd.read_csv(
+            case.build_root / "outputs" / "summary.csv",
+            float_precision="round_trip",
+        ),
     )
-    actual_summary = _normalised_summary(case.built.summary)
+    actual_summary = _matlab_summary(case.built.summary)
     assert_frame_equal(
         actual_summary,
         expected_summary,
@@ -561,10 +561,13 @@ def test_current_matlab_trace3_explore_rescore(variant: str) -> None:
             + boundary_delta
         )
 
-    expected_summary = _normalised_summary(
-        pd.read_csv(case.explore_root / "outputs" / "eval_summary.csv"),
+    expected_summary = _matlab_summary(
+        pd.read_csv(
+            case.explore_root / "outputs" / "eval_summary.csv",
+            float_precision="round_trip",
+        ),
     ).set_index("Algorithm")
-    actual_summary = _normalised_summary(case.rescored.summary).set_index("Algorithm")
+    actual_summary = _matlab_summary(case.rescored.summary).set_index("Algorithm")
     cells = np.argwhere(
         actual_summary.to_numpy(dtype=np.double)
         != expected_summary.to_numpy(dtype=np.double),
@@ -617,7 +620,10 @@ def test_current_matlab_legacy_svm_hyperparameter_units() -> None:
     """Preserve BoxConstraint/KernelScale units at sklearn's SVM boundary."""
     root = _CURRENT / "build_data" / "pythia" / "legacy_svm"
     labels = _labels(root / "inputs" / "algorithm_labels.csv")
-    parameters = pd.read_csv(root / "outputs" / "hyperparameters.csv")
+    parameters = pd.read_csv(
+        root / "outputs" / "hyperparameters.csv",
+        float_precision="round_trip",
+    )
     assert tuple(str(value) for value in parameters["algo"]) == labels
 
     specification = get_classifier_fcn("svm")

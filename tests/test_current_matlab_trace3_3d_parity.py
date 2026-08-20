@@ -28,6 +28,7 @@ from tools.fixture_provenance import validate_bundle
 _CURRENT = Path(__file__).parent / "fixtures" / "matlab" / "current"
 _BUNDLE = Path(os.environ.get("PYIS_MATLAB_REFERENCE_BUNDLE", str(_CURRENT)))
 _ALLOW_DIAGNOSTIC = os.environ.get("PYIS_ALLOW_DIAGNOSTIC_FIXTURES") == "1"
+
 _PROFILE_V2 = "pyinstancespace.reference-export/v2"
 _VERIFIED_TRUST = "matlab-verified"
 _DIAGNOSTIC_TRUST = "matlab-diagnostic"
@@ -172,7 +173,7 @@ def _case() -> _Trace3DCase:
     build_y_hat = _bool_matrix(build_inputs / "y_hat.csv")
     build_p = _int_vector(build_inputs / "p.csv")
     build_beta = _bool_matrix(build_inputs / "beta.csv").reshape(-1)
-    outputs = TraceStage._run(  # noqa: SLF001
+    outputs = TraceStage._run(
         TraceInputs(
             z=build_z,
             selection0=np.zeros(build_z.shape[0], dtype=np.int_),
@@ -275,6 +276,33 @@ def _canonical_cells(
     }
 
 
+def _canonical_oriented_faces(
+    vertices: NDArray[np.double],
+    connectivity: NDArray[np.int_],
+) -> set[tuple[tuple[float, ...], ...]]:
+    """Canonicalize face starts while preserving the directed winding."""
+    canonical: set[tuple[tuple[float, ...], ...]] = set()
+    for face in connectivity:
+        coordinates = tuple(_coordinate_key(vertices[index]) for index in face)
+        rotations = tuple(
+            coordinates[offset:] + coordinates[:offset]
+            for offset in range(len(coordinates))
+        )
+        canonical.add(min(rotations))
+    return canonical
+
+
+def _assert_exact_summary(actual: pd.DataFrame, expected_path: Path) -> None:
+    """Match MATLAB's summary schema, labels, and rounded values exactly."""
+    expected = _indexed_frame(expected_path).rename_axis("Algorithm")
+    pd.testing.assert_frame_equal(
+        actual.set_index("Algorithm"),
+        expected,
+        check_dtype=True,
+        check_exact=True,
+    )
+
+
 def _metric_number(row: pd.Series[Any], column: str) -> float:
     return float(row[column])
 
@@ -341,12 +369,18 @@ def test_current_matlab_trace3_3d_build_metrics_and_topology() -> None:
             expected.vertices,
             expected.tetrahedra,
         )
-        assert _canonical_cells(
+        actual_faces = _canonical_oriented_faces(
             actual.vertices,
             actual.boundary_faces,
-        ) == _canonical_cells(
+        )
+        expected_faces = _canonical_oriented_faces(
             expected.vertices,
             expected.faces,
+        )
+        assert actual_faces == expected_faces
+        assert actual_faces != _canonical_oriented_faces(
+            expected.vertices,
+            expected.faces[:, ::-1],
         )
         assert actual.alpha == pytest.approx(
             _metric_number(raw, "alpha_radius"),
@@ -415,15 +449,13 @@ def test_current_matlab_trace3_3d_explore_membership_and_rescore() -> None:
         case.expected_membership,
         check_dtype=True,
     )
-    expected_summary = _indexed_frame(
-        _BUNDLE / "explore_data" / "trace" / _VARIANT / "outputs" / "eval_summary.csv",
+    _assert_exact_summary(
+        case.built.summary,
+        _BUNDLE / "build_data" / "trace" / _VARIANT / "outputs" / "summary.csv",
     )
-    actual_summary = case.rescored.summary.set_index("Algorithm")
-    np.testing.assert_allclose(
-        actual_summary.to_numpy(dtype=np.double),
-        expected_summary.to_numpy(dtype=np.double),
-        atol=5e-4,
-        rtol=0,
+    _assert_exact_summary(
+        case.rescored.summary,
+        _BUNDLE / "explore_data" / "trace" / _VARIANT / "outputs" / "eval_summary.csv",
     )
     for trained, rescored in zip(
         [*case.built.good, *case.built.best, case.built.hard],
