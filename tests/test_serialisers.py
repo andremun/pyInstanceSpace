@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import os
 import shutil
 import warnings
 import zipfile
@@ -67,13 +66,6 @@ from instancespace.utils.alpha_shape import TetrahedralMesh
 script_dir = Path(__file__).parent
 _SECOND_ALGORITHM_INDEX = 2
 _THREE_DIMENSIONS = 3
-
-# Clear the output before running the test
-for directory in ["csv", "web", "png"]:
-    output_directory = script_dir / "test_data/serialisers/actual_output" / directory
-    for file in os.listdir(output_directory):
-        if ".gitignore" not in file:
-            Path(output_directory / file).unlink()
 
 
 @dataclass
@@ -430,19 +422,22 @@ def _unit_tetrahedral_mesh() -> TetrahedralMesh:
     )
 
 
-def test_save_to_csv() -> None:
+def test_save_to_csv(tmp_path: Path) -> None:
     """Test saving information from a completed instance space to CSVs."""
     model = _MatlabResults().get_model()
 
-    model.save_to_csv(script_dir / "test_data/serialisers/actual_output/csv")
+    actual_directory = tmp_path / "csv"
+    actual_directory.mkdir()
+    model.save_to_csv(actual_directory)
 
-    test_data_dir = script_dir / "test_data/serialisers"
+    expected_directory = script_dir / "test_data/serialisers/expected_output/csv"
+    expected_files = {path.name for path in expected_directory.iterdir()}
+    actual_files = {path.name for path in actual_directory.iterdir()}
+    assert actual_files == expected_files
 
-    for csv_file in os.listdir(
-        test_data_dir / "expected_output/csv",
-    ):
-        expected_file_path = test_data_dir / "expected_output/csv" / csv_file
-        actual_file_path = test_data_dir / "actual_output/csv" / csv_file
+    for csv_file in sorted(expected_files):
+        expected_file_path = expected_directory / csv_file
+        actual_file_path = actual_directory / csv_file
 
         # Expected file isn't a directory, and actual file exists
         assert Path.is_file(expected_file_path)
@@ -716,19 +711,22 @@ def test_2d_csv_byte_contract_remains_frozen(tmp_path: Path) -> None:
         )
 
 
-def test_save_for_web() -> None:
+def test_save_for_web(tmp_path: Path) -> None:
     """Test saving information for export to the web frontend."""
     model = _MatlabResults().get_model()
 
-    model.save_for_web(script_dir / "test_data/serialisers/actual_output/web")
+    actual_directory = tmp_path / "web"
+    actual_directory.mkdir()
+    model.save_for_web(actual_directory)
 
-    test_data_dir = script_dir / "test_data/serialisers"
+    expected_directory = script_dir / "test_data/serialisers/expected_output/web"
+    expected_files = {path.name for path in expected_directory.iterdir()}
+    actual_files = {path.name for path in actual_directory.iterdir()}
+    assert actual_files == expected_files
 
-    for csv_file in os.listdir(
-        test_data_dir / "expected_output/web",
-    ):
-        expected_file_path = test_data_dir / "expected_output/web" / csv_file
-        actual_file_path = test_data_dir / "actual_output/web" / csv_file
+    for csv_file in sorted(expected_files):
+        expected_file_path = expected_directory / csv_file
+        actual_file_path = actual_directory / csv_file
 
         # Expected file isn't a directory, and actual file exists
         assert Path.is_file(expected_file_path)
@@ -747,32 +745,43 @@ def test_save_for_web() -> None:
             # There seems to be a rounding error in either python or MATLAB, so
             # allow an error of 1 for colours
             pd.testing.assert_frame_equal(expected_data, actual_data, rtol=0, atol=1)
-        elif csv_file in ["color_table.csv"]:
-            # We are using a different colormap, because the matlab one is proprietary
-            pass
+        elif csv_file == "color_table.csv":
+            # The Python export uses a non-proprietary colormap, so validate its
+            # dashboard contract rather than comparing MATLAB's colour values.
+            assert list(actual_data.columns) == ["R", "G", "B"]
+            assert actual_data.shape == (256, 3)
+            assert np.issubdtype(actual_data.to_numpy().dtype, np.integer)
+            assert np.all(
+                (actual_data.to_numpy() >= 0) & (actual_data.to_numpy() <= 255),
+            )
         else:
             pd.testing.assert_frame_equal(expected_data, actual_data)
 
 
-def test_save_graphs() -> None:
+def test_save_graphs(tmp_path: Path) -> None:
     """Test saving graphs from a completed instance space."""
     model = _MatlabResults().get_model()
 
-    model.save_graphs(script_dir / "test_data/serialisers/actual_output/png")
+    actual_directory = tmp_path / "png"
+    actual_directory.mkdir()
+    model.save_graphs(actual_directory)
 
-    test_data_dir = script_dir / "test_data/serialisers"
+    expected_directory = script_dir / "test_data/serialisers/expected_output/png"
+    expected_files = {path.name for path in expected_directory.iterdir()}
+    actual_files = {path.name for path in actual_directory.iterdir()}
+    assert actual_files == expected_files
 
-    for csv_file in os.listdir(
-        test_data_dir / "expected_output/png",
-    ):
-        expected_file_path = test_data_dir / "expected_output/png" / csv_file
-        actual_file_path = test_data_dir / "actual_output/png" / csv_file
+    for image_file in sorted(expected_files):
+        expected_file_path = expected_directory / image_file
+        actual_file_path = actual_directory / image_file
 
         # Expected file isn't a directory, and actual file exists
         assert Path.is_file(expected_file_path)
         assert Path.is_file(actual_file_path)
 
-        # We can't test the images, so we must check visually that they are consistant
+        image = plt.imread(actual_file_path)
+        assert image.size > 0
+        assert image.ndim in (2, 3)
 
 
 def test_3d_graph_scatter_uses_native_axis_camera_and_z_coordinates(
@@ -789,9 +798,9 @@ def test_3d_graph_scatter_uses_native_axis_camera_and_z_coordinates(
         azimuth=(np.deg2rad(65.0),),
         elevation=(np.deg2rad(35.0),),
     )
-    angle = plotting._resolve_view_angle(viewpoint, 0)  # noqa: SLF001
+    angle = plotting._resolve_view_angle(viewpoint, 0)
     captured: dict[str, object] = {}
-    save_figure = serialisers._save_figure  # noqa: SLF001
+    save_figure = serialisers._save_figure
 
     def inspect_figure(fig: Figure, output: Path) -> None:
         axis = fig.axes[0]
@@ -805,7 +814,7 @@ def test_3d_graph_scatter_uses_native_axis_camera_and_z_coordinates(
 
     monkeypatch.setattr(serialisers, "_save_figure", inspect_figure)
 
-    serialisers._draw_scatter(  # noqa: SLF001
+    serialisers._draw_scatter(
         z,
         np.array([0.0, 0.5, 1.0]),
         "3D scatter",
@@ -990,7 +999,7 @@ def test_draw_portfolio_selections_labels_every_internal_selection(
         dtype=np.double,
     )
 
-    serialisers._draw_portfolio_selections(  # noqa: SLF001
+    serialisers._draw_portfolio_selections(
         z,
         np.array([-1, 0, 2, 1], dtype=np.int_),
         np.array(["first_algo", "middle_algo", "last_algo"]),
@@ -1043,7 +1052,7 @@ def test_draw_portfolio_footprint_matches_each_algorithm_to_its_footprint(
     monkeypatch.setattr("matplotlib.axes.Axes.legend", no_legend)
     monkeypatch.setattr(serialisers, "_draw_footprint", capture_footprint)
 
-    serialisers._draw_portfolio_footprint(  # noqa: SLF001
+    serialisers._draw_portfolio_footprint(
         np.array(
             [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [3.0, 3.0]],
             dtype=np.double,
@@ -1057,41 +1066,44 @@ def test_draw_portfolio_footprint_matches_each_algorithm_to_its_footprint(
     assert drawn == best
 
 
-def test_save_mat() -> None:
+def test_save_mat(tmp_path: Path) -> None:
     """Test saving a mat file of the output directory."""
     model = _MatlabResults().get_model()
-    model.save_to_mat(script_dir / "test_data/serialisers/actual_output/mat")
+    output_directory = tmp_path / "mat"
+    output_directory.mkdir()
+    model.save_to_mat(output_directory)
     actual_output = loadmat(
-        script_dir / "test_data/serialisers/actual_output/mat/model.mat",
+        output_directory / "model.mat",
         chars_as_strings=True,
         simplify_cells=True,
     )["data"]["algolabels"]
-    print(actual_output)
     assert np.array_equal(model.data.algo_labels, actual_output)
 
 
-def test_save_zip() -> None:
+def test_save_zip(tmp_path: Path) -> None:
     """Test saving a zip file of the output directory."""
     model = _MatlabResults().get_model()
-    # Clear the output before running the test
-    clean_dir(script_dir / "test_data/serialisers/actual_output/png")
-    clean_dir(script_dir / "test_data/serialisers/actual_output/csv")
-    clean_dir(script_dir / "test_data/serialisers/actual_output/web")
-    clean_dir(script_dir / "test_data/serialisers/actual_output/mat")
+    output_directory = tmp_path / "actual_output"
+    csv_directory = output_directory / "csv"
+    web_directory = output_directory / "web"
+    png_directory = output_directory / "png"
+    mat_directory = output_directory / "mat"
+    for directory in (csv_directory, web_directory, png_directory, mat_directory):
+        directory.mkdir(parents=True)
 
     # Save the data to the output directory
-    model.save_graphs(script_dir / "test_data/serialisers/actual_output/png")
-    model.save_to_csv(script_dir / "test_data/serialisers/actual_output/csv")
-    model.save_for_web(script_dir / "test_data/serialisers/actual_output/web")
-    model.save_to_mat(script_dir / "test_data/serialisers/actual_output/mat")
+    model.save_graphs(png_directory)
+    model.save_to_csv(csv_directory)
+    model.save_for_web(web_directory)
+    model.save_to_mat(mat_directory)
 
     # Copy metadata and options from input folder into expected output folder
     shutil.copy(
         script_dir / "test_data/serialisers/input/metadata.csv",
-        script_dir / "test_data/serialisers/actual_output/csv/metadata.csv",
+        csv_directory / "metadata.csv",
     )
     zip_filename = "output.zip"
-    model.save_zip(zip_filename, script_dir / "test_data/serialisers/actual_output")
+    model.save_zip(zip_filename, output_directory)
     """Require the following files to be in the zip for dashboard"""
     required_files = [
         "coordinates.csv",
@@ -1106,10 +1118,7 @@ def test_save_zip() -> None:
         "portfolio_svm.csv",
         "model.mat",
     ]
-    with zipfile.ZipFile(
-        script_dir / "test_data/serialisers/actual_output" / zip_filename,
-        "r",
-    ) as zf:
+    with zipfile.ZipFile(output_directory / zip_filename, "r") as zf:
         file_list = [Path(f).name for f in zf.namelist()]
         assert all(
             item in file_list for item in required_files
@@ -1152,7 +1161,7 @@ def test_footprint_csv_v2_preserves_parts_and_holes() -> None:
     )
     second = Polygon([(10, 10), (12, 10), (12, 12), (10, 12)])
 
-    frame = serialisers._footprint_boundary_frame(  # noqa: SLF001
+    frame = serialisers._footprint_boundary_frame(
         MultiPolygon([first, second]),
     )
 
@@ -1182,7 +1191,7 @@ def test_compound_footprint_paths_keep_holes_and_components() -> None:
     expected_parts = 2
     fig, ax = plt.subplots()
     try:
-        serialisers._draw_footprint(  # noqa: SLF001
+        serialisers._draw_footprint(
             ax,
             footprint,
             (0.0, 0.0, 1.0, 1.0),
@@ -1205,7 +1214,7 @@ def test_draw_footprint_adds_native_boundary_face_collection() -> None:
     fig = plt.figure()
     axis = fig.add_subplot(projection="3d")
     try:
-        serialisers._draw_footprint(  # noqa: SLF001
+        serialisers._draw_footprint(
             axis,
             footprint,
             (0.0, 0.0, 1.0, 1.0),
@@ -1255,9 +1264,9 @@ def test_portable_stems_are_safe_unique_and_deterministic() -> None:
     """Unsafe and colliding labels must map to unique portable stems."""
     labels = ["../../same", "..\\..\\same", "CON", "con", "", "A:B", "A?B"]
 
-    stems = serialisers._portable_stems(labels, "algorithm")  # noqa: SLF001
+    stems = serialisers._portable_stems(labels, "algorithm")
 
-    assert stems == serialisers._portable_stems(labels, "algorithm")  # noqa: SLF001
+    assert stems == serialisers._portable_stems(labels, "algorithm")
     assert len({stem.casefold() for stem in stems}) == len(stems)
     assert all("/" not in stem and "\\" not in stem for stem in stems)
     assert all(stem not in {"", ".", ".."} for stem in stems)
@@ -1270,13 +1279,13 @@ def test_scaling_and_scatter_handle_constant_and_missing_data(tmp_path: Path) ->
     """Constant and missing values must scale and plot without warnings."""
     values = np.array([[5.0, np.nan, 1.0], [5.0, np.nan, 3.0]])
 
-    scaled = serialisers._minmax_scale(values, axis=0)  # noqa: SLF001
+    scaled = serialisers._minmax_scale(values, axis=0)
     np.testing.assert_allclose(scaled[:, [0, 2]], [[0.0, 0.0], [0.0, 1.0]])
     assert np.all(np.isnan(scaled[:, 1]))
-    colours = serialisers._colour_scale(values)  # noqa: SLF001
+    colours = serialisers._colour_scale(values)
     np.testing.assert_allclose(colours[:, [0, 2]], [[0, 0], [0, 255]])
     assert np.all(np.isnan(colours[:, 1]))
-    serialisers._write_colour_array_to_csv(  # noqa: SLF001
+    serialisers._write_colour_array_to_csv(
         colours,
         pd.Series(["constant", "missing", "range"]),
         pd.Series(["row_1", "row_2"]),
@@ -1284,7 +1293,7 @@ def test_scaling_and_scatter_handle_constant_and_missing_data(tmp_path: Path) ->
     )
     written_colours = pd.read_csv(tmp_path / "colours.csv")
     assert np.all(np.isnan(written_colours["missing"]))
-    serialisers._draw_scatter(  # noqa: SLF001
+    serialisers._draw_scatter(
         np.array([[0.0, 0.0], [1.0, 1.0]]),
         np.array([np.nan, np.nan]),
         "Missing",
@@ -1386,7 +1395,7 @@ def test_save_errors_include_the_operation_and_target(
 
     monkeypatch.setattr(pd.DataFrame, "to_csv", fail_csv)
     with pytest.raises(serialisers.SerializationError, match="table.csv") as csv_error:
-        serialisers._write_dataframe_to_csv(  # noqa: SLF001
+        serialisers._write_dataframe_to_csv(
             pd.DataFrame({"a": [1]}),
             csv_target,
         )
@@ -1396,7 +1405,7 @@ def test_save_errors_include_the_operation_and_target(
     try:
         monkeypatch.setattr(fig, "savefig", fail_csv)
         with pytest.raises(serialisers.SerializationError, match="plot.png"):
-            serialisers._save_figure(fig, tmp_path / "plot.png")  # noqa: SLF001
+            serialisers._save_figure(fig, tmp_path / "plot.png")
     finally:
         plt.close(fig)
 
@@ -1471,13 +1480,3 @@ def test_zip_write_errors_include_target(
     with pytest.raises(serialisers.SerializationError, match="bundle.zip") as error:
         model.save_zip("bundle.zip", tmp_path)
     assert isinstance(error.value.__cause__, PermissionError)
-
-
-def clean_dir(path: Path) -> None:
-    """Remove all files in a directory."""
-    ignored_files = [".gitignore"]
-
-    for file in os.listdir(path):
-        if file in ignored_files:
-            continue
-        Path.unlink(path / file)

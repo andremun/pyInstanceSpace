@@ -116,7 +116,7 @@ def test_get_executor_returns_none_when_parallelism_is_disabled() -> None:
     space = _bare_instance_space(n_cores=2, parallel=False)
 
     assert space._get_executor() is None
-    assert space._executor is None  # noqa: SLF001
+    assert space._executor is None
 
 
 def test_disabling_parallelism_closes_an_existing_pool() -> None:
@@ -131,7 +131,7 @@ def test_disabling_parallelism_closes_an_existing_pool() -> None:
 
     assert space._get_executor() is None
     assert executor._shutdown
-    assert space._executor is None  # noqa: SLF001
+    assert space._executor is None
 
 
 def test_run_stage_passes_the_cached_executor_by_default() -> None:

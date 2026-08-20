@@ -101,7 +101,7 @@ def test_composed_nan_threshold_controls_feature_washing() -> None:
         ),
     )
 
-    output = PreprocessingStage._run(configured_input)  # noqa: SLF001
+    output = PreprocessingStage._run(configured_input)
 
     assert output.feat_labels == feature_names
     assert output.x.shape[1] == len(feature_names)

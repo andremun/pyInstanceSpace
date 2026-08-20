@@ -231,7 +231,7 @@ def test_numerical_c_keeps_every_algorithm_reconstruction_column() -> None:
         _do_output=False,
     )
 
-    _, full_reconstruction = PilotStage._unpack_solution(  # noqa: SLF001
+    _, full_reconstruction = PilotStage._unpack_solution(
         alpha[:, 0],
         2,
         n_features,
@@ -286,7 +286,7 @@ def test_pilot_default_starts_ignore_general_seed() -> None:
     np.testing.assert_array_equal(result_a.X0, result_b.X0)
     np.testing.assert_array_equal(
         result_a.X0,
-        PilotStage._default_numerical_starts(  # noqa: SLF001
+        PilotStage._default_numerical_starts(
             expected_rows,
             opts.n_tries,
         ),
@@ -489,7 +489,7 @@ def test_valid_precalculated_alpha_takes_precedence_over_x0() -> None:
     m = n + y.shape[1]
     expected_a = rng.random((2, n))
     expected_full_b = rng.random((m, 2))
-    precalc_alpha = PilotStage._pack_solution(  # noqa: SLF001
+    precalc_alpha = PilotStage._pack_solution(
         expected_a,
         expected_full_b,
     ).reshape(-1, 1)
@@ -604,7 +604,7 @@ def test_pilot_analytic_rank_deficiency_falls_back_to_numerical() -> None:
     m = n + y.shape[1]
     expected_a = rng.random((2, n))
     expected_full_b = rng.random((m, 2))
-    precalc_alpha = PilotStage._pack_solution(  # noqa: SLF001
+    precalc_alpha = PilotStage._pack_solution(
         expected_a,
         expected_full_b,
     ).reshape(-1, 1)
@@ -888,7 +888,7 @@ def test_numerical_solution_vector_uses_matlab_column_major_order() -> None:
         ],
     )
 
-    a, b = PilotStage._unpack_solution(  # noqa: SLF001
+    a, b = PilotStage._unpack_solution(
         theta,
         dims=2,
         n=3,
@@ -898,18 +898,18 @@ def test_numerical_solution_vector_uses_matlab_column_major_order() -> None:
     np.testing.assert_array_equal(a, expected_a)
     np.testing.assert_array_equal(b, expected_b)
     np.testing.assert_array_equal(
-        PilotStage._pack_solution(a, b),  # noqa: SLF001
+        PilotStage._pack_solution(a, b),
         theta,
     )
 
 
 def test_default_numerical_starts_match_r2026a_without_global_rng_mutation() -> None:
     """Pin MATLAB's seed-5489 values, 53-bit conversion, and matrix fill."""
-    global_state_before = np.random.get_state()  # noqa: NPY002
+    global_state_before = np.random.get_state()
 
-    starts = PilotStage._default_numerical_starts(4, 2)  # noqa: SLF001
+    starts = PilotStage._default_numerical_starts(4, 2)
 
-    global_state_after = np.random.get_state()  # noqa: NPY002
+    global_state_after = np.random.get_state()
     expected_unscaled = np.array(
         [
             [0.8147236863931789, 0.6323592462254095],
@@ -1012,7 +1012,7 @@ def test_pilot_stage_run_skips_viewpoint_for_two_dimensions() -> None:
     )
 
     with patch("instancespace.stages.pilot.pilot_viewpoint") as calculate:
-        result = PilotStage._run(inputs)  # noqa: SLF001
+        result = PilotStage._run(inputs)
 
     assert result.viewpoint is None
     calculate.assert_not_called()
@@ -1092,7 +1092,7 @@ def test_pilot_stage_run_attaches_viewpoint_for_three_dimensions() -> None:
         "instancespace.stages.pilot.pilot_viewpoint",
         return_value=expected,
     ) as calculate:
-        result = PilotStage._run(inputs)  # noqa: SLF001
+        result = PilotStage._run(inputs)
 
     assert result.viewpoint is expected
     calculate.assert_called_once()
@@ -1118,7 +1118,7 @@ def test_pilot_numerical_supports_three_dimensions() -> None:
     dims = 3
     expected_a = rng.random((3, n))
     expected_full_b = rng.random((m, 3))
-    theta = PilotStage._pack_solution(  # noqa: SLF001
+    theta = PilotStage._pack_solution(
         expected_a,
         expected_full_b,
     ).reshape(-1, 1)
@@ -1434,7 +1434,7 @@ def test_simpls_rejects_a_degenerate_component_with_named_error() -> None:
         ValueError,
         match=r"PILOT SIMPLS component 1.*X-score norm",
     ):
-        PilotStage._simpls(  # noqa: SLF001
+        PilotStage._simpls(
             x_centered,
             y_centered,
             n_components=2,
