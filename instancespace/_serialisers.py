@@ -32,10 +32,18 @@ from instancespace.data.model import (
     TraceOut,
 )
 from instancespace.data.options import InstanceSpaceOptions
+from instancespace.plotting import (
+    _apply_view_angle,
+    _projection_dimensions,
+    _resolve_view_angle,
+    _scatter_projection,
+    _ViewAngle,
+)
 
 _FOOTPRINT_COLUMNS = ["Row", "Part", "Ring", "Vertex", "z_1", "z_2"]
 _PROJECTION_ARRAY_DIMENSIONS = 2
 _FOOTPRINT_DIMENSIONS = 2
+_THREE_DIMENSIONS = 3
 _SUPPORTED_PROJECTION_DIMENSIONS = {2, 3}
 _INVALID_STEM_CHARACTERS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _MAX_STEM_LENGTH = 80
@@ -365,6 +373,9 @@ def save_instance_space_graphs(
     num_algorithms = data.y.shape[1]
     feature_stems = _portable_stems(data.feat_labels, "feature")
     algorithm_stems = _portable_stems(data.algo_labels, "algorithm")
+    projection_dimensions = _projection_dimensions(pilot.z)
+    viewpoint = getattr(pilot, "viewpoint", None)
+    global_view = _resolve_view_angle(viewpoint, None)
 
     x_aux = _minmax_scale(data.x, axis=0)
     y_ind = _minmax_scale(data.y_raw, axis=0)
@@ -387,11 +398,13 @@ def save_instance_space_graphs(
             x_aux[:, i],
             data.feat_labels[i].replace("_", " "),
             output_directory / filename,
+            global_view,
         )
 
     for i in range(num_algorithms):
         algo_label = data.algo_labels[i]
         algo_stem = algorithm_stems[i]
+        algorithm_view = _resolve_view_angle(viewpoint, i)
 
         filename = f"distribution_performance_global_normalized_{algo_stem}.png"
         _draw_scatter(
@@ -399,6 +412,7 @@ def save_instance_space_graphs(
             y_glb[:, i],
             algo_label.replace("_", " "),
             output_directory / filename,
+            algorithm_view,
         )
 
         filename = f"distribution_performance_individual_normalized_{algo_stem}.png"
@@ -407,6 +421,7 @@ def save_instance_space_graphs(
             y_ind[:, i],
             algo_label.replace("_", " "),
             output_directory / filename,
+            algorithm_view,
         )
 
         _draw_binary_performance(
@@ -414,6 +429,7 @@ def save_instance_space_graphs(
             data.y_bin[:, i],
             algo_label.replace("_", " "),
             output_directory / f"binary_performance_{algo_stem}.png",
+            algorithm_view,
         )
 
         _draw_binary_performance(
@@ -421,21 +437,25 @@ def save_instance_space_graphs(
             pythia.y_hat[:, i],
             algo_label.replace("_", " "),
             output_directory / f"binary_svm_{algo_stem}.png",
+            algorithm_view,
         )
 
-        _draw_good_bad_footprint(
-            pilot.z,
-            trace.good[i],
-            y_foot[:, i],
-            algo_label.replace("_", " ") + " Footprint",
-            output_directory / f"footprint_{algo_stem}.png",
-        )
+        if projection_dimensions == _FOOTPRINT_DIMENSIONS:
+            _draw_good_bad_footprint(
+                pilot.z,
+                trace.good[i],
+                y_foot[:, i],
+                algo_label.replace("_", " ") + " Footprint",
+                output_directory / f"footprint_{algo_stem}.png",
+                algorithm_view,
+            )
 
     _draw_scatter(
         pilot.z,
         data.num_good_algos / num_algorithms,
         "Percentage of good algorithms",
         output_directory / "distribution_number_good_algos.png",
+        global_view,
     )
 
     _draw_portfolio_selections(
@@ -444,6 +464,7 @@ def save_instance_space_graphs(
         np.array(data.algo_labels),
         "Best algorithm",
         output_directory / "distribution_portfolio.png",
+        global_view,
     )
 
     _draw_portfolio_selections(
@@ -452,6 +473,7 @@ def save_instance_space_graphs(
         np.array(data.algo_labels),
         "Predicted best algorithm",
         output_directory / "distribution_svm_portfolio.png",
+        global_view,
     )
 
     _draw_binary_performance(
@@ -459,6 +481,7 @@ def save_instance_space_graphs(
         data.beta,
         "Beta score",
         output_directory / "distribution_beta_score.png",
+        global_view,
     )
 
     if data.s is not None:
@@ -466,15 +489,18 @@ def save_instance_space_graphs(
             pilot.z,
             np.array(data.s),
             output_directory / "distribution_sources.png",
+            global_view,
         )
 
-    _draw_portfolio_footprint(
-        pilot.z,
-        trace.best,
-        p_foot,
-        np.array(data.algo_labels),
-        output_directory / "footprint_portfolio.png",
-    )
+    if projection_dimensions == _FOOTPRINT_DIMENSIONS:
+        _draw_portfolio_footprint(
+            pilot.z,
+            trace.best,
+            p_foot,
+            np.array(data.algo_labels),
+            output_directory / "footprint_portfolio.png",
+            global_view,
+        )
 
 
 def _write_array_to_csv(
@@ -569,34 +595,57 @@ def _add_legend_if_present(ax: Axes) -> None:
         ax.legend()
 
 
+def _new_projection_figure(z: NDArray[Any]) -> tuple[Figure, Axes]:
+    """Create isolated native axes matching a 2D or 3D projection."""
+    if _projection_dimensions(z) == _THREE_DIMENSIONS:
+        fig = plt.figure()
+        return fig, fig.add_subplot(projection="3d")
+    return plt.subplots()
+
+
+def _configure_projection_axes(
+    ax: Axes,
+    z: NDArray[Any],
+    view_angle: _ViewAngle | None,
+) -> None:
+    """Keep 2D styling while adding the native third axis and camera."""
+    dimensions = _projection_dimensions(z)
+    if dimensions == _THREE_DIMENSIONS:
+        ax.set_zlabel(r"$z_{3}$")  # type: ignore[attr-defined]
+    else:
+        ax.set_xlim((-5, 5))
+        ax.set_ylim((-5, 5))
+    ax.set_xlabel(r"$z_{1}$")
+    ax.set_ylabel(r"$z_{2}$")
+    _apply_view_angle(ax, z, view_angle or _resolve_view_angle(None, None))
+
+
 def _draw_sources(
     z: NDArray[Any],
     s: NDArray[np.str_],
     output: Path,
+    view_angle: _ViewAngle | None = None,
 ) -> None:
     source_labels = np.unique(s)
     num_sources = len(source_labels)
 
     cmap = plt.colormaps["viridis"]
-    fig, ax2 = plt.subplots()
+    fig, ax2 = _new_projection_figure(z)
     try:
         ax: Axes = ax2
-        ax.set_xlim((-5, 5))
-        ax.set_ylim((-5, 5))
         fig.suptitle("Sources")
 
         denominator = max(num_sources - 1, 1)
         for i in reversed(range(num_sources)):
-            ax.scatter(
-                z[s == source_labels[i], 0],
-                z[s == source_labels[i], 1],
+            _scatter_projection(
+                ax,
+                z[s == source_labels[i]],
                 s=8,
                 color=cmap(i / denominator),
                 label=source_labels[i],
             )
 
-        ax.set_xlabel(r"$z_{1}$")
-        ax.set_ylabel(r"$z_{2}$")
+        _configure_projection_axes(ax, z, view_angle)
         _add_legend_if_present(ax)
         _save_figure(fig, output)
     finally:
@@ -608,6 +657,7 @@ def _draw_scatter(
     x: NDArray[Any],
     title_label: str,
     output: Path,
+    view_angle: _ViewAngle | None = None,
 ) -> None:
     values = np.asarray(x, dtype=np.double)
     finite_values = values[np.isfinite(values)]
@@ -623,7 +673,7 @@ def _draw_scatter(
 
     cmap = plt.colormaps["viridis"].copy()
     cmap.set_bad("#bdbdbd")
-    fig, ax2 = plt.subplots()
+    fig, ax2 = _new_projection_figure(z)
     try:
         ax: Axes = ax2
         fig.suptitle(title_label, size=14)
@@ -631,25 +681,22 @@ def _draw_scatter(
 
         finite = np.isfinite(values)
         if np.any(finite):
-            ax.scatter(
-                z[finite, 0],
-                z[finite, 1],
+            _scatter_projection(
+                ax,
+                z[finite],
                 s=8,
                 c=values[finite],
                 norm=norm,
                 cmap=cmap,
             )
         if np.any(~finite):
-            ax.scatter(
-                z[~finite, 0],
-                z[~finite, 1],
+            _scatter_projection(
+                ax,
+                z[~finite],
                 s=8,
                 color="#bdbdbd",
             )
-        ax.set_xlim((-5, 5))
-        ax.set_ylim((-5, 5))
-        ax.set_xlabel(r"$z_{1}$")
-        ax.set_ylabel(r"$z_{2}$")
+        _configure_projection_axes(ax, z, view_angle)
         fig.colorbar(
             plt.cm.ScalarMappable(
                 norm=norm,
@@ -668,15 +715,14 @@ def _draw_portfolio_selections(
     algorithm_labels: NDArray[np.str_],
     title_label: str,
     output: Path,
+    view_angle: _ViewAngle | None = None,
 ) -> None:
     """Plot a portfolio encoded with zero-based indices and ``-1`` for none."""
     num_algorithms = len(algorithm_labels)
     cmap = plt.colormaps["viridis"]
-    fig, ax2 = plt.subplots()
+    fig, ax2 = _new_projection_figure(z)
     try:
         ax: Axes = ax2
-        ax.set_xlim((-5, 5))
-        ax.set_ylim((-5, 5))
         fig.suptitle(title_label)
 
         denominator = max(num_algorithms, 1)
@@ -685,9 +731,9 @@ def _draw_portfolio_selections(
             if not np.any(selected):
                 continue
 
-            ax.scatter(
-                z[selected, 0],
-                z[selected, 1],
+            _scatter_projection(
+                ax,
+                z[selected],
                 s=8,
                 color=cmap((selection + 1) / denominator),
                 label=(
@@ -697,8 +743,7 @@ def _draw_portfolio_selections(
                 ),
             )
 
-        ax.set_xlabel(r"$z_{1}$")
-        ax.set_ylabel(r"$z_{2}$")
+        _configure_projection_axes(ax, z, view_angle)
         _add_legend_if_present(ax)
         _save_figure(fig, output)
     finally:
@@ -711,16 +756,16 @@ def _draw_portfolio_footprint(
     p: NDArray[Any],
     algorithm_labels: NDArray[np.str_],
     output: Path,
+    view_angle: _ViewAngle | None = None,
 ) -> None:
     """Plot best footprints for a zero-based portfolio with ``-1`` for none."""
     num_algorithms = len(algorithm_labels)
 
     cmap = plt.colormaps["viridis"]
-    fig, ax2 = plt.subplots()
+    projection_dimensions = _projection_dimensions(z)
+    fig, ax2 = _new_projection_figure(z)
     try:
         ax: Axes = ax2
-        ax.set_xlim((-5, 5))
-        ax.set_ylim((-5, 5))
         fig.suptitle("Portfolio footprints")
 
         denominator = max(num_algorithms, 1)
@@ -730,9 +775,9 @@ def _draw_portfolio_footprint(
                 continue
 
             colour = cmap((selection + 1) / denominator)
-            ax.scatter(
-                z[selected, 0],
-                z[selected, 1],
+            _scatter_projection(
+                ax,
+                z[selected],
                 s=8,
                 color=colour,
                 label=(
@@ -742,11 +787,10 @@ def _draw_portfolio_footprint(
                 ),
             )
 
-            if selection >= 0:
+            if selection >= 0 and projection_dimensions == _FOOTPRINT_DIMENSIONS:
                 _draw_footprint(ax, best[selection], colour, 0.3)
 
-        ax.set_xlabel(r"$z_{1}$")
-        ax.set_ylabel(r"$z_{2}$")
+        _configure_projection_axes(ax, z, view_angle)
         _add_legend_if_present(ax)
         _save_figure(fig, output)
     finally:
@@ -759,40 +803,40 @@ def _draw_good_bad_footprint(
     y_bin: NDArray[Any],
     title_label: str,
     output: Path,
+    view_angle: _ViewAngle | None = None,
 ) -> None:
     orange = (1.0, 0.6471, 0.0, 1.0)
     blue = (0.0, 0.0, 1.0, 1.0)
 
-    fig, ax2 = plt.subplots()
+    projection_dimensions = _projection_dimensions(z)
+    fig, ax2 = _new_projection_figure(z)
     try:
         ax: Axes = ax2
         fig.suptitle(title_label)
-        ax.set_xlim((-5, 5))
-        ax.set_ylim((-5, 5))
         not_y_bin = y_bin == 0
         good_y_bin = y_bin == 1
 
         if np.any(not_y_bin):
-            ax.scatter(
-                z[not_y_bin, 0],
-                z[not_y_bin, 1],
+            _scatter_projection(
+                ax,
+                z[not_y_bin],
                 s=8,
                 c=[orange],
                 label="BAD",
             )
 
         if np.any(good_y_bin):
-            ax.scatter(
-                z[good_y_bin, 0],
-                z[good_y_bin, 1],
+            _scatter_projection(
+                ax,
+                z[good_y_bin],
                 s=8,
                 c=[blue],
                 label="GOOD",
             )
-            _draw_footprint(ax, good, blue, 0.3)
+            if projection_dimensions == _FOOTPRINT_DIMENSIONS:
+                _draw_footprint(ax, good, blue, 0.3)
 
-        ax.set_xlabel(r"$z_{1}$")
-        ax.set_ylabel(r"$z_{2}$")
+        _configure_projection_axes(ax, z, view_angle)
         _add_legend_if_present(ax)
         _save_figure(fig, output)
     finally:
@@ -847,27 +891,37 @@ def _draw_binary_performance(
     y_bin: NDArray[Any],
     title_label: str,
     output: Path,
+    view_angle: _ViewAngle | None = None,
 ) -> None:
     orange = (1.0, 0.6471, 0.0, 1.0)
     blue = (0.0, 0.0, 1.0, 1.0)
 
-    fig, ax2 = plt.subplots()
+    fig, ax2 = _new_projection_figure(z)
     try:
         ax: Axes = ax2
         fig.suptitle(title_label)
-        ax.set_xlim((-5, 5))
-        ax.set_ylim((-5, 5))
         not_y_bin = y_bin == 0
         good_y_bin = y_bin == 1
 
         if np.any(not_y_bin):
-            ax.scatter(z[not_y_bin, 0], z[not_y_bin, 1], s=8, c=[orange], label="BAD")
+            _scatter_projection(
+                ax,
+                z[not_y_bin],
+                s=8,
+                c=[orange],
+                label="BAD",
+            )
 
         if np.any(good_y_bin):
-            ax.scatter(z[good_y_bin, 0], z[good_y_bin, 1], s=8, c=[blue], label="GOOD")
+            _scatter_projection(
+                ax,
+                z[good_y_bin],
+                s=8,
+                c=[blue],
+                label="GOOD",
+            )
 
-        ax.set_xlabel(r"$z_{1}$")
-        ax.set_ylabel(r"$z_{2}$")
+        _configure_projection_axes(ax, z, view_angle)
         _add_legend_if_present(ax)
         _save_figure(fig, output)
     finally:

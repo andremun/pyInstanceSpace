@@ -19,12 +19,15 @@ mpl.use("Agg")
 
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from matplotlib.path import Path as MatplotlibPath
+from mpl_toolkits.mplot3d import Axes3D  # type: ignore[import-untyped]
 from numpy.typing import NDArray
 from scipy.io import loadmat
 from shapely.geometry import MultiPolygon, Polygon
 
 from instancespace import _serialisers as serialisers
+from instancespace import plotting
 from instancespace.data.model import (
     CloisterOut,
     Data,
@@ -507,6 +510,90 @@ def test_save_graphs() -> None:
         # We can't test the images, so we must check visually that they are consistant
 
 
+def test_3d_graph_scatter_uses_native_axis_camera_and_z_coordinates(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """PNG helpers retain z3 and apply azimuth/elevation in matplotlib order."""
+    z = np.array(
+        [[0.0, 1.0, 10.0], [2.0, 3.0, 11.0], [4.0, 5.0, 12.0]],
+    )
+    viewpoint = PilotViewpointResult(
+        groups=((0,),),
+        a=(np.eye(2, 3, dtype=np.float64),),
+        azimuth=(np.deg2rad(65.0),),
+        elevation=(np.deg2rad(35.0),),
+    )
+    angle = plotting._resolve_view_angle(viewpoint, 0)  # noqa: SLF001
+    captured: dict[str, object] = {}
+    save_figure = serialisers._save_figure  # noqa: SLF001
+
+    def inspect_figure(fig: Figure, output: Path) -> None:
+        axis = fig.axes[0]
+        captured["is_3d"] = isinstance(axis, Axes3D)
+        captured["azimuth"] = getattr(axis, "azim")
+        captured["elevation"] = getattr(axis, "elev")
+        captured["z"] = np.asarray(getattr(axis.collections[0], "_offsets3d")[2])
+        captured["z_limits"] = getattr(axis, "get_zlim")()
+        captured["zlabel"] = getattr(axis, "get_zlabel")()
+        save_figure(fig, output)
+
+    monkeypatch.setattr(serialisers, "_save_figure", inspect_figure)
+
+    serialisers._draw_scatter(  # noqa: SLF001
+        z,
+        np.array([0.0, 0.5, 1.0]),
+        "3D scatter",
+        tmp_path / "scatter.png",
+        angle,
+    )
+
+    assert captured["is_3d"] is True
+    assert captured["azimuth"] == pytest.approx(65.0)
+    assert captured["elevation"] == pytest.approx(35.0)
+    np.testing.assert_array_equal(
+        cast(NDArray[np.double], captured["z"]),
+        z[:, 2],
+    )
+    assert captured["zlabel"] == r"$z_{3}$"
+    z_lower, z_upper = cast(tuple[float, float], captured["z_limits"])
+    assert z_lower <= float(np.min(z[:, 2]))
+    assert z_upper >= float(np.max(z[:, 2]))
+    assert (tmp_path / "scatter.png").is_file()
+
+
+def test_3d_graph_export_skips_footprints_but_keeps_binary_scatters(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """No footprint-named 3D PNG implies geometry that Python does not have."""
+    model = _three_dimensional_model(_MatlabResults().get_model())
+    binary_outputs: list[str] = []
+
+    def no_draw(*_args: object, **_kwargs: object) -> None:
+        pass
+
+    def capture_binary(*args: object, **_kwargs: object) -> None:
+        binary_outputs.append(cast(Path, args[3]).name)
+
+    def fail_footprint(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("3D graph export attempted to render a footprint")
+
+    monkeypatch.setattr(serialisers, "_draw_scatter", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_binary_performance", capture_binary)
+    monkeypatch.setattr(serialisers, "_draw_good_bad_footprint", fail_footprint)
+    monkeypatch.setattr(serialisers, "_draw_sources", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_portfolio_selections", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_portfolio_footprint", fail_footprint)
+
+    model.save_graphs(tmp_path)
+
+    num_algorithms = model.data.y.shape[1]
+    assert len(binary_outputs) == 2 * num_algorithms + 1
+    assert "distribution_beta_score.png" in binary_outputs
+    assert not list(tmp_path.glob("footprint*.png"))
+
+
 def test_graph_portfolio_boundaries_use_zero_based_internal_indices(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -913,6 +1000,7 @@ def test_graph_scaling_matches_matlab_axis_contract(
         values: NDArray[np.double],
         _title: str,
         output: Path,
+        _view_angle: object,
     ) -> None:
         scatter_values[output.name] = np.asarray(values).copy()
 
