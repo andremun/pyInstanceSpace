@@ -18,7 +18,11 @@ from instancespace.data.options import (
     TraceOptions,
 )
 from instancespace.stages.trace import TraceInputs, TraceStage
-from instancespace.utils.alpha_shape import AlphaShape2D
+from instancespace.utils.alpha_shape import (
+    AlphaShape2D,
+    AlphaShape3D,
+    TetrahedralMesh,
+)
 
 COLLAPSE_GEOMETRY_CALL = 3
 EXPECTED_ALPHA_CALLS = 201
@@ -27,6 +31,15 @@ SECOND_ALGORITHM_ONE_BASED = 2
 GRID_SPLIT = 3.0
 TRAINED_AREA = 4.0
 EXPECTED_INSIDE_ELEMENTS = 2
+THREE_DIMENSIONS = 3
+EXPECTED_3D_INSIDE_ELEMENTS = 2
+
+
+def _cube() -> NDArray[np.double]:
+    return np.array(
+        [[x, y, z] for x in (0.0, 1.0) for y in (0.0, 1.0) for z in (0.0, 1.0)],
+        dtype=np.double,
+    )
 
 
 def _stage(
@@ -162,6 +175,45 @@ class _StaticAlphaShape:
         return Polygon([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)])
 
 
+class _RecordingAlphaShape3D:
+    critical_radius = 10.0
+    spectrum = np.array([10.0, 1.0], dtype=np.double)
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[float, float]] = []
+
+    def geometry(
+        self,
+        radius: float,
+        *,
+        region_threshold: float = 0.0,
+        inclusive: bool = True,
+    ) -> TetrahedralMesh:
+        del inclusive
+        self.calls.append((radius, region_threshold))
+        return TetrahedralMesh(
+            vertices=np.array(
+                [
+                    [0.0, 0.0, 0.0],
+                    [1.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                ],
+                dtype=np.double,
+            ),
+            tetrahedra=np.array([[0, 1, 2, 3]], dtype=np.int_),
+            boundary_faces=np.array(
+                [[1, 2, 3], [0, 3, 2], [0, 1, 3], [0, 2, 1]],
+                dtype=np.int_,
+            ),
+            alpha=radius,
+            region_threshold=region_threshold,
+            region_count=1,
+            volume=radius,
+            surface_area=1.0,
+        )
+
+
 def test_single_alpha_spectrum_returns_initial_shape_below_purity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -231,6 +283,34 @@ def test_trace3_evaluates_exactly_100_radii_with_stateful_threshold(
     )
     assert fake.calls[3][1] == fake.calls[2][1]
     assert footprint.area == pytest.approx(4.0)
+
+
+def test_trace3_stateful_threshold_uses_volume_for_three_dimensions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The same 100-step loop carries prior volume into 3D region filtering."""
+    values = np.linspace(0.02, 0.2, 10, dtype=np.double)
+    z = np.column_stack((values, values / 2.0, values / 3.0))
+    y_bin = np.zeros((z.shape[0], 1), dtype=np.bool_)
+    y_bin[:5, 0] = True
+    trace = _stage(z, y_bin, purity=1.0, min_area_frac=0.0)
+    fake = _RecordingAlphaShape3D()
+    monkeypatch.setattr(
+        AlphaShape3D,
+        "from_points",
+        classmethod(lambda _cls, _points: fake),
+    )
+
+    footprint = trace._build_trace3(y_bin[:, 0], None, 1.0)  # noqa: SLF001
+
+    assert len(fake.calls) == EXPECTED_ALPHA_CALLS
+    expected_radii = np.linspace(10.0, 1.0, 101)[1:]
+    np.testing.assert_allclose([call[0] for call in fake.calls[1::2]], expected_radii)
+    assert fake.calls[1][1] == 0.0
+    assert fake.calls[2][1] == pytest.approx(expected_radii[0] / 20.0)
+    assert fake.calls[3][1] == fake.calls[2][1]
+    assert footprint.area == pytest.approx(1.0)
+    assert footprint.dimension == THREE_DIMENSIONS
 
 
 def test_later_shape_collapse_returns_empty_not_previous_geometry(
@@ -366,14 +446,151 @@ def test_parallel_and_sequential_trace3_outputs_match() -> None:
         assert sequential_fp == parallel_fp
 
 
-def test_trace3_rejects_three_dimensional_coordinates() -> None:
-    """Reject 3D coordinates instead of silently flattening their geometry."""
+def test_trace3_builds_native_three_dimensional_footprints() -> None:
+    """A cube flows through build, metrics, and dimension-aware summary labels."""
+    z = _cube()
+    y_bin = np.ones((z.shape[0], 1), dtype=np.bool_)
+    trace = _stage(z, y_bin, purity=0.0, min_area_frac=0.0)
+
+    output = trace._trace()  # noqa: SLF001
+
+    assert output.space.dimension == THREE_DIMENSIONS
+    assert output.space.area == pytest.approx(1.0)
+    assert isinstance(output.good[0].polygon, TetrahedralMesh)
+    assert output.good[0].measure == pytest.approx(1.0)
+    assert output.good[0].elements == z.shape[0]
+    assert output.good[0].purity == 1.0
+    assert "Volume_Good" in output.trace_summary
+    assert "Area_Good" not in output.trace_summary
+
+
+def test_trace3_degenerate_three_dimensional_support_is_canonical_empty() -> None:
+    """Coplanar/duplicate support produces dimension-aware empty footprints."""
     z = np.ones((5, 3), dtype=np.double)
     y_bin = np.ones((5, 1), dtype=np.bool_)
     trace = _stage(z, y_bin)
 
-    with pytest.raises(ValueError, match="two-dimensional Z"):
-        trace._trace()  # noqa: SLF001
+    output = trace._trace()  # noqa: SLF001
+
+    assert output.space.area == 0.0
+    assert output.good[0] == Footprint(
+        None,
+        0,
+        0,
+        0,
+        0,
+        0,
+        THREE_DIMENSIONS,
+    )
+    assert output.best[0] == Footprint(
+        None,
+        0,
+        0,
+        0,
+        0,
+        0,
+        THREE_DIMENSIONS,
+    )
+    assert output.hard == Footprint(None, 0, 0, 0, 0, 0, THREE_DIMENSIONS)
+
+
+def test_legacy_method_warns_and_dispatches_3d_to_trace3(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """MATLAB never sends a 3D projection through polygonal legacy TRACE."""
+    z = _cube()
+    y_bin = np.ones((z.shape[0], 1), dtype=np.bool_)
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        "instancespace.stages.trace.logger.warning",
+        warnings.append,
+    )
+    inputs = TraceInputs(
+        z=z,
+        selection0=np.full(z.shape[0], -1, dtype=np.int_),
+        p=np.ones(z.shape[0], dtype=np.int_),
+        beta=np.zeros(z.shape[0], dtype=np.bool_),
+        algo_labels=["algo"],
+        y_hat=np.ones_like(y_bin),
+        y_bin=y_bin,
+        trace_options=TraceOptions.default(
+            method="legacy",
+            purity=0.0,
+            min_instances=4,
+            min_area_frac=0.0,
+        ),
+        parallel_options=ParallelOptions.default(flag=False),
+        general_options=GeneralOptions.default(),
+    )
+
+    output = TraceStage._run(inputs)  # noqa: SLF001
+
+    assert len(warnings) == 1
+    assert "dispatching" in warnings[0]
+    assert isinstance(output.good[0].polygon, TetrahedralMesh)
+
+
+def test_legacy_3d_dispatch_uses_trace3_truth_portfolio_and_predictions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Legacy use_sim inputs cannot replace MATLAB's 3D Ybin/P TRACE3 contract."""
+    z = _cube()
+    y_bin = np.column_stack((z[:, 0] == 0.0, z[:, 1] == 1.0))
+    y_hat = np.column_stack((z[:, 2] == 0.0, z[:, 0] == 1.0))
+    p = np.where(z[:, 0] == 0.0, 1, 2).astype(np.int_)
+    selection0 = np.full(z.shape[0], -1, dtype=np.int_)
+    observed: list[tuple[NDArray[np.bool_], NDArray[np.bool_] | None]] = []
+
+    def capture_build(
+        self: TraceStage,
+        labels: NDArray[np.bool_],
+        predictions: NDArray[np.bool_] | None,
+        space_area: float,
+    ) -> Footprint:
+        del self, space_area
+        observed.append(
+            (labels.copy(), None if predictions is None else predictions.copy()),
+        )
+        return Footprint(None, 0, 0, 0, 0, 0, THREE_DIMENSIONS)
+
+    monkeypatch.setattr(TraceStage, "_build_trace3", capture_build)
+    monkeypatch.setattr("instancespace.stages.trace.logger.warning", lambda _msg: None)
+    inputs = TraceInputs(
+        z=z,
+        selection0=selection0,
+        p=p,
+        beta=np.zeros(z.shape[0], dtype=np.bool_),
+        algo_labels=["a", "b"],
+        y_hat=y_hat,
+        y_bin=y_bin,
+        trace_options=TraceOptions.default(method="legacy", use_sim=True),
+        parallel_options=ParallelOptions.default(flag=False),
+        general_options=GeneralOptions.default(),
+    )
+
+    TraceStage._run(inputs)  # noqa: SLF001
+
+    assert len(observed) == EXPECTED_TRACE_BUILD_CALLS
+    for good_index, best_index, algorithm_index in ((0, 1, 0), (2, 3, 1)):
+        np.testing.assert_array_equal(
+            observed[good_index][0],
+            y_bin[:, algorithm_index],
+        )
+        np.testing.assert_array_equal(observed[best_index][0], p == algorithm_index + 1)
+        good_prediction = observed[good_index][1]
+        best_prediction = observed[best_index][1]
+        assert good_prediction is not None
+        assert best_prediction is not None
+        np.testing.assert_array_equal(
+            good_prediction,
+            y_hat[:, algorithm_index],
+        )
+        np.testing.assert_array_equal(
+            best_prediction,
+            y_hat[:, algorithm_index],
+        )
+    np.testing.assert_array_equal(observed[-1][0], np.ones(z.shape[0], dtype=np.bool_))
+    assert observed[-1][1] is None
 
 
 def test_rescore_keeps_geometry_and_adds_empty_new_algorithms(
@@ -421,3 +638,62 @@ def test_rescore_keeps_geometry_and_adds_empty_new_algorithms(
     assert rescored.best[1] == empty
     assert rescored.hard.polygon is polygon
     assert rescored.summary["Algorithm"].tolist() == ["trained", "new"]
+
+
+def test_three_dimensional_rescore_reuses_mesh_membership() -> None:
+    """3D evaluation changes evidence metrics without rebuilding trained geometry."""
+    cube = _cube()
+    shape = AlphaShape3D.from_points(cube)
+    assert shape is not None
+    mesh = shape.geometry(shape.critical_radius)
+    assert mesh is not None
+    trained_footprint = Footprint.from_polygon(
+        mesh,
+        cube,
+        np.ones(cube.shape[0], dtype=np.bool_),
+    )
+    trained = TraceOut(
+        space=Footprint(None, 1.0, cube.shape[0], cube.shape[0], 8.0, 1.0, 3),
+        good=[trained_footprint],
+        best=[trained_footprint],
+        hard=trained_footprint,
+        summary=pd.DataFrame(),
+    )
+    z = np.array(
+        [[0.5, 0.5, 0.5], [0.0, 0.5, 0.5], [1.1, 0.5, 0.5]],
+        dtype=np.double,
+    )
+    y_bin = np.array([[True], [False], [True]], dtype=np.bool_)
+
+    rescored = TraceStage.rescore(
+        trained,
+        z,
+        y_bin,
+        np.ones(z.shape[0], dtype=np.int_),
+        np.array([False, True, False], dtype=np.bool_),
+        ["algo"],
+    )
+
+    assert rescored.good[0].polygon is mesh
+    assert rescored.good[0].area == trained_footprint.area
+    assert rescored.good[0].elements == EXPECTED_3D_INSIDE_ELEMENTS
+    assert rescored.good[0].good_elements == 1
+    assert rescored.good[0].density == pytest.approx(2.0)
+    assert rescored.good[0].purity == pytest.approx(0.5)
+    assert "Volume_Good" in rescored.summary
+
+
+def test_rescore_rejects_trained_and_explored_dimension_mismatch() -> None:
+    """A 3D trained model cannot silently discard an explored coordinate."""
+    empty = Footprint(None, 0, 0, 0, 0, 0, THREE_DIMENSIONS)
+    trained = TraceOut(empty, [empty], [empty], empty, pd.DataFrame())
+
+    with pytest.raises(ValueError, match="coordinate mismatch"):
+        TraceStage.rescore(
+            trained,
+            np.zeros((2, 2), dtype=np.double),
+            np.ones((2, 1), dtype=np.bool_),
+            np.ones(2, dtype=np.int_),
+            np.zeros(2, dtype=np.bool_),
+            ["algo"],
+        )

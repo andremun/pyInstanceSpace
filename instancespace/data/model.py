@@ -17,15 +17,19 @@ import pandas as pd
 from numpy.typing import NDArray
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
 
+from instancespace.utils.alpha_shape import TetrahedralMesh
+
 if TYPE_CHECKING:
     from instancespace.stages.pilot_viewpoint import PilotViewpointResult
 
 
 def pointwise_covers(
-    polygon: Polygon | MultiPolygon,
+    polygon: Polygon | MultiPolygon | TetrahedralMesh,
     points: NDArray[np.double],
 ) -> NDArray[np.bool_]:
     """Return MATLAB-compatible interior-or-boundary membership per point."""
+    if isinstance(polygon, TetrahedralMesh):
+        return polygon.covers(points)
     multi_point = MultiPoint(points)
     return np.fromiter(
         (polygon.covers(point) for point in multi_point.geoms),
@@ -353,10 +357,10 @@ class Footprint:
 
     Attributes:
     ----------
-    polygon : Polygon | MultiPolygon | None
+    polygon : Polygon | MultiPolygon | TetrahedralMesh | None
         The geometric shape of the footprint.
     area : float
-        The area of the footprint.
+        The area (2D) or volume (3D), retained under the legacy field name.
     elements : int
         The number of data points within the footprint.
     good_elements : int
@@ -365,19 +369,34 @@ class Footprint:
         The density of points within the footprint.
     purity : float
         The purity of "good" elements in relation to all elements in the footprint.
+    dimension : int
+        The geometry coordinate count. Defaults to two for legacy constructors.
     """
 
-    polygon: Polygon | MultiPolygon | None
+    polygon: Polygon | MultiPolygon | TetrahedralMesh | None
     area: float
     elements: int
     good_elements: int
     density: float
     purity: float
+    dimension: int = 2
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        """Load pre-3D joblib footprints with their implicit 2D dimension."""
+        for name, value in state.items():
+            object.__setattr__(self, name, value)
+        if "dimension" not in state:
+            object.__setattr__(self, "dimension", 2)
+
+    @property
+    def measure(self) -> float:
+        """Return area in 2D or volume in 3D through one stable alias."""
+        return self.area
 
     @classmethod
     def from_polygon(
         cls: type["Footprint"],
-        polygon: Polygon | MultiPolygon | None,
+        polygon: Polygon | MultiPolygon | TetrahedralMesh | None,
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         smoothen: bool = False,
@@ -386,8 +405,8 @@ class Footprint:
 
         Parameters:
         ----------
-        polygon : Polygon | MultiPolygon
-            The polygon to create the footprint from.
+        polygon : Polygon | MultiPolygon | TetrahedralMesh
+            The geometry to create the footprint from.
         z : NDArray[np.double]
             The space of instances, represented as an array of data points (features).
         y_bin : NDArray[np.bool_]
@@ -404,23 +423,30 @@ class Footprint:
             return cls(None, 0, 0, 0, 0, 0)
 
         if smoothen:
+            if isinstance(polygon, TetrahedralMesh):
+                msg = "Three-dimensional TRACE meshes cannot be polygon-smoothed."
+                raise ValueError(msg)
             polygon = polygon.buffer(0.01).buffer(-0.01)
 
         if polygon.is_empty:
             return cls(None, 0, 0, 0, 0, 0)
 
+        measure = (
+            polygon.volume if isinstance(polygon, TetrahedralMesh) else polygon.area
+        )
         elements = int(np.sum(pointwise_covers(polygon, z)))
         good_elements = int(np.sum(pointwise_covers(polygon, z[y_bin])))
-        density = float(elements / polygon.area) if polygon.area != 0 else 0.0
+        density = float(elements / measure) if measure != 0 else 0.0
         purity = float(good_elements / elements) if elements != 0 else 0.0
 
         return cls(
             polygon=polygon,
-            area=float(polygon.area),
+            area=float(measure),
             elements=elements,
             good_elements=good_elements,
             density=density,
             purity=purity,
+            dimension=polygon.dimension if isinstance(polygon, TetrahedralMesh) else 2,
         )
 
 

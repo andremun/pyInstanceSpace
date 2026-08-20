@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 from numpy.typing import NDArray
 from pandas.testing import assert_frame_equal
-from shapely.geometry import Polygon
+from shapely.geometry import MultiPolygon, Polygon
 
 from instancespace.data.model import Footprint
 from instancespace.data.options import GeneralOptions, ParallelOptions, TraceOptions
@@ -491,8 +491,8 @@ def test_contra_keeps_both_footprints_when_overlap_has_no_evidence() -> None:
 
     refined_base, refined_test = trace.contra(base, test, y_base, y_test)
 
-    assert refined_base.polygon is not None
-    assert refined_test.polygon is not None
+    assert isinstance(refined_base.polygon, Polygon | MultiPolygon)
+    assert isinstance(refined_test.polygon, Polygon | MultiPolygon)
     assert refined_base.polygon.equals(base_polygon)
     assert refined_test.polygon.equals(test_polygon)
 
@@ -511,7 +511,7 @@ def test_contra_counts_boundary_points_as_contradiction_evidence() -> None:
 
     refined_base, refined_test = trace.contra(base, test, y_base, y_test)
 
-    assert refined_base.polygon is not None
+    assert isinstance(refined_base.polygon, Polygon | MultiPolygon)
     assert refined_base.polygon.equals(base_polygon)
     assert refined_test.polygon is None
 
@@ -544,8 +544,8 @@ def test_contra_unequal_purity_refines_the_weaker_footprint() -> None:
 
     refined_base, refined_test = trace.contra(base, test, y_base, y_test)
 
-    assert refined_base.polygon is not None
-    assert refined_test.polygon is not None
+    assert isinstance(refined_base.polygon, Polygon | MultiPolygon)
+    assert isinstance(refined_test.polygon, Polygon | MultiPolygon)
     assert refined_base.polygon.equals(base_polygon)
     assert not refined_test.polygon.is_empty
     assert refined_test.area < test.area

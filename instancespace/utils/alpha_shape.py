@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 # Copyright (c) 2024-2026 Mario Andrés Muñoz
-"""Local two-dimensional alpha-shape geometry primitives."""
+"""Local two- and three-dimensional alpha-shape geometry primitives."""
 
 from __future__ import annotations
 
@@ -16,9 +16,15 @@ from shapely.geometry import MultiLineString, MultiPoint, MultiPolygon, Polygon
 from shapely.ops import polygonize, unary_union
 
 type Polygon2D = Polygon | MultiPolygon
-DIMENSIONS = 2
-SIMPLEX_POINT_COUNT = 3
+TWO_DIMENSIONS = 2
+THREE_DIMENSIONS = 3
+TRIANGLE_POINT_COUNT = 3
+TETRAHEDRON_POINT_COUNT = 4
 LEGACY_CONVEX_HULL_LIMIT = 4
+# Barycentric coordinates are dimensionless. This narrow shell absorbs solve
+# round-off at retained faces without admitting points materially outside them.
+BARYCENTRIC_TOLERANCE = 1e-12
+MAX_BARYCENTRIC_EVALUATIONS = 262_144
 
 
 def _triangle_circumradii(
@@ -61,19 +67,10 @@ def _polygonal_geometry(geometry: object) -> Polygon2D | None:
     return None
 
 
-def _alpha_region_mask(
+def _alpha_region_roots(
     simplices: NDArray[np.int_],
-    triangle_areas: NDArray[np.double],
-    region_threshold: float,
-) -> NDArray[np.bool_]:
-    """Retain alpha-complex regions whose combined area clears the threshold.
-
-    MATLAB alpha shapes treat triangles that share even one vertex as belonging to
-    the same region. Polygon libraries represent point-touching interiors as separate
-    polygon parts, so filtering an already-unioned ``MultiPolygon`` would discard
-    regions that MATLAB retains. Grouping the selected Delaunay simplices first keeps
-    those semantics while still returning ordinary Shapely geometry.
-    """
+) -> NDArray[np.int_]:
+    """Label vertex-connected simplex regions with union-find roots."""
     n_simplices = simplices.shape[0]
     parents = np.arange(n_simplices, dtype=np.int_)
 
@@ -96,18 +93,276 @@ def _alpha_region_mask(
             owner = vertex_owner.setdefault(vertex, simplex_index)
             union(simplex_index, owner)
 
-    region_areas: dict[int, float] = {}
-    for simplex_index, triangle_area in enumerate(triangle_areas):
-        root = find(simplex_index)
-        region_areas[root] = region_areas.get(root, 0.0) + float(triangle_area)
+    return np.asarray(
+        [find(simplex_index) for simplex_index in range(n_simplices)],
+        dtype=np.int_,
+    )
+
+
+def _alpha_region_mask(
+    simplices: NDArray[np.int_],
+    simplex_measures: NDArray[np.double],
+    region_threshold: float,
+) -> NDArray[np.bool_]:
+    """Retain vertex-connected regions whose summed measure clears the threshold.
+
+    MATLAB alpha shapes treat simplices that share even one vertex as belonging to
+    the same region. Polygon libraries represent point-touching interiors as separate
+    polygon parts, so filtering an already-unioned ``MultiPolygon`` would discard
+    regions that MATLAB retains. Grouping selected Delaunay simplices first preserves
+    the same semantics for both triangles and tetrahedra.
+    """
+    roots = _alpha_region_roots(simplices)
+
+    region_measures: dict[int, float] = {}
+    for root_value, simplex_measure in zip(roots, simplex_measures, strict=True):
+        root = int(root_value)
+        region_measures[root] = region_measures.get(root, 0.0) + float(
+            simplex_measure,
+        )
 
     return np.asarray(
-        [
-            region_areas[find(simplex_index)] > region_threshold
-            for simplex_index in range(n_simplices)
-        ],
+        [region_measures[int(root)] > region_threshold for root in roots],
         dtype=np.bool_,
     )
+
+
+def _immutable_array[T: np.generic](
+    values: NDArray[T],
+    *,
+    dtype: np.dtype[T],
+) -> NDArray[T]:
+    """Copy an array and make the retained mesh state truly immutable."""
+    result = np.array(values, dtype=dtype, copy=True)
+    result.setflags(write=False)
+    return result
+
+
+def _tetrahedron_circumradii(
+    points: NDArray[np.double],
+    simplices: NDArray[np.int_],
+) -> NDArray[np.double]:
+    """Return circumsphere radii for three-dimensional Delaunay tetrahedra."""
+    tetrahedra = points[simplices]
+    radii = np.full(simplices.shape[0], np.inf, dtype=np.double)
+    for index, tetrahedron in enumerate(tetrahedra):
+        offsets = tetrahedron[1:] - tetrahedron[0]
+        matrix = 2.0 * offsets
+        right_hand_side = np.einsum("ij,ij->i", offsets, offsets)
+        try:
+            centre_offset = np.linalg.solve(matrix, right_hand_side)
+        except np.linalg.LinAlgError:
+            continue
+        radius = float(np.linalg.norm(centre_offset))
+        if np.isfinite(radius):
+            radii[index] = radius
+    return radii
+
+
+def _tetrahedron_volumes(
+    points: NDArray[np.double],
+    simplices: NDArray[np.int_],
+) -> NDArray[np.double]:
+    """Return unsigned tetrahedron volumes."""
+    tetrahedra = points[simplices]
+    edge_matrices = tetrahedra[:, 1:] - tetrahedra[:, :1]
+    return np.asarray(
+        np.abs(np.linalg.det(edge_matrices)) / 6.0,
+        dtype=np.double,
+    )
+
+
+def _outward_boundary_faces(
+    points: NDArray[np.double],
+    tetrahedra: NDArray[np.int_],
+) -> NDArray[np.int_]:
+    """Return exposed triangular facets, consistently oriented outwards."""
+    exposed: dict[tuple[int, int, int], tuple[int, int, int]] = {}
+    for tetrahedron in tetrahedra:
+        for opposite_index in range(TETRAHEDRON_POINT_COUNT):
+            face_values = np.delete(tetrahedron, opposite_index)
+            face = (
+                int(face_values[0]),
+                int(face_values[1]),
+                int(face_values[2]),
+            )
+            key_values = sorted(face)
+            key = (key_values[0], key_values[1], key_values[2])
+            if key in exposed:
+                del exposed[key]
+                continue
+
+            first, second, third = points[np.asarray(face, dtype=np.int_)]
+            opposite = points[int(tetrahedron[opposite_index])]
+            normal = np.cross(second - first, third - first)
+            if float(np.dot(normal, opposite - first)) > 0:
+                face = (face[0], face[2], face[1])
+            exposed[key] = face
+
+    if not exposed:
+        return np.empty((0, TRIANGLE_POINT_COUNT), dtype=np.int_)
+    return np.asarray(list(exposed.values()), dtype=np.int_)
+
+
+@dataclass(frozen=True, eq=False)
+class TetrahedralMesh:
+    """Immutable retained three-dimensional alpha-complex geometry."""
+
+    vertices: NDArray[np.double]
+    tetrahedra: NDArray[np.int_]
+    boundary_faces: NDArray[np.int_]
+    alpha: float
+    region_threshold: float
+    region_count: int
+    volume: float
+    surface_area: float
+
+    def __post_init__(self) -> None:
+        """Validate and freeze all retained array state."""
+        vertices = np.asarray(self.vertices, dtype=np.double)
+        tetrahedra = np.asarray(self.tetrahedra, dtype=np.int_)
+        boundary_faces = np.asarray(self.boundary_faces, dtype=np.int_)
+        if vertices.ndim != TWO_DIMENSIONS or vertices.shape[1] != THREE_DIMENSIONS:
+            msg = "A tetrahedral mesh requires an (n, 3) vertex matrix."
+            raise ValueError(msg)
+        if (
+            tetrahedra.ndim != TWO_DIMENSIONS
+            or tetrahedra.shape[1] != TETRAHEDRON_POINT_COUNT
+        ):
+            msg = "A tetrahedral mesh requires an (m, 4) tetrahedron matrix."
+            raise ValueError(msg)
+        if (
+            boundary_faces.ndim != TWO_DIMENSIONS
+            or boundary_faces.shape[1] != TRIANGLE_POINT_COUNT
+        ):
+            msg = "A tetrahedral mesh requires a (k, 3) boundary-face matrix."
+            raise ValueError(msg)
+        if tetrahedra.size and (
+            np.min(tetrahedra) < 0 or np.max(tetrahedra) >= vertices.shape[0]
+        ):
+            msg = "Tetrahedron indices must reference retained mesh vertices."
+            raise ValueError(msg)
+        if boundary_faces.size and (
+            np.min(boundary_faces) < 0 or np.max(boundary_faces) >= vertices.shape[0]
+        ):
+            msg = "Boundary-face indices must reference retained mesh vertices."
+            raise ValueError(msg)
+
+        object.__setattr__(
+            self,
+            "vertices",
+            _immutable_array(vertices, dtype=np.dtype(np.double)),
+        )
+        object.__setattr__(
+            self,
+            "tetrahedra",
+            _immutable_array(tetrahedra, dtype=np.dtype(np.int_)),
+        )
+        object.__setattr__(
+            self,
+            "boundary_faces",
+            _immutable_array(boundary_faces, dtype=np.dtype(np.int_)),
+        )
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        """Restore frozen arrays after pickle/joblib bypasses ``__post_init__``."""
+        for name, value in state.items():
+            object.__setattr__(self, name, value)
+        self.__post_init__()
+
+    @property
+    def is_empty(self) -> bool:
+        """Match the geometry interface used by two-dimensional footprints."""
+        return self.tetrahedra.shape[0] == 0
+
+    @property
+    def measure(self) -> float:
+        """Return the dimension-neutral footprint measure."""
+        return self.volume
+
+    @property
+    def dimension(self) -> int:
+        """Return the coordinate count represented by the mesh."""
+        return THREE_DIMENSIONS
+
+    def covers(
+        self,
+        points: NDArray[np.double],
+        *,
+        tolerance: float = BARYCENTRIC_TOLERANCE,
+    ) -> NDArray[np.bool_]:
+        """Return inclusive point membership using bounded barycentric batches.
+
+        ``tolerance`` is applied to dimensionless barycentric coordinates. The
+        default ``1e-12`` includes exact faces plus a round-off shell of that size;
+        points beyond the shell remain outside.
+        """
+        query = np.asarray(points, dtype=np.double)
+        if query.ndim != TWO_DIMENSIONS or query.shape[1] != THREE_DIMENSIONS:
+            msg = "Three-dimensional mesh membership requires an (n, 3) matrix."
+            raise ValueError(msg)
+        covered = np.zeros(query.shape[0], dtype=np.bool_)
+        if self.is_empty or query.shape[0] == 0:
+            return covered
+
+        tetrahedron_count = self.tetrahedra.shape[0]
+        tetrahedron_batch_size = min(tetrahedron_count, 1024)
+        for tetrahedron_start in range(0, tetrahedron_count, tetrahedron_batch_size):
+            tetrahedron_stop = min(
+                tetrahedron_start + tetrahedron_batch_size,
+                tetrahedron_count,
+            )
+            indices = self.tetrahedra[tetrahedron_start:tetrahedron_stop]
+            tetrahedron_vertices = self.vertices[indices]
+            origins = tetrahedron_vertices[:, 0]
+            edge_matrices = np.transpose(
+                tetrahedron_vertices[:, 1:] - tetrahedron_vertices[:, :1],
+                (0, 2, 1),
+            )
+            try:
+                inverse_matrices = np.linalg.inv(edge_matrices)
+            except np.linalg.LinAlgError:
+                inverse_matrices = np.asarray(
+                    [np.linalg.pinv(matrix) for matrix in edge_matrices],
+                    dtype=np.double,
+                )
+
+            active = np.flatnonzero(~covered)
+            if active.size == 0:
+                break
+            point_batch_size = max(
+                1,
+                MAX_BARYCENTRIC_EVALUATIONS // indices.shape[0],
+            )
+            for point_start in range(0, active.size, point_batch_size):
+                point_indices = active[point_start : point_start + point_batch_size]
+                offsets = query[point_indices, None, :] - origins[None, :, :]
+                coordinates = np.einsum(
+                    "tij,btj->bti",
+                    inverse_matrices,
+                    offsets,
+                )
+                first_coordinate = 1.0 - np.sum(coordinates, axis=2)
+                inside = np.logical_and(
+                    np.all(coordinates >= -tolerance, axis=2),
+                    first_coordinate >= -tolerance,
+                )
+                covered[point_indices] = np.any(inside, axis=1)
+        return covered
+
+    def __eq__(self, other: object) -> bool:
+        """Compare retained mesh state without ambiguous NumPy truth values."""
+        return bool(
+            isinstance(other, TetrahedralMesh)
+            and np.array_equal(self.vertices, other.vertices)
+            and np.array_equal(self.tetrahedra, other.tetrahedra)
+            and np.array_equal(self.boundary_faces, other.boundary_faces)
+            and self.alpha == other.alpha
+            and self.region_threshold == other.region_threshold
+            and self.region_count == other.region_count
+            and self.volume == other.volume
+            and self.surface_area == other.surface_area,
+        )
 
 
 @dataclass(frozen=True)
@@ -128,9 +383,9 @@ class AlphaShape2D:
         """Triangulate unique finite 2D points and find all-points critical alpha."""
         unique_points = np.unique(np.asarray(points, dtype=np.double), axis=0)
         if (
-            unique_points.ndim != DIMENSIONS
-            or unique_points.shape[1] != DIMENSIONS
-            or unique_points.shape[0] < SIMPLEX_POINT_COUNT
+            unique_points.ndim != TWO_DIMENSIONS
+            or unique_points.shape[1] != TWO_DIMENSIONS
+            or unique_points.shape[0] < TRIANGLE_POINT_COUNT
             or not np.all(np.isfinite(unique_points))
         ):
             return None
@@ -199,6 +454,111 @@ class AlphaShape2D:
         if not triangles:
             return None
         return _polygonal_geometry(unary_union(triangles))
+
+
+@dataclass(frozen=True)
+class AlphaShape3D:
+    """Delaunay data needed to evaluate a 3D point cloud at many alpha radii."""
+
+    points: NDArray[np.double]
+    simplices: NDArray[np.int_]
+    circumradii: NDArray[np.double]
+    simplex_volumes: NDArray[np.double]
+    spectrum: NDArray[np.double]
+    critical_radius: float
+
+    @classmethod
+    def from_points(
+        cls: type[AlphaShape3D],
+        points: NDArray[np.double],
+    ) -> AlphaShape3D | None:
+        """Triangulate finite 3D points and find MATLAB's all-points alpha."""
+        unique_points = np.unique(np.asarray(points, dtype=np.double), axis=0)
+        if (
+            unique_points.ndim != TWO_DIMENSIONS
+            or unique_points.shape[1] != THREE_DIMENSIONS
+            or unique_points.shape[0] < TETRAHEDRON_POINT_COUNT
+            or not np.all(np.isfinite(unique_points))
+        ):
+            return None
+
+        try:
+            triangulation = Delaunay(unique_points)
+        except QhullError:
+            return None
+
+        simplices = np.asarray(triangulation.simplices, dtype=np.int_)
+        if simplices.size == 0:
+            return None
+        radii = _tetrahedron_circumradii(unique_points, simplices)
+        volumes = _tetrahedron_volumes(unique_points, simplices)
+        finite = np.logical_and(np.isfinite(radii), volumes > 0)
+        finite_radii = radii[finite]
+        if finite_radii.size == 0:
+            return None
+
+        incident_radius = np.full(unique_points.shape[0], np.inf, dtype=np.double)
+        for column in range(simplices.shape[1]):
+            np.minimum.at(incident_radius, simplices[:, column], radii)
+        if not np.all(np.isfinite(incident_radius)):
+            return None
+
+        spectrum = np.unique(finite_radii)[::-1].astype(np.double, copy=False)
+        return cls(
+            points=unique_points,
+            simplices=simplices,
+            circumradii=radii,
+            simplex_volumes=volumes,
+            spectrum=spectrum,
+            critical_radius=float(np.max(incident_radius)),
+        )
+
+    def geometry(
+        self,
+        radius: float,
+        *,
+        region_threshold: float = 0.0,
+        inclusive: bool = True,
+    ) -> TetrahedralMesh | None:
+        """Build a retained tetrahedral mesh at the requested alpha radius."""
+        selected = np.logical_and(
+            self.circumradii <= radius if inclusive else self.circumradii < radius,
+            self.simplex_volumes > 0,
+        )
+        if not np.any(selected):
+            return None
+
+        selected_simplices = self.simplices[selected]
+        selected_volumes = self.simplex_volumes[selected]
+        retained = _alpha_region_mask(
+            selected_simplices,
+            selected_volumes,
+            region_threshold,
+        )
+        retained_simplices = selected_simplices[retained]
+        retained_volumes = selected_volumes[retained]
+        if retained_simplices.shape[0] == 0:
+            return None
+
+        region_count = int(np.unique(_alpha_region_roots(retained_simplices)).size)
+
+        boundary_faces = _outward_boundary_faces(self.points, retained_simplices)
+        boundary_triangles = self.points[boundary_faces]
+        cross_products = np.cross(
+            boundary_triangles[:, 1] - boundary_triangles[:, 0],
+            boundary_triangles[:, 2] - boundary_triangles[:, 0],
+        )
+        surface_area = float(np.sum(np.linalg.norm(cross_products, axis=1)) / 2.0)
+        return TetrahedralMesh(
+            vertices=self.points,
+            tetrahedra=retained_simplices,
+            boundary_faces=boundary_faces,
+            alpha=float(radius),
+            region_threshold=float(region_threshold),
+            region_count=region_count,
+            volume=float(np.sum(retained_volumes)),
+            surface_area=surface_area,
+        )
 
 
 def legacy_alpha_shape(

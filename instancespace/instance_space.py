@@ -24,7 +24,6 @@ import pandas as pd
 from loguru import logger
 from matplotlib.axes import Axes
 from numpy.typing import NDArray
-from shapely.geometry import Point
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -33,7 +32,7 @@ from sklearn.metrics import (
 )
 
 from instancespace.data.metadata import Metadata, from_csv_file
-from instancespace.data.model import ExploreResult, TraceOut
+from instancespace.data.model import ExploreResult, TraceOut, pointwise_covers
 from instancespace.data.options import (
     AutoOptions,
     BoundOptions,
@@ -90,8 +89,7 @@ from instancespace.utils.print_options import format_options
 # which an out-of-distribution warning fires (matches MATLAB's exploreIS.m).
 _OOD_CLIPPED_FRACTION_THRESHOLD = 0.05
 _PROJECTION_ARRAY_DIMENSIONS = 2
-_TRACE_COORDINATE_DIMENSIONS = 2
-_THREE_DIMENSIONAL_PROJECTION = 3
+_TRACE_COORDINATE_DIMENSIONS = (2, 3)
 
 T = TypeVar("T", bound="_InstanceSpaceInputs")
 
@@ -773,11 +771,8 @@ class InstanceSpace:
             RuntimeError
                 If build() has not been called before explore().
             ValueError
-                If test_metadata features don't match training features.
-            NotImplementedError
-                If the trained or explored projection is 3D. PILOT and PYTHIA
-                remain dimension-generic, but explore-time TRACE membership and
-                rescoring require a native 3D geometry engine.
+                If test_metadata features do not match training features, or trained
+                and explored projection dimensions differ.
         """
         # Run every inference stage, then assemble the result from each stage's output
         stages = {
@@ -871,11 +866,8 @@ class InstanceSpace:
             RuntimeError
                 If build() has not been called before explore().
             ValueError
-                If test_metadata features don't match training features.
-            NotImplementedError
-                On advancing to TRACE for a 3D trained or explored projection.
-                PRELIM, SIFTED, PILOT, and PYTHIA remain available through the
-                preceding lazy yields.
+                If test_metadata features do not match training features, or on
+                advancing to TRACE if projection dimensions differ.
         """
         self._validate_for_explore(test_metadata)
 
@@ -1213,12 +1205,12 @@ class InstanceSpace:
         z: NDArray[np.double],
         n_new_algos: int = 0,
     ) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
-        """Check footprint membership using TRACE polygons.
+        """Check footprint membership using trained TRACE geometry.
 
         Ports the per-instance equivalent of MATLAB TRACEtest: for each test
         point and each algorithm, check whether the point lies inside the
-        algorithm's good and best footprints. MATLAB's ``isinterior`` includes
-        boundary points; ``polygon.covers`` matches that semantics.
+        algorithm's good and best footprints. Membership includes boundaries in
+        both two-dimensional polygons and three-dimensional tetrahedral meshes.
 
         ``in_space`` is intentionally omitted: ``exploreIS.m`` does not compute
         it, and the value in ``step5_trace_membership.csv`` is sourced from
@@ -1233,7 +1225,7 @@ class InstanceSpace:
         Args
         ----
             z : NDArray[np.double]
-                2D coordinates with shape (n_instances, 2).
+                Coordinates with shape (n_instances, 2 or 3).
             n_new_algos : int
                 Number of test-set-only algorithms (from `_find_new_algorithms`)
                 to pad the output with. `0` (default) reproduces this method's
@@ -1247,20 +1239,15 @@ class InstanceSpace:
 
         Raises
         ------
-            NotImplementedError
-                If either the trained or explored projection is 3D. Shapely
-                footprints cannot represent the required native 3D TRACE geometry.
             ValueError
-                If either projection is not a two-dimensional matrix with a
-                supported coordinate count.
+                If a projection matrix has an unsupported coordinate count or the
+                trained and explored dimensions differ.
         """
         InstanceSpace._validate_explore_trace_dimensions(self, z)
         trace = self._require_model().trace
         n = z.shape[0]
         n_trained = len(trace.good)
         n_algos = n_trained + n_new_algos
-        points = [Point(z[i, 0], z[i, 1]) for i in range(n)]
-
         in_good = np.zeros((n, n_algos), dtype=np.bool_)
         in_best = np.zeros((n, n_algos), dtype=np.bool_)
 
@@ -1268,9 +1255,9 @@ class InstanceSpace:
             good_poly = trace.good[j].polygon
             best_poly = trace.best[j].polygon
             if good_poly is not None:
-                in_good[:, j] = [good_poly.covers(p) for p in points]
+                in_good[:, j] = pointwise_covers(good_poly, z)
             if best_poly is not None:
-                in_best[:, j] = [best_poly.covers(p) for p in points]
+                in_best[:, j] = pointwise_covers(best_poly, z)
 
         return in_good, in_best
 
@@ -1278,7 +1265,7 @@ class InstanceSpace:
         self,
         z: NDArray[np.double],
     ) -> None:
-        """Reject unsupported geometry before TRACE membership or rescoring."""
+        """Validate supported and matching trained/explored geometry dimensions."""
         projections = {
             "trained": np.asarray(self._require_model().pilot.z),
             "explored": np.asarray(z),
@@ -1290,17 +1277,19 @@ class InstanceSpace:
                     "matrix.",
                 )
             dimensions = projection.shape[1]
-            if dimensions == _THREE_DIMENSIONAL_PROJECTION:
-                raise NotImplementedError(
-                    "3D TRACE explore membership and rescoring are not implemented. "
-                    "PILOT and PYTHIA retain all three coordinates, but Shapely "
-                    "footprints are two-dimensional.",
-                )
-            if dimensions != _TRACE_COORDINATE_DIMENSIONS:
+            if dimensions not in _TRACE_COORDINATE_DIMENSIONS:
                 raise ValueError(
-                    f"TRACE explore requires {name} Z to have exactly two "
+                    f"TRACE explore requires {name} Z to have two or three "
                     f"coordinates; received {dimensions}.",
                 )
+        trained_dimensions = projections["trained"].shape[1]
+        explored_dimensions = projections["explored"].shape[1]
+        if trained_dimensions != explored_dimensions:
+            raise ValueError(
+                "TRACE explore coordinate mismatch: trained Z has "
+                f"{trained_dimensions} coordinates but explored Z has "
+                f"{explored_dimensions}.",
+            )
 
     def _find_new_algorithms(
         self,

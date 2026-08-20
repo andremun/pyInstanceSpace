@@ -83,8 +83,8 @@ def test_explore_stage_iter_yields_the_five_stages_in_order() -> None:
     assert ExploreStage.EVALUATION not in stages
 
 
-def test_3d_stage_iter_yields_through_pythia_then_stops_before_trace() -> None:
-    """The lazy 3D boundary preserves every non-geometry explore output."""
+def test_3d_stage_iter_yields_native_trace_membership() -> None:
+    """Matching 3D projections now advance through the lazy TRACE boundary."""
     z = np.array([[1.0, 2.0, 3.0]], dtype=np.double)
     model = SimpleNamespace(
         data=_FakeData(),
@@ -113,7 +113,41 @@ def test_3d_stage_iter_yields_through_pythia_then_stops_before_trace() -> None:
     assert pilot.stage is ExploreStage.PILOT
     np.testing.assert_array_equal(pilot.output, z)
     assert next(stages).stage is ExploreStage.PYTHIA
-    with pytest.raises(NotImplementedError, match="3D TRACE explore"):
+    trace = next(stages)
+    assert trace.stage is ExploreStage.TRACE
+    in_good, in_best = trace.output
+    assert in_good.shape == (1, 0)
+    assert in_best.shape == (1, 0)
+    with pytest.raises(StopIteration):
+        next(stages)
+
+
+def test_projection_mismatch_fails_only_when_lazy_trace_is_requested() -> None:
+    """Earlier explore stages remain inspectable before TRACE rejects a mismatch."""
+    z = np.array([[1.0, 2.0, 3.0]], dtype=np.double)
+    model = SimpleNamespace(
+        data=_FakeData(),
+        pilot=SimpleNamespace(z=np.zeros((2, 2), dtype=np.double)),
+        trace=SimpleNamespace(good=[], best=[]),
+    )
+    space = InstanceSpace.__new__(InstanceSpace)
+    stubbed = cast(Any, space)
+    stubbed._validate_for_explore = lambda _md: None
+    stubbed._extract_features = lambda _md: "xraw"
+    stubbed._explore_prelim = lambda value: value
+    stubbed._explore_sifted = lambda value: value
+    stubbed._explore_pilot = lambda _value: z
+    stubbed._explore_pythia = lambda _z, n_new_algos=0: ("yhat", "pr0", "sel")
+    stubbed._require_model = lambda: model
+    stages = space.explore_stage_iter(_NO_GROUND_TRUTH)
+
+    assert [next(stages).stage for _ in range(4)] == [
+        ExploreStage.PRELIM,
+        ExploreStage.SIFTED,
+        ExploreStage.PILOT,
+        ExploreStage.PYTHIA,
+    ]
+    with pytest.raises(ValueError, match="coordinate mismatch"):
         next(stages)
 
 
@@ -279,10 +313,10 @@ def test_explore_stage_iter_defers_evaluation_until_after_trace_yield(
     assert events == ["trace", "evaluate", "rescore"]
 
 
-def test_3d_rescore_guard_runs_before_trace_stage_rescore(
+def test_3d_stage_iter_rescores_after_trace_membership(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Even a substituted membership step cannot pass z3 into TRACE rescore."""
+    """Ground-truth evaluation reuses trained native 3D TRACE geometry."""
     with_ground_truth = type("_FakeMetadata", (), {"algorithm_names": ["algo1"]})()
     z = np.array([[1.0, 2.0, 3.0]], dtype=np.double)
     model = SimpleNamespace(
@@ -311,10 +345,18 @@ def test_3d_rescore_guard_runs_before_trace_stage_rescore(
     )
     space._explore_evaluate = lambda *_args: evaluation  # type: ignore[method-assign]
 
-    def fail_rescore(*_args: object) -> TraceOut:
-        pytest.fail("TraceStage.rescore received a three-dimensional projection")
+    rescored_dimensions: list[int] = []
 
-    monkeypatch.setattr(TraceStage, "rescore", fail_rescore)
+    def fake_rescore(
+        _trained: object,
+        explored_z: NDArray[np.double],
+        *_args: object,
+    ) -> TraceOut:
+        rescored_dimensions.append(explored_z.shape[1])
+        empty = Footprint(None, 0, 0, 0, 0, 0, 3)
+        return TraceOut(empty, [empty], [empty], empty, pd.DataFrame())
+
+    monkeypatch.setattr(TraceStage, "rescore", fake_rescore)
     stages = space.explore_stage_iter(cast(Metadata, with_ground_truth))
 
     assert [next(stages).stage for _ in range(5)] == [
@@ -324,8 +366,9 @@ def test_3d_rescore_guard_runs_before_trace_stage_rescore(
         ExploreStage.PYTHIA,
         ExploreStage.TRACE,
     ]
-    with pytest.raises(NotImplementedError, match="3D TRACE explore"):
-        next(stages)
+    evaluation_stage = next(stages)
+    assert evaluation_stage.stage is ExploreStage.EVALUATION
+    assert rescored_dimensions == [3]
 
 
 def test_explore_maps_rescored_trace_onto_ground_truth_result(

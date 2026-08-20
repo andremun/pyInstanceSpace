@@ -38,6 +38,7 @@ from instancespace.data.model import Footprint, TraceOut
 from instancespace.data.options import GeneralOptions, ParallelOptions
 from instancespace.instance_space import InstanceSpace
 from instancespace.stages.trace import TraceStage
+from instancespace.utils.alpha_shape import AlphaShape3D, TetrahedralMesh
 
 REFERENCE_DIR = Path("tests/matlab_reference")
 ARTIFACTS_DIR = REFERENCE_DIR / "training_artifacts" / "trace"
@@ -57,13 +58,13 @@ ALGO_ORDER = [
 ]
 
 
-def make_footprint(polygon: Polygon | None) -> Footprint:
+def make_footprint(polygon: Polygon | TetrahedralMesh | None) -> Footprint:
     return cast(Footprint, SimpleNamespace(polygon=polygon))
 
 
 def make_instance_space(
-    good_polys: list[Polygon | None],
-    best_polys: list[Polygon | None],
+    good_polys: list[Polygon | TetrahedralMesh | None],
+    best_polys: list[Polygon | TetrahedralMesh | None],
     trained_dimensions: int = 2,
 ) -> InstanceSpace:
     trace = Mock(spec=TraceOut)
@@ -107,13 +108,13 @@ def test_trace_inside_outside_and_matlab_boundary_semantics() -> None:
 
 @pytest.mark.parametrize(
     ("trained_dimensions", "explored_dimensions"),
-    [(3, 3), (2, 3), (3, 2)],
+    [(2, 3), (3, 2)],
 )
-def test_trace_rejects_3d_before_constructing_shapely_points(
+def test_trace_rejects_trained_and_explored_dimension_mismatch(
     trained_dimensions: int,
     explored_dimensions: int,
 ) -> None:
-    """Neither trained nor new z3 may be silently dropped at membership."""
+    """Neither trained nor explored coordinates may be silently discarded."""
     square = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
     space = make_instance_space(
         [square],
@@ -122,13 +123,30 @@ def test_trace_rejects_3d_before_constructing_shapely_points(
     )
     z = np.zeros((2, explored_dimensions), dtype=np.double)
 
-    with (
-        patch("instancespace.instance_space.Point") as point,
-        pytest.raises(NotImplementedError, match="3D TRACE explore"),
-    ):
+    with pytest.raises(ValueError, match="coordinate mismatch"):
         InstanceSpace._explore_trace(space, z)
 
-    point.assert_not_called()
+
+def test_trace_three_dimensional_mesh_membership_is_inclusive() -> None:
+    """Explore uses trained tetrahedra directly, including their boundaries."""
+    points = np.array(
+        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        dtype=np.double,
+    )
+    shape = AlphaShape3D.from_points(points)
+    assert shape is not None
+    mesh = shape.geometry(shape.critical_radius)
+    assert mesh is not None
+    space = make_instance_space([mesh], [mesh], trained_dimensions=3)
+    z = np.array(
+        [[0.1, 0.1, 0.1], [0.5, 0.5, 0.0], [0.34, 0.34, 0.34]],
+        dtype=np.double,
+    )
+
+    in_good, in_best = InstanceSpace._explore_trace(space, z)
+
+    np.testing.assert_array_equal(in_good[:, 0], [True, True, False])
+    np.testing.assert_array_equal(in_best[:, 0], [True, True, False])
 
 
 def test_trace_none_polygon_returns_false() -> None:
