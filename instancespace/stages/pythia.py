@@ -38,7 +38,7 @@ Functions:
 - _generate_summary: Generate a summary of the results.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from time import perf_counter
 from typing import Any, NamedTuple
 
@@ -58,25 +58,22 @@ from instancespace.utils.get_classifier_fcn import ClassifierSpec, get_classifie
 
 LARGE_NUM_INSTANCE: int = 1000
 
-# BayesSearchCV's own defaults (unset optimizer_kwargs) give skopt's Optimizer
-# n_initial_points=10, acq_func='gp_hedge' - a 10-random/10-guided split of a
-# 20-evaluation budget and a bandit-style hedge across EI/PI/LCB. MATLAB's
-# bayesopt defaults to NumSeedPoints=4 (a 4-random/16-guided split at the same
-# budget) and AcquisitionFunctionName='expected-improvement-per-second-plus'
-# (no skopt equivalent for the "per-second" runtime-cost weighting; 'EI' is
-# the closest analog for the base strategy). Root-caused and verified
-# directly against the PILOT-numeric/PYTHIA-Bayes-gaussian MATLAB fixture
-# (#304): at the shared n_tuning_iter=20 default, matching just the seed-
-# point count (n_initial_points=4) raised the tolerance-gate pass rate from
-# 24/30 to 26/30; layering acq_func='EI' on top made no further measured
-# difference on that fixture (still 26/30) but is kept anyway as the
-# principled choice - it is the closest available match to MATLAB's actual
-# acquisition strategy, not an arbitrary pick, even though this fixture
-# didn't happen to show a gain from it.
+# MATLAB PYTHIA explicitly selects bayesopt's
+# ``expected-improvement-plus`` acquisition and leaves ``NumSeedPoints`` at
+# its R2026a default of 4.  skopt has no equivalent to MATLAB's additional
+# anti-overexploitation "plus" loop; plain EI is its closest base acquisition.
+# Keep the same four-seed/evaluation-budget split without claiming identical
+# optimizer trajectories.  Historical #304 CSVs are ``legacy-unknown`` and
+# are not evidence for changing the production budget or defaults.
 _BAYES_OPTIMIZER_KWARGS: dict[str, object] = {
     "n_initial_points": 4,
     "acq_func": "EI",
 }
+
+
+def _algorithm_seed(base_seed: int | None, algorithm_index: int) -> int | None:
+    """Translate Python's zero-based index to MATLAB's ``seed + i`` stream."""
+    return None if base_seed is None else base_seed + algorithm_index + 1
 
 
 def _safe_ratio(numerator: int | float, denominator: int | float) -> float:
@@ -200,8 +197,9 @@ class PythiaOutput(NamedTuple):
         The standard deviations of the normalized features.
     w : NDArray[np.double]
         The weight matrix used for cost-sensitive classification.
-    cp : StratifiedKFold
-        The Stratified K-Fold cross-validator.
+    cp : list[StratifiedKFold | None]
+        The per-algorithm Stratified K-Fold cross-validators. A degenerate or
+        skipped algorithm has ``None``, matching MATLAB's empty cell entry.
     svm : list[ClassifierMixin]
         The trained classifiers, one per algorithm - `SVC` instances unless
         `PythiaOptions.classifier` selected a different registered type. The
@@ -242,7 +240,7 @@ class PythiaOutput(NamedTuple):
     mu: list[float]
     sigma: list[float]
     w: NDArray[np.double]
-    cp: StratifiedKFold
+    cp: list[StratifiedKFold | None]
     svm: list[ClassifierMixin]
     cvcmat: NDArray[np.double]
     y_sub: NDArray[np.bool_]
@@ -450,8 +448,6 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 y_best,
                 mu,
                 sigma,
-                opts,
-                general_options,
             )
 
         return PythiaStage._train(
@@ -511,11 +507,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             classifier_spec,
             opts.classifier,
         )
-        cp = StratifiedKFold(
-            n_splits=opts.cv_folds,
-            shuffle=True,
-            random_state=general_options.seed,
-        )
+        cp: list[StratifiedKFold | None] = [None] * nalgos
         svm = []
         cvcmat = np.zeros((nalgos, 4), dtype=int)
         box_consnt = []
@@ -585,6 +577,9 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         for i in range(nalgos):
             algo_start_time = perf_counter()
             yi = y_bin[:, i]
+            algorithm_seed = _algorithm_seed(general_options.seed, i)
+            algorithm_options = replace(general_options, seed=algorithm_seed)
+            algorithm_cp: StratifiedKFold | None = None
             # `np.any`/`np.all` (not `~yi`) since some callers still pass
             # y_bin as 0.0/1.0 floats rather than true booleans; both read
             # identically for "all true"/"all false" either way.
@@ -594,6 +589,17 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                 # entirely rather than crash the whole run over it.
                 res = PythiaStage._fit_degenerate(yi, algo_labels[i])
             else:
+                algorithm_cp = StratifiedKFold(
+                    n_splits=opts.cv_folds,
+                    shuffle=True,
+                    random_state=algorithm_seed,
+                )
+                cp[i] = algorithm_cp
+                # Matching the integer ``seed + i`` boundary does not imply
+                # that sklearn and MATLAB choose identical fold membership:
+                # their stratifiers use different implementations. Verified
+                # parity fixtures must export fold IDs when exact membership
+                # matters.
                 precalc_params: dict[str, float | int | str] | None = None
                 param_space: dict[str, Any] | None = None
                 if precalcparams is not None:
@@ -614,14 +620,14 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
                     z=z,
                     y_bin=yi,
                     w=w[:, i].flatten(),
-                    skf=cp,
+                    skf=algorithm_cp,
                     classifier_name=opts.classifier,
                     is_poly_kernel=opts.is_poly_krnl,
                     precalc_params=precalc_params,
                     param_space=param_space,
                     use_weights=opts.use_weights,
                     parallel_options=parallel_options,
-                    general_options=general_options,
+                    general_options=algorithm_options,
                     n_tuning_iter=opts.n_tuning_iter,
                 )
 
@@ -744,8 +750,6 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         y_best: NDArray[np.double],
         mu: list[float],
         sigma: list[float],
-        opts: PythiaOptions,
-        general_options: GeneralOptions,
     ) -> PythiaOutput:
         """Build a "nothing trained" `PythiaOutput` for `opts.skip=True`.
 
@@ -755,7 +759,8 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         consumer of `PythiaOutput.svm` can still call `.predict()`/
         `.predict_proba()` without special-casing skip mode),
         `y_sub`/`y_hat` are all-False, `precision`/`accuracy`/`recall` are
-        NaN, and `selection0`/`selection1` are both -1 - Python's
+        NaN, `cp` contains one ``None`` per algorithm, and
+        `selection0`/`selection1` are both -1 - Python's
         established "no selection at all" sentinel (`_determine_selections`),
         translating MATLAB's `zeros(ninst, 1)` (which relies on MATLAB's
         1-based indexing never colliding with a real selection - 0 would
@@ -779,11 +784,7 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
         selection0 = np.full(ninst, -1, dtype=np.int_)
         selection1 = np.full(ninst, -1, dtype=np.int_)
         w = np.ones((ninst, nalgos), dtype=np.double)
-        cp = StratifiedKFold(
-            n_splits=opts.cv_folds,
-            shuffle=True,
-            random_state=general_options.seed,
-        )
+        cp: list[StratifiedKFold | None] = [None] * nalgos
 
         summary = PythiaStage._generate_summary(
             nalgos=nalgos,
