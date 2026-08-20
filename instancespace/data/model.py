@@ -10,12 +10,15 @@ to data analysis and model building.
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
+
+if TYPE_CHECKING:
+    from instancespace.stages.pilot_viewpoint import PilotViewpointResult
 
 
 def pointwise_covers(
@@ -209,6 +212,7 @@ class PilotOut:
     error: NDArray[np.double]  # or just the double
     r2: NDArray[np.double]
     summary: pd.DataFrame
+    viewpoint: "PilotViewpointResult | None" = None
 
     T = TypeVar("T", bound="PilotOut")
 
@@ -241,6 +245,7 @@ class PilotOut:
             error=stage_runner_output["error"],
             r2=stage_runner_output["r2"],
             summary=stage_runner_output["pilot_summary"],
+            viewpoint=stage_runner_output.get("viewpoint"),
         )
 
 

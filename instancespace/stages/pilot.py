@@ -24,7 +24,16 @@ from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
 from scipy.stats import mode, pearsonr
 
-from instancespace.data.options import GeneralOptions, ParallelOptions, PilotOptions
+from instancespace.data.options import (
+    PILOT_3D_DIMS,
+    GeneralOptions,
+    ParallelOptions,
+    PilotOptions,
+)
+from instancespace.stages.pilot_viewpoint import (
+    PilotViewpointResult,
+    pilot_viewpoint,
+)
 from instancespace.stages.stage import Stage
 
 
@@ -101,6 +110,7 @@ class PilotOutput(NamedTuple):
     error: NDArray[np.double]
     r2: NDArray[np.double]
     pilot_summary: pd.DataFrame
+    viewpoint: PilotViewpointResult | None = None
 
 
 class PilotStage(Stage[PilotInput, PilotOutput]):
@@ -174,7 +184,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             pd.DataFrame
 
         """
-        return PilotStage.pilot(
+        output = PilotStage.pilot(
             inputs.x,
             inputs.y,
             inputs.feat_labels,
@@ -183,6 +193,18 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             y_bin=inputs.y_bin,
             parallel_options=inputs.parallel_options,
         )
+        if inputs.pilot_options.dims != PILOT_3D_DIMS:
+            return output
+
+        viewpoint = pilot_viewpoint(
+            output.z,
+            inputs.y,
+            view_groups=inputs.pilot_options.view_groups,
+            n_tries=inputs.pilot_options.n_tries,
+            x0=inputs.pilot_options.x0,
+            parallel_options=inputs.parallel_options,
+        )
+        return output._replace(viewpoint=viewpoint)
 
     @staticmethod
     def _pilot_print(

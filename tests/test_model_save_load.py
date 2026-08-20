@@ -31,6 +31,7 @@ from instancespace.data.model import (
 )
 from instancespace.data.options import InstanceSpaceOptions
 from instancespace.model import Model, ModelSignatureError
+from instancespace.stages.pilot_viewpoint import PilotViewpointResult
 
 
 def _build_minimal_model() -> Model:
@@ -105,6 +106,12 @@ def _build_minimal_model() -> Model:
         error=np.zeros(1),
         r2=np.ones(1),
         summary=pd.DataFrame({"a": [1]}),
+        viewpoint=PilotViewpointResult(
+            groups=((0,),),
+            a=(np.eye(2, 3, dtype=np.float64),),
+            azimuth=(0.0,),
+            elevation=(np.pi / 2,),
+        ),
     )
 
     cloister = CloisterOut(
@@ -177,6 +184,15 @@ def _assert_models_equal(original: Model, loaded: Model) -> None:
     assert original.data.feat_labels == loaded.data.feat_labels
     assert np.array_equal(original.feat_sel.idx, loaded.feat_sel.idx)
     assert np.array_equal(original.sifted.selvars, loaded.sifted.selvars)
+    assert original.pilot.viewpoint is not None
+    assert loaded.pilot.viewpoint is not None
+    assert original.pilot.viewpoint.groups == loaded.pilot.viewpoint.groups
+    np.testing.assert_array_equal(
+        original.pilot.viewpoint.a[0],
+        loaded.pilot.viewpoint.a[0],
+    )
+    assert original.pilot.viewpoint.azimuth == loaded.pilot.viewpoint.azimuth
+    assert original.pilot.viewpoint.elevation == loaded.pilot.viewpoint.elevation
     assert original.opts == loaded.opts
     assert isinstance(original.data_dense, DataDense)
     assert isinstance(loaded.data_dense, DataDense)
@@ -231,6 +247,7 @@ def test_from_stage_output_preserves_data_dense() -> None:
 
     assert built.data_dense is dense
     assert not np.array_equal(built.data_dense.x, built.data.x)
+    assert built.pilot.viewpoint is source.pilot.viewpoint
 
 
 def test_from_stage_output_preserves_absent_data_dense() -> None:
@@ -243,6 +260,17 @@ def test_from_stage_output_preserves_absent_data_dense() -> None:
     )
 
     assert built.data_dense is None
+
+
+def test_from_legacy_stage_output_defaults_viewpoint_to_none() -> None:
+    """Models built from pre-viewpoint StageRunner payloads remain valid."""
+    source = _build_minimal_model()
+    output = _stage_output_for_model(source, source.data_dense)
+    output.pop("viewpoint")
+
+    built = Model.from_stage_runner_output(output, source.opts)
+
+    assert built.pilot.viewpoint is None
 
 
 def test_round_trip_unsigned(tmp_path: Path) -> None:
