@@ -41,6 +41,7 @@ from instancespace.data.default_options import (
     DEFAULT_PILOT_ADJUST_ROTATION,
     DEFAULT_PILOT_ANALYTICS,
     DEFAULT_PILOT_COST_WEIGHT,
+    DEFAULT_PILOT_DIMS,
     DEFAULT_PILOT_METHOD,
     DEFAULT_PILOT_N_TRIES,
     DEFAULT_PRELIM_IQR_MULTIPLIER,
@@ -93,6 +94,7 @@ MIN_HULL_DIMENSIONS = 2
 ADAPTIVE_PROBABILITY_COUNT = 2
 PYTHIA_TWO_PARAMETER_COUNT = 2
 MIN_OPTION_ROWS = 1
+PILOT_3D_DIMS = 3
 
 
 @dataclass(frozen=True)
@@ -315,10 +317,8 @@ class SiftedOptions:
     # Significance threshold for the correlation filter, matching MATLAB's
     # opts.pval (core/SIFTED.m) - was a hardcoded class constant.
     pval: float = DEFAULT_SIFTED_PVAL
-    # Projection dimensionality for the GA fitness function's internal KNN
-    # neighbour count (dims + 1), matching MATLAB's opts.dims. PILOT itself
-    # is 2D-only in this port, so 3 is accepted but currently has no effect
-    # on PILOT's actual output - see default_options.py's DEFAULT_SIFTED_DIMS.
+    # Projection dimensionality for direct SIFTED calls. Aggregate execution
+    # derives this from PilotOptions.dims to avoid conflicting public state.
     dims: int = DEFAULT_SIFTED_DIMS
 
     def __post_init__(self) -> None:
@@ -395,6 +395,14 @@ class PilotOptions:
     # method='standard'; 'pls' ignores it entirely, matching MATLAB's own
     # opts.method dispatch (core/PILOT.m).
     method: str = DEFAULT_PILOT_METHOD
+    # Projection dimensionality. MATLAB supports exactly 2D and 3D and owns
+    # this setting under opts.pilot; the outer pipeline also passes it to
+    # SIFTED's internal candidate projections.
+    dims: int = DEFAULT_PILOT_DIMS
+    # Optional groups for selecting one 2D viewpoint per algorithm group when
+    # dims=3. Python indices are zero-based. A canonical empty tuple requests
+    # one global viewpoint across the complete algorithm portfolio.
+    view_groups: tuple[tuple[int, ...], ...] = ()
 
     def __post_init__(self) -> None:
         """Normalize optional matrices and reject an ambiguous solver setup."""
@@ -419,6 +427,8 @@ class PilotOptions:
         adjust_rotation: bool = DEFAULT_PILOT_ADJUST_ROTATION,
         cost_weight: float = DEFAULT_PILOT_COST_WEIGHT,
         method: str = DEFAULT_PILOT_METHOD,
+        dims: int = DEFAULT_PILOT_DIMS,
+        view_groups: object = (),
     ) -> PilotOptions:
         """Instantiate with default values."""
         return PilotOptions(
@@ -429,6 +439,8 @@ class PilotOptions:
             adjust_rotation=adjust_rotation,
             cost_weight=cost_weight,
             method=method,
+            dims=dims,
+            view_groups=cast(tuple[tuple[int, ...], ...], view_groups),
         )
 
 
@@ -446,8 +458,7 @@ class CloisterOptions:
     # "all" (default) uses every projected dimension for the convex hull;
     # 2 mimics MATLAB's always-2D-on-the-first-two-columns hull (core/
     # CLOISTER.m) while still returning full-dimensional vertices. #299
-    # audit finding, issue 5 - see default_options.py for why "all" and 2
-    # are currently equivalent in practice (PILOT is 2D-only in this port).
+    # audit finding, issue 5. They differ for a 3D PILOT projection.
     hull_dims: int | Literal["all"] = DEFAULT_CLOISTER_HULL_DIMS
 
     def __post_init__(self) -> None:
@@ -666,13 +677,86 @@ def _canonical_json_option_key(
     return field_mapping.get(normalized_field, normalized_field)
 
 
-def _check_sifted_dims(name: str, value: object) -> None:
+def _check_projection_dims(name: str, value: object) -> None:
     if isinstance(value, bool) or not isinstance(value, numbers.Integral):
         msg = f"opts.{name} must be 2 or 3. Got {value!r}."
         raise ValueError(msg)
     if value not in (2, 3):
         msg = f"opts.{name} must be 2 or 3. Got {value!r}."
         raise ValueError(msg)
+
+
+def _normalize_view_groups(value: object) -> tuple[tuple[int, ...], ...]:
+    """Validate and freeze zero-based algorithm groups for 3D viewpoints."""
+    if not isinstance(value, list | tuple):
+        msg = (
+            "opts.pilot.viewGroups must be a list or tuple of algorithm index "
+            f"groups. Got {value!r}."
+        )
+        raise ValueError(msg)
+
+    groups: list[tuple[int, ...]] = []
+    for group_number, group in enumerate(value):
+        if not isinstance(group, list | tuple) or not group:
+            msg = (
+                f"opts.pilot.viewGroups[{group_number}] must be a non-empty "
+                f"list or tuple of zero-based algorithm indices. Got {group!r}."
+            )
+            raise ValueError(msg)
+
+        indices: list[int] = []
+        for index in group:
+            if (
+                isinstance(index, bool)
+                or not isinstance(index, numbers.Integral)
+                or index < 0
+            ):
+                msg = (
+                    f"opts.pilot.viewGroups[{group_number}] must contain only "
+                    "zero-based non-negative integer algorithm indices. "
+                    f"Got {group!r}."
+                )
+                raise ValueError(msg)
+            indices.append(int(index))
+        groups.append(tuple(indices))
+
+    return tuple(groups)
+
+
+def _normalize_legacy_pilot_json(data: object) -> object:
+    """Translate the legacy JSON-only ``ISA3D`` flag into ``pilot.dims``."""
+    if not isinstance(data, dict) or not all(isinstance(key, str) for key in data):
+        return data
+
+    typed_data = cast(dict[str, Any], data)
+    legacy_fields = [key for key in typed_data if key.casefold() == "isa3d"]
+    dims_fields = [key for key in typed_data if key.casefold() == "dims"]
+
+    if len(legacy_fields) > 1 or len(dims_fields) > 1:
+        msg = "Conflicting fields in JSON define pilot dimensionality more than once."
+        raise ValueError(msg)
+    if not legacy_fields:
+        return data
+
+    legacy_field = legacy_fields[0]
+    legacy_value = typed_data[legacy_field]
+    _check_logical("pilot.ISA3D", legacy_value)
+    legacy_dims = 3 if legacy_value else 2
+
+    normalized = dict(typed_data)
+    del normalized[legacy_field]
+    if dims_fields:
+        dims_value = typed_data[dims_fields[0]]
+        _check_projection_dims("pilot.dims", dims_value)
+        if dims_value != legacy_dims:
+            msg = (
+                "Conflicting fields in JSON: pilot.ISA3D and pilot.dims "
+                "request different projection dimensions."
+            )
+            raise ValueError(msg)
+    else:
+        normalized["dims"] = legacy_dims
+    return normalized
 
 
 def _check_cloister_hull_dims(name: str, value: object) -> None:
@@ -898,7 +982,7 @@ def _validate_sifted_options(options: SiftedOptions) -> None:
     _check_mutation_probability(options.mutation_type, options.mutation_probability)
     _check_stop_criteria(options.stop_criteria)
     _check_unit_range("sifted.pval", options.pval)
-    _check_sifted_dims("sifted.dims", options.dims)
+    _check_projection_dims("sifted.dims", options.dims)
 
 
 def _validate_pilot_options(options: PilotOptions) -> None:
@@ -913,6 +997,15 @@ def _validate_pilot_options(options: PilotOptions) -> None:
     _check_pos_int("pilot.ntries", options.n_tries)
     _check_logical("pilot.adjustRotation", options.adjust_rotation)
     _check_positive("pilot.costWeight", options.cost_weight)
+    _check_projection_dims("pilot.dims", options.dims)
+    object.__setattr__(
+        options,
+        "view_groups",
+        _normalize_view_groups(options.view_groups),
+    )
+    if options.adjust_rotation and options.dims == PILOT_3D_DIMS:
+        msg = "opts.pilot.adjustRotation=True is only supported when pilot.dims=2."
+        raise ValueError(msg)
     if options.x0 is not None and options.x0.shape[1] < MIN_OPTION_ROWS:
         msg = "opts.pilot.x0 must contain at least one starting point."
         raise ValueError(msg)
@@ -1209,13 +1302,14 @@ class InstanceSpaceOptions:
             ),
             pilot=InstanceSpaceOptions._load_dataclass(
                 PilotOptions,
-                contents.get("pilot", {}),
+                _normalize_legacy_pilot_json(contents.get("pilot", {})),
                 {
                     "ntries": "n_tries",
                     "adjustrotation": "adjust_rotation",
                     "costweight": "cost_weight",
                     "alpha": "cost_weight",
                     "precalcalpha": "precalc_alpha",
+                    "viewgroups": "view_groups",
                 },
             ),
             cloister=InstanceSpaceOptions._load_dataclass(

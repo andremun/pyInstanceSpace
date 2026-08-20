@@ -19,6 +19,7 @@ Tests includes:
 
 import dataclasses
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -30,10 +31,11 @@ from instancespace.data.model import DataDense
 from instancespace.data.options import (
     GeneralOptions,
     ParallelOptions,
+    PilotOptions,
     SelvarsOptions,
     SiftedOptions,
 )
-from instancespace.stages.sifted import SiftedInput, SiftedStage
+from instancespace.stages.sifted import SiftedInput, SiftedOutput, SiftedStage
 
 
 class SiftedMatlabInput:
@@ -320,6 +322,47 @@ def test_run() -> None:
 
     # test case pass if 70%
     assert correlation_matrix_check(correlation_matrix, threshold=0.5)
+
+
+def test_run_derives_sifted_dims_from_outer_pilot_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The aggregate pipeline has one PILOT-owned dimensionality setting."""
+    captured: dict[str, SiftedOptions] = {}
+    expected = cast(SiftedOutput, object())
+    dims = 3
+
+    def _capture_sifted(**kwargs: object) -> SiftedOutput:
+        captured["opts"] = cast(SiftedOptions, kwargs["opts"])
+        return expected
+
+    monkeypatch.setattr(SiftedStage, "sifted", _capture_sifted)
+    matrix = np.zeros((1, 1), dtype=np.double)
+    result = SiftedStage._run(  # noqa: SLF001
+        SiftedInput(
+            x=matrix,
+            y=matrix,
+            y_bin=np.zeros((1, 1), dtype=np.bool_),
+            x_raw=matrix,
+            y_raw=matrix,
+            beta=np.zeros(1, dtype=np.bool_),
+            num_good_algos=np.zeros(1, dtype=np.double),
+            y_best=np.zeros(1, dtype=np.double),
+            p=np.ones(1, dtype=np.int_),
+            inst_labels=pd.Series(["instance"]),
+            feat_labels=["feature"],
+            s=None,
+            sifted_options=SiftedOptions.default(dims=2),
+            selvars_options=SelvarsOptions.default(),
+            data_dense=None,
+            parallel_options=ParallelOptions.default(),
+            general_options=GeneralOptions.default(),
+            pilot_options=PilotOptions.default(dims=dims),
+        ),
+    )
+
+    assert result is expected
+    assert captured["opts"].dims == dims
 
 
 def test_sifted_seed_reproducibility() -> None:
@@ -724,13 +767,20 @@ def test_cost_fcn_uses_classification_accuracy_loss(
     instead of a real classification loss, matching MATLAB's
     `fitcknn`/`kfoldLoss`.
     """
+    dims = 3
 
     class _FakePilotOutput:
-        z = np.zeros((6, 2))
+        z = np.zeros((6, dims))
+
+    captured_pilot_options: list[PilotOptions] = []
+
+    def _fake_pilot(*args: object, **_kwargs: object) -> _FakePilotOutput:
+        captured_pilot_options.append(cast(PilotOptions, args[3]))
+        return _FakePilotOutput()
 
     monkeypatch.setattr(
         "instancespace.stages.sifted.PilotStage.pilot",
-        lambda *_a, **_k: _FakePilotOutput(),
+        _fake_pilot,
     )
 
     captured_scoring: list[str] = []
@@ -761,13 +811,14 @@ def test_cost_fcn_uses_classification_accuracy_loss(
         clust = np.ones((3, 1), dtype=bool)
         cv_partition = None
         general_options = GeneralOptions.default()
-        dims = 2
+        dims = 3
         cost_cache: dict[bytes, float] = {}  # noqa: RUF012
 
     instance = _FakeInstance()
     fitness = SiftedStage.cost_fcn(instance, np.array([0]), 0)
 
     assert captured_scoring == ["accuracy", "accuracy"]
+    assert captured_pilot_options[0].dims == dims
     # pygad maximizes fitness, so this must be the *worst* (minimum)
     # per-algorithm accuracy (0.7), not the best (0.9) and not a loss
     # value - maximizing the minimum accuracy directly is what makes the

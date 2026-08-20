@@ -39,12 +39,9 @@ DEFAULT_SIFTED_K = 6
 # opts.pval (core/SIFTED.m). Was a hardcoded SiftedStage.PVAL_THRESHOLD
 # class constant; now a real option (#300 audit finding, issue 2).
 DEFAULT_SIFTED_PVAL = 0.05
-# Projection dimensionality the GA fitness function's internal PILOT call
-# uses for its KNN neighbour count (kneighbours = dims + 1), matching
-# MATLAB's opts.dims (core/SIFTED.m, restricted to {2, 3}). PILOT itself is
-# 2D-only in this port (3D projection is F2's unshipped future work), so
-# dims=3 is accepted for forward API compatibility but has no effect on
-# PILOT's actual output yet - same caveat as CloisterOptions.hull_dims.
+# Projection dimensionality for direct SIFTED calls. The aggregate pipeline
+# overrides it from PilotOptions.dims, just as MATLAB passes opts.pilot.dims
+# into a private SIFTED options copy (core/SIFTED.m and InstanceSpace.m).
 DEFAULT_SIFTED_DIMS = 2
 DEFAULT_SIFTED_NTREES = 50
 DEFAULT_SIFTED_MAX_ITER = 1000
@@ -64,6 +61,7 @@ DEFAULT_SIFTED_STOP_CRITERIA = "saturate_5"
 DEFAULT_PILOT_ANALYTICS = False
 DEFAULT_PILOT_N_TRIES = 5
 DEFAULT_PILOT_ADJUST_ROTATION = False
+DEFAULT_PILOT_DIMS = 2
 # Scalar performance-reconstruction weight (MATLAB's opts.costWeight). 1.0
 # weights the performance block the same as the feature block - a no-op that
 # reproduces the pre-cost_weight behaviour exactly.
@@ -80,9 +78,8 @@ DEFAULT_CLOISTER_MAX_FEATURES = 20
 # default; scipy.spatial.ConvexHull handles n-D natively). MATLAB always
 # builds a 2D hull on the first two projected columns regardless of how
 # many columns A has (core/CLOISTER.m) - set to 2 for that behaviour.
-# #299 audit finding, issue 5. PILOT's projection is 2D-only in this port
-# (3D is F2's unshipped future work), so "all" and 2 are currently
-# equivalent in practice - documented, not silently assumed obvious.
+# #299 audit finding, issue 5. With a 3D PILOT projection, "all" retains the
+# full hull while 2 deliberately selects MATLAB's legacy planar behaviour.
 DEFAULT_CLOISTER_HULL_DIMS: Literal["all"] = "all"
 
 DEFAULT_PYTHIA_CV_FOLDS = 5
