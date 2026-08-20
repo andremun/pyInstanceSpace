@@ -4,12 +4,11 @@ import warnings
 
 import numpy as np
 import pytest
-from shapely.geometry import MultiPoint, MultiPolygon, Polygon
+from shapely.geometry import MultiPoint, MultiPolygon
 
 from instancespace.data.model import pointwise_covers
 from instancespace.utils.alpha_shape import (
     AlphaShape2D,
-    filter_small_regions,
     legacy_alpha_shape,
 )
 
@@ -77,20 +76,6 @@ def test_region_threshold_groups_triangles_that_touch_at_one_vertex() -> None:
     assert isinstance(geometry, MultiPolygon)
     assert len(geometry.geoms) == EXPECTED_COMPONENTS
     assert geometry.area == pytest.approx(0.1)
-
-
-def test_region_filter_keeps_polygon_holes() -> None:
-    """Filtering a connected region does not fill its interior holes."""
-    polygon = Polygon(
-        [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
-        holes=[[(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)]],
-    )
-
-    filtered = filter_small_regions(polygon, np.nextafter(polygon.area, 0.0))
-
-    assert isinstance(filtered, Polygon)
-    assert len(filtered.interiors) == 1
-    assert filtered.area == pytest.approx(12.0)
 
 
 def test_degenerate_point_cloud_has_no_alpha_shape() -> None:

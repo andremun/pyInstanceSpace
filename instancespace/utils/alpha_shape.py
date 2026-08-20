@@ -61,23 +61,6 @@ def _polygonal_geometry(geometry: object) -> Polygon2D | None:
     return None
 
 
-def filter_small_regions(
-    geometry: Polygon2D | None,
-    region_threshold: float,
-) -> Polygon2D | None:
-    """Suppress polygon parts not strictly larger than ``region_threshold``."""
-    if geometry is None or geometry.is_empty:
-        return None
-    if region_threshold <= 0:
-        return geometry
-
-    regions = list(geometry.geoms) if isinstance(geometry, MultiPolygon) else [geometry]
-    retained = [region for region in regions if region.area > region_threshold]
-    if not retained:
-        return None
-    return _polygonal_geometry(unary_union(retained))
-
-
 def _alpha_region_mask(
     simplices: NDArray[np.int_],
     triangle_areas: NDArray[np.double],
