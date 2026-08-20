@@ -248,46 +248,49 @@ def test_numerical_c_keeps_every_algorithm_reconstruction_column() -> None:
     assert output.error == pytest.approx(expected_error)
 
 
-def test_pilot_seed_reproducibility() -> None:
-    """Same seed gives identical output; a different seed gives different output.
-
-    Regression test for Q9 (general.seed threading): the numerical solve branch
-    picks its BFGS starting points via `general_options.seed`, so this is the
-    one place PILOT's output actually depends on the seed.
-    """
+def test_pilot_default_starts_ignore_general_seed() -> None:
+    """MATLAB resets PILOT's local stream regardless of the general seed."""
     rng = np.random.default_rng(42)
     x = rng.random((30, 4))
     y = rng.random((30, 2))
     feat_labels = ["f0", "f1", "f2", "f3"]
     opts = PilotOptions(None, None, False, 3)
+    n = x.shape[1]
+    m = n + y.shape[1]
+    expected_rows = opts.dims * (n + m)
 
-    result_a = PilotStage.pilot(
-        x,
-        y,
-        feat_labels,
-        opts,
-        GeneralOptions(verbose=False, seed=0),
-        _do_output=False,
-    )
-    result_b = PilotStage.pilot(
-        x,
-        y,
-        feat_labels,
-        opts,
-        GeneralOptions(verbose=False, seed=0),
-        _do_output=False,
-    )
-    result_c = PilotStage.pilot(
-        x,
-        y,
-        feat_labels,
-        opts,
-        GeneralOptions(verbose=False, seed=1),
-        _do_output=False,
-    )
+    with patch.object(
+        PilotStage,
+        "_solve_one_trial",
+        return_value=(np.ones(expected_rows), 0.0, 1.0),
+    ):
+        result_a = PilotStage.pilot(
+            x,
+            y,
+            feat_labels,
+            opts,
+            GeneralOptions(verbose=False, seed=0),
+            _do_output=False,
+        )
+        result_b = PilotStage.pilot(
+            x,
+            y,
+            feat_labels,
+            opts,
+            GeneralOptions(verbose=False, seed=1),
+            _do_output=False,
+        )
 
-    np.testing.assert_array_equal(result_a.z, result_b.z)
-    assert not np.array_equal(result_a.z, result_c.z)
+    assert result_a.X0 is not None
+    assert result_b.X0 is not None
+    np.testing.assert_array_equal(result_a.X0, result_b.X0)
+    np.testing.assert_array_equal(
+        result_a.X0,
+        PilotStage._default_numerical_starts(  # noqa: SLF001
+            expected_rows,
+            opts.n_tries,
+        ),
+    )
 
 
 def test_adjust_rotation_preserves_pairwise_distances() -> None:
@@ -477,6 +480,49 @@ def test_pilot_precalculated_alpha_does_not_crash() -> None:
     assert result.z.shape == (15, 2)
 
 
+def test_valid_precalculated_alpha_takes_precedence_over_x0() -> None:
+    """Match MATLAB's precalcAlpha-first numerical dispatch."""
+    rng = np.random.default_rng(73)
+    x = rng.random((12, 3))
+    y = rng.random((12, 2))
+    n = x.shape[1]
+    m = n + y.shape[1]
+    expected_a = rng.random((2, n))
+    expected_full_b = rng.random((m, 2))
+    precalc_alpha = PilotStage._pack_solution(  # noqa: SLF001
+        expected_a,
+        expected_full_b,
+    ).reshape(-1, 1)
+    # This X0 is contextually invalid for the dataset. A valid precalculated
+    # solution has higher precedence, so MATLAB never consults it.
+    ignored_x0 = np.ones((1, 1), dtype=np.double)
+
+    with patch.object(
+        PilotStage,
+        "_solve_one_trial",
+        side_effect=AssertionError("X0 must be ignored when precalcAlpha is valid"),
+    ):
+        result = PilotStage.pilot(
+            x,
+            y,
+            ["f0", "f1", "f2"],
+            PilotOptions.default(
+                analytic=False,
+                x0=ignored_x0,
+                precalc_alpha=precalc_alpha,
+            ),
+            GeneralOptions.default(verbose=False),
+            _do_output=False,
+        )
+
+    assert result.X0 is None
+    assert result.alpha is not None
+    np.testing.assert_array_equal(result.alpha, precalc_alpha)
+    np.testing.assert_array_equal(result.a, expected_a)
+    np.testing.assert_array_equal(result.b, expected_full_b[:n, :])
+    np.testing.assert_array_equal(result.c, expected_full_b[n:m, :].T)
+
+
 @pytest.mark.parametrize(
     ("options", "message"),
     [
@@ -487,6 +533,15 @@ def test_pilot_precalculated_alpha_does_not_crash() -> None:
         (
             PilotOptions(np.ones((15, 1)), None, False, 2),
             "x0 must have 16 rows",
+        ),
+        (
+            PilotOptions(
+                np.ones((16, 1)),
+                np.ones((15, 1)),
+                False,
+                1,
+            ),
+            "precalcAlpha must have shape",
         ),
     ],
 )
@@ -846,6 +901,31 @@ def test_numerical_solution_vector_uses_matlab_column_major_order() -> None:
         PilotStage._pack_solution(a, b),  # noqa: SLF001
         theta,
     )
+
+
+def test_default_numerical_starts_match_r2026a_without_global_rng_mutation() -> None:
+    """Pin MATLAB's seed-5489 values, 53-bit conversion, and matrix fill."""
+    global_state_before = np.random.get_state()  # noqa: NPY002
+
+    starts = PilotStage._default_numerical_starts(4, 2)  # noqa: SLF001
+
+    global_state_after = np.random.get_state()  # noqa: NPY002
+    expected_unscaled = np.array(
+        [
+            [0.8147236863931789, 0.6323592462254095],
+            [0.9057919370756192, 0.09754040499940952],
+            [0.12698681629350606, 0.2784982188670484],
+            [0.9133758561390194, 0.5468815192049838],
+        ],
+        dtype=np.double,
+    )
+    np.testing.assert_allclose(
+        starts,
+        2.0 * expected_unscaled - 1.0,
+        atol=1e-15,
+        rtol=0,
+    )
+    np.testing.assert_equal(global_state_after, global_state_before)
 
 
 def test_error_function_matches_matlab_columnwise_nanmean_order() -> None:
