@@ -2,6 +2,8 @@
 
 ## Scope
 
+**Status:** Implemented and verified on 2026-08-21.
+
 Issue [#316](https://github.com/andremun/pyInstanceSpace/issues/316) is a code-ownership
 refactor, not a MATLAB parity defect. MATLAB R2026a unifies trained evaluation only inside
 PYTHIA and TRACE; PRELIM, SIFTED, and PILOT inference remain orchestrated separately.
@@ -51,7 +53,17 @@ ground truth is present. Advancing only to a stage must not execute later work.
 - StageRunner scheduling, rollback, checkpoints, and plugins are unchanged.
 - Existing model/joblib schemas and explore payload layouts are unchanged.
 - No fitted classifier, array, polygon, or tetrahedral mesh is mutated.
-- New algorithms retain false/zero inference padding and NaN classifier metrics.
-- Missing trained-algorithm truth retains NaN metrics.
+- Test-only algorithms retain false/zero inference padding and NaN classifier metrics
+  because no fitted classifier exists for them.
+- A trained algorithm absent from test metadata is scored against the reconciled
+  all-false truth column; its metrics are not replaced with NaN.
 - All current R2026a `reference-export/v2` readers remain authoritative.
 
+## Verification
+
+- Contract, delegation, no-refit, fitted-state immutability, wrapper compatibility, and
+  stage-order tests pass for all five inference-capable stages.
+- Collection contains 86 provenance tests and 40 current-MATLAB readers.
+- The warning-strict sandbox run passed 1,037 tests; the sole process-pool test passed
+  1/1 outside the sandbox, accounting for all 1,038 collected tests.
+- Branch coverage was 91.86%, with no uncaught warnings under `-W error`.

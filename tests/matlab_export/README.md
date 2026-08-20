@@ -137,6 +137,9 @@ under MATLAB R2026a Update 4 from clean MATLAB
 `cf3cde0da5a3067300bd94a48d4d09ff5cf20b0c`. The exporter identity is pinned to
 `d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
 
-The final provenance suite passed 84 tests; the current-gold scientific readers passed
-36. Frozen v1 bundles remain verifiable, but they are not the installed current oracle.
-Diagnostic and `legacy-unknown` snapshots remain non-oracles.
+Collection contains 86 provenance tests and 40 current-gold scientific readers. The
+strict suite passed 1,037 tests in the sandbox; the sole process-pool test passed 1/1
+outside the sandbox, for all 1,038 collected tests. Branch coverage was 91.86%, with
+no uncaught warnings under `-W error`. Frozen v1 bundles remain verifiable, but they
+are not the installed current oracle. Diagnostic and `legacy-unknown` snapshots remain
+non-oracles.

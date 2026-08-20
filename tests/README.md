@@ -13,8 +13,11 @@ under `reference-export/v2`, generated with MATLAB R2026a Update 4 from gold sou
 `34c01293fef99b4eabd53323c393cb184cc95a8e` and Python generator
 `cf3cde0da5a3067300bd94a48d4d09ff5cf20b0c`. Its exporter SHA-256 is
 `d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
-The provenance suite passes 84 tests and the current scientific readers pass 36.
-The frozen 229-file v1 format remains readable, but is not the installed oracle.
+Collection contains 86 provenance tests and 40 current scientific readers. The strict
+suite passed 1,037 tests in the sandbox; the sole process-pool test passed 1/1 outside
+the sandbox, for all 1,038 collected tests. Branch coverage was 91.86%, with no
+uncaught warnings under `-W error`. The frozen 229-file v1 format remains readable,
+but is not the installed oracle.
 
 ## Naming Convention
 
@@ -82,5 +85,5 @@ asserts it:
 | PRELIM | max relative error < 1% | deterministic bounding → Box-Cox → z-score with stored parameters; expected to match to floating-point precision |
 | SIFTED | exact match | pure column indexing |
 | PILOT  | max relative error < 1% | single matrix product with the stored projection matrix |
-| PYTHIA | binary agreement ≥ 99%; mean probability Pearson \|r\| ≥ 0.99 | SVM evaluation with stored parameters; small margin for thresholded predictions near the decision boundary |
+| PYTHIA | exact binary outputs; probabilities within `1e-13` absolute error | direct replay of the stored historical SVM artifacts; correlation is not used because it accepts inverted or shifted probabilities |
 | TRACE  | per-column boolean agreement ≥ 99% | boundary-inclusive membership matching MATLAB `polyshape.isinterior`; the 1% budget covers floating-point boundary edge cases after the CSV round-trip |

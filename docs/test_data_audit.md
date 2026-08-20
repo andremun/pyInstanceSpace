@@ -2,10 +2,11 @@
 
 **Status:** Audit and migration complete. §7's single-layout decision is implemented.
 The canonical install is a 423-file, `matlab-verified` `reference-export/v2` bundle from
-MATLAB R2026a Update 4; provenance passed 84 tests and current readers passed 36. The
-frozen v1 format remains readable. Steps 1–5 are implemented; #310 remains tracked for
-maintainer review. Sections 1–6 preserve the audit-time findings and paths, including
-items later remediated by those steps.
+MATLAB R2026a Update 4; provenance passed 86 tests and current readers passed 40. The
+strict gate accounts for all 1,038 collected tests: 1,037 passed in the sandbox and the
+sole process-pool test passed 1/1 outside it. Frozen v1 remains readable. Steps 1–5 are
+implemented; #310 remains tracked for maintainer review. Sections 1–6 preserve the
+audit-time findings and paths, including items later remediated by those steps.
 
 **Identity:** MATLAB `34c01293fef99b4eabd53323c393cb184cc95a8e`; generator
 `cf3cde0da5a3067300bd94a48d4d09ff5cf20b0c`; exporter
