@@ -707,6 +707,28 @@ def test_top_level_json_groups_are_case_insensitive() -> None:
     assert options.trace.method == "trace3"
 
 
+def test_nested_json_fields_use_unicode_casefolding() -> None:
+    """Nested keys use the loader's Unicode case-insensitive contract."""
+    seed = 19
+    long_s_seed = "\N{LATIN SMALL LETTER LONG S}eed"
+
+    options = InstanceSpaceOptions.from_dict({"general": {long_s_seed: seed}})
+
+    assert options.general.seed == seed
+
+
+def test_casefold_equivalent_nested_json_fields_are_rejected() -> None:
+    """Unicode-equivalent keys cannot silently overwrite one option."""
+    long_s_seed = "\N{LATIN SMALL LETTER LONG S}eed"
+
+    with pytest.raises(ValueError, match="Conflicting fields") as exc_info:
+        InstanceSpaceOptions.from_dict(
+            {"general": {"seed": 1, long_s_seed: 2}},
+        )
+
+    assert long_s_seed in str(exc_info.value)
+
+
 def test_case_only_top_level_duplicates_are_rejected() -> None:
     """Equivalent group names cannot silently replace one another."""
     with pytest.raises(ValueError, match="Conflicting top-level fields"):
