@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
+from loguru import logger
 
 from instancespace.data.options import (
     AutoOptions,
@@ -270,6 +272,57 @@ def test_manual_empty_feats_none_algo() -> None:
         expected_y,
         err_msg="Algorithm data content mismatch",
     )
+
+
+def test_manual_selection_accepts_prefixes_and_case_and_preserves_data_order() -> None:
+    """MATLAB-style raw names and stripped Python names select the same columns."""
+    x = np.arange(16, dtype=np.double).reshape(4, 4)
+    y = np.arange(8, dtype=np.double).reshape(4, 2)
+    messages: list[str] = []
+    sink_id = logger.add(lambda message: messages.append(message.record["message"]))
+    try:
+        selected = PreprocessingStage.select_features_and_algorithms(
+            x,
+            y,
+            ["Alpha", "Beta", "Gamma", "Delta"],
+            ["Fast", "Safe"],
+            SelvarsOptions.default(
+                feats=["FEATURE_gamma", "beta", "unknown"],
+                algos=["ALGO_safe"],
+            ),
+        )
+    finally:
+        logger.remove(sink_id)
+
+    new_x, new_y, feature_names, algorithm_names = selected
+    assert feature_names == ["Beta", "Gamma"]
+    assert algorithm_names == ["Safe"]
+    np.testing.assert_array_equal(new_x, x[:, [1, 2]])
+    np.testing.assert_array_equal(new_y, y[:, [1]])
+    assert any("unknown" in message for message in messages)
+
+
+@pytest.mark.parametrize(
+    ("feats", "algos", "message"),
+    [
+        (["not-a-feature"], None, "Manual feature selection matched no columns"),
+        (None, ["not-an-algorithm"], "Manual algorithm selection matched no columns"),
+    ],
+)
+def test_nonempty_manual_selection_with_no_matches_raises(
+    feats: list[str] | None,
+    algos: list[str] | None,
+    message: str,
+) -> None:
+    """A bad manual selection must not silently widen the experiment."""
+    with pytest.raises(ValueError, match=message):
+        PreprocessingStage.select_features_and_algorithms(
+            np.ones((3, 3)),
+            np.ones((3, 1)),
+            ["one", "two", "three"],
+            ["solver"],
+            SelvarsOptions.default(feats=feats, algos=algos),
+        )
 
 
 """

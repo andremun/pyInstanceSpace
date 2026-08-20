@@ -544,6 +544,10 @@ class ExploreResult:
         `Model.data.algo_labels`' own length. `None` under the same
         condition as `y_actual` (when there's no ground truth, column order
         is implicitly `Model.data.algo_labels` and never widened).
+    trace_out : TraceOut | None
+        Trained TRACE geometry rescored against this test set's ground truth.
+        Geometry and area remain unchanged; evidence metrics are updated. It is
+        `None` for feature-only explore data.
     """
 
     dataset_id: str
@@ -565,6 +569,7 @@ class ExploreResult:
     recall_actual: NDArray[np.double] | None = None
     cvcmat_actual: NDArray[np.double] | None = None
     algo_labels: list[str] | None = None
+    trace_out: TraceOut | None = None
 
 
 @dataclass(frozen=True)

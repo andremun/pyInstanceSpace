@@ -62,10 +62,12 @@ Parity means matching observable contracts, formulas, edge cases, and trained-mo
 
 The main known gaps are:
 
-- Python implements legacy TRACE only. MATLAB defaults to TRACE3.
+- Python implements legacy TRACE and an opt-in 2D TRACE3 port. MATLAB defaults to
+  TRACE3; Python retains legacy as its compatibility default.
 - Python PILOT supports PLS but remains 2D and has no viewpoint groups.
 - Python output and plotting paths remain 2D.
-- MATLAB reference fixtures lack verified generation provenance.
+- Historical MATLAB snapshots lack verified provenance. The current fixture path has a
+  strict manifest/export/install contract and accepts only reviewed verified bundles.
 - Build logic lives in stage classes, while explore logic lives in `InstanceSpace` methods.
 
 These gaps need separate designs and acceptance tests.
@@ -79,4 +81,5 @@ They are not part of the current correctness pass.
 - Python execution: `instancespace/stage_runner.py`
 - Python stages: `instancespace/stages/`
 - Python model contracts: `instancespace/data/model.py` and `instancespace/model.py`
-- MATLAB parity fixtures: `tests/matlab_reference/`
+- Verified MATLAB parity fixtures: `tests/fixtures/matlab/current/`
+- Historical unverified snapshots: `tests/matlab_reference/`

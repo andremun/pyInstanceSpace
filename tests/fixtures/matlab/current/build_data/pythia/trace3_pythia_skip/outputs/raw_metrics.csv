@@ -1,0 +1,11 @@
+algorithm,accuracy,precision,recall,true_negative,false_positive,false_negative,true_positive
+NB,NaN,NaN,NaN,0,0,0,0
+LDA,NaN,NaN,NaN,0,0,0,0
+QDA,NaN,NaN,NaN,0,0,0,0
+CART,NaN,NaN,NaN,0,0,0,0
+J48,NaN,NaN,NaN,0,0,0,0
+KNN,NaN,NaN,NaN,0,0,0,0
+L_SVM,NaN,NaN,NaN,0,0,0,0
+poly_SVM,NaN,NaN,NaN,0,0,0,0
+RBF_SVM,NaN,NaN,NaN,0,0,0,0
+RandF,NaN,NaN,NaN,0,0,0,0
