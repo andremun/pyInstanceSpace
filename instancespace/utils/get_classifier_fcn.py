@@ -17,7 +17,7 @@ for these five classifiers to verify against (only `'svm'` does).
 """
 
 from collections.abc import Callable
-from typing import NamedTuple
+from typing import NamedTuple, Self, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -100,6 +100,56 @@ class KernelNB(ClassifierMixin, BaseEstimator):  # type: ignore[misc]
         proba = self.predict_proba(x)
         predictions: NDArray[np.bool_] = self.classes_[np.argmax(proba, axis=1)]
         return predictions
+
+
+class _MatlabKNeighborsClassifier(KNeighborsClassifier):  # type: ignore[misc]
+    """KNN estimator with MATLAB's per-fit ``NumNeighbors`` normalization.
+
+    R2026a's ``fitcknn`` keeps PYTHIA's requested/search value for reporting,
+    but the fitted model silently caps ``NumNeighbors`` to the number of rows
+    available to that particular fit.  Cross-validation therefore applies a
+    potentially different effective cap in every training fold.  Scikit-learn
+    instead accepts the oversized value during ``fit`` and then raises during
+    prediction.  Preserve the requested value separately for cloning and
+    repeated fits while leaving the fitted estimator's public ``n_neighbors``
+    at MATLAB's effective value.  This shared fit boundary covers Sobol,
+    Bayesian, pre-calculated, and final-model training alike.
+    """
+
+    n_neighbors: object
+    n_samples_fit_: int
+    _requested_n_neighbors: object
+
+    def get_params(self, deep: bool = True) -> dict[str, object]:
+        """Expose the nominal value so fitted estimators clone faithfully."""
+        parameters: dict[str, object] = super().get_params(deep=deep)
+        if hasattr(self, "_requested_n_neighbors"):
+            parameters["n_neighbors"] = self._requested_n_neighbors
+        return parameters
+
+    def set_params(self, **parameters: object) -> Self:
+        """Track an explicitly supplied nominal neighbour count."""
+        if "n_neighbors" in parameters:
+            self._requested_n_neighbors = parameters["n_neighbors"]
+        super().set_params(**parameters)
+        return self
+
+    def fit(
+        self,
+        x: object,
+        y: object,
+    ) -> Self:
+        """Fit after applying MATLAB's current-fit effective cap."""
+        if not hasattr(self, "_requested_n_neighbors"):
+            self._requested_n_neighbors = self.n_neighbors
+        self.n_neighbors = self._requested_n_neighbors
+        super().fit(x, y)
+        requested = cast(int, self._requested_n_neighbors)
+        self.n_neighbors = min(
+            int(requested),
+            int(self.n_samples_fit_),
+        )
+        return self
 
 
 class ParamSpec(NamedTuple):
@@ -280,7 +330,7 @@ def _build_knn(seed: int | None, is_poly_krnl: bool) -> ClassifierMixin:
     # deterministic given fixed training data. algorithm='brute' is required
     # once the distance metric is tunable: 'cosine'/'correlation' aren't
     # supported by the default ball_tree/kd_tree algorithms.
-    return KNeighborsClassifier(algorithm="brute")
+    return _MatlabKNeighborsClassifier(algorithm="brute")
 
 
 def _build_tree(seed: int | None, is_poly_krnl: bool) -> ClassifierMixin:
