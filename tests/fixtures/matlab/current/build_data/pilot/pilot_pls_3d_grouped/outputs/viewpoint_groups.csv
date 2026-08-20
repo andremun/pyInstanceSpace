@@ -1,0 +1,11 @@
+group,member,algorithm_index,algorithm
+1,1,1,NB
+1,2,2,LDA
+1,3,3,QDA
+1,4,4,CART
+2,1,5,J48
+2,2,6,KNN
+2,3,7,L_SVM
+2,4,8,poly_SVM
+2,5,9,RBF_SVM
+2,6,10,RandF
