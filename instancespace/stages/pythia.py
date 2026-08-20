@@ -511,13 +511,6 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             classifier_spec,
             opts.classifier,
         )
-        PythiaStage._validate_precalc_knn_neighbors(
-            precalcparams,
-            y_bin,
-            opts.cv_folds,
-            classifier_spec,
-            algo_labels,
-        )
         cp = StratifiedKFold(
             n_splits=opts.cv_folds,
             shuffle=True,
@@ -1140,13 +1133,13 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             verbose=0,
             random_state=general_options.seed,
             n_jobs=(parallel_options.n_cores if parallel_options.flag else 1),
-            # A sampled candidate can be untrainable on a given fold (e.g.
-            # KNN's n_neighbors exceeding that fold's sample count); disqualify
-            # it with the worst possible score instead of crashing the whole
-            # search, mirroring _evaluate_sobol_candidates' per-candidate catch
-            # below. Unlike GridSearchCV, skopt's Bayesian optimiser feeds this
-            # score straight into its Gaussian-process surrogate, which can't
-            # handle NaN - so this must be a finite value, not `np.nan`.
+            # A sampled candidate can be untrainable on a given fold (e.g. a
+            # degenerate kernel bandwidth); disqualify it with the worst
+            # possible score instead of crashing the whole search, mirroring
+            # _evaluate_sobol_candidates' per-candidate catch below. Unlike
+            # GridSearchCV, skopt's Bayesian optimiser feeds this score straight
+            # into its Gaussian-process surrogate, which can't handle NaN - so
+            # this must be a finite value, not `np.nan`.
             error_score=0.0,
         )
         fit_kwargs = {"sample_weight": w} if spec.supports_sample_weight else {}
@@ -1506,45 +1499,6 @@ class PythiaStage(Stage[PythiaInput, PythiaOutput]):
             f"'{classifier_name}' classifier.",
         )
         return params_array
-
-    @staticmethod
-    def _validate_precalc_knn_neighbors(
-        params: NDArray[np.double] | None,
-        y_bin: NDArray[np.bool_],
-        cv_folds: int,
-        spec: ClassifierSpec,
-        algo_labels: list[str],
-    ) -> None:
-        """Reject KNN parameters that cannot predict within a CV fold.
-
-        MATLAB-compatible rounding and lower clamping happen through
-        `ParamSpec.from_precalc`. The remaining upper limit is data-dependent:
-        sklearn cannot predict with more neighbors than the smallest training
-        fold contains. Degenerate-label algorithms never train a classifier,
-        so their otherwise-unused parameter row is deliberately ignored.
-        """
-        if params is None or spec.param1.sklearn_name != "n_neighbors":
-            return
-
-        n_instances = y_bin.shape[0]
-        largest_test_fold = (n_instances + cv_folds - 1) // cv_folds
-        smallest_training_fold = n_instances - largest_test_fold
-        for row_index, raw_neighbors in enumerate(params[:, 0]):
-            labels = np.asarray(y_bin[:, row_index], dtype=np.bool_)
-            if bool(np.all(labels)) or not bool(np.any(labels)):
-                continue
-            normalized = spec.param1.from_precalc(float(raw_neighbors))
-            if not isinstance(normalized, int):
-                msg = "KNN NumNeighbors did not normalize to an integer."
-                raise TypeError(msg)
-            if normalized > smallest_training_fold:
-                raise ValueError(
-                    "PythiaOptions.params"
-                    f"[{row_index}, 0] (NumNeighbors for algorithm "
-                    f"{algo_labels[row_index]!r}) normalizes to {normalized}, "
-                    "which exceeds the smallest cross-validation training "
-                    f"fold size {smallest_training_fold}.",
-                )
 
     @staticmethod
     def _validate_cv_folds(

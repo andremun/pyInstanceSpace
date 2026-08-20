@@ -8,8 +8,11 @@ import numpy as np
 import pandas as pd
 import pytest
 from numpy.typing import NDArray
+from scipy import stats
 from sklearn.exceptions import UndefinedMetricWarning  # type: ignore[import-untyped]
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
+from skopt.space import Categorical
 
 from instancespace.data.options import GeneralOptions, ParallelOptions, PythiaOptions
 from instancespace.stages.pythia import PythiaStage
@@ -1171,18 +1174,18 @@ def test_pythia_rejects_nonpositive_continuous_precalculated_values(
         )
 
 
-def test_pythia_rejects_precalculated_knn_neighbors_above_cv_fold_size() -> None:
-    """KNN preflight fails before sklearn sees an impossible neighbor count."""
+def test_pythia_precalculated_knn_clamps_each_fit_but_reports_request() -> None:
+    """Pre-calculated KNN values retain MATLAB's requested/reported semantics."""
     z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
     alternating = np.arange(y_bin_small.shape[0]) % 2 == 0
     y_bin_small[:, 0] = alternating
     y_bin_small[:, 1] = np.logical_not(alternating)
-    # With 20 instances and two folds, the smallest training fold has 10 rows.
-    # MATLAB round(10.5) is 11, so this must fail before cross_val_predict.
-    params = np.array([[10.5, 1.0], [3.0, 1.0]])
+    requested_neighbors = 25
+    params = np.array([[requested_neighbors, 1.0], [3.0, 1.0]])
 
-    with pytest.raises(ValueError, match=r"normalizes to 11.*fold size 10"):
-        PythiaStage.pythia(
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        output = PythiaStage.pythia(
             z_small,
             y_small,
             y_bin_small,
@@ -1199,6 +1202,117 @@ def test_pythia_rejects_precalculated_knn_neighbors_above_cv_fold_size() -> None
             ParallelOptions.default(),
             GeneralOptions(verbose=False, seed=0),
         )
+
+    assert output.box_consnt[0] == requested_neighbors
+    first_estimator = output.svm[0]
+    assert isinstance(first_estimator, KNeighborsClassifier)
+    assert first_estimator.n_neighbors == z_small.shape[0]
+    assert first_estimator.get_params(deep=False)["n_neighbors"] == requested_neighbors
+    assert output.y_sub.shape == y_bin_small.shape
+    assert not any(
+        "Expected n_neighbors <= n_samples_fit" in str(item.message) for item in caught
+    )
+
+
+def test_pythia_sobol_knn_clamps_oversized_candidate_per_fit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sobol keeps candidate 25 while every CV clone receives a valid K."""
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    alternating = np.arange(y_bin_small.shape[0]) % 2 == 0
+    y_bin_small[:, 0] = alternating
+    y_bin_small[:, 1] = np.logical_not(alternating)
+    requested_neighbors = 25
+    monkeypatch.setattr(
+        stats.qmc,
+        "Sobol",
+        lambda **_kwargs: SimpleNamespace(
+            random=lambda n: np.tile(np.array([[1.0, 0.0]]), (n, 1)),
+        ),
+    )
+
+    output = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        PythiaOptions(
+            cv_folds=2,
+            is_poly_krnl=False,
+            use_weights=False,
+            params=None,
+            classifier="knn",
+            tuning="sobol",
+            n_tuning_iter=1,
+        ),
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    assert output.box_consnt == [requested_neighbors, requested_neighbors]
+    assert all(
+        isinstance(estimator, KNeighborsClassifier)
+        and estimator.n_neighbors == z_small.shape[0]
+        and estimator.get_params(deep=False)["n_neighbors"] == requested_neighbors
+        for estimator in output.svm
+    )
+
+
+def test_pythia_bayes_knn_clamps_oversized_candidate_without_score_warnings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bayesian KNN evaluates MATLAB-valid oversized candidates cleanly."""
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    alternating = np.arange(y_bin_small.shape[0]) % 2 == 0
+    y_bin_small[:, 0] = alternating
+    y_bin_small[:, 1] = np.logical_not(alternating)
+    requested_neighbors = 25
+    monkeypatch.setattr(
+        PythiaStage,
+        "_bayes_param_space",
+        staticmethod(
+            lambda _spec: {
+                "n_neighbors": Categorical([requested_neighbors]),
+                "metric": Categorical(["euclidean"]),
+            },
+        ),
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        output = PythiaStage.pythia(
+            z_small,
+            y_small,
+            y_bin_small,
+            y_best_small,
+            algo_small,
+            PythiaOptions(
+                cv_folds=2,
+                is_poly_krnl=False,
+                use_weights=False,
+                params=None,
+                classifier="knn",
+                tuning="bayes",
+                n_tuning_iter=1,
+            ),
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=0),
+        )
+
+    assert output.box_consnt == [requested_neighbors, requested_neighbors]
+    assert all(
+        isinstance(estimator, KNeighborsClassifier)
+        and estimator.n_neighbors == z_small.shape[0]
+        and estimator.get_params(deep=False)["n_neighbors"] == requested_neighbors
+        for estimator in output.svm
+    )
+    warning_messages = [str(item.message) for item in caught]
+    assert not any("Scoring failed" in message for message in warning_messages)
+    assert not any(
+        "Expected n_neighbors <= n_samples_fit" in message
+        for message in warning_messages
+    )
 
 
 def test_pythia_warns_and_runs_when_folds_exceed_class_count() -> None:

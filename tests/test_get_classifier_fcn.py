@@ -4,6 +4,7 @@
 
 import numpy as np
 import pytest
+from sklearn.base import clone
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
@@ -66,6 +67,90 @@ def test_every_registered_classifier_is_tunable(name: str, has_param2: bool) -> 
 def test_knn_does_not_support_sample_weight() -> None:
     """KNeighborsClassifier.fit() has no sample_weight parameter."""
     assert not get_classifier_fcn("knn").supports_sample_weight
+
+
+def test_knn_preserves_matlab_num_neighbors_search_domain() -> None:
+    """Per-fit normalization must not shrink MATLAB's public search domain."""
+    expected_max_neighbors = 25
+    parameter = get_classifier_fcn("knn").param1
+
+    assert (parameter.low, parameter.high) == (1, expected_max_neighbors)
+    assert parameter.dimension().bounds == (1, expected_max_neighbors)
+    assert parameter.sample(1.0) == expected_max_neighbors
+
+
+def test_knn_fit_caps_neighbors_to_the_available_training_rows() -> None:
+    """Match R2026a ``fitcknn`` by normalizing on each individual fit."""
+    requested_neighbors = 25
+    n_training_rows = 6
+    estimator = get_classifier_fcn("knn").build(0, False)
+    assert isinstance(estimator, KNeighborsClassifier)
+    estimator.set_params(n_neighbors=requested_neighbors)
+    x_train = np.arange(2 * n_training_rows, dtype=np.double).reshape(-1, 2)
+    y_train = np.arange(n_training_rows) % 2 == 0
+
+    estimator.fit(x_train, y_train)
+
+    assert estimator.n_neighbors == n_training_rows
+    assert estimator.get_params(deep=False)["n_neighbors"] == requested_neighbors
+    assert estimator.predict(x_train[:2]).shape == (2,)
+
+
+def test_knn_repeated_fit_recomputes_cap_from_requested_neighbors() -> None:
+    """A small first fit must not make its effective cap sticky."""
+    requested_neighbors = 25
+    estimator = get_classifier_fcn("knn").build(0, False)
+    assert isinstance(estimator, KNeighborsClassifier)
+    estimator.set_params(n_neighbors=requested_neighbors)
+    x_small = np.arange(12, dtype=np.double).reshape(-1, 2)
+    y_small = np.arange(x_small.shape[0]) % 2 == 0
+    x_large = np.arange(40, dtype=np.double).reshape(-1, 2)
+    y_large = np.arange(x_large.shape[0]) % 2 == 0
+
+    estimator.fit(x_small, y_small)
+    assert estimator.n_neighbors == x_small.shape[0]
+    estimator.fit(x_large, y_large)
+
+    assert estimator.n_neighbors == x_large.shape[0]
+    assert estimator.get_params(deep=False)["n_neighbors"] == requested_neighbors
+    assert estimator.predict(x_large[:2]).shape == (2,)
+
+
+def test_knn_clone_after_fit_retains_requested_neighbors() -> None:
+    """Scikit cloning must carry the nominal candidate, not the prior fit cap."""
+    requested_neighbors = 25
+    estimator = get_classifier_fcn("knn").build(0, False)
+    assert isinstance(estimator, KNeighborsClassifier)
+    estimator.set_params(n_neighbors=requested_neighbors)
+    x_small = np.arange(12, dtype=np.double).reshape(-1, 2)
+    y_small = np.arange(x_small.shape[0]) % 2 == 0
+    estimator.fit(x_small, y_small)
+
+    cloned = clone(estimator)
+
+    assert isinstance(cloned, KNeighborsClassifier)
+    assert cloned.n_neighbors == requested_neighbors
+    x_larger = np.arange(40, dtype=np.double).reshape(-1, 2)
+    y_larger = np.arange(x_larger.shape[0]) % 2 == 0
+    cloned.fit(x_larger, y_larger)
+    assert cloned.n_neighbors == x_larger.shape[0]
+    assert cloned.get_params(deep=False)["n_neighbors"] == requested_neighbors
+
+
+def test_knn_fit_accepts_array_like_inputs_before_applying_cap() -> None:
+    """Let sklearn validate/normalize public array-like inputs before capping."""
+    requested_neighbors = 25
+    x_list = [[0.0, 0.0], [1.0, 1.0], [2.0, 0.0], [3.0, 1.0]]
+    y_list = [False, True, False, True]
+    estimator = get_classifier_fcn("knn").build(0, False)
+    assert isinstance(estimator, KNeighborsClassifier)
+    estimator.set_params(n_neighbors=requested_neighbors)
+
+    estimator.fit(x_list, y_list)
+
+    assert estimator.n_neighbors == len(x_list)
+    assert estimator.get_params(deep=False)["n_neighbors"] == requested_neighbors
+    assert estimator.predict([[0.5, 0.5]]).shape == (1,)
 
 
 def test_svm_kernel_choice_follows_is_poly_krnl() -> None:
