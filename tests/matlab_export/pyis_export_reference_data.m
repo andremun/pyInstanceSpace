@@ -368,11 +368,27 @@ for v = 1:numel(pilotEvidenceVariants)
     exportPilotArtifacts(pilotOut, [buildRoot 'outputs/'], ...
         pilotData.algolabels);
 
+    % TRACE shares this already-built model and resolved option record.  The
+    % analytic standard 3D PILOT variant is therefore also the native TRACE3
+    % evidence variant; do not rebuild it under an equivalent option name.
+    isTrace3DEvidence = strcmp(variant.name, 'pilot_standard_analytic_3d');
+    if isTrace3DEvidence
+        traceBuildRoot = [outputRoot 'build_data/trace/' variant.name '/'];
+        exportTrace3DInputs(obj.model, [traceBuildRoot 'inputs/']);
+        exportTrace3DArtifacts(obj.model.trace, pilotData.algolabels, ...
+            [traceBuildRoot 'outputs/']);
+    end
+
     obj = obj.explore(pipelineRoot);
     testOut = obj.getResults(1);
     exploreRoot = [outputRoot 'explore_data/pilot/' variant.name '/'];
     exportPilotExploreInputs(testOut, obj.model, [exploreRoot 'inputs/']);
     exportPilotExploreArtifacts(testOut, [exploreRoot 'outputs/']);
+    if isTrace3DEvidence
+        traceExploreRoot = [outputRoot 'explore_data/trace/' variant.name '/'];
+        exportTrace3DInputs(testOut, [traceExploreRoot 'inputs/']);
+        exportTraceExploreArtifacts(testOut, [traceExploreRoot 'outputs/']);
+    end
 end
 
 rmdir(workRoot, 's');
@@ -454,6 +470,24 @@ writeMatrixCSV(double(model.pythia.Yhat), model.data.algolabels, model.data.inst
 writeMatrixCSV(model.data.P(:), {'p_best_algo'}, model.data.instlabels(:), [destDir 'p.csv']);
 writeMatrixCSV(double(model.data.beta(:)), {'beta'}, model.data.instlabels(:), ...
     [destDir 'beta.csv']);
+writeTextCSV(model.data.algolabels, 'algorithm_name', [destDir 'algorithm_labels.csv']);
+end
+
+function exportTrace3DInputs(model, destDir)
+% Preserve enough precision to distinguish explore points microscopically
+% inside/outside a trained tetrahedral boundary.  The shared writer remains
+% unchanged so every pre-existing v1 and 2D v2 byte contract stays frozen.
+mkdirIfMissing(destDir);
+writeMatrixCSVFullPrecision(model.pilot.Z, coordinateLabels(size(model.pilot.Z, 2)), ...
+    model.data.instlabels(:), [destDir 'z.csv']);
+writeMatrixCSVFullPrecision(double(model.data.Ybin), model.data.algolabels, ...
+    model.data.instlabels(:), [destDir 'y_bin.csv']);
+writeMatrixCSVFullPrecision(double(model.pythia.Yhat), model.data.algolabels, ...
+    model.data.instlabels(:), [destDir 'y_hat.csv']);
+writeMatrixCSVFullPrecision(model.data.P(:), {'p_best_algo'}, ...
+    model.data.instlabels(:), [destDir 'p.csv']);
+writeMatrixCSVFullPrecision(double(model.data.beta(:)), {'beta'}, ...
+    model.data.instlabels(:), [destDir 'beta.csv']);
 writeTextCSV(model.data.algolabels, 'algorithm_name', [destDir 'algorithm_labels.csv']);
 end
 
@@ -711,6 +745,121 @@ metricNames = {'kind', 'algorithm', 'measure', 'measure_label', 'elements', ...
 writetable(cell2table(rows, 'VariableNames', metricNames), [destDir 'raw_metrics.csv']);
 end
 
+function exportTrace3DArtifacts(traceOut, algolabels, destDir)
+% Serialize native 3D alpha-complex topology without changing the frozen
+% two-dimensional TRACE artifact contract above.  Every footprint writes
+% all four files, including explicit header-only files when it is empty.
+mkdirIfMissing(destDir);
+if isfield(traceOut, 'summary') && ~isempty(traceOut.summary)
+    writeCellCSV(traceOut.summary(2:end, 2:end), traceOut.summary(1, 2:end), ...
+        traceOut.summary(2:end, 1), [destDir 'summary.csv']);
+end
+
+rows = cell(0, 17);
+for i = 1:numel(algolabels)
+    goodTopology = writeTrace3DMesh(traceOut.good{i}, ...
+        [destDir 'good_' algolabels{i}]);
+    rows(end+1, :) = trace3DMetricRow('good', algolabels{i}, ...
+        traceOut.good{i}, goodTopology); %#ok<AGROW>
+    bestTopology = writeTrace3DMesh(traceOut.best{i}, ...
+        [destDir 'best_' algolabels{i}]);
+    rows(end+1, :) = trace3DMetricRow('best', algolabels{i}, ...
+        traceOut.best{i}, bestTopology); %#ok<AGROW>
+end
+hardTopology = writeTrace3DMesh(traceOut.hard, [destDir 'hard']);
+rows(end+1, :) = trace3DMetricRow('hard', '', traceOut.hard, hardTopology);
+rows(end+1, :) = trace3DSpaceMetricRow(traceOut.space);
+
+metricNames = {'kind', 'algorithm', 'measure', 'measure_label', 'elements', ...
+    'good_elements', 'density', 'purity', 'alpha_radius', 'region_threshold', ...
+    'region_count', 'tetrahedron_count', 'boundary_face_count', ...
+    'alpha_spectrum_count', 'volume', 'surface_area', 'empty'};
+writetable(cell2table(rows, 'VariableNames', metricNames), [destDir 'raw_metrics.csv']);
+end
+
+function topology = writeTrace3DMesh(footprint, prefix)
+vertices = zeros(0, 3);
+tetrahedra = zeros(0, 4);
+faces = zeros(0, 3);
+spectrum = zeros(0, 1);
+regionCount = 0;
+volumeValue = 0;
+surfaceValue = 0;
+alphaRadius = NaN;
+regionThreshold = NaN;
+
+if isfield(footprint, 'polygon') && isa(footprint.polygon, 'alphaShape') && ...
+        size(footprint.polygon.Points, 2) == 3
+    poly = footprint.polygon;
+    vertices = poly.Points;
+    [tetrahedraRaw, tetrahedronPoints] = alphaTriangulation(poly);
+    tetrahedra = trace3DPointIndices(tetrahedronPoints, tetrahedraRaw, vertices);
+    [facesRaw, facePoints] = boundaryFacets(poly);
+    faces = trace3DPointIndices(facePoints, facesRaw, vertices);
+    spectrum = alphaSpectrum(poly);
+    spectrum = spectrum(isfinite(spectrum));
+    spectrum = spectrum(:);
+    regionCount = numRegions(poly);
+    volumeValue = volume(poly);
+    surfaceValue = surfaceArea(poly);
+    alphaRadius = poly.Alpha;
+    regionThreshold = poly.RegionThreshold;
+end
+
+writeIndexedMatrixCSVFullPrecision(vertices, 'vertex', ...
+    (1:size(vertices, 1))', {'z_1', 'z_2', 'z_3'}, [prefix '_vertices.csv']);
+tetrahedronTable = table((1:size(tetrahedra, 1))', tetrahedra(:, 1), ...
+    tetrahedra(:, 2), tetrahedra(:, 3), tetrahedra(:, 4), ...
+    'VariableNames', {'tetrahedron', 'v_1', 'v_2', 'v_3', 'v_4'});
+writetable(tetrahedronTable, [prefix '_tetrahedra.csv']);
+faceTable = table((1:size(faces, 1))', faces(:, 1), faces(:, 2), faces(:, 3), ...
+    'VariableNames', {'face', 'v_1', 'v_2', 'v_3'});
+writetable(faceTable, [prefix '_boundary_faces.csv']);
+writeIndexedMatrixCSVFullPrecision(spectrum, 'spectrum_index', ...
+    (1:numel(spectrum))', {'alpha'}, [prefix '_alpha_spectrum.csv']);
+
+topology = struct('alphaRadius', alphaRadius, ...
+    'regionThreshold', regionThreshold, 'regionCount', regionCount, ...
+    'tetrahedronCount', size(tetrahedra, 1), ...
+    'boundaryFaceCount', size(faces, 1), ...
+    'alphaSpectrumCount', numel(spectrum), 'volume', volumeValue, ...
+    'surfaceArea', surfaceValue, 'empty', isempty(tetrahedra));
+end
+
+function indices = trace3DPointIndices(returnedPoints, connectivity, vertices)
+% alphaTriangulation/boundaryFacets may return their own point array.  Map
+% coordinates explicitly instead of assuming that its indices are poly.Points.
+if isempty(connectivity)
+    indices = zeros(0, size(connectivity, 2));
+    return;
+end
+[found, pointIndices] = ismember(returnedPoints, vertices, 'rows');
+if any(~found)
+    error('pyis_export:trace3DPointMapping', ...
+        'TRACE3 topology contains a point absent from alphaShape.Points.');
+end
+indices = reshape(pointIndices(connectivity), size(connectivity));
+end
+
+function row = trace3DMetricRow(kind, algorithm, footprint, topology)
+row = {kind, algorithm, numericField(footprint, 'measure', 0), ...
+    textField(footprint, 'measureLabel', 'Volume'), ...
+    numericField(footprint, 'elements', 0), ...
+    numericField(footprint, 'goodElements', 0), ...
+    numericField(footprint, 'density', 0), ...
+    numericField(footprint, 'purity', 0), topology.alphaRadius, ...
+    topology.regionThreshold, topology.regionCount, topology.tetrahedronCount, ...
+    topology.boundaryFaceCount, topology.alphaSpectrumCount, topology.volume, ...
+    topology.surfaceArea, topology.empty};
+end
+
+function row = trace3DSpaceMetricRow(space)
+measure = numericField(space, 'measure', 0);
+row = {'space', '', measure, textField(space, 'measureLabel', 'Volume'), ...
+    numericField(space, 'elements', 0), NaN, numericField(space, 'density', 0), ...
+    numericField(space, 'purity', 1), NaN, NaN, 0, 0, 0, 0, measure, NaN, true};
+end
+
 function exportPythiaExploreArtifacts(testOut, destDir)
 % Per-variant explore-path export: PYTHIA's test-set inference output for
 % whichever variant trained this testOut. Sibling of exportPythiaArtifacts
@@ -754,10 +903,8 @@ writeMatrixCSV(double(membership), membershipCols, testOut.data.instlabels(:), .
 end
 
 function membership = footprintMembership(footprints, Z)
-% polyshape's containment test is isinterior(poly,x,y); alphaShape's is
-% inShape(shp,x,y) -- different method names for the two polygon types
-% TRACE can return (legacy vs. TRACE3, the current default), dispatched
-% on explicitly rather than assuming one applies to both.
+% polyshape is two-dimensional; alphaShape accepts the complete point
+% matrix, which is dimension-generic and is required for native 3D TRACE3.
 membership = false(size(Z, 1), numel(footprints));
 for i = 1:numel(footprints)
     if ~isfield(footprints{i}, 'polygon') || isempty(footprints{i}.polygon)
@@ -767,7 +914,7 @@ for i = 1:numel(footprints)
     if isa(poly, 'polyshape')
         membership(:, i) = isinterior(poly, Z(:, 1), Z(:, 2));
     elseif isa(poly, 'alphaShape')
-        membership(:, i) = inShape(poly, Z(:, 1), Z(:, 2));
+        membership(:, i) = inShape(poly, Z);
     end
 end
 end
@@ -785,6 +932,7 @@ function writeMatrixCSV(data, colNames, rowNames, filename)
 if isempty(data)
     return;
 end
+
 if isempty(colNames)
     colNames = arrayfun(@(i) sprintf('col_%d', i), 1:size(data, 2), 'UniformOutput', false);
 end
@@ -795,6 +943,60 @@ if ~isempty(rowNames)
     writetable(t, filename, 'WriteRowNames', true);
 else
     writetable(t, filename);
+end
+end
+
+function writeMatrixCSVFullPrecision(data, colNames, rowNames, filename)
+if isempty(colNames)
+    colNames = arrayfun(@(i) sprintf('col_%d', i), 1:size(data, 2), ...
+        'UniformOutput', false);
+end
+if isempty(rowNames)
+    writeIndexedMatrixCSVFullPrecision(data, '', zeros(size(data, 1), 1), ...
+        colNames, filename);
+else
+    writeIndexedMatrixCSVFullPrecision(data, 'Row', rowNames, colNames, filename);
+end
+end
+
+function writeIndexedMatrixCSVFullPrecision(data, indexName, indexValues, ...
+        colNames, filename)
+mkdirIfMissing(fileparts(filename));
+fid = fopen(filename, 'w');
+if fid == -1
+    error('pyis_export:csvWriteFailed', 'Could not open ''%s'' for writing.', filename);
+end
+cleanupObj = onCleanup(@() fclose(fid));
+if ~isempty(indexName)
+    fprintf(fid, '%s,', escapeCsvText(indexName));
+end
+for column = 1:numel(colNames)
+    if column > 1
+        fprintf(fid, ',');
+    end
+    fprintf(fid, '%s', escapeCsvText(colNames{column}));
+end
+fprintf(fid, '\n');
+for row = 1:size(data, 1)
+    if ~isempty(indexName)
+        fprintf(fid, '%s,', escapeCsvText(indexValues(row)));
+    end
+    for column = 1:size(data, 2)
+        if column > 1
+            fprintf(fid, ',');
+        end
+        fprintf(fid, '%.17g', data(row, column));
+    end
+    fprintf(fid, '\n');
+end
+clear cleanupObj;
+end
+
+function escaped = escapeCsvText(value)
+escaped = char(string(value));
+escaped = strrep(escaped, '"', '""');
+if contains(escaped, {',', '"', newline})
+    escaped = ['"' escaped '"'];
 end
 end
 
