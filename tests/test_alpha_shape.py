@@ -32,8 +32,8 @@ def test_default_radius_is_smallest_radius_covering_every_point() -> None:
     assert pointwise_covers(geometry, points).all()
 
 
-def test_radius_units_and_region_threshold_preserve_components() -> None:
-    """Radius and area thresholds retain independent connected regions."""
+def test_default_radius_and_region_threshold_preserve_components() -> None:
+    """Match R2026a's all-points radius without merging valid regions."""
     points = np.array(
         [
             [0.0, 0.0],
@@ -48,12 +48,14 @@ def test_radius_units_and_region_threshold_preserve_components() -> None:
     shape = AlphaShape2D.from_points(points)
 
     assert shape is not None
-    geometry = shape.geometry(0.8)
+    assert shape.critical_radius == pytest.approx(np.sqrt(0.5))
+    geometry = shape.geometry(shape.critical_radius)
     assert isinstance(geometry, MultiPolygon)
     assert len(geometry.geoms) == EXPECTED_COMPONENTS
     assert geometry.area == pytest.approx(1.0)
-    assert shape.geometry(0.8, region_threshold=0.499999) is not None
-    assert shape.geometry(0.8, region_threshold=0.5) is None
+    assert pointwise_covers(geometry, points).all()
+    assert shape.geometry(shape.critical_radius, region_threshold=0.499999) is not None
+    assert shape.geometry(shape.critical_radius, region_threshold=0.5) is None
 
 
 def test_region_threshold_groups_triangles_that_touch_at_one_vertex() -> None:
