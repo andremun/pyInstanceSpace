@@ -4,7 +4,7 @@ import os
 import shutil
 import warnings
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -53,6 +53,7 @@ from instancespace.data.options import (
     TraceOptions,
 )
 from instancespace.model import Model
+from instancespace.stages.pilot_viewpoint import PilotViewpointResult
 
 script_dir = Path(__file__).parent
 
@@ -318,6 +319,56 @@ class _MatlabResults:
         )
 
 
+def _three_dimensional_model(model: Model) -> Model:
+    """Extend the MATLAB 2D fixture without inventing 3D TRACE geometry."""
+    third_coordinate = np.linspace(-1.0, 1.0, model.pilot.z.shape[0])
+    projection = np.column_stack((model.pilot.z, third_coordinate))
+    projection_matrix = np.vstack(
+        (model.pilot.a, np.linspace(0.1, 1.0, model.pilot.a.shape[1])),
+    )
+    response_coefficients = np.vstack(
+        (model.pilot.c, np.zeros((1, model.pilot.c.shape[1]))),
+    )
+    inverse_projection = np.column_stack(
+        (model.pilot.b, np.zeros(model.pilot.b.shape[0])),
+    )
+    projection_summary = pd.concat(
+        (model.pilot.summary, model.pilot.summary.iloc[[-1]].copy()),
+        ignore_index=True,
+    )
+    projection_summary.iloc[-1, 0] = "Z_{3}"
+    viewpoint = PilotViewpointResult(
+        groups=((0,),),
+        a=(np.eye(2, 3, dtype=np.float64),),
+        azimuth=(0.0,),
+        elevation=(np.pi / 2,),
+    )
+
+    edge_coordinate = np.linspace(-2.0, 2.0, model.cloister.z_edge.shape[0])
+    pruned_coordinate = np.linspace(
+        -1.5,
+        1.5,
+        model.cloister.z_ecorr.shape[0],
+    )
+    return replace(
+        model,
+        pilot=replace(
+            model.pilot,
+            a=projection_matrix,
+            z=projection,
+            c=response_coefficients,
+            b=inverse_projection,
+            summary=projection_summary,
+            viewpoint=viewpoint,
+        ),
+        cloister=replace(
+            model.cloister,
+            z_edge=np.column_stack((model.cloister.z_edge, edge_coordinate)),
+            z_ecorr=np.column_stack((model.cloister.z_ecorr, pruned_coordinate)),
+        ),
+    )
+
+
 def test_save_to_csv() -> None:
     """Test saving information from a completed instance space to CSVs."""
     model = _MatlabResults().get_model()
@@ -364,6 +415,37 @@ def test_save_to_csv() -> None:
             )
         else:
             pd.testing.assert_frame_equal(expected_data, actual_data)
+
+
+def test_3d_csv_export_uses_three_coordinates_and_omits_footprints(
+    tmp_path: Path,
+) -> None:
+    """A 3D projection keeps numeric outputs but never projects Shapely polygons."""
+    model = _three_dimensional_model(_MatlabResults().get_model())
+
+    model.save_to_csv(tmp_path)
+
+    expected_columns = ["Row", "z_1", "z_2", "z_3"]
+    coordinates = pd.read_csv(tmp_path / "coordinates.csv")
+    bounds = pd.read_csv(tmp_path / "bounds.csv")
+    pruned_bounds = pd.read_csv(tmp_path / "bounds_prunned.csv")
+    assert list(coordinates.columns) == expected_columns
+    assert list(bounds.columns) == expected_columns
+    assert list(pruned_bounds.columns) == expected_columns
+    np.testing.assert_allclose(coordinates["z_3"], model.pilot.z[:, 2])
+    np.testing.assert_allclose(bounds["z_3"], model.cloister.z_edge[:, 2])
+    np.testing.assert_allclose(
+        pruned_bounds["z_3"],
+        model.cloister.z_ecorr[:, 2],
+    )
+
+    assert not list(tmp_path.glob("footprint_*_best.csv"))
+    assert not list(tmp_path.glob("footprint_*_good.csv"))
+    assert (tmp_path / "footprint_performance.csv").is_file()
+    assert (tmp_path / "projection_matrix.csv").is_file()
+    assert (
+        len(pd.read_csv(tmp_path / "projection_matrix.csv")) == model.pilot.z.shape[1]
+    )
 
 
 def test_save_for_web() -> None:

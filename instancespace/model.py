@@ -261,7 +261,11 @@ class Model:
         )
 
     def save_to_mat(self, output_directory: Path | str) -> None:
-        """Save csv outputs used for the web frontend to a directory."""
+        """Save the algorithm-label-only MAT compatibility file for the dashboard.
+
+        Use :meth:`save` for complete model persistence, including PILOT's
+        numeric projection and optimized viewpoint.
+        """
         print(
             "=========================================================================",
         )

@@ -34,6 +34,9 @@ from instancespace.data.model import (
 from instancespace.data.options import InstanceSpaceOptions
 
 _FOOTPRINT_COLUMNS = ["Row", "Part", "Ring", "Vertex", "z_1", "z_2"]
+_PROJECTION_ARRAY_DIMENSIONS = 2
+_FOOTPRINT_DIMENSIONS = 2
+_SUPPORTED_PROJECTION_DIMENSIONS = {2, 3}
 _INVALID_STEM_CHARACTERS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 _MAX_STEM_LENGTH = 80
 _WINDOWS_RESERVED_STEMS = {
@@ -124,6 +127,19 @@ def _footprint_boundary_frame(polygon: Polygon | MultiPolygon) -> pd.DataFrame:
     return pd.DataFrame.from_records(records, columns=_FOOTPRINT_COLUMNS)
 
 
+def _projection_column_names(z: NDArray[Any]) -> pd.Series[str]:
+    """Return MATLAB-compatible coordinate names for a 2D or 3D projection."""
+    projection = np.asarray(z)
+    if (
+        projection.ndim != _PROJECTION_ARRAY_DIMENSIONS
+        or projection.shape[1] not in _SUPPORTED_PROJECTION_DIMENSIONS
+    ):
+        raise ValueError("pilot_out.z must be a two-dimensional 2D or 3D projection.")
+    return pd.Series(
+        [f"z_{dimension}" for dimension in range(1, projection.shape[1] + 1)],
+    )
+
+
 def save_instance_space_to_csv(
     output_directory: Path,
     data: Data,
@@ -136,27 +152,40 @@ def save_instance_space_to_csv(
     if not output_directory.is_dir():
         raise ValueError("output_directory must be an existing directory.")
 
+    projection_columns = _projection_column_names(pilot_out.z)
+    projection_dimensions = len(projection_columns)
     num_algorithms = data.y.shape[1]
     algorithm_stems = _portable_stems(data.algo_labels, "algorithm")
 
-    for i in range(num_algorithms):
-        best = trace_out.best[i]
-        if best is not None and best.polygon is not None and not best.polygon.is_empty:
-            _write_dataframe_to_csv(
-                _footprint_boundary_frame(best.polygon),
-                output_directory / f"footprint_{algorithm_stems[i]}_best.csv",
-            )
+    # TRACE footprints are Shapely's two-dimensional polygons. MATLAB likewise
+    # omits boundary CSVs for a 3D projection instead of flattening them.
+    if projection_dimensions == _FOOTPRINT_DIMENSIONS:
+        for i in range(num_algorithms):
+            best = trace_out.best[i]
+            if (
+                best is not None
+                and best.polygon is not None
+                and not best.polygon.is_empty
+            ):
+                _write_dataframe_to_csv(
+                    _footprint_boundary_frame(best.polygon),
+                    output_directory / f"footprint_{algorithm_stems[i]}_best.csv",
+                )
 
-        good = trace_out.good[i]
-        if good is not None and good.polygon is not None and not good.polygon.is_empty:
-            _write_dataframe_to_csv(
-                _footprint_boundary_frame(good.polygon),
-                output_directory / f"footprint_{algorithm_stems[i]}_good.csv",
-            )
+            good = trace_out.good[i]
+            if (
+                good is not None
+                and good.polygon is not None
+                and not good.polygon.is_empty
+            ):
+                _write_dataframe_to_csv(
+                    _footprint_boundary_frame(good.polygon),
+                    output_directory / f"footprint_{algorithm_stems[i]}_good.csv",
+                )
 
     _write_array_to_csv(
         pilot_out.z,
-        pd.Series(["z_1", "z_2"]),
+        projection_columns,
         data.inst_labels,
         output_directory / "coordinates.csv",
     )
@@ -164,13 +193,13 @@ def save_instance_space_to_csv(
     if cloister_out is not None:
         _write_array_to_csv(
             cloister_out.z_edge,
-            pd.Series(["z_1", "z_2"]),
+            projection_columns,
             _make_bind_labels(cloister_out.z_edge),
             output_directory / "bounds.csv",
         )
         _write_array_to_csv(
             cloister_out.z_ecorr,
-            pd.Series(["z_1", "z_2"]),
+            projection_columns,
             _make_bind_labels(cloister_out.z_ecorr),
             output_directory / "bounds_prunned.csv",
         )
@@ -849,7 +878,11 @@ def save_instance_space_output_mat(
     output_directory: Path,
     data: Data,
 ) -> None:
-    """Offline dashboard only use the algo labels from the data."""
+    """Write the algorithm-label-only MAT shim used by the offline dashboard.
+
+    This compatibility file is not full model persistence. ``Model.save`` is
+    the canonical round-trip format for complete Python models.
+    """
     output = output_directory / "model.mat"
     try:
         savemat(
