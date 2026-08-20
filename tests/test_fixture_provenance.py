@@ -4,22 +4,30 @@ from __future__ import annotations
 
 import csv
 import json
+from collections.abc import Iterable
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 
 from tools.fixture_provenance import (
+    _EXPORTER_SCRIPT,
+    _GOLD_MATLAB_COMMIT,
+    _REFERENCE_V2_EXPORTER_SHA256,
     BUNDLE_SCHEMA,
     DIAGNOSTIC_TRUST,
     REFERENCE_PROFILE,
+    REFERENCE_PROFILE_V1,
     RESOLVED_OPTIONS_INDEX_SCHEMA,
     RESOLVED_OPTIONS_SCHEMA,
     VERIFIED_TRUST,
     ProvenanceError,
     _fixed_reference_paths,
+    _fixed_reference_paths_v1,
     _geometry_paths,
+    _pilot_numerical_trial_metrics,
     install_verified_bundle,
     sha256_file,
     validate_bundle,
@@ -29,8 +37,17 @@ from tools.fixture_provenance import (
 _COMMIT = "1" * 40
 _SCRIPT_HASH = "2" * 64
 _MIN_HISTORICAL_FILES = 300
-_VARIANTS = ("trace3_default", "trace3_pythia_skip", "legacy_svm")
-_ALGORITHM_LABELS = ["algo_a"]
+_CURRENT_FIXTURES = Path(__file__).parent / "fixtures" / "matlab" / "current"
+_VARIANTS = (
+    "trace3_default",
+    "trace3_pythia_skip",
+    "legacy_svm",
+    "pilot_standard_analytic_3d",
+    "pilot_standard_numerical_3d_x0",
+    "pilot_standard_numerical_3d_precalc",
+    "pilot_pls_2d",
+    "pilot_pls_3d_grouped",
+)
 _REFERENCE_ALGORITHM_LABELS = [
     "NB",
     "LDA",
@@ -43,6 +60,57 @@ _REFERENCE_ALGORITHM_LABELS = [
     "RBF_SVM",
     "RandF",
 ]
+_ALGORITHM_LABELS = _REFERENCE_ALGORITHM_LABELS
+_FEATURE_LABELS = ["feature_a", "feature_b"]
+
+
+def _synthetic_x0() -> list[list[float]]:
+    return [
+        [float(row), float(row) + 0.1, float(row) + 0.2]
+        for row in range(len(_synthetic_precalc()))
+    ]
+
+
+def _synthetic_alpha() -> list[list[float]]:
+    dims = 3
+    projection = np.asarray(_synthetic_pilot_matrix(dims), dtype=np.double)
+    b = np.asarray([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=np.double)
+    c = np.asarray(
+        [
+            [0.1 * (index + 1) for index in range(len(_ALGORITHM_LABELS))],
+            [0.05 * (index + 1) for index in range(len(_ALGORITHM_LABELS))],
+            [0.0 for _ in _ALGORITHM_LABELS],
+        ],
+        dtype=np.double,
+    )
+    combined = np.vstack((b, c.T))
+    tail = combined.reshape(-1, order="F")
+
+    selected = np.concatenate((projection.reshape(-1, order="F"), tail))
+    first = np.concatenate(
+        (
+            np.asarray(
+                [[2.0, 0.0], [0.0, 0.25], [0.0, 0.0]],
+            ).reshape(-1, order="F"),
+            tail,
+        ),
+    )
+    third = np.concatenate(
+        (
+            np.asarray(
+                [[0.25, 0.0], [0.0, 2.0], [0.0, 0.0]],
+            ).reshape(-1, order="F"),
+            tail,
+        ),
+    )
+    return [
+        [float(value) for value in row]
+        for row in np.column_stack((first, selected, third))
+    ]
+
+
+def _synthetic_precalc() -> list[float]:
+    return [row[1] for row in _synthetic_alpha()]
 
 
 def _effective_options(variant: str) -> dict[str, Any]:
@@ -114,6 +182,29 @@ def _effective_options(variant: str) -> dict[str, Any]:
     elif variant == "legacy_svm":
         options["pythia"]["classifier"] = "svm"
         options["trace"].update(method="legacy", PI=0.55, contra=True)
+    elif variant.startswith("pilot_"):
+        options["pythia"]["skip"] = True
+        options["pilot"]["ntries"] = 1
+        if variant == "pilot_standard_analytic_3d":
+            options["pilot"].update(dims=3, analytic=True)
+        elif variant == "pilot_standard_numerical_3d_x0":
+            options["pilot"].update(dims=3, analytic=False, X0=_synthetic_x0())
+        elif variant == "pilot_standard_numerical_3d_precalc":
+            options["pilot"].update(
+                dims=3,
+                analytic=False,
+                precalcAlpha=_synthetic_precalc(),
+            )
+        elif variant == "pilot_pls_2d":
+            options["pilot"].update(method="pls", dims=2, analytic=False)
+        elif variant == "pilot_pls_3d_grouped":
+            options["pilot"].update(
+                method="pls",
+                dims=3,
+                analytic=True,
+                alpha=3.0,
+                viewGroups=[[1, 2, 3, 4], [5, 6, 7, 8, 9, 10]],
+            )
     return options
 
 
@@ -124,6 +215,242 @@ def _entry_metadata(relative: str) -> tuple[str, str | None, str]:
     if parts[0] == "resolved_options":
         return "shared", None, Path(relative).stem
     return parts[0].removesuffix("_data"), parts[1], parts[2]
+
+
+def _write_csv(
+    target: Path,
+    header: list[str],
+    rows: Iterable[Iterable[object]],
+) -> None:
+    with target.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(header)
+        writer.writerows(rows)
+
+
+def _read_csv_for_mutation(path: Path) -> tuple[list[str], list[list[str]]]:
+    with path.open("r", encoding="utf-8", newline="") as stream:
+        reader = csv.reader(stream)
+        return next(reader), list(reader)
+
+
+def _synthetic_pilot_matrix(dims: int) -> list[list[float]]:
+    rows = [[1.0, 0.0], [0.0, 1.0]]
+    if dims == 3:  # noqa: PLR2004
+        rows.append([0.0, 0.0])
+    return rows
+
+
+def _write_pilot_profile_file(  # noqa: PLR0912
+    target: Path,
+    relative: str,
+    variant: str,
+) -> None:
+    dims = 2 if variant == "pilot_pls_2d" else 3
+    z_header = [f"z_{index}" for index in range(1, dims + 1)]
+    is_explore = relative.startswith("explore_data/")
+    x = [[1.0, 2.0], [3.0, 4.0], [5.0, 1.0]]
+    y = [
+        [
+            (index + 1) * (0.1 * row[0] + 0.05 * row[1])
+            for index in range(len(_ALGORITHM_LABELS))
+        ]
+        for row in x
+    ]
+    if variant.startswith("pilot_pls_"):
+        x = [[row[0] + 0.25, row[1] + 0.5] for row in x]
+        y = [
+            [value + 0.4 * (index + 1) for index, value in enumerate(row)] for row in y
+        ]
+    projection = _synthetic_pilot_matrix(dims)
+    projection_x = x
+    if variant.startswith("pilot_pls_") and not is_explore:
+        means = [sum(row[index] for row in x) / len(x) for index in range(2)]
+        projection_x = [
+            [value - means[index] for index, value in enumerate(row)] for row in x
+        ]
+    z = [
+        [
+            sum(value * projection[dimension][index] for index, value in enumerate(row))
+            for dimension in range(dims)
+        ]
+        for row in projection_x
+    ]
+    b = [
+        [1.0, 0.0, *([0.0] if dims == 3 else [])],  # noqa: PLR2004
+        [0.0, 1.0, *([0.0] if dims == 3 else [])],  # noqa: PLR2004
+    ]
+    c = [
+        [0.1 * (index + 1) for index in range(len(_ALGORITHM_LABELS))],
+        [0.05 * (index + 1) for index in range(len(_ALGORITHM_LABELS))],
+    ]
+    if dims == 3:  # noqa: PLR2004
+        c.append([0.0 for _ in _ALGORITHM_LABELS])
+    x_bar = np.column_stack((x, y))
+    factors = np.vstack((b, np.asarray(c, dtype=np.double).T))
+    reconstructed = np.asarray(z, dtype=np.double) @ factors.T
+    if variant.startswith("pilot_pls_"):
+        reconstructed += np.mean(x_bar, axis=0)
+    reconstruction_error = float(np.sum(np.square(x_bar - reconstructed)))
+    reconstruction_r2 = [
+        float(np.corrcoef(x_bar[:, index], reconstructed[:, index])[0, 1] ** 2)
+        for index in range(x_bar.shape[1])
+    ]
+    filename = target.name
+
+    if filename == "stage_context.json":
+        is_pls = variant.startswith("pilot_pls_")
+        context = {
+            "schema_version": "pyinstancespace.pilot-evidence-context/v1",
+            "scope": "pilot-stage",
+            "upstream_snapshot": "build_data/pilot/default/inputs",
+            "sifted_effective_pilot_dims": 2,
+            "input_transform": "deterministic-column-shift" if is_pls else "none",
+            "feature_shift": [0.25, 0.5] if is_pls else [],
+            "algorithm_shift": (
+                [0.4 * (index + 1) for index in range(len(_ALGORITHM_LABELS))]
+                if is_pls
+                else []
+            ),
+            "explore_projection": "InstanceSpace.explore: Z=X*A' (uncentred)",
+        }
+        target.write_text(json.dumps(context), encoding="utf-8")
+    elif filename == "feature_labels.csv":
+        _write_csv(target, ["feature_name"], [[label] for label in _FEATURE_LABELS])
+    elif filename == "x.csv":
+        _write_csv(
+            target,
+            ["Row", *_FEATURE_LABELS],
+            [[f"instance_{index}", *row] for index, row in enumerate(x, start=1)],
+        )
+    elif filename == "y.csv":
+        _write_csv(
+            target,
+            ["Row", *_ALGORITHM_LABELS],
+            [[f"instance_{index}", *row] for index, row in enumerate(y, start=1)],
+        )
+    elif filename == "projection_a.csv":
+        _write_csv(
+            target,
+            ["Row", *_FEATURE_LABELS],
+            [[z_header[index], *row] for index, row in enumerate(projection)],
+        )
+    elif filename == "pilot_matrix.csv":
+        _write_csv(
+            target,
+            ["Row", *_FEATURE_LABELS],
+            [[f"Z_{{{index + 1}}}", *row] for index, row in enumerate(projection)],
+        )
+    elif filename == "pilot_a_raw.csv":
+        _write_csv(target, ["col_1", "col_2"], projection)
+    elif filename == "pilot_b.csv":
+        _write_csv(
+            target,
+            [f"col_{index}" for index in range(1, dims + 1)],
+            b,
+        )
+    elif filename == "pilot_c.csv":
+        _write_csv(
+            target,
+            [f"col_{index}" for index in range(1, len(_ALGORITHM_LABELS) + 1)],
+            c,
+        )
+    elif filename == "pilot_z.csv":
+        if is_explore:
+            _write_csv(
+                target,
+                ["Row", *z_header],
+                [[f"instance_{index}", *row] for index, row in enumerate(z, start=1)],
+            )
+        else:
+            _write_csv(target, z_header, z)
+    elif filename == "pilot_r2.csv":
+        _write_csv(target, ["r2"], [[value] for value in reconstruction_r2])
+    elif filename == "pilot_error.csv":
+        _write_csv(target, ["error"], [[reconstruction_error]])
+    elif filename in {"x0.csv", "pilot_x0.csv"}:
+        _write_csv(target, ["col_1", "col_2", "col_3"], _synthetic_x0())
+    elif filename == "pilot_alpha.csv":
+        if variant == "pilot_standard_numerical_3d_precalc":
+            _write_csv(target, ["col_1"], [[value] for value in _synthetic_precalc()])
+        else:
+            _write_csv(
+                target,
+                ["col_1", "col_2", "col_3"],
+                _synthetic_alpha(),
+            )
+    elif filename == "precalc_alpha.csv":
+        _write_csv(
+            target,
+            ["precalc_alpha"],
+            [[value] for value in _synthetic_precalc()],
+        )
+    elif filename == "pilot_perf.csv":
+        _, perf = _pilot_numerical_trial_metrics(
+            _synthetic_alpha(),
+            x,
+            y,
+            dims,
+            1.0,
+        )
+        _write_csv(target, ["perf"], [[value] for value in perf])
+    elif filename == "pilot_eoptim.csv":
+        eoptim, _ = _pilot_numerical_trial_metrics(
+            _synthetic_alpha(),
+            x,
+            y,
+            dims,
+            1.0,
+        )
+        _write_csv(target, ["eoptim"], [[value] for value in eoptim])
+    elif filename == "viewpoint_groups.csv":
+        groups = (
+            [[1, 2, 3, 4], [5, 6, 7, 8, 9, 10]]
+            if variant == "pilot_pls_3d_grouped"
+            else [list(range(1, len(_ALGORITHM_LABELS) + 1))]
+        )
+        rows = [
+            [
+                group_index,
+                member_index,
+                algorithm_index,
+                _ALGORITHM_LABELS[algorithm_index - 1],
+            ]
+            for group_index, group in enumerate(groups, start=1)
+            for member_index, algorithm_index in enumerate(group, start=1)
+        ]
+        _write_csv(
+            target,
+            ["group", "member", "algorithm_index", "algorithm"],
+            rows,
+        )
+    elif filename == "viewpoint_a.csv":
+        group_count = 2 if variant == "pilot_pls_3d_grouped" else 1
+        rows = [
+            [
+                group,
+                dimension,
+                float(dimension == 1),
+                float(dimension == 2),  # noqa: PLR2004
+                0.0,
+            ]
+            for group in range(1, group_count + 1)
+            for dimension in (1, 2)
+        ]
+        _write_csv(
+            target,
+            ["group", "view_dimension", "z_1", "z_2", "z_3"],
+            rows,
+        )
+    elif filename == "viewpoint_angles.csv":
+        group_count = 2 if variant == "pilot_pls_3d_grouped" else 1
+        _write_csv(
+            target,
+            ["group", "azimuth", "elevation"],
+            [[group, 0.0, 1.5707963267948966] for group in range(1, group_count + 1)],
+        )
+    else:
+        raise AssertionError(f"Unhandled synthetic PILOT artifact: {relative}")
 
 
 def _write_profile_file(root: Path, relative: str) -> None:
@@ -139,15 +466,32 @@ def _write_profile_file(root: Path, relative: str) -> None:
         }
         target.write_text(json.dumps(artifact), encoding="utf-8")
     elif relative.endswith("algorithm_labels.csv"):
-        target.write_text("algorithm_name\nalgo_a\n", encoding="utf-8")
+        _write_csv(
+            target,
+            ["algorithm_name"],
+            [[label] for label in _ALGORITHM_LABELS],
+        )
+    elif relative.startswith("build_data/pilot/default/inputs/"):
+        _write_pilot_profile_file(
+            target,
+            relative,
+            "pilot_standard_analytic_3d",
+        )
+    elif (
+        "/pilot/" in relative
+        and len(Path(relative).parts) >= 3  # noqa: PLR2004
+        and Path(relative).parts[2] in _VARIANTS[3:]
+    ):
+        _write_pilot_profile_file(target, relative, Path(relative).parts[2])
     elif "/trace/" in relative and (
         target.name.startswith(("good_", "best_")) or target.name == "hard.csv"
     ):
         target.write_text("part,ring,vertex,is_hole,z_1,z_2\n", encoding="utf-8")
-    elif relative == "shared_inputs/reference/metadata.csv":
-        target.write_text("instance,feature_a\none,1.0\n", encoding="utf-8")
-    elif relative == "shared_inputs/reference/metadata_test.csv":
-        target.write_text("instance,feature_a\ntest,2.0\n", encoding="utf-8")
+    elif relative in {
+        "shared_inputs/reference/metadata.csv",
+        "shared_inputs/reference/metadata_test.csv",
+    }:
+        target.write_bytes((_CURRENT_FIXTURES / relative).read_bytes())
     else:
         target.write_text("value\n1\n", encoding="utf-8")
 
@@ -184,16 +528,23 @@ def _write_bundle(
     root: Path,
     *,
     trust: str = VERIFIED_TRUST,
-    release: str = "R2025a",
+    release: str = "R2026a",
     matlab_dirty: bool = False,
+    profile: str = REFERENCE_PROFILE,
 ) -> dict[str, Any]:
-    profile_paths = _fixed_reference_paths() | _geometry_paths(_ALGORITHM_LABELS)
+    evidence_enabled = profile == REFERENCE_PROFILE
+    is_verified_v2 = trust == VERIFIED_TRUST and evidence_enabled
+    fixed_paths = (
+        _fixed_reference_paths() if evidence_enabled else _fixed_reference_paths_v1()
+    )
+    variants = _VARIANTS if evidence_enabled else _VARIANTS[:3]
+    profile_paths = fixed_paths | _geometry_paths(_ALGORITHM_LABELS)
     for relative in sorted(profile_paths):
         _write_profile_file(root, relative)
     files = [_manifest_entry(root, relative) for relative in sorted(profile_paths)]
     manifest: dict[str, Any] = {
         "schema_version": BUNDLE_SCHEMA,
-        "profile": REFERENCE_PROFILE,
+        "profile": profile,
         "bundle_id": "study-defaults",
         "trust": trust,
         "generated_at": "2026-08-17T00:00:00Z",
@@ -211,11 +562,11 @@ def _write_bundle(
                     "description": f"{variant} reference variant",
                     "path": f"resolved_options/{variant}.json",
                 }
-                for variant in _VARIANTS
+                for variant in variants
             ],
         },
         "matlab": {
-            "repo_commit": _COMMIT,
+            "repo_commit": _GOLD_MATLAB_COMMIT if is_verified_v2 else _COMMIT,
             "repo_dirty": matlab_dirty,
             "toolkit_version": "0.9.0",
             "release": release,
@@ -239,8 +590,10 @@ def _write_bundle(
         "generator": {
             "repo_commit": _COMMIT,
             "repo_dirty": False,
-            "script": "tests/matlab_export/pyis_export_reference_data.m",
-            "script_sha256": _SCRIPT_HASH,
+            "script": _EXPORTER_SCRIPT,
+            "script_sha256": (
+                _REFERENCE_V2_EXPORTER_SHA256 if is_verified_v2 else _SCRIPT_HASH
+            ),
         },
         "files": files,
     }
@@ -268,18 +621,99 @@ def test_verified_bundle_passes_full_integrity_check(tmp_path: Path) -> None:
     report = validate_bundle(tmp_path)
 
     assert report.trust == VERIFIED_TRUST
-    assert report.matlab_release == "R2025a"
+    assert report.matlab_release == "R2026a"
     assert report.file_count == len(
         _fixed_reference_paths() | _geometry_paths(_ALGORITHM_LABELS),
     )
     assert report.total_bytes > 0
 
 
+def test_reference_v2_exporter_identity_matches_checked_in_script() -> None:
+    """Force exporter changes to update the pinned v2 identity explicitly."""
+    exporter = Path(__file__).parents[1] / _EXPORTER_SCRIPT
+
+    assert sha256_file(exporter) == _REFERENCE_V2_EXPORTER_SHA256
+
+
+def test_verified_v2_requires_the_gold_matlab_commit(tmp_path: Path) -> None:
+    """Reject a clean but self-declared MATLAB source identity."""
+    manifest = _write_bundle(tmp_path)
+    manifest["matlab"]["repo_commit"] = "f" * 40
+    _rewrite_manifest(tmp_path, manifest)
+
+    with pytest.raises(ProvenanceError, match="gold MATLAB commit"):
+        validate_bundle(tmp_path)
+
+
+def test_verified_v2_requires_the_canonical_dataset_after_rehash(
+    tmp_path: Path,
+) -> None:
+    """Reject a substituted input even when its manifest metadata is refreshed."""
+    manifest = _write_bundle(tmp_path)
+    relative = "shared_inputs/reference/metadata.csv"
+    target = tmp_path / relative
+    contents = target.read_text(encoding="utf-8")
+    assert "abalone," in contents
+    target.write_text(contents.replace("abalone,", "substitute,", 1), encoding="utf-8")
+    _refresh_entry(tmp_path, _entry_for(manifest, relative))
+    _rewrite_manifest(tmp_path, manifest)
+
+    with pytest.raises(ProvenanceError, match="canonical dataset"):
+        validate_bundle(tmp_path)
+
+
+def test_verified_v2_requires_the_pinned_exporter_hash(tmp_path: Path) -> None:
+    """Reject a syntactically valid self-declared exporter identity."""
+    manifest = _write_bundle(tmp_path)
+    manifest["generator"]["script_sha256"] = "f" * 64
+    _rewrite_manifest(tmp_path, manifest)
+
+    with pytest.raises(ProvenanceError, match="pinned exporter script hash"):
+        validate_bundle(tmp_path)
+
+
+def test_verified_v2_labels_must_match_canonical_metadata(tmp_path: Path) -> None:
+    """Tie every downstream algorithm position to the canonical input headers."""
+    manifest = _write_bundle(tmp_path)
+    for entry in manifest["files"]:
+        relative = entry["path"]
+        if not relative.endswith("algorithm_labels.csv"):
+            continue
+        target = tmp_path / relative
+        contents = target.read_text(encoding="utf-8")
+        assert "NB" in contents
+        target.write_text(contents.replace("NB", "altered", 1), encoding="utf-8")
+        _refresh_entry(tmp_path, entry)
+    _rewrite_manifest(tmp_path, manifest)
+
+    with pytest.raises(ProvenanceError, match="canonical metadata headers"):
+        validate_bundle(tmp_path)
+
+
 def test_reference_profile_declares_the_documented_file_count() -> None:
     """Keep the fixed reference-study profile and documentation synchronized."""
     profile = _fixed_reference_paths() | _geometry_paths(_REFERENCE_ALGORITHM_LABELS)
 
-    assert len(profile) == 229  # noqa: PLR2004
+    assert len(profile) == 323  # noqa: PLR2004
+
+
+def test_frozen_v1_profile_remains_valid(tmp_path: Path) -> None:
+    """Keep the installed 229-file oracle readable during the v2 migration."""
+    _write_bundle(tmp_path, profile=REFERENCE_PROFILE_V1)
+
+    report = validate_bundle(tmp_path)
+
+    assert report.file_count == len(
+        _fixed_reference_paths_v1() | _geometry_paths(_ALGORITHM_LABELS),
+    )
+
+
+def test_verified_v2_profile_requires_r2026a(tmp_path: Path) -> None:
+    """Pin SIMPLS/viewpoint evidence to the audited MATLAB release."""
+    _write_bundle(tmp_path, release="R2025a")
+
+    with pytest.raises(ProvenanceError, match="v2 requires MATLAB R2026a"):
+        validate_bundle(tmp_path)
 
 
 @pytest.mark.parametrize("mutation", ["content", "extra", "missing"])
@@ -367,7 +801,7 @@ def test_verified_bundle_installs_atomically_with_layout_intact(tmp_path: Path) 
         / "trace"
         / "trace3_default"
         / "outputs"
-        / "good_algo_a.csv"
+        / "good_NB.csv"
     ).is_file()
     validate_bundle(destination)
 
@@ -436,10 +870,15 @@ def test_csv_shape_and_empty_status_are_verified(tmp_path: Path) -> None:
         "build_data/pilot/default/outputs/pilot_z.csv",
         "build_data/pythia/trace3_default/outputs/raw_metrics.csv",
         "build_data/trace/trace3_default/outputs/raw_metrics.csv",
-        "build_data/trace/trace3_default/outputs/good_algo_a.csv",
+        "build_data/trace/trace3_default/outputs/good_NB.csv",
         "explore_data/trace/trace3_default/inputs/y_bin.csv",
         "explore_data/pythia/legacy_svm/outputs/predictions.csv",
         "explore_data/trace/trace3_pythia_skip/outputs/membership.csv",
+        "build_data/pilot/pilot_standard_analytic_3d/inputs/stage_context.json",
+        "build_data/pilot/pilot_standard_numerical_3d_x0/inputs/x0.csv",
+        "build_data/pilot/pilot_standard_numerical_3d_precalc/inputs/precalc_alpha.csv",
+        "build_data/pilot/pilot_pls_3d_grouped/outputs/viewpoint_a.csv",
+        "explore_data/pilot/pilot_pls_3d_grouped/outputs/pilot_z.csv",
     ],
 )
 def test_profile_rejects_deleting_file_and_manifest_entry(
@@ -579,6 +1018,127 @@ def test_resolved_variant_values_must_match_export_profile(tmp_path: Path) -> No
         validate_bundle(tmp_path)
 
 
+@pytest.mark.parametrize(
+    ("variant", "field", "value"),
+    [
+        ("pilot_standard_numerical_3d_x0", "ntries", 3),
+        ("pilot_pls_3d_grouped", "analytic", False),
+        ("pilot_pls_3d_grouped", "alpha", 1.0),
+        ("pilot_pls_3d_grouped", "viewGroups", [[1, 2]]),
+    ],
+)
+def test_pilot_evidence_options_are_exact(
+    tmp_path: Path,
+    variant: str,
+    field: str,
+    value: object,
+) -> None:
+    """Reject evidence variants that no longer exercise their named branch."""
+    manifest = _write_bundle(tmp_path)
+    relative = f"resolved_options/{variant}.json"
+    target = tmp_path / relative
+    artifact = json.loads(target.read_text(encoding="utf-8"))
+    artifact["options"]["pilot"][field] = value
+    target.write_text(json.dumps(artifact), encoding="utf-8")
+    _refresh_entry(tmp_path, _entry_for(manifest, relative))
+    _rewrite_manifest(tmp_path, manifest)
+
+    with pytest.raises(ProvenanceError, match="PILOT"):
+        validate_bundle(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("relative", "old", "new", "message"),
+    [
+        (
+            "build_data/pilot/pilot_standard_analytic_3d/outputs/pilot_z.csv",
+            "z_3",
+            "wrong_dimension",
+            "dimensional header",
+        ),
+        (
+            "build_data/pilot/pilot_pls_3d_grouped/outputs/viewpoint_angles.csv",
+            "1.5707963267948966",
+            "1.0",
+            "viewpoint angles",
+        ),
+        (
+            "build_data/pilot/pilot_standard_numerical_3d_precalc/inputs/precalc_alpha.csv",
+            "\n1.0\n",
+            "\n1.05\n",
+            "precalculated",
+        ),
+    ],
+)
+def test_pilot_evidence_artifact_mutations_are_rejected(
+    tmp_path: Path,
+    relative: str,
+    old: str,
+    new: str,
+    message: str,
+) -> None:
+    """Hash-consistent scientific mutations must still violate v2 semantics."""
+    manifest = _write_bundle(tmp_path)
+    target = tmp_path / relative
+    contents = target.read_text(encoding="utf-8")
+    assert old in contents
+    target.write_text(contents.replace(old, new, 1), encoding="utf-8")
+    _refresh_entry(tmp_path, _entry_for(manifest, relative))
+    _rewrite_manifest(tmp_path, manifest)
+
+    with pytest.raises(ProvenanceError, match=message):
+        validate_bundle(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("filename", "message"),
+    [
+        ("pilot_eoptim.csv", "trial objective"),
+        ("pilot_perf.csv", "trial topology"),
+        ("pilot_alpha.csv", "trial objective"),
+    ],
+)
+def test_pilot_trial_metrics_reject_hash_consistent_mutations(
+    tmp_path: Path,
+    filename: str,
+    message: str,
+) -> None:
+    """Recompute every trial instead of trusting rehashed MATLAB diagnostics."""
+    manifest = _write_bundle(tmp_path)
+    relative = "build_data/pilot/pilot_standard_numerical_3d_x0/outputs/" + filename
+    target = tmp_path / relative
+    header, rows = _read_csv_for_mutation(target)
+    if filename == "pilot_alpha.csv":
+        perf_path = target.with_name("pilot_perf.csv")
+        _, perf_rows = _read_csv_for_mutation(perf_path)
+        best = max(range(len(perf_rows)), key=lambda index: float(perf_rows[index][0]))
+        nonselected = next(index for index in range(len(rows[0])) if index != best)
+        rows[0][nonselected] = "999.0"
+    else:
+        rows[0][0] = "999.0"
+    _write_csv(target, header, rows)
+    _refresh_entry(tmp_path, _entry_for(manifest, relative))
+    _rewrite_manifest(tmp_path, manifest)
+
+    with pytest.raises(ProvenanceError, match=message):
+        validate_bundle(tmp_path)
+
+
+def test_pilot_stage_lineage_is_required(tmp_path: Path) -> None:
+    """Reject an options-complete artifact that hides its 2D SIFTED lineage."""
+    manifest = _write_bundle(tmp_path)
+    relative = "build_data/pilot/pilot_pls_2d/inputs/stage_context.json"
+    target = tmp_path / relative
+    context = json.loads(target.read_text(encoding="utf-8"))
+    context["sifted_effective_pilot_dims"] = 3
+    target.write_text(json.dumps(context), encoding="utf-8")
+    _refresh_entry(tmp_path, _entry_for(manifest, relative))
+    _rewrite_manifest(tmp_path, manifest)
+
+    with pytest.raises(ProvenanceError, match="upstream dimensions"):
+        validate_bundle(tmp_path)
+
+
 def test_profile_rejects_path_metadata_mismatch(tmp_path: Path) -> None:
     """Require manifest phase, stage, and variant to agree with the path."""
     manifest = _write_bundle(tmp_path)
@@ -598,7 +1158,7 @@ def test_trace_geometry_schema_accepts_parts_and_holes(tmp_path: Path) -> None:
     manifest = _write_bundle(tmp_path)
     entry = _entry_for(
         manifest,
-        "build_data/trace/trace3_default/outputs/good_algo_a.csv",
+        "build_data/trace/trace3_default/outputs/good_NB.csv",
     )
     target = tmp_path / entry["path"]
     target.write_text(
@@ -648,7 +1208,7 @@ def test_trace_geometry_schema_rejects_ambiguous_data(
     manifest = _write_bundle(tmp_path)
     entry = _entry_for(
         manifest,
-        "build_data/trace/trace3_default/outputs/good_algo_a.csv",
+        "build_data/trace/trace3_default/outputs/good_NB.csv",
     )
     target = tmp_path / entry["path"]
     target.write_text(geometry, encoding="utf-8")

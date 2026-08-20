@@ -22,7 +22,7 @@ function pyis_export_reference_data(toolkitRoot, outputRoot, varargin)
 %                   are recorded. Defaults to the checkout containing this
 %                   script.
 %   mode          - 'verified' (default) requires clean repositories and
-%                   MATLAB R2025a+; 'diagnostic' permits an older or dirty
+%                   MATLAB R2026a; 'diagnostic' permits an older or dirty
 %                   environment but cannot produce a parity oracle.
 %
 %   The output contains manifest.json plus shared_inputs/, build_data/, and
@@ -102,9 +102,9 @@ if strcmp(mode, 'verified')
         error('pyis_export:dirtySource', ...
             'Verified exports require clean MATLAB and generator repositories.');
     end
-    if ~releaseAtLeast(matlabRelease, 'R2025a')
+    if ~strcmp(matlabRelease, 'R2026a')
         error('pyis_export:oldMatlab', ...
-            'Verified exports require MATLAB R2025a or newer; found %s.', matlabRelease);
+            'Reference-export/v2 requires MATLAB R2026a; found %s.', matlabRelease);
     end
 end
 
@@ -155,6 +155,7 @@ obj = obj.build('stages', {'sifted'});
 exportSiftedInputs(preSiftedData, [outputRoot 'build_data/sifted/default/inputs/']);
 exportSiftedArtifacts(obj.model.sifted, [outputRoot 'build_data/sifted/default/outputs/']);
 
+prePilotObj = obj; % snapshot shared by the independent PILOT evidence variants below
 obj = obj.build('stages', {'pilot'});
 exportPilotInputs(obj.model.data, [outputRoot 'build_data/pilot/default/inputs/']);
 exportPilotArtifacts(obj.model.pilot, [outputRoot 'build_data/pilot/default/outputs/']);
@@ -192,8 +193,55 @@ variants = { ...
                            'minInstances', 4, 'minAreaFrac', 0.01, 'contra', true)) ...
 };
 
+% Additive PILOT evidence variants for #262.  X0 and precalcAlpha are
+% effective MATLAB options (PILOT.m consumes them directly), so they are
+% retained in each variant's complete resolved option tree as well as
+% exported as explicit stage inputs.  X0 deliberately has three columns
+% while ntries is one: this proves MATLAB's documented rule that a valid
+% X0 column count overrides ntries.  One restart is enough for the separate
+% viewpoint optimisations and keeps fixture generation bounded.
+nPilotFeatures = size(prePilotObj.model.data.X, 2);
+nPilotAlgorithms = size(prePilotObj.model.data.Y, 2);
+if nPilotAlgorithms < 2
+    error('pyis_export:insufficientAlgorithms', ...
+        'Grouped PILOT viewpoint evidence requires at least two algorithms.');
+end
+pilotEvidenceNtries = 1;
+pilotX0Trials = 3;
+pilotX0Rows = 3 * (2 * nPilotFeatures + nPilotAlgorithms);
+pilotX0 = deterministicStarts(pilotX0Rows, pilotX0Trials);
+groupSplit = max(1, floor(nPilotAlgorithms / 2) - 1);
+pilotEvidenceVariants = { ...
+    struct('name', 'pilot_standard_analytic_3d', ...
+           'desc', 'Three-dimensional standard PILOT analytic solution with the default global viewpoint.', ...
+           'pilot', struct('method', 'standard', 'dims', 3, 'analytic', true, ...
+                           'ntries', pilotEvidenceNtries, 'viewGroups', {{}}), ...
+           'solverInput', 'none'), ...
+    struct('name', 'pilot_standard_numerical_3d_x0', ...
+           'desc', 'Three-dimensional standard PILOT numerical solution from explicit deterministic X0.', ...
+           'pilot', struct('method', 'standard', 'dims', 3, 'analytic', false, ...
+                           'ntries', pilotEvidenceNtries, 'viewGroups', {{}}, 'X0', pilotX0), ...
+           'solverInput', 'x0'), ...
+    struct('name', 'pilot_standard_numerical_3d_precalc', ...
+           'desc', 'Three-dimensional standard PILOT replay of the best exported numerical solution.', ...
+           'pilot', struct('method', 'standard', 'dims', 3, 'analytic', false, ...
+                           'ntries', pilotEvidenceNtries, 'viewGroups', {{}}), ...
+           'solverInput', 'precalc'), ...
+    struct('name', 'pilot_pls_2d', ...
+           'desc', 'Two-dimensional PILOT partial least squares solution from MATLAB SIMPLS.', ...
+           'pilot', struct('method', 'pls', 'dims', 2, 'analytic', false, ...
+                           'ntries', pilotEvidenceNtries, 'viewGroups', {{}}), ...
+           'solverInput', 'none'), ...
+    struct('name', 'pilot_pls_3d_grouped', ...
+           'desc', 'Three-dimensional PILOT partial least squares solution with two grouped viewpoints.', ...
+           'pilot', struct('method', 'pls', 'dims', 3, 'analytic', true, 'alpha', 3.0, ...
+                           'ntries', pilotEvidenceNtries, ...
+                           'viewGroups', {{1:groupSplit, groupSplit+1:nPilotAlgorithms}}), ...
+           'solverInput', 'none') ...
+};
+
 baseObj = obj; % snapshot with prelim/sifted/pilot/cloister already completed
-resolvedVariantRecords = cell(1, numel(variants));
+resolvedVariantRecords = cell(1, numel(variants) + numel(pilotEvidenceVariants));
 for v = 1:numel(variants)
     variant = variants{v};
     fprintf('[EXPORT] === PYTHIA/TRACE variant ''%s'': %s ===\n', variant.name, variant.desc);
@@ -248,6 +296,83 @@ for v = 1:numel(variants)
         [outputRoot 'explore_data/trace/' variant.name '/inputs/']);
     exportTraceExploreArtifacts(testOut, ...
         [outputRoot 'explore_data/trace/' variant.name '/outputs/']);
+end
+
+% =========================================================================
+% PILOT dimensionality/method/viewpoint evidence.  Each variant is built
+% from the same post-SIFTED snapshot.  A complete downstream build is still
+% required because InstanceSpace.explore intentionally rejects partial
+% models; PYTHIA skip avoids unrelated classifier fitting while retaining a
+% genuine public explore-path projection.
+% =========================================================================
+bestNumericalAlpha = [];
+for v = 1:numel(pilotEvidenceVariants)
+    variant = pilotEvidenceVariants{v};
+    fprintf('[EXPORT] === PILOT evidence variant ''%s'': %s ===\n', ...
+        variant.name, variant.desc);
+    obj = prePilotObj;
+    fields = fieldnames(variant.pilot);
+    for f = 1:numel(fields)
+        obj.opts.pilot.(fields{f}) = variant.pilot.(fields{f});
+    end
+    if strcmp(variant.solverInput, 'precalc')
+        if isempty(bestNumericalAlpha)
+            error('pyis_export:missingPrecalculatedPilot', ...
+                'The X0 evidence variant must run before precalc replay.');
+        end
+        obj.opts.pilot.precalcAlpha = bestNumericalAlpha;
+    end
+    obj.opts.pythia.skip = true;
+    obj.opts.trace.method = 'trace3';
+    obj.opts.trace.PI = 0.6;
+    obj.opts.trace.minInstances = 4;
+    obj.opts.trace.minAreaFrac = 0.01;
+    obj.opts.trace.contra = false;
+    obj.opts = ISAdefaults(ISAvalidateOpts(obj.opts));
+
+    isPLS = strcmpi(obj.opts.pilot.method, 'pls');
+    if isPLS
+        % PRELIM intentionally centres the reference study almost exactly.
+        % A deterministic nonzero shift makes this stage oracle sensitive to
+        % SIMPLS's mandatory internal centring instead of allowing an
+        % uncentred implementation to pass accidentally.
+        obj.model.data = shiftedPilotData(obj.model.data);
+    end
+    obj = obj.build('stages', {'pilot', 'cloister', 'pythia', 'trace'});
+    pilotData = obj.model.data;
+    pilotOut = obj.model.pilot;
+    resolvedOptions = obj.model.opts;
+    if strcmp(variant.solverInput, 'x0')
+        [~, bestIdx] = max(pilotOut.perf);
+        bestNumericalAlpha = pilotOut.alpha(:, bestIdx);
+    end
+
+    resolvedPath = ['resolved_options/' variant.name '.json'];
+    writeJson(struct( ...
+        'schema_version', 'pyinstancespace.resolved-options/v1', ...
+        'name', variant.name, ...
+        'description', variant.desc, ...
+        'options', resolvedOptions), ...
+        [outputRoot resolvedPath]);
+    resolvedVariantRecords{numel(variants) + v} = struct( ...
+        'name', variant.name, ...
+        'description', variant.desc, ...
+        'path', resolvedPath);
+
+    buildRoot = [outputRoot 'build_data/pilot/' variant.name '/'];
+    exportPilotInputs(pilotData, [buildRoot 'inputs/']);
+    exportPilotSolverInputs(resolvedOptions.pilot, variant.solverInput, ...
+        [buildRoot 'inputs/']);
+    exportPilotStageContext(isPLS, nPilotFeatures, nPilotAlgorithms, ...
+        [buildRoot 'inputs/stage_context.json']);
+    exportPilotArtifacts(pilotOut, [buildRoot 'outputs/'], ...
+        pilotData.algolabels);
+
+    obj = obj.explore(pipelineRoot);
+    testOut = obj.getResults(1);
+    exploreRoot = [outputRoot 'explore_data/pilot/' variant.name '/'];
+    exportPilotExploreInputs(testOut, obj.model, [exploreRoot 'inputs/']);
+    exportPilotExploreArtifacts(testOut, [exploreRoot 'outputs/']);
 end
 
 rmdir(workRoot, 's');
@@ -305,7 +430,8 @@ end
 
 function exportPythiaInputs(model, destDir)
 mkdirIfMissing(destDir);
-writeMatrixCSV(model.pilot.Z, {'z_1', 'z_2'}, model.data.instlabels(:), ...
+writeMatrixCSV(model.pilot.Z, coordinateLabels(size(model.pilot.Z, 2)), ...
+    model.data.instlabels(:), ...
     [destDir 'z.csv']);
 writeMatrixCSV(model.data.Yraw, model.data.algolabels, model.data.instlabels(:), ...
     [destDir 'y_raw.csv']);
@@ -318,7 +444,8 @@ end
 
 function exportTraceInputs(model, destDir)
 mkdirIfMissing(destDir);
-writeMatrixCSV(model.pilot.Z, {'z_1', 'z_2'}, model.data.instlabels(:), ...
+writeMatrixCSV(model.pilot.Z, coordinateLabels(size(model.pilot.Z, 2)), ...
+    model.data.instlabels(:), ...
     [destDir 'z.csv']);
 writeMatrixCSV(double(model.data.Ybin), model.data.algolabels, model.data.instlabels(:), ...
     [destDir 'y_bin.csv']);
@@ -393,7 +520,7 @@ if isfield(siftedOut, 'selvars')
 end
 end
 
-function exportPilotArtifacts(pilotOut, destDir)
+function exportPilotArtifacts(pilotOut, destDir, varargin)
 % pilot.summary is already a labelled cell table (feature name -> A's
 % coefficients per projected dimension) -- export it directly, same
 % pattern output/scriptcsv.m uses for container.pilot.summary, rather
@@ -406,7 +533,8 @@ end
 writeMatrixCSV(pilotOut.A, [], [], [destDir 'pilot_a_raw.csv']);
 writeMatrixCSV(pilotOut.B, [], [], [destDir 'pilot_b.csv']);
 writeMatrixCSV(pilotOut.C, [], [], [destDir 'pilot_c.csv']);
-writeMatrixCSV(pilotOut.Z, [], [], [destDir 'pilot_z.csv']);
+writeMatrixCSV(pilotOut.Z, coordinateLabels(size(pilotOut.Z, 2)), [], ...
+    [destDir 'pilot_z.csv']);
 writeMatrixCSV(pilotOut.R2(:), {'r2'}, [], [destDir 'pilot_r2.csv']);
 writetable(table(pilotOut.error, 'VariableNames', {'error'}), [destDir 'pilot_error.csv']);
 % eoptim/perf/alpha/X0 only exist on the numerical (non-analytic) solve
@@ -424,6 +552,87 @@ end
 if isfield(pilotOut, 'X0') && ~isempty(pilotOut.X0)
     writeMatrixCSV(pilotOut.X0, [], [], [destDir 'pilot_x0.csv']);
 end
+if isfield(pilotOut, 'viewpoint') && ~isempty(pilotOut.viewpoint)
+    if isempty(varargin)
+        error('pyis_export:missingPilotAlgorithmLabels', ...
+            'Viewpoint export requires algorithm labels.');
+    end
+    exportPilotViewpointArtifacts(pilotOut.viewpoint, varargin{1}, destDir);
+end
+end
+
+function exportPilotSolverInputs(pilotOpts, solverInput, destDir)
+mkdirIfMissing(destDir);
+if strcmp(solverInput, 'x0')
+    writeMatrixCSV(pilotOpts.X0, [], [], [destDir 'x0.csv']);
+elseif strcmp(solverInput, 'precalc')
+    writeMatrixCSV(pilotOpts.precalcAlpha, {'precalc_alpha'}, [], ...
+        [destDir 'precalc_alpha.csv']);
+elseif ~strcmp(solverInput, 'none')
+    error('pyis_export:unknownPilotSolverInput', ...
+        'Unknown PILOT solver-input mode ''%s''.', solverInput);
+end
+end
+
+function exportPilotStageContext(isPLS, nfeatures, nalgorithms, filename)
+if isPLS
+    transform = 'deterministic-column-shift';
+    featureShift = 0.25 * (1:nfeatures);
+    algorithmShift = 0.4 * (1:nalgorithms);
+else
+    transform = 'none';
+    featureShift = [];
+    algorithmShift = [];
+end
+context = struct( ...
+    'schema_version', 'pyinstancespace.pilot-evidence-context/v1', ...
+    'scope', 'pilot-stage', ...
+    'upstream_snapshot', 'build_data/pilot/default/inputs', ...
+    'sifted_effective_pilot_dims', 2, ...
+    'input_transform', transform, ...
+    'feature_shift', featureShift, ...
+    'algorithm_shift', algorithmShift, ...
+    'explore_projection', 'InstanceSpace.explore: Z=X*A'' (uncentred)');
+writeJson(context, filename);
+end
+
+function exportPilotExploreInputs(testOut, trainedModel, destDir)
+mkdirIfMissing(destDir);
+writeMatrixCSV(testOut.data.X, trainedModel.data.featlabels, ...
+    testOut.data.instlabels(:), [destDir 'x.csv']);
+writeMatrixCSV(trainedModel.pilot.A, trainedModel.data.featlabels, ...
+    coordinateLabels(size(trainedModel.pilot.A, 1)), ...
+    [destDir 'projection_a.csv']);
+end
+
+function exportPilotExploreArtifacts(testOut, destDir)
+mkdirIfMissing(destDir);
+writeMatrixCSV(testOut.pilot.Z, coordinateLabels(size(testOut.pilot.Z, 2)), ...
+    testOut.data.instlabels(:), [destDir 'pilot_z.csv']);
+end
+
+function exportPilotViewpointArtifacts(viewpointOut, algolabels, destDir)
+ngroups = numel(viewpointOut.groups);
+groupRows = cell(0, 4);
+matrixRows = zeros(2 * ngroups, 5);
+for g = 1:ngroups
+    members = viewpointOut.groups{g};
+    for member = 1:numel(members)
+        groupRows(end+1, :) = {g, member, members(member), ...
+            algolabels{members(member)}}; %#ok<AGROW>
+    end
+    rows = (2*g-1):(2*g);
+    matrixRows(rows, :) = [repmat(g, 2, 1), (1:2)', viewpointOut.A{g}];
+end
+groupTable = cell2table(groupRows, 'VariableNames', ...
+    {'group', 'member', 'algorithm_index', 'algorithm'});
+writetable(groupTable, [destDir 'viewpoint_groups.csv']);
+matrixTable = array2table(matrixRows, 'VariableNames', ...
+    {'group', 'view_dimension', 'z_1', 'z_2', 'z_3'});
+writetable(matrixTable, [destDir 'viewpoint_a.csv']);
+angleTable = table((1:ngroups)', viewpointOut.azimuth(:), viewpointOut.elevation(:), ...
+    'VariableNames', {'group', 'azimuth', 'elevation'});
+writetable(angleTable, [destDir 'viewpoint_angles.csv']);
 end
 
 function exportCloisterArtifacts(cloistOut, destDir)
@@ -763,6 +972,25 @@ names = matlab.lang.makeValidName(cellstr(names));
 names = matlab.lang.makeUniqueStrings(names);
 end
 
+function labels = coordinateLabels(dims)
+labels = arrayfun(@(index) sprintf('z_%d', index), 1:dims, ...
+    'UniformOutput', false);
+end
+
+function X0 = deterministicStarts(rows, ntries)
+state = rng;
+cleanupObj = onCleanup(@() rng(state));
+rng('default');
+X0 = 2 * rand(rows, ntries) - 1;
+end
+
+function data = shiftedPilotData(data)
+featureShift = 0.25 * (1:size(data.X, 2));
+algorithmShift = 0.4 * (1:size(data.Y, 2));
+data.X = data.X + featureShift;
+data.Y = data.Y + algorithmShift;
+end
+
 function [featlabels, algolabels] = readMetadataLabels(filename)
 metadata = readtable(filename, 'VariableNamingRule', 'preserve');
 names = metadata.Properties.VariableNames;
@@ -854,7 +1082,7 @@ resolvedOptions.schema_version = 'pyinstancespace.resolved-options-index/v1';
 resolvedOptions.variants = [resolvedVariantRecords{:}];
 manifest = struct();
 manifest.schema_version = 'pyinstancespace.matlab-fixtures/v1';
-manifest.profile = 'pyinstancespace.reference-export/v1';
+manifest.profile = 'pyinstancespace.reference-export/v2';
 manifest.bundle_id = 'reference-current';
 manifest.trust = trust;
 manifest.generated_at = string(datetime('now', 'TimeZone', 'UTC'), ...
@@ -935,17 +1163,6 @@ messageDigest = java.security.MessageDigest.getInstance('SHA-256');
 messageDigest.update(bytes);
 rawDigest = typecast(messageDigest.digest(), 'uint8');
 digest = lower(reshape(dec2hex(rawDigest, 2).', 1, []));
-end
-
-function result = releaseAtLeast(actual, required)
-actualTokens = regexp(actual, '^R(\d{4})([ab])$', 'tokens', 'once');
-requiredTokens = regexp(required, '^R(\d{4})([ab])$', 'tokens', 'once');
-if isempty(actualTokens) || isempty(requiredTokens)
-    error('pyis_export:badRelease', 'Invalid MATLAB release value.');
-end
-actualKey = str2double(actualTokens{1}) * 2 + strcmp(actualTokens{2}, 'b');
-requiredKey = str2double(requiredTokens{1}) * 2 + strcmp(requiredTokens{2}, 'b');
-result = actualKey >= requiredKey;
 end
 
 function cleanupTemporaryRoots(scratchRoot, workRoot)
