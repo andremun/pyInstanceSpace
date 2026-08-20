@@ -1,11 +1,10 @@
+# ruff: noqa: D103, PLR2004, SLF001
 """Tests for PILOT stage's explore()-time inference (_explore_pilot).
 
 Unit tests exercise _explore_pilot() with mocked/stubbed dependencies, independent
-of MATLAB reference data. The validation test loads MATLAB-trained PILOT projection
-matrix A and verifies that _explore_pilot reproduces MATLAB's 2D projection on the
-test set (threshold: max relative error < 1% - PILOT inference is a pure linear
-projection z = x @ A.T, so Python should match MATLAB to floating-point precision
-when fed MATLAB's trained A).
+of MATLAB reference data. PILOT inference is the dimension-generic linear projection
+``z = x @ A.T`` used by MATLAB explore, including its deliberate lack of the
+centering used by the PLS build projection.
 """
 
 from pathlib import Path
@@ -52,6 +51,32 @@ def test_pilot_correct_projection() -> None:
     np.testing.assert_array_almost_equal(result, expected)
 
 
+def test_pilot_3d_projection_preserves_matlab_explore_centering_asymmetry() -> None:
+    """Explore uses exact uncentred X @ A.T even when a PLS build was centred."""
+    a = np.array(
+        [
+            [1.0, 0.0, 0.0, 0.5],
+            [0.0, 1.0, -1.0, 0.0],
+            [0.25, 0.0, 0.5, 1.0],
+        ],
+    )
+    x = np.array(
+        [
+            [2.0, 4.0, 6.0, 8.0],
+            [4.0, 8.0, 12.0, 16.0],
+            [6.0, 12.0, 18.0, 24.0],
+        ],
+    )
+
+    result = InstanceSpace._explore_pilot(make_instance_space(a), x)
+    uncentred = x @ a.T
+    centred = (x - np.mean(x, axis=0)) @ a.T
+
+    assert result.shape == (x.shape[0], a.shape[0])
+    np.testing.assert_array_equal(result, uncentred)
+    assert not np.array_equal(result, centred)
+
+
 def test_pilot_single_instance() -> None:
     a = _rng.random((2, 4))
     x = _rng.random((1, 4))
@@ -96,7 +121,8 @@ def load_pilot_matrix() -> Mock:
 def test_pilot_matches_matlab() -> None:
     """PILOT max relative error < 1% against MATLAB step3."""
     x_input = pd.read_csv(
-        OUTPUTS_DIR / "step2_after_sifted.csv", index_col="instance_id",
+        OUTPUTS_DIR / "step2_after_sifted.csv",
+        index_col="instance_id",
     ).to_numpy(dtype=np.double)
 
     instance_space = Mock(spec=InstanceSpace)
@@ -106,7 +132,8 @@ def test_pilot_matches_matlab() -> None:
     result = InstanceSpace._explore_pilot(instance_space, x_input)
 
     expected = pd.read_csv(
-        OUTPUTS_DIR / "step3_after_pilot.csv", index_col=0,
+        OUTPUTS_DIR / "step3_after_pilot.csv",
+        index_col=0,
     ).to_numpy(dtype=np.double)
 
     assert result.shape == expected.shape
@@ -118,7 +145,7 @@ def test_pilot_matches_matlab() -> None:
     print(f"Max relative error: {max_err * 100:.4f}%")
     print(f"Mean relative error: {mean_err * 100:.6f}%")
 
-    assert max_err < 0.01, (
-        f"PILOT max relative error {max_err * 100:.4f}% >= 1% threshold"
-    )
+    assert (
+        max_err < 0.01
+    ), f"PILOT max relative error {max_err * 100:.4f}% >= 1% threshold"
     print(f"[PASS] PILOT validation: {max_err * 100:.4f}% max error")

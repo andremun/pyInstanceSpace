@@ -89,6 +89,9 @@ from instancespace.utils.print_options import format_options
 # Fraction of explore()-time instances clipped to the training PRELIM bounds above
 # which an out-of-distribution warning fires (matches MATLAB's exploreIS.m).
 _OOD_CLIPPED_FRACTION_THRESHOLD = 0.05
+_PROJECTION_ARRAY_DIMENSIONS = 2
+_TRACE_COORDINATE_DIMENSIONS = 2
+_THREE_DIMENSIONAL_PROJECTION = 3
 
 T = TypeVar("T", bound="_InstanceSpaceInputs")
 
@@ -744,7 +747,7 @@ class InstanceSpace:
         to new test instances. It performs:
         1. Feature preprocessing (PRELIM normalization)
         2. Feature selection (SIFTED)
-        3. Dimensionality reduction to 2D (PILOT projection)
+        3. Dimensionality reduction to the trained 2D/3D PILOT projection
         4. Algorithm performance prediction (PYTHIA SVMs)
         5. Footprint membership analysis (TRACE)
 
@@ -771,6 +774,10 @@ class InstanceSpace:
                 If build() has not been called before explore().
             ValueError
                 If test_metadata features don't match training features.
+            NotImplementedError
+                If the trained or explored projection is 3D. PILOT and PYTHIA
+                remain dimension-generic, but explore-time TRACE membership and
+                rescoring require a native 3D geometry engine.
         """
         # Run every inference stage, then assemble the result from each stage's output
         stages = {
@@ -865,6 +872,10 @@ class InstanceSpace:
                 If build() has not been called before explore().
             ValueError
                 If test_metadata features don't match training features.
+            NotImplementedError
+                On advancing to TRACE for a 3D trained or explored projection.
+                PRELIM, SIFTED, PILOT, and PYTHIA remain available through the
+                preceding lazy yields.
         """
         self._validate_for_explore(test_metadata)
 
@@ -895,6 +906,7 @@ class InstanceSpace:
                 y_hat,
                 new_algo_labels,
             )
+            self._validate_explore_trace_dimensions(z)
             rescored_trace = TraceStage.rescore(
                 self._require_model().trace,
                 z,
@@ -1091,7 +1103,11 @@ class InstanceSpace:
         return x[:, selected_indices]
 
     def _explore_pilot(self, x: NDArray[np.double]) -> NDArray[np.double]:
-        """Project features to 2D instance space using PILOT.
+        """Project features into the trained 2D or 3D PILOT instance space.
+
+        MATLAB's public explore path deliberately applies ``Z = X @ A.T``
+        without subtracting a training or test mean. This retains MATLAB's
+        existing asymmetry with a centred PLS build projection.
 
         Args
         ----
@@ -1101,7 +1117,9 @@ class InstanceSpace:
         Returns
         -------
             NDArray[np.double]
-                2D coordinates with shape (n_instances, 2).
+                Coordinates with shape
+                (n_instances, n_projection_dimensions), where the second
+                dimension is the number of rows in the trained PILOT ``A``.
         """
         a = self._require_model().pilot.a
         return x @ a.T
@@ -1113,8 +1131,9 @@ class InstanceSpace:
     ) -> tuple[NDArray[np.bool_], NDArray[np.double], NDArray[np.int_]]:
         """Get algorithm predictions using PYTHIA's trained classifiers.
 
-        Ports MATLAB PYTHIAtest.m: z-score normalises the 2D coordinates using the
-        training projection's own mean/std, recomputed here from ``model.pilot.z``
+        Ports MATLAB PYTHIAtest.m: z-score normalises the projected coordinates
+        using the training projection's own mean/std, recomputed here from
+        ``model.pilot.z``
         via ``PythiaStage._compute_znorm`` (F8 - the same formula
         ``PythiaStage._run()`` itself uses, rather than a separately
         maintained copy) instead of reading back the stored
@@ -1140,7 +1159,8 @@ class InstanceSpace:
         Args
         ----
             z : NDArray[np.double]
-                2D coordinates with shape (n_instances, 2).
+                Coordinates with shape
+                (n_instances, n_projection_dimensions).
             n_new_algos : int
                 Number of test-set-only algorithms (from `_find_new_algorithms`)
                 to pad the output with. `0` (default) reproduces this method's
@@ -1224,7 +1244,17 @@ class InstanceSpace:
             tuple[NDArray[np.bool_], NDArray[np.bool_]]
                 - in_good: (n_instances, n_trained_algorithms + n_new_algos) bool array
                 - in_best: same shape
+
+        Raises
+        ------
+            NotImplementedError
+                If either the trained or explored projection is 3D. Shapely
+                footprints cannot represent the required native 3D TRACE geometry.
+            ValueError
+                If either projection is not a two-dimensional matrix with a
+                supported coordinate count.
         """
+        InstanceSpace._validate_explore_trace_dimensions(self, z)
         trace = self._require_model().trace
         n = z.shape[0]
         n_trained = len(trace.good)
@@ -1243,6 +1273,34 @@ class InstanceSpace:
                 in_best[:, j] = [best_poly.covers(p) for p in points]
 
         return in_good, in_best
+
+    def _validate_explore_trace_dimensions(
+        self,
+        z: NDArray[np.double],
+    ) -> None:
+        """Reject unsupported geometry before TRACE membership or rescoring."""
+        projections = {
+            "trained": np.asarray(self._require_model().pilot.z),
+            "explored": np.asarray(z),
+        }
+        for name, projection in projections.items():
+            if projection.ndim != _PROJECTION_ARRAY_DIMENSIONS:
+                raise ValueError(
+                    f"TRACE explore requires {name} Z to be a two-dimensional "
+                    "matrix.",
+                )
+            dimensions = projection.shape[1]
+            if dimensions == _THREE_DIMENSIONAL_PROJECTION:
+                raise NotImplementedError(
+                    "3D TRACE explore membership and rescoring are not implemented. "
+                    "PILOT and PYTHIA retain all three coordinates, but Shapely "
+                    "footprints are two-dimensional.",
+                )
+            if dimensions != _TRACE_COORDINATE_DIMENSIONS:
+                raise ValueError(
+                    f"TRACE explore requires {name} Z to have exactly two "
+                    f"coordinates; received {dimensions}.",
+                )
 
     def _find_new_algorithms(
         self,

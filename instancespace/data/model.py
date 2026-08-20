@@ -479,8 +479,10 @@ class ExploreResult:
         Processed features after PRELIM/SIFTED transformations.
         Shape: (n_instances, n_selected_features).
     z : NDArray[np.double]
-        Projected coordinates in 2D instance space from PILOT.
-        Shape: (n_instances, 2).
+        Projected coordinates from PILOT. Shape:
+        (n_instances, n_projection_dimensions), where the projection has two
+        or three coordinates. Full 3D explore results remain gated by TRACE's
+        pending native 3D geometry engine.
     y_hat : NDArray[np.bool_] | None
         Binary algorithm predictions from PYTHIA SVMs.
         Shape: (n_instances, n_algorithms). None if PYTHIA not applied.

@@ -1,3 +1,4 @@
+# ruff: noqa: ANN001, COM812, D103, PLR2004, PT018, SLF001
 """Tests for TRACE stage's explore()-time inference (_explore_trace).
 
 Unit tests exercise footprint-membership logic directly, plus TraceStage's
@@ -30,6 +31,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd
+import pytest
 from shapely.geometry import MultiPolygon, Polygon
 
 from instancespace.data.model import Footprint, TraceOut
@@ -62,12 +64,16 @@ def make_footprint(polygon: Polygon | None) -> Footprint:
 def make_instance_space(
     good_polys: list[Polygon | None],
     best_polys: list[Polygon | None],
+    trained_dimensions: int = 2,
 ) -> InstanceSpace:
     trace = Mock(spec=TraceOut)
     trace.good = [make_footprint(p) for p in good_polys]
     trace.best = [make_footprint(p) for p in best_polys]
     model = Mock()
     model.trace = trace
+    model.pilot = SimpleNamespace(
+        z=np.zeros((1, trained_dimensions), dtype=np.double),
+    )
     instance_space = Mock(spec=InstanceSpace)
     instance_space._model = model
     instance_space._require_model = Mock(return_value=model)
@@ -90,13 +96,39 @@ def test_trace_inside_outside_and_matlab_boundary_semantics() -> None:
     square = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
     space = make_instance_space([square], [square])
     z = np.array([[0.5, 0.5], [2.0, 2.0], [0.0, 0.0]])
-    in_good, in_best = InstanceSpace._explore_trace(space, z)  # noqa: SLF001
+    in_good, in_best = InstanceSpace._explore_trace(space, z)
     assert in_good[0, 0]
     assert not in_good[1, 0]
     assert in_good[2, 0]
     assert in_best[0, 0]
     assert not in_best[1, 0]
     assert in_best[2, 0]
+
+
+@pytest.mark.parametrize(
+    ("trained_dimensions", "explored_dimensions"),
+    [(3, 3), (2, 3), (3, 2)],
+)
+def test_trace_rejects_3d_before_constructing_shapely_points(
+    trained_dimensions: int,
+    explored_dimensions: int,
+) -> None:
+    """Neither trained nor new z3 may be silently dropped at membership."""
+    square = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
+    space = make_instance_space(
+        [square],
+        [square],
+        trained_dimensions=trained_dimensions,
+    )
+    z = np.zeros((2, explored_dimensions), dtype=np.double)
+
+    with (
+        patch("instancespace.instance_space.Point") as point,
+        pytest.raises(NotImplementedError, match="3D TRACE explore"),
+    ):
+        InstanceSpace._explore_trace(space, z)
+
+    point.assert_not_called()
 
 
 def test_trace_none_polygon_returns_false() -> None:
@@ -273,6 +305,7 @@ def test_trace_matches_matlab() -> None:
     instance_space._require_model = Mock(return_value=instance_space._model)
 
     z = pd.read_csv(OUTPUTS_DIR / "step3_after_pilot.csv", index_col=0)
+    instance_space._model.pilot = SimpleNamespace(z=z.to_numpy(dtype=np.double))
     in_good, in_best = InstanceSpace._explore_trace(instance_space, z.to_numpy())
 
     ref = pd.read_csv(OUTPUTS_DIR / "step5_trace_membership.csv", index_col=0)
