@@ -17,7 +17,7 @@ from instancespace.data.options import (
     PythiaOptions,
     TraceOptions,
 )
-from instancespace.stages.trace import TraceInputs, TraceStage
+from instancespace.stages.trace import TraceInputs, TraceStage, _matlab_round
 from instancespace.utils.alpha_shape import (
     AlphaShape2D,
     AlphaShape3D,
@@ -33,6 +33,7 @@ TRAINED_AREA = 4.0
 EXPECTED_INSIDE_ELEMENTS = 2
 THREE_DIMENSIONS = 3
 EXPECTED_3D_INSIDE_ELEMENTS = 2
+MATLAB_ROUNDED_TIE = 0.313
 
 
 def _cube() -> NDArray[np.double]:
@@ -80,6 +81,27 @@ def _grid() -> NDArray[np.double]:
         [[float(x), float(y)] for y in range(3) for x in range(3)],
         dtype=np.double,
     )
+
+
+def test_trace_summary_rounds_decimal_ties_away_from_zero() -> None:
+    """R2026a rounds exact three-decimal ties away from zero, not to even."""
+    ties = np.array([0.3125, -0.3125, 0.3124999, -0.3124999], dtype=np.double)
+    np.testing.assert_array_equal(
+        _matlab_round(ties, 3),
+        [MATLAB_ROUNDED_TIE, -MATLAB_ROUNDED_TIE, 0.312, -0.312],
+    )
+    tied_footprint = Footprint(None, 1.0, 16, 5, 1.0, 0.3125)
+    space = Footprint(None, 4.0, 16, 16, 4.0, 1.0)
+
+    summary = TraceStage._summary_table(  # noqa: SLF001
+        [tied_footprint],
+        [tied_footprint],
+        ["tie"],
+        space,
+    )
+
+    assert summary.loc[0, "Purity_Good"] == MATLAB_ROUNDED_TIE
+    assert summary.loc[0, "Purity_Best"] == MATLAB_ROUNDED_TIE
 
 
 def test_min_instances_is_an_exclusive_support_boundary() -> None:
