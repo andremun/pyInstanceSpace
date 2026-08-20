@@ -50,6 +50,7 @@ from_polygon(polygon, z, y_bin, smoothen=False):
 import multiprocessing
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from decimal import ROUND_HALF_UP, Decimal
 from typing import NamedTuple
 
 import numpy as np
@@ -82,8 +83,26 @@ TRACE_2D_COORDINATES = 2
 TRACE_3D_COORDINATES = 3
 TRACE_COORDINATE_COUNTS = (TRACE_2D_COORDINATES, TRACE_3D_COORDINATES)
 MIN_ALPHA_SPECTRUM_SIZE = 2
+TRACE_SUMMARY_DECIMALS = 3
 
 type TraceGeometry = Polygon | MultiPolygon | TetrahedralMesh
+
+
+def _matlab_round(
+    values: NDArray[np.double],
+    decimals: int,
+) -> NDArray[np.double]:
+    """Round decimal ties away from zero, matching MATLAB ``round``."""
+    source = np.asarray(values, dtype=np.double)
+    rounded = source.copy()
+    quantum = Decimal(1).scaleb(-decimals)
+    for index in np.ndindex(source.shape):
+        value = float(source[index])
+        if np.isfinite(value):
+            rounded[index] = float(
+                Decimal(str(value)).quantize(quantum, rounding=ROUND_HALF_UP),
+            )
+    return rounded
 
 
 class TraceInputs(NamedTuple):
@@ -607,7 +626,6 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             best,
             self.algo_labels,
             space,
-            round_values=False,
         )
         # Print the completed summary of the TRACE analysis
         self._log("  -> TRACE has completed. Footprint analysis results:")
@@ -648,7 +666,6 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             best,
             self.algo_labels,
             space,
-            round_values=True,
         )
         return TraceOutputs(space, good, best, hard, summary)
 
@@ -814,10 +831,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         best: list[Footprint],
         algo_labels: list[str],
         space: Footprint,
-        *,
-        round_values: bool,
     ) -> pd.DataFrame:
-        """Build the stable Python TRACE summary schema."""
+        """Build MATLAB's dimension-aware, three-decimal TRACE summary."""
         if len(good) != len(best) or len(good) != len(algo_labels):
             msg = (
                 "TRACE summary requires matching good, best, and algorithm-label "
@@ -846,9 +861,11 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             row = TraceStage.summary(good_footprint, space.area, space.density)
             row.extend(TraceStage.summary(best_footprint, space.area, space.density))
             rows.append(row)
-        numeric = pd.DataFrame(rows, columns=columns)
-        if round_values:
-            numeric = numeric.round(3)
+        values = _matlab_round(
+            np.asarray(rows, dtype=np.double).reshape(len(rows), len(columns)),
+            TRACE_SUMMARY_DECIMALS,
+        )
+        numeric = pd.DataFrame(values, columns=columns)
         return pd.concat(
             [pd.DataFrame(algo_labels, columns=["Algorithm"]), numeric],
             axis=1,
@@ -913,7 +930,6 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             best,
             algo_labels,
             trained.space,
-            round_values=True,
         )
         return TraceOut(trained.space, good, best, hard, summary)
 
