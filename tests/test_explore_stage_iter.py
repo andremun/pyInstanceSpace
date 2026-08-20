@@ -9,7 +9,8 @@ The stage methods' numerical fidelity is covered against MATLAB by the per-stage
 validation suites.
 """
 
-from typing import cast
+from types import SimpleNamespace
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -46,6 +47,7 @@ def _stub_stages(space) -> None:  # type: ignore[no-untyped-def]
     space._explore_pilot = lambda _x: "Z"
     space._explore_pythia = lambda _z, n_new_algos=0: ("yhat", "pr0", "sel")
     space._explore_trace = lambda _z, n_new_algos=0: ("ingood", "inbest")
+    space._validate_explore_trace_dimensions = lambda _z: None
     space._find_new_algorithms = lambda _md, _algo_labels: []
     # Only reached when test_metadata carries ground truth (has_ground_truth
     # branch in explore_stage_iter) - stubbed here too so that path doesn't
@@ -79,6 +81,40 @@ def test_explore_stage_iter_yields_the_five_stages_in_order() -> None:
     assert stages[ExploreStage.TRACE] == ("ingood", "inbest")
     # No ExploreStage.EVALUATION (F9) when the test metadata has no ground truth.
     assert ExploreStage.EVALUATION not in stages
+
+
+def test_3d_stage_iter_yields_through_pythia_then_stops_before_trace() -> None:
+    """The lazy 3D boundary preserves every non-geometry explore output."""
+    z = np.array([[1.0, 2.0, 3.0]], dtype=np.double)
+    model = SimpleNamespace(
+        data=_FakeData(),
+        pilot=SimpleNamespace(z=np.zeros((2, 3), dtype=np.double)),
+        trace=SimpleNamespace(good=[], best=[]),
+    )
+    space = InstanceSpace.__new__(InstanceSpace)
+    stubbed = cast(Any, space)
+    stubbed._validate_for_explore = lambda _md: None
+    stubbed._extract_features = lambda _md: "xraw"
+    stubbed._explore_prelim = lambda x: f"prelim({x})"
+    stubbed._explore_sifted = lambda x: f"sifted({x})"
+    stubbed._explore_pilot = lambda _x: z
+    stubbed._explore_pythia = lambda _z, n_new_algos=0: (
+        "yhat",
+        "pr0",
+        "sel",
+    )
+    stubbed._require_model = lambda: model
+
+    stages = space.explore_stage_iter(_NO_GROUND_TRUTH)
+
+    assert next(stages).stage is ExploreStage.PRELIM
+    assert next(stages).stage is ExploreStage.SIFTED
+    pilot = next(stages)
+    assert pilot.stage is ExploreStage.PILOT
+    np.testing.assert_array_equal(pilot.output, z)
+    assert next(stages).stage is ExploreStage.PYTHIA
+    with pytest.raises(NotImplementedError, match="3D TRACE explore"):
+        next(stages)
 
 
 def test_explore_maps_stage_outputs_onto_the_result() -> None:
@@ -241,6 +277,55 @@ def test_explore_stage_iter_defers_evaluation_until_after_trace_yield(
     assert events == ["trace"]
     assert next(stages).stage is ExploreStage.EVALUATION
     assert events == ["trace", "evaluate", "rescore"]
+
+
+def test_3d_rescore_guard_runs_before_trace_stage_rescore(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Even a substituted membership step cannot pass z3 into TRACE rescore."""
+    with_ground_truth = type("_FakeMetadata", (), {"algorithm_names": ["algo1"]})()
+    z = np.array([[1.0, 2.0, 3.0]], dtype=np.double)
+    model = SimpleNamespace(
+        data=_FakeData(),
+        pilot=SimpleNamespace(z=np.zeros((2, 3), dtype=np.double)),
+        trace="trained_trace",
+    )
+    space = InstanceSpace.__new__(InstanceSpace)
+    _stub_stages(space)
+    stubbed = cast(Any, space)
+    stubbed._explore_pilot = lambda _x: z
+    stubbed._require_model = lambda: model
+    stubbed._validate_explore_trace_dimensions = (
+        lambda value: InstanceSpace._validate_explore_trace_dimensions(space, value)
+    )
+    evaluation = _EvaluationResult(
+        y_actual=np.zeros((1, 1), dtype=np.bool_),
+        y_best_actual=np.zeros(1, dtype=np.double),
+        p_actual=np.ones(1, dtype=np.int_),
+        beta_actual=np.zeros(1, dtype=np.bool_),
+        accuracy_actual=np.zeros(1, dtype=np.double),
+        precision_actual=np.zeros(1, dtype=np.double),
+        recall_actual=np.zeros(1, dtype=np.double),
+        cvcmat_actual=np.zeros((1, 4), dtype=np.double),
+        algo_labels=["algo1"],
+    )
+    space._explore_evaluate = lambda *_args: evaluation  # type: ignore[method-assign]
+
+    def fail_rescore(*_args: object) -> TraceOut:
+        pytest.fail("TraceStage.rescore received a three-dimensional projection")
+
+    monkeypatch.setattr(TraceStage, "rescore", fail_rescore)
+    stages = space.explore_stage_iter(cast(Metadata, with_ground_truth))
+
+    assert [next(stages).stage for _ in range(5)] == [
+        ExploreStage.PRELIM,
+        ExploreStage.SIFTED,
+        ExploreStage.PILOT,
+        ExploreStage.PYTHIA,
+        ExploreStage.TRACE,
+    ]
+    with pytest.raises(NotImplementedError, match="3D TRACE explore"):
+        next(stages)
 
 
 def test_explore_maps_rescored_trace_onto_ground_truth_result(
