@@ -1,9 +1,10 @@
 # Open-issue remediation plan
 
-> Historical plan for the predecessor `codex/open-issue-big-rocks` pass. Its MATLAB
-> availability and deferred-work statements describe that earlier baseline. See
-> `docs/reliability_trace3_plan.md` and `docs/implemented_fixes.md` for the completed
-> R2026a continuation and current status.
+> **Superseded historical plan.** Its MATLAB-availability and deferred-work statements
+> describe the predecessor `codex/open-issue-big-rocks` baseline. Current status includes
+> native 3D PILOT/TRACE3/output and an installed 423-file, `matlab-verified` MATLAB
+> R2026a Update 4 v2 oracle. See `docs/architecture.md`, `docs/implemented_fixes.md`,
+> and `docs/pending_issue_backlog.md`; the body below is retained as history.
 
 ## Baseline
 

@@ -1,5 +1,11 @@
 # Reliability and TRACE3 remediation plan
 
+> **Superseded historical plan (2026-08-20).** This records the branch-two design and
+> its former 2D/current-gold limits. The implemented branch-three contract includes
+> native 3D PILOT, TRACE3, plotting, and serialization, backed by the installed
+> 423-file R2026a Update 4 v2 oracle (84 provenance tests; 36 current readers). See
+> `docs/architecture.md` and `docs/implemented_fixes.md` for current status.
+
 ## Baseline
 
 - Python base: `codex/open-issue-big-rocks` at `d175048`

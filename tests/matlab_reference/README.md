@@ -4,7 +4,9 @@ These files predate the repository's provenance manifest. Their MATLAB commit, r
 resolved options, input hashes, and generator state cannot be verified, so they are
 `legacy-unknown` regression snapshots—not current MATLAB ground truth or a numerical
 oracle. Tests may use them to detect unexpected drift, but current parity claims must use
-the verified bundle under `tests/fixtures/matlab/current/`.
+the installed 423-file, `matlab-verified` R2026a Update 4 v2 bundle under
+`tests/fixtures/matlab/current/`. Frozen verified v1 bundles remain readable but are not
+the installed current oracle; these historical snapshots have no verified profile.
 
 ## Directory Structure
 

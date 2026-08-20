@@ -1,62 +1,72 @@
 # MATLAB parity next-wave plan
 
-## Scope
+## Status and scope
 
-This pass starts from the active v0.9 development branch, carries forward the completed
-reliability/TRACE3 work, resolves the two new reviewer reports, and then implements the
-five prioritized follow-ups. `main` is not an integration source.
+This implementation pass runs on `codex/matlab-parity-next-wave`, not `main`. It starts
+from `v0.9.0/development-branch-QSF` at `3a7f21a`, which contains branch 1
+`codex/open-issue-big-rocks` at `d175048` through PR #319 (`324830c`). It carries branch 2
+`codex/validation-serialization-trace3` at `67c73de` through merge `030937d`.
 
-## Sequence
+MATLAB InstanceSpace `34c0129` under R2026a Update 4 is the behavioral authority. The
+verified 423-file v2 oracle is installed. Implementation and scientific gates are complete.
+Full-suite accounting is 988 passed with 63 documented warnings: 987 passed in the sandbox,
+and the sole macOS semaphore-permission failure passed 1/1 outside it.
 
-1. **Integrate and baseline**
-   - Refresh `origin/v0.9.0/development-branch-QSF`.
-   - Create `codex/matlab-parity-next-wave` and merge the completed branch.
-   - Prove both ancestries and run the full suite before edits.
+## Delivery status
 
-2. **Resolve reviewer reports**
-   - Audit #320/#321 against MATLAB and current Python contracts; record that #322 is not
-     present in the public tracker.
-   - Remove only genuinely dead alpha-region code; retain simplex semantics.
-   - Use one JSON-key canonicalizer and cover Unicode-equivalent conflicts.
+1. **Integrated and baselined — complete**
+   - Proved development, branch 1, and branch 2 ancestry before branch 3 work.
+   - Preserved the completed validation, serialization, provenance, and 2D TRACE3 work.
 
-3. **Match PYTHIA KNN fitting semantics**
-   - Preserve MATLAB's nominal 1--25 Sobol and Bayesian search range.
-   - Cap neighbours independently when each fold or final model is fitted, while retaining
-     the requested parameter in reports.
-   - Remove the incompatible precalculated upper rejection and promote invalid-neighbour
-     warnings to errors in focused tests.
+2. **Resolved reviewer reports — complete**
+   - Removed #320's genuinely dead polygon-region helper without changing active simplex
+     semantics.
+   - Resolved #321 with one `casefold()` JSON-key canonicalizer and conflict tests.
 
-4. **Dispose of #272 as superseded**
-   - Pin the R2026a two-region all-points contract.
-   - Retain valid `MultiPolygon` topology; add no single-region retry.
-   - Record the separate MATLAB CSV helper defect for the MATLAB repository.
+3. **Matched PYTHIA KNN and RNG semantics — complete**
+   - Retained KNN's nominal 1--25 domain and applied the MATLAB cap at each fit.
+   - Preserved requested parameters in reports and eliminated invalid-neighbour score
+     warnings.
+   - Applied one-based `seed + i` per algorithm and retained its actual splitter.
 
-5. **Complete #262**
-   - Add validated 2D/3D PILOT options; make PILOT own SIFTED dimensionality.
-   - Generalize analytic, numerical, and PLS projection paths, including MATLAB-order
-     solution packing, NaN-loss axes, rank fallback, and double-precision outputs.
-   - Port MATLAB viewpoint grouping/selection with `2 x 3` view matrices and radian angles.
-   - Add R2026a 3D fixtures and prove existing 2D parity.
+4. **Disposed of #272 — complete as superseded**
+   - Pinned R2026a's valid multi-region all-points contract.
+   - Added no single-region retry and recorded the separate MATLAB CSV helper defect.
 
-6. **Re-baseline #304**
-   - Export a verified R2026a Bayesian SVM variant.
-   - Compare equal-budget search traces and final models.
-   - Correct a proven defect or retain current defaults with an evidence-backed note.
+5. **Completed #262 — complete and verified**
+   - Added validated 2D/3D PILOT options and SIFTED dimensionality propagation.
+   - Generalized analytic, numerical, and SIMPLS paths, including MATLAB packing, loss,
+     restart, fallback, and dtype contracts.
+   - Ported and persisted grouped 3D viewpoints.
+   - Verified PILOT/viewpoint build and public explore projection with R2026a v2 fixtures.
 
-7. **Complete #265 and 3D TRACE3**
-   - Define and test the 3D numerical/mesh serialization schema.
-   - Add 3D output and visualization without altering 2D schemas.
-   - Implement tetrahedral TRACE3 construction, membership, metrics, and rescoring.
-   - Verify 3D build and explore against MATLAB.
+6. **Re-baselined #304 — audit complete; evidence deferred**
+   - Withdrew the old convergence claim because it used rounded `legacy-unknown` metrics.
+   - Confirmed MATLAB's expected-improvement-plus/four-seed configuration and retained
+     Python's closest supported analogue without changing the shared budget.
+   - Fixed the proven per-algorithm RNG boundary.
+   - Did not add a Bayesian optimizer trace to v2; repeated-seed candidate/objective traces
+     remain required before any convergence or default change.
 
-8. **Close out**
-   - Run the full test/static/provenance/parity gates.
-   - Update `docs/implemented_fixes.md` and `docs/pending_issue_backlog.md`.
-   - Record confirmed divergences and deliberately deferred polish.
+7. **Completed #265 and native 3D TRACE3 — complete and verified**
+   - Added native 3D projection output, plotting, camera use, and a versioned mesh schema.
+   - Added tetrahedral TRACE3 construction, membership, metrics, parallel execution, and
+     fixed-geometry explore rescoring.
+   - Matched R2026a topology, spectra, raw metrics, membership, and rescored summaries.
+
+8. **Closed out provenance and documentation — focused gates complete**
+   - Generated and installed verified `reference-export/v2`: 423 files from clean MATLAB
+     `34c0129` and Python generator `cf3cde0`.
+   - Passed 84 provenance tests and 36 current-gold readers, including 3/3 native 3D TRACE
+     readers.
+   - Updated implemented fixes, architecture, and the pending backlog.
+   - Recorded the platform-split full-suite result: 987 sandbox passes plus the sole
+     semaphore-permission test passing 1/1 outside the sandbox, for 988 passed and 63
+     documented warnings.
 
 ## Test policy
 
-Tests compare scientific invariants rather than unstable vertex order, optimizer rotation,
-or exact-tie choices. Counts and discrete topology are exact; floating geometry uses
-documented tolerances derived from the verified exporter. No legacy-unknown artifact may
-be promoted to a MATLAB oracle.
+Tests compare scientific invariants rather than unstable simplex row order, optimizer
+rotation, or exact-tie choices. Counts, connectivity, orientation, and full-precision 3D
+membership are exact. Floating geometry uses documented combined tolerances. No
+`legacy-unknown` or diagnostic artifact is promoted to a MATLAB oracle.

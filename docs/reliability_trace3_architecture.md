@@ -1,5 +1,11 @@
 # Reliability and TRACE3 architecture
 
+> **Superseded historical architecture (2026-08-20).** The 2D-only TRACE3 and 229-file
+> oracle statements below describe the branch-two design. Current architecture includes
+> native 3D tetrahedral TRACE3, exact inclusive membership, 3D output, and the installed
+> 423-file R2026a Update 4 v2 oracle. See `docs/architecture.md`; the body below is kept
+> as implementation history.
+
 ## Purpose
 
 This pass follows the correctness work on `codex/open-issue-big-rocks`.

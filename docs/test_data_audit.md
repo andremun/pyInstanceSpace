@@ -1,14 +1,17 @@
 # Test data audit and remediation proposal
 
-**Status:** Audit and current migration complete. §7's decision is implemented: single
-unified layout (Option A). The hardened exporter and independent verifier completed a
-verified R2026a Update 4 run on 2026-08-18. Steps 1
-(delete confirmed-dead data), 2 (resolve the `prelim/run/output/` partial-orphan), 3
-(fix the `serialisers/actual_output/` scratch leak), and 4 (relocate `test_data/demo/`)
-are done. Step 5 installed the verified bundle and current-layout readers; it remains
-tracked as GitHub issue T10e (#310) pending maintainer review. **§7.1 (added on request,
-2026-08-03) extends the target layout with a cross-stage/shared-input rule**,
-documented now so T10e's migration only has to move fixtures once, not twice.
+**Status:** Audit and migration complete. §7's single-layout decision is implemented.
+The canonical install is a 423-file, `matlab-verified` `reference-export/v2` bundle from
+MATLAB R2026a Update 4; provenance passed 84 tests and current readers passed 36. The
+frozen v1 format remains readable. Steps 1–5 are implemented; #310 remains tracked for
+maintainer review. Sections 1–6 preserve the audit-time findings and paths, including
+items later remediated by those steps.
+
+**Identity:** MATLAB `34c01293fef99b4eabd53323c393cb184cc95a8e`; generator
+`cf3cde0da5a3067300bd94a48d4d09ff5cf20b0c`; exporter
+`d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
+
+**§7.1** extends the target layout with a cross-stage/shared-input rule.
 **Scope:** every file under `tests/` in this repository, not only
 `tests/matlab_reference/`. Companion to `docs/pyIS_docs_quality_roadmap.md` §8.3 and
 `tests/matlab_export/README.md`.
@@ -116,8 +119,8 @@ obscures that difference.
   write target, regenerated on every run of `test_serialisers.py`. A `.gitignore` file
   sits inside each of its subdirectories, but git still tracks `output.zip` inside it —
   the same file that kept showing up as "modified" in this session's `git status`
-  output after running the test suite. `expected_output/` (the golden comparison
-  target) is the fixture that actually belongs in version control here.
+  output after running the test suite. `expected_output/` (the expected Python
+  regression target) is the fixture that actually belongs in version control here.
 
 ## 5. Category framework
 
@@ -130,7 +133,7 @@ directory declares its category, the reader does not have to guess.
 | Verified MATLAB parity | Manifest-verified current MATLAB run | Check Python against complete, hashed stage inputs and outputs | `fixtures/matlab/current/manifest.json` |
 | Legacy unverified regression | Reported MATLAB origin, missing reproducibility evidence | Detect drift without making a parity claim | `test_data/pythia/output/BO_gaussian/gaussian.csv` |
 | Python-only synthetic | Hand-built or generated in Python | Exercise a code path no real MATLAB dataset reaches (degenerate input, invalid options, edge cases) | `test_data/load_file/illegal.json` |
-| Example / demo | Real-world, not a golden-value comparison | Show a working usage pattern, not verify numeric correctness | `test_data/demo/metadata/metadata_BBO.csv` |
+| Example / demo | Real-world, not an oracle comparison | Show a working usage pattern, not verify numeric correctness | `examples/data/metadata/metadata_BBO.csv` |
 | Test-run scratch output | Written by the test itself, not read by anything | Debugging artifact only, should not need version control | `test_data/serialisers/actual_output/` |
 
 Answering the question in your message directly: MATLAB-parity data (the first row)
@@ -229,9 +232,9 @@ Canonical target: `tests/fixtures/matlab/current/`, containing `manifest.json`,
 convention (revised from an earlier draft's
 `training_artifacts/`/`explore_outputs/` split, which used two different names for the
 build and explore roots and, worse, dropped the `<stage>/` level entirely on the explore
-side). PRELIM, SIFTED, PILOT, and CLOISTER use the `default` build variant. PYTHIA and
-TRACE carry build and explore inputs and outputs for all three reference variants. One
-profile and one installed root replace alternate flattened layouts.
+side). PRELIM, SIFTED, and CLOISTER retain their base variants. PILOT adds standard and
+SIMPLS 2D/3D variants; TRACE adds native 3D evidence alongside the three downstream
+variants. One profile and one installed root replace alternate flattened layouts.
 
 Current MATLAB comparisons now have at least one numerical reader per exported build and
 explore stage. Historical tests may keep their old paths as explicitly unverified
@@ -285,12 +288,14 @@ and `explore_data/` inside the installed bundle.
 verification, atomic install, and current-layout readers. Unknown-provenance data remains
 outside the oracle tree.
 
-## 8. What this audit did not do
+## 8. Current provenance boundary
 
-The earlier 196-file R2024a diagnostic remains non-authoritative. The complete 229-file
-profile was generated from clean source under MATLAB R2026a Update 4 after Financial
-Toolbox installation, passed strict verification and scientific review, and was installed
-without relabeling any historical fixture.
+The earlier 196-file R2024a diagnostic remains non-authoritative. The installed
+423-file v2 profile was generated from the clean identities recorded above under MATLAB
+R2026a Update 4, passed strict verification and scientific review, and was installed
+without relabeling historical fixtures. The former 229-file v1 profile remains supported
+only as a frozen readable format. `legacy-unknown` data is regression evidence, never a
+MATLAB oracle.
 
 ## 9. Tracking issues
 
@@ -303,7 +308,7 @@ Remediation is tracked under Phase T, as sub-issues of the Phase T parent (#273)
 | #307 | T10b — Resolve `prelim/run/output/` partial-orphan | Step 2 | Done — see commit history |
 | #308 | T10c — Fix `serialisers/actual_output/` scratch-output leak | Step 3 | Done — see commit history |
 | #309 | T10d — Relocate `test_data/demo/` out of `test_data/` | Step 4 | Done — see commit history |
-| #310 | T10e — Migrate onto the unified layout (§7, §7.1) | Step 5 | Implemented locally; pending maintainer review |
+| #310 | T10e — Migrate onto the unified layout (§7, §7.1) | Step 5 | Implemented and verified locally; pending maintainer review |
 | #311 | `examples/data/options.json`'s `selvars.type` invalid value | Found verifying Step 4 | Done — see commit history |
 
 Pick up a step by reading its GitHub issue first, then the corresponding section above —
