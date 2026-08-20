@@ -9,8 +9,10 @@ F7's whole point is that these objects round-trip natively through
 aren't picklable in the first place).
 """
 
+from dataclasses import replace
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
 import pytest
@@ -178,12 +180,51 @@ def _build_minimal_model() -> Model:
     )
 
 
+def _build_minimal_3d_model() -> Model:
+    """Build a model with genuinely three-dimensional PILOT numeric state."""
+    model = _build_minimal_model()
+    projection_matrix = np.array(
+        [[1.0, 0.0], [0.0, 1.0], [0.5, -0.25]],
+        dtype=np.double,
+    )
+    projection = model.data.x @ projection_matrix.T
+    viewpoint = PilotViewpointResult(
+        groups=((0,),),
+        a=(np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]),),
+        azimuth=(0.25,),
+        elevation=(1.0,),
+    )
+    return replace(
+        model,
+        pilot=replace(
+            model.pilot,
+            a=projection_matrix,
+            z=projection,
+            c=np.zeros((3, 1)),
+            b=np.zeros((model.data.x.shape[1], 3)),
+            summary=pd.DataFrame({"Row": ["Z_{1}", "Z_{2}", "Z_{3}"]}),
+            viewpoint=viewpoint,
+        ),
+        cloister=replace(
+            model.cloister,
+            z_edge=np.zeros((4, 3)),
+            z_ecorr=np.zeros((4, 3)),
+        ),
+    )
+
+
 def _assert_models_equal(original: Model, loaded: Model) -> None:
     assert np.array_equal(original.data.x, loaded.data.x)
     assert original.data.inst_labels.equals(loaded.data.inst_labels)
     assert original.data.feat_labels == loaded.data.feat_labels
     assert np.array_equal(original.feat_sel.idx, loaded.feat_sel.idx)
     assert np.array_equal(original.sifted.selvars, loaded.sifted.selvars)
+    np.testing.assert_array_equal(original.pilot.a, loaded.pilot.a)
+    np.testing.assert_array_equal(original.pilot.z, loaded.pilot.z)
+    np.testing.assert_array_equal(original.pilot.c, loaded.pilot.c)
+    np.testing.assert_array_equal(original.pilot.b, loaded.pilot.b)
+    np.testing.assert_array_equal(original.cloister.z_edge, loaded.cloister.z_edge)
+    np.testing.assert_array_equal(original.cloister.z_ecorr, loaded.cloister.z_ecorr)
     assert original.pilot.viewpoint is not None
     assert loaded.pilot.viewpoint is not None
     assert original.pilot.viewpoint.groups == loaded.pilot.viewpoint.groups
@@ -283,6 +324,37 @@ def test_round_trip_unsigned(tmp_path: Path) -> None:
 
     _assert_models_equal(model, loaded)
     assert not path.with_name(path.name + ".sig").exists()
+
+
+def test_round_trip_preserves_3d_projection_and_viewpoint(tmp_path: Path) -> None:
+    """The canonical joblib model retains 3D PILOT arrays and optimized views."""
+    model = _build_minimal_3d_model()
+    path = tmp_path / "model-3d.joblib"
+
+    model.save(path)
+    loaded = Model.load(path)
+
+    _assert_models_equal(model, loaded)
+    assert loaded.pilot.a.shape == (3, model.data.x.shape[1])
+    assert loaded.pilot.z.shape == (model.data.x.shape[0], 3)
+    assert loaded.pilot.viewpoint is not None
+    assert loaded.pilot.viewpoint.a[0].shape == (2, 3)
+
+
+def test_loads_legacy_joblib_without_pilot_viewpoint(tmp_path: Path) -> None:
+    """A pre-viewpoint PilotOut pickle resolves the additive field to None."""
+    model = _build_minimal_model()
+    legacy_pilot = replace(model.pilot, viewpoint=None)
+    object.__delattr__(legacy_pilot, "viewpoint")
+    assert "viewpoint" not in vars(legacy_pilot)
+    path = tmp_path / "legacy-model.joblib"
+    joblib.dump(replace(model, pilot=legacy_pilot), path)
+
+    loaded = Model.load(path)
+
+    assert loaded.pilot.viewpoint is None
+    np.testing.assert_array_equal(loaded.pilot.a, legacy_pilot.a)
+    np.testing.assert_array_equal(loaded.pilot.z, legacy_pilot.z)
 
 
 def test_round_trip_signed(tmp_path: Path) -> None:
