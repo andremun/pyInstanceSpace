@@ -1,6 +1,7 @@
 # Instance Space Analysis: A toolkit for the assessment of algorithmic power
 
 ![Tests](https://github.com/andremun/pyInstanceSpace/actions/workflows/validation-tests.yml/badge.svg)
+[![Docs](https://github.com/andremun/pyInstanceSpace/actions/workflows/docs-pages.yml/badge.svg)](https://andremun.github.io/pyInstanceSpace/)
 [![DOI](https://zenodo.org/badge/770130753.svg)](https://doi.org/10.5281/zenodo.15562567)
 [![PyPI version](https://img.shields.io/pypi/v/instancespace.svg)](https://pypi.org/project/instancespace/)
 [![PyPI downloads](https://img.shields.io/pypi/dm/instancespace.svg)](https://pypi.org/project/instancespace/)
@@ -42,9 +43,11 @@ An example of a plugin can be found in example_plugin.py
 
 ## Documentation Instructions
 
-Run `pdoc instancespace`
+Hosted API docs: <https://andremun.github.io/pyInstanceSpace/> (rebuilt automatically on every
+push to `main`/`v0.9.0/development-branch-QSF` via `.github/workflows/docs-pages.yml` — see #324
+for the one-time GitHub Pages setup this depends on).
 
-Please refer to the pdoc documentation for instructions on exporting static HTML files for hosting on GitHub Pages.
+To build them locally instead, run `pdoc instancespace`.
 
 ## Repository layout
 

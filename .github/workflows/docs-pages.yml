@@ -1,0 +1,62 @@
+name: Deploy API docs to GitHub Pages
+
+on:
+  push:
+    branches: [main, v0.9.0/development-branch-QSF]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deployment at a time; let an in-progress run finish rather than
+# cancelling it, so Pages never serves a half-deployed build.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Poetry install
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: "1.8.2"
+
+      - name: Install dependencies
+        run: poetry install
+
+      # -d google, not -d numpy: this repo's ruff config declares numpy-style
+      # docstrings, but several files mix numpy-style section headers with
+      # Google-style parameter bodies, which crashes pdoc's numpy converter
+      # (see #325). google tolerates the mix without crashing, at the cost of
+      # those specific sections rendering as plain text instead of a
+      # formatted parameter table until the docstrings themselves are fixed
+      # (#326 first, then #325).
+      - name: Build API docs with pdoc
+        run: poetry run pdoc instancespace -d google -o site
+
+      - name: Upload docs artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
