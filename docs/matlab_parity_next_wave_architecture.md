@@ -149,6 +149,5 @@ profile remains readable; diagnostic and historical bundles remain non-oracles.
 - Strict v2 provenance and semantic verification: 423 files.
 - Provenance tests: 86 passed.
 - Current-gold readers: 40 passed, including native 3D TRACE at 3/3 passed.
-- Full-suite accounting: 1,038 collected. The warning-strict sandbox run passed 1,037;
-  the sole process-pool test passed 1/1 outside the sandbox. Branch coverage was 91.86%,
-  with no uncaught warnings under `-W error`.
+- Full-suite accounting: the CI-equivalent Linux gate passed all 1,039 collected tests
+  with 92.00% branch coverage and no uncaught warnings under `-W error`.

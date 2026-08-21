@@ -58,8 +58,13 @@ _MAX_RELATIVE_VIEW_OBJECTIVE_GAP = {
     "pilot_standard_numerical_3d_x0": 0.05,
     "pilot_pls_3d_grouped": 1e-7,
 }
-_MAX_VIEW_TOPOLOGY_DROP = {
-    "pilot_standard_analytic_3d": 0.20,
+_MAX_VIEW_TOPOLOGY_DROP: dict[str, float | None] = {
+    # This oracle deliberately uses ntries=1. In MATLAB, topology is only
+    # used to choose among completed restarts, so it is not a selection
+    # constraint in this one-start case. SciPy and fminunc may follow
+    # different valid quasi-Newton trajectories; require the shared absolute
+    # scientific floor instead of a platform-calibrated delta from MATLAB.
+    "pilot_standard_analytic_3d": None,
     "pilot_standard_numerical_3d_x0": 0.02,
     "pilot_pls_3d_grouped": 2e-4,
 }
@@ -414,9 +419,14 @@ def _view_meets_quality_contract(
     objective_limit = expected_objective * (
         1.0 + _MAX_RELATIVE_VIEW_OBJECTIVE_GAP[variant]
     )
-    topology_floor = max(
-        _MIN_TOPOLOGY_SCORE,
-        expected_topology - _MAX_VIEW_TOPOLOGY_DROP[variant],
+    maximum_topology_drop = _MAX_VIEW_TOPOLOGY_DROP[variant]
+    topology_floor = (
+        _MIN_TOPOLOGY_SCORE
+        if maximum_topology_drop is None
+        else max(
+            _MIN_TOPOLOGY_SCORE,
+            expected_topology - maximum_topology_drop,
+        )
     )
     return actual_objective <= objective_limit and actual_topology >= topology_floor
 
@@ -511,6 +521,14 @@ def test_current_matlab_numerical_view_quality_rejects_random_planes() -> None:
         passing += _view_meets_quality_contract(variant, expected, quality)
 
     assert passing / _RANDOM_VIEW_TRIALS <= _MAX_RANDOM_VIEW_PASS_FRACTION
+
+
+def test_single_start_analytic_view_uses_absolute_topology_floor() -> None:
+    """Do not turn one optimizer's trajectory into a cross-platform oracle."""
+    variant = "pilot_standard_analytic_3d"
+    expected = (0.88, 0.90)
+    assert _view_meets_quality_contract(variant, expected, (0.88, 0.65))
+    assert not _view_meets_quality_contract(variant, expected, (0.88, 0.59))
 
 
 @pytest.mark.parametrize(

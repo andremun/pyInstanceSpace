@@ -43,7 +43,6 @@ already closed upstream.
   changes.
 - Never promote diagnostic or `legacy-unknown` data into the MATLAB oracle.
 
-These items do not block the verified 2D/3D build and explore paths. All 1,038 tests
-are accounted for: 1,037 passed in the warning-strict sandbox run, and the sole
-process-pool test passed 1/1 outside it. Branch coverage was 91.86%, with no uncaught
-warnings under `-W error`.
+These items do not block the verified 2D/3D build and explore paths. The CI-equivalent
+Linux gate passed all 1,039 tests with 92.00% branch coverage and no uncaught warnings
+under `-W error`.
