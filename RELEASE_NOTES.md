@@ -67,6 +67,12 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   optimize and persist a global or grouped 2D camera viewpoint. `cost_weight`, `x0`,
   `precalc_alpha`, restart selection, and public explore projection follow the MATLAB
   option and dispatch contracts (#262).
+- **Behavior-changing:** the default numerical PILOT restart count changed from the
+  former Python value of 5 to MATLAB R2026a's `opts.pilot.ntries = 10`. This doubles the
+  default multi-start budget and can select a different fitted projection. Callers that
+  need the earlier Python behavior can set `PilotOptions.default(n_tries=5)` explicitly.
+  The new default is pinned against `ISAdefaults.m`, the verified R2026a fixtures, and
+  the release validation suite (#262).
 - `TraceOptions.method='trace3'` now implements MATLAB's current alpha-shape TRACE3
   algorithm with 2D polygons and native 3D tetrahedral meshes. Python keeps
   `method='legacy'` as its compatibility default; a 3D projection configured with that
@@ -137,6 +143,10 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
 
 ### Better engineering
 
+- Removed the unused `_validate_explore_trace_dimensions()` compatibility hook. TRACE
+  dimension validation remains stage-owned in `TraceStage.predict()` and runs exactly
+  when a lazy `explore_stage_iter()` advances to TRACE; PYTHIA remains inspectable first.
+  This cleanup changes neither outputs nor stage order (#316).
 - Dependency security bumps: `pillow` (12.2.0 → 12.3.0), `tornado` (6.5.5 → 6.5.7),
   `click` (8.1.7 → 8.4.2), `jupyter-core` (5.7.2 → 5.9.1) — resolves all known CVEs in
   the locked dependency set at the time of writing.

@@ -857,8 +857,10 @@ class InstanceSpace:
             RuntimeError
                 If build() has not been called before explore().
             ValueError
-                If test_metadata features do not match training features, or on
-                advancing to TRACE if projection dimensions differ.
+                If test_metadata features do not match training features. A fitted
+                TRACE/projection dimension mismatch is deliberately checked by
+                :meth:`TraceStage.predict` only when the lazy iterator advances to
+                TRACE, after PYTHIA has been yielded.
         """
         self._validate_for_explore(test_metadata)
 
@@ -1051,13 +1053,6 @@ class InstanceSpace:
             self._require_model().trace,
         )
         return predicted[0], predicted[1]
-
-    def _validate_explore_trace_dimensions(
-        self,
-        z: NDArray[np.double],
-    ) -> None:
-        """Compatibility validator delegated to the fitted TRACE stage."""
-        TraceStage.predict(TracePredictInput(z), self._require_model().trace)
 
     def _find_new_algorithms(
         self,

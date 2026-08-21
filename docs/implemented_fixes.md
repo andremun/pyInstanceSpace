@@ -22,7 +22,7 @@ source and reproduced R2026a behavior decide parity.
 |---|---|
 | [#320](https://github.com/andremun/pyInstanceSpace/issues/320) | Removed the unused polygon-region filter. TRACE3 retains the active vertex-connected simplex-region implementation. |
 | [#321](https://github.com/andremun/pyInstanceSpace/issues/321) | Validation and loading now share one `casefold()` JSON-key canonicalizer and reject casefold-equivalent conflicts. |
-| [#262](https://github.com/andremun/pyInstanceSpace/issues/262) | Completed 2D/3D PILOT across analytic, numerical, and SIMPLS paths, including SIFTED propagation, MATLAB-order solver contracts, restart defaults, and persisted grouped viewpoints. |
+| [#262](https://github.com/andremun/pyInstanceSpace/issues/262) | Completed 2D/3D PILOT across analytic, numerical, and SIMPLS paths, including SIFTED propagation, MATLAB-order solver contracts, restart defaults, and persisted grouped viewpoints. **[Behavior-changing]** The omitted-value restart default changed from Python's former 5 to MATLAB R2026a's 10; set `n_tries=5` to retain the prior Python budget/output selection. |
 | [#265](https://github.com/andremun/pyInstanceSpace/issues/265) | Added native 3D projections, camera-aware plots, TRACE meshes, and versioned numerical serialization without changing the 2D geometry schema. |
 | [#313](https://github.com/andremun/pyInstanceSpace/issues/313) | Completed native 2D/3D TRACE3 construction, membership, metrics, parallel execution, and fixed-geometry explore rescoring. Legacy remains selectable. |
 | [#272](https://github.com/andremun/pyInstanceSpace/issues/272) | Superseded by R2026a evidence: the all-points alpha can intentionally contain multiple regions, so Python preserves them and adds no single-region retry. |
@@ -40,8 +40,10 @@ boundary-exclusive proposal. Those four issues are already closed upstream.
   fold or final fit; reported parameters retain the requested value.
 - Derive PYTHIA folds and classifier/search randomness from one-based `seed + i` and
   retain the actual splitter per algorithm.
-- Match MATLAB PILOT's ten default restarts, stage-local MT19937 starts, valid
-  `precalcAlpha` precedence, column-major packing, loss axes, and rank fallback.
+- **[Behavior-changing]** Match MATLAB PILOT's ten default restarts (formerly five in
+  Python), stage-local MT19937 starts, valid `precalcAlpha` precedence, column-major
+  packing, loss axes, and rank fallback. The default and explicit five-restart override
+  are pinned in option tests; the ten generated starts match the verified R2026a export.
 - Persist 3D viewpoint matrices and radian angles; an empty group list means one global
   view and overlapping groups remain valid.
 - Add a tetrahedral alpha complex with strict volume thresholds, vertex-connected

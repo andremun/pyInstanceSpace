@@ -671,6 +671,14 @@ def test_current_matlab_pilot_numerical_optimizer_quality() -> None:
     x = _matrix(inputs / "x.csv")
     y = _matrix(inputs / "y.csv")
     x0 = _matrix(outputs / "pilot_x0.csv")
+    default_options = PilotOptions.default()
+    assert default_options.n_tries == x0.shape[1] == _integer("pilot", "ntries") == 10
+    np.testing.assert_allclose(
+        PilotStage._default_numerical_starts(x0.shape[0], default_options.n_tries),
+        x0,
+        atol=1e-15,
+        rtol=0,
+    )
     output = PilotStage.pilot(
         x,
         y,
