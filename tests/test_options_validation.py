@@ -386,13 +386,14 @@ def test_pilot_allows_precalculated_solution_alongside_start_matrix(
 
 
 def test_pilot_restart_default_matches_matlab() -> None:
-    """MATLAB ISAdefaults sets standalone PILOT to ten restarts."""
+    """MATLAB uses ten restarts while callers can request the old Python count."""
     matlab_default_n_tries = 10
     assert (
         PilotOptions.default().n_tries
         == DEFAULT_PILOT_N_TRIES
         == matlab_default_n_tries
     )
+    assert PilotOptions.default(n_tries=5).n_tries == 5
 
 
 def test_pilot_3d_options_load_and_round_trip_in_canonical_form() -> None:

@@ -52,7 +52,6 @@ def _stub_stages(space) -> None:  # type: ignore[no-untyped-def]
     space._explore_pilot = lambda _x: "Z"
     space._explore_pythia = lambda _z, n_new_algos=0: ("yhat", "pr0", "sel")
     space._explore_trace = lambda _z, n_new_algos=0: ("ingood", "inbest")
-    space._validate_explore_trace_dimensions = lambda _z: None
     space._find_new_algorithms = lambda _md, _algo_labels: []
     # Only reached when test_metadata carries ground truth (has_ground_truth
     # branch in explore_stage_iter) - stubbed here too so that path doesn't
@@ -202,7 +201,7 @@ def test_3d_stage_iter_yields_native_trace_membership() -> None:
 
 
 def test_projection_mismatch_fails_only_when_lazy_trace_is_requested() -> None:
-    """Earlier explore stages remain inspectable before TRACE rejects a mismatch."""
+    """Stage-owned TRACE validation preserves the documented lazy failure boundary."""
     z = np.array([[1.0, 2.0, 3.0]], dtype=np.double)
     empty = Footprint(None, 0, 0, 0, 0, 0, 2)
     model = SimpleNamespace(
@@ -457,9 +456,6 @@ def test_3d_stage_iter_rescores_after_trace_membership(
     stubbed = cast(Any, space)
     stubbed._explore_pilot = lambda _x: z
     stubbed._require_model = lambda: model
-    stubbed._validate_explore_trace_dimensions = (
-        lambda value: InstanceSpace._validate_explore_trace_dimensions(space, value)
-    )
     evaluation = _EvaluationResult(
         y_actual=np.zeros((1, 1), dtype=np.bool_),
         y_best_actual=np.zeros(1, dtype=np.double),
