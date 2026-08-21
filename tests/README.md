@@ -13,10 +13,9 @@ under `reference-export/v2`, generated with MATLAB R2026a Update 4 from gold sou
 `34c01293fef99b4eabd53323c393cb184cc95a8e` and Python generator
 `cf3cde0da5a3067300bd94a48d4d09ff5cf20b0c`. Its exporter SHA-256 is
 `d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
-Collection contains 86 provenance tests and 40 current scientific readers. The strict
-suite passed 1,037 tests in the sandbox; the sole process-pool test passed 1/1 outside
-the sandbox, for all 1,038 collected tests. Branch coverage was 91.86%, with no
-uncaught warnings under `-W error`. The frozen 229-file v1 format remains readable,
+Collection contains 86 provenance tests and 40 current scientific readers. The
+CI-equivalent Linux gate passed all 1,039 collected tests with 92.00% branch coverage
+and no uncaught warnings under `-W error`. The frozen 229-file v1 format remains readable,
 but is not the installed oracle.
 
 ## Naming Convention

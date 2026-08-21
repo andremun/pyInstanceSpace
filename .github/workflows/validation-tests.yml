@@ -1,7 +1,15 @@
 name: Validation Tests
 
 on:
-  push: {}
+  # Validate every pull request, but avoid running the same head commit twice
+  # as both a push and a pull_request event. Direct pushes still gate the
+  # long-lived integration and release branches.
+  push:
+    branches:
+    - main
+    - development
+    - "*-candidate"
+    - "v*/development-*"
   pull_request: {}
   workflow_dispatch:
 
@@ -27,7 +35,7 @@ jobs:
       PYTHONHASHSEED: "0"
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         path: pyInstanceSpace
         persist-credentials: false

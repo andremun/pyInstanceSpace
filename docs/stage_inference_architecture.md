@@ -64,6 +64,5 @@ ground truth is present. Advancing only to a stage must not execute later work.
 - Contract, delegation, no-refit, fitted-state immutability, wrapper compatibility, and
   stage-order tests pass for all five inference-capable stages.
 - Collection contains 86 provenance tests and 40 current-MATLAB readers.
-- The warning-strict sandbox run passed 1,037 tests; the sole process-pool test passed
-  1/1 outside the sandbox, accounting for all 1,038 collected tests.
-- Branch coverage was 91.86%, with no uncaught warnings under `-W error`.
+- The CI-equivalent Linux gate passed all 1,039 collected tests.
+- Branch coverage was 92.00%, with no uncaught warnings under `-W error`.

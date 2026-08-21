@@ -138,8 +138,7 @@ under MATLAB R2026a Update 4 from clean MATLAB
 `d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
 
 Collection contains 86 provenance tests and 40 current-gold scientific readers. The
-strict suite passed 1,037 tests in the sandbox; the sole process-pool test passed 1/1
-outside the sandbox, for all 1,038 collected tests. Branch coverage was 91.86%, with
-no uncaught warnings under `-W error`. Frozen v1 bundles remain verifiable, but they
+CI-equivalent Linux gate passed all 1,039 collected tests with 92.00% branch coverage
+and no uncaught warnings under `-W error`. Frozen v1 bundles remain verifiable, but they
 are not the installed current oracle. Diagnostic and `legacy-unknown` snapshots remain
 non-oracles.
