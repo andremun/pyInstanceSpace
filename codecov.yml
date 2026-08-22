@@ -1,0 +1,24 @@
+coverage:
+  status:
+    # Matches [tool.coverage.report]'s fail_under = 75 in pyproject.toml -
+    # keep these in sync if that gate ever moves.
+    project:
+      default:
+        target: 75%
+        threshold: 1%
+    patch:
+      default:
+        # New/changed lines specifically, not the whole project average -
+        # catches a PR that adds a big untested chunk even if the overall
+        # project number still clears 75%.
+        target: 75%
+        threshold: 1%
+
+ignore:
+  - "tests/"
+  - "examples/"
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: false

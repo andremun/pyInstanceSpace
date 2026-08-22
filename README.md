@@ -1,6 +1,7 @@
 # Instance Space Analysis: A toolkit for the assessment of algorithmic power
 
 ![Tests](https://github.com/andremun/pyInstanceSpace/actions/workflows/validation-tests.yml/badge.svg)
+[![codecov](https://codecov.io/gh/andremun/pyInstanceSpace/graph/badge.svg)](https://codecov.io/gh/andremun/pyInstanceSpace)
 [![Docs](https://github.com/andremun/pyInstanceSpace/actions/workflows/docs-pages.yml/badge.svg)](https://andremun.github.io/pyInstanceSpace/)
 [![DOI](https://zenodo.org/badge/770130753.svg)](https://doi.org/10.5281/zenodo.15562567)
 [![PyPI version](https://img.shields.io/pypi/v/instancespace.svg)](https://pypi.org/project/instancespace/)

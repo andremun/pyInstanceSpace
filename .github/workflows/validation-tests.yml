@@ -2,9 +2,9 @@ name: Validation Tests
 
 on:
   push:
-    branches: [development, main, "*-candidate"]
+    branches: [development, main, v0.9.0/development-branch-QSF, "*-candidate"]
   pull_request:
-    branches: [development, main, "*-candidate"]
+    branches: [development, main, v0.9.0/development-branch-QSF, "*-candidate"]
 
 permissions:
   contents: read
@@ -43,5 +43,12 @@ jobs:
         poetry run pip-audit
 
     - name: Test with pytest
-      run: poetry run pytest --cov=instancespace --cov-report=term-missing
+      run: poetry run pytest --cov=instancespace --cov-report=term-missing --cov-report=xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        fail_ci_if_error: true
 
