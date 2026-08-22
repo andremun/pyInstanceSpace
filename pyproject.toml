@@ -53,7 +53,7 @@ check_black = "black ."
 
 test_ruff = "ruff check --no-fix"
 test_black = "black . --check"
-test_pytest = "pytest --cov=instancespace --cov-report=term-missing"
+test_pytest = "pytest --cov=instancespace --cov-report=term-missing --cov-report=xml"
 
 check.sequence = ["format_docstrings", "check_black", "check_ruff", "check_mypy"]
 check.ignore_fail = "return_non_zero"
