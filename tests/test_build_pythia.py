@@ -1246,17 +1246,35 @@ def test_summary_excludes_selector_fallback_from_selected_performance() -> None:
     assert np.isnan(selector["Std_Perf_selected_instances"])
 
 
-def test_pythia_rejects_contextual_parameter_shape() -> None:
-    """Precalculated parameters must match the algorithm and classifier counts."""
+def test_pythia_ignores_contextually_mismatched_parameter_shape() -> None:
+    """MATLAB falls back to tuning when parameter rows do not fit the data."""
     spec = get_classifier_fcn("svm")
 
-    with pytest.raises(ValueError, match=r"shape \(2, 2\)"):
-        PythiaStage._check_precalcparams(
-            np.ones((1, 2)),
-            nalgos=2,
-            spec=spec,
-            classifier_name="svm",
-        )
+    checked = PythiaStage._check_precalcparams(
+        np.ones((1, 2)),
+        nalgos=2,
+        spec=spec,
+        classifier_name="svm",
+    )
+
+    assert checked is None
+
+
+def test_pythia_rejects_mismatched_parameters_when_tuning_is_disabled() -> None:
+    """MATLAB cannot recover from invalid parameters when tuning is disabled."""
+    options = PythiaOptions.default(
+        tuning="none",
+        params=np.ones((1, 2)),
+    )
+    checked = PythiaStage._check_precalcparams(
+        options.params,
+        nalgos=2,
+        spec=get_classifier_fcn("svm"),
+        classifier_name="svm",
+    )
+
+    with pytest.raises(ValueError, match="requires PythiaOptions.params"):
+        PythiaStage._validate_tuning(options, checked)
 
 
 @pytest.mark.parametrize(

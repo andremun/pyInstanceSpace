@@ -29,6 +29,8 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from skopt.space import Categorical, Dimension, Integer, Real
 
+from instancespace.utils.numerics import matlab_round
+
 
 class KernelNB(ClassifierMixin, BaseEstimator):  # type: ignore[misc]
     """Kernel-density-estimated Naive Bayes, matching MATLAB's `fitcnb`.
@@ -199,13 +201,6 @@ class ParamSpec(NamedTuple):
     to_estimator: Callable[[float], float] | None = None
     to_reported: Callable[[float], float] | None = None
 
-    @staticmethod
-    def _matlab_round(value: float) -> int:
-        """Round halves away from zero, matching MATLAB's `round`."""
-        if value >= 0:
-            return int(np.floor(value + 0.5))
-        return int(np.ceil(value - 0.5))
-
     def _convert_to_estimator(self, value: float | int) -> float | int:
         """Convert a numeric reporting-unit value to estimator units."""
         if self.to_estimator is not None:
@@ -230,7 +225,7 @@ class ParamSpec(NamedTuple):
         else:
             value = self.low + x * (self.high - self.low)
         if self.is_int:
-            value = max(int(self.low), self._matlab_round(value))
+            value = max(int(self.low), int(matlab_round(value)))
         return self._convert_to_estimator(value)
 
     def dimension(self) -> Dimension:
@@ -278,12 +273,12 @@ class ParamSpec(NamedTuple):
         if self.categories is not None:
             index = min(
                 len(self.categories) - 1,
-                max(0, self._matlab_round(value) - 1),
+                max(0, int(matlab_round(value)) - 1),
             )
             return self.categories[index]
         normalized: float | int = value
         if self.is_int:
-            normalized = max(int(self.low), self._matlab_round(value))
+            normalized = max(int(self.low), int(matlab_round(value)))
         return self._convert_to_estimator(normalized)
 
 

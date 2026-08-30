@@ -56,7 +56,9 @@ ground truth is present. Advancing only to a stage must not execute later work.
 - Test-only algorithms retain false/zero inference padding and NaN classifier metrics
   because no fitted classifier exists for them.
 - A trained algorithm absent from test metadata is scored against the reconciled
-  all-false truth column; its metrics are not replaced with NaN.
+  all-false truth column; its metrics are not replaced with NaN. This follows
+  MATLAB v0.9.1's `core/PYTHIA.m::PYTHIAevalMode`, which evaluates every trained
+  classifier against its reconciled truth column.
 - All current R2026a `reference-export/v2` readers remain authoritative.
 
 ## Verification

@@ -469,12 +469,15 @@ class PythiaStage(
         """Evaluate predictions with MATLAB's explicit confusion-count formulas.
 
         MATLAB stores each confusion matrix as ``cm(:)'`` in column-major order,
-        hence ``[TN, FN, FP, TP]``. Every non-empty trained-classifier slot is
-        scored, including a reconciled training algorithm absent from the test
-        metadata (whose truth column is all false). Empty trained slots retain a
-        zero confusion row and therefore zero accuracy with undefined precision
-        and recall. Test-only algorithms also retain zero confusion rows, but
-        their rates stay ``NaN`` because no trained-model slot exists for them.
+        hence ``[TN, FN, FP, TP]``. MATLAB v0.9.1's
+        ``core/PYTHIA.m::PYTHIAevalMode`` loops over every trained classifier and
+        calls ``confusionmat`` against its reconciled truth column. Therefore,
+        every non-empty trained-classifier slot is scored, including a training
+        algorithm absent from the test metadata (whose truth column is all
+        false). Empty trained slots retain a zero confusion row and therefore
+        zero accuracy with undefined precision and recall. Test-only algorithms
+        also retain zero confusion rows, but their rates stay ``NaN`` because no
+        trained-model slot exists for them.
         """
         if (
             inputs.y_true.ndim != PYTHIA_ARRAY_DIMENSIONS
@@ -1682,11 +1685,14 @@ class PythiaStage(
         n_params = 1 + int(spec.param2 is not None)
         expected_shape = (nalgos, n_params)
         if params_array.shape != expected_shape:
-            raise ValueError(
-                "PythiaOptions.params has shape "
+            logger.warning(
+                "[PYTHIA] -> PythiaOptions.params has shape "
                 f"{params_array.shape}. Classifier '{classifier_name}' requires "
-                f"shape {expected_shape}.",
+                f"shape {expected_shape}; ignoring the pre-calculated values "
+                "and falling back to the configured tuning strategy, matching "
+                "MATLAB v0.9.1 core/PYTHIA.m.",
             )
+            return None
         if not np.issubdtype(params_array.dtype, np.number) or not np.isrealobj(
             params_array,
         ):

@@ -50,7 +50,6 @@ from_polygon(polygon, z, y_bin, smoothen=False):
 import multiprocessing
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from decimal import ROUND_HALF_UP, Decimal
 from typing import NamedTuple
 
 import numpy as np
@@ -76,6 +75,7 @@ from instancespace.utils.alpha_shape import (
     TetrahedralMesh,
     legacy_alpha_shape,
 )
+from instancespace.utils.numerics import matlab_round
 
 POLYGON_MIN_POINT_REQUIREMENT = 3
 TRACE_ARRAY_DIMENSIONS = 2
@@ -86,23 +86,6 @@ MIN_ALPHA_SPECTRUM_SIZE = 2
 TRACE_SUMMARY_DECIMALS = 3
 
 type TraceGeometry = Polygon | MultiPolygon | TetrahedralMesh
-
-
-def _matlab_round(
-    values: NDArray[np.double],
-    decimals: int,
-) -> NDArray[np.double]:
-    """Round decimal ties away from zero, matching MATLAB ``round``."""
-    source = np.asarray(values, dtype=np.double)
-    rounded = source.copy()
-    quantum = Decimal(1).scaleb(-decimals)
-    for index in np.ndindex(source.shape):
-        value = float(source[index])
-        if np.isfinite(value):
-            rounded[index] = float(
-                Decimal(str(value)).quantize(quantum, rounding=ROUND_HALF_UP),
-            )
-    return rounded
 
 
 class TraceInputs(NamedTuple):
@@ -925,7 +908,7 @@ class TraceStage(
             row = TraceStage.summary(good_footprint, space.area, space.density)
             row.extend(TraceStage.summary(best_footprint, space.area, space.density))
             rows.append(row)
-        values = _matlab_round(
+        values = matlab_round(
             np.asarray(rows, dtype=np.double).reshape(len(rows), len(columns)),
             TRACE_SUMMARY_DECIMALS,
         )
