@@ -17,12 +17,13 @@ from instancespace.data.options import (
     PythiaOptions,
     TraceOptions,
 )
-from instancespace.stages.trace import TraceInputs, TraceStage, _matlab_round
+from instancespace.stages.trace import TraceInputs, TraceStage
 from instancespace.utils.alpha_shape import (
     AlphaShape2D,
     AlphaShape3D,
     TetrahedralMesh,
 )
+from instancespace.utils.numerics import matlab_round
 
 COLLAPSE_GEOMETRY_CALL = 3
 EXPECTED_ALPHA_CALLS = 201
@@ -88,7 +89,7 @@ def test_trace_summary_rounds_decimal_ties_away_from_zero() -> None:
     """R2026a rounds exact three-decimal ties away from zero, not to even."""
     ties = np.array([0.3125, -0.3125, 0.3124999, -0.3124999], dtype=np.double)
     np.testing.assert_array_equal(
-        _matlab_round(ties, 3),
+        matlab_round(ties, 3),
         [MATLAB_ROUNDED_TIE, -MATLAB_ROUNDED_TIE, 0.312, -0.312],
     )
     tied_footprint = Footprint(None, 1.0, 16, 5, 1.0, 0.3125)
