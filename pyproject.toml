@@ -3,10 +3,11 @@ name = "instancespace"
 version = "0.2.1"
 description = ""
 authors = [
+    "Mario Andrés Muñoz <munoz.m@unimelb.edu.au>",
+    "Yusuf Berdan Güzel <yguzel@student.unimelb.edu.au>",
     "Kushagra Khare <kharek@student.unimelb.edu.au>",
     "Nathan Harvey <nhharvey@student.unimelb.edu.au>",
     "Kian Dsouza <kiandsouza01@gmail.com>",
-    "Yusuf Berdan Güzel <yguzel@student.unimelb.edu.au>",
     "Junheng Chen <junhengc3382@gmail.com>",
     "Dong Hyeog Jang <djang9303@gmail.com>",
     "Cheng Ze Lam <chengzel@student.unimelb.edu.au>",
