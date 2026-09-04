@@ -3,13 +3,13 @@
 **Status:** Audit and migration complete. §7's single-layout decision is implemented.
 The canonical install is a 423-file, `matlab-verified` `reference-export/v2` bundle from
 MATLAB R2026a Update 4; provenance passed 86 tests and current readers passed 40. The
-CI-equivalent Linux gate passed all 1,039 collected tests with 92.00% branch coverage.
+The local CI-equivalent gate passed all 1,046 collected tests with 92.08% branch coverage.
 Frozen v1 remains readable. Steps 1–5 are
 implemented; #310 remains tracked for maintainer review. Sections 1–6 preserve the
 audit-time findings and paths, including items later remediated by those steps.
 
-**Identity:** MATLAB `34c01293fef99b4eabd53323c393cb184cc95a8e`; generator
-`cf3cde0da5a3067300bd94a48d4d09ff5cf20b0c`; exporter
+**Identity:** MATLAB v0.9.1 `98a01ac0513c0dd0f8a9bd91ed2926c871334d7b`; generator
+`4816b8cf23ad9392e7a7f5aa85bfbc32080dfe84`; exporter
 `d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
 
 **§7.1** extends the target layout with a cross-stage/shared-input rule.

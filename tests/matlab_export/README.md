@@ -133,12 +133,12 @@ python -m tools.fixture_provenance install \
 The canonical oracle at `tests/fixtures/matlab/current/` is a reviewed, installed
 `reference-export/v2` bundle with 423 files and `matlab-verified` trust. It was generated
 under MATLAB R2026a Update 4 from clean MATLAB
-`34c01293fef99b4eabd53323c393cb184cc95a8e` and clean Python generator
-`cf3cde0da5a3067300bd94a48d4d09ff5cf20b0c`. The exporter identity is pinned to
+`98a01ac0513c0dd0f8a9bd91ed2926c871334d7b` (InstanceSpace v0.9.1) and clean
+Python generator `4816b8cf23ad9392e7a7f5aa85bfbc32080dfe84`. The exporter identity is pinned to
 `d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
 
-Collection contains 86 provenance tests and 40 current-gold scientific readers. The
-CI-equivalent Linux gate passed all 1,039 collected tests with 92.00% branch coverage
+Collection contains 86 provenance tests and 41 current-gold scientific readers. The
+local CI-equivalent gate passed all 1,046 collected tests with 92.08% branch coverage
 and no uncaught warnings under `-W error`. Frozen v1 bundles remain verifiable, but they
 are not the installed current oracle. Diagnostic and `legacy-unknown` snapshots remain
 non-oracles.

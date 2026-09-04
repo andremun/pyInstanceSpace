@@ -35,12 +35,42 @@ _CURRENT = Path(__file__).parent / "fixtures" / "matlab" / "current"
 _TRACE3_VARIANTS = ("trace3_default", "trace3_pythia_skip")
 _SCALAR_TOLERANCE = 1e-11
 _GEOMETRY_TOLERANCE = 1e-10
-_DEFAULT_BOUNDARY_AMBIGUITIES = frozenset(
-    {
-        ("zoo", "in_good_RandF"),
-        ("zoo", "in_best_RandF"),
+_BOUNDARY_AMBIGUITIES = {
+    "trace3_default": frozenset(
+        {
+            ("zoo", "in_good_RandF"),
+            ("zoo", "in_best_RandF"),
+        },
+    ),
+    "trace3_pythia_skip": frozenset(
+        {
+            ("wpbc_no_Nas", "in_good_LDA"),
+            ("wpbc_no_Nas", "in_good_L_SVM"),
+            ("wpbc_no_Nas", "in_best_L_SVM"),
+        },
+    ),
+}
+_BOUNDARY_SUMMARY_VALUES = {
+    "trace3_default": {
+        ("RandF", "Density_Good"): 22.111,
+        ("RandF", "Density_Good_Normalized"): 2.046,
+        ("RandF", "Purity_Good"): 0.651,
+        ("RandF", "Density_Best"): 24.696,
+        ("RandF", "Density_Best_Normalized"): 2.286,
+        ("RandF", "Purity_Best"): 0.630,
     },
-)
+    "trace3_pythia_skip": {
+        ("LDA", "Density_Good"): 43.362,
+        ("LDA", "Density_Good_Normalized"): 4.013,
+        ("LDA", "Purity_Good"): 0.647,
+        ("L_SVM", "Density_Good"): 24.227,
+        ("L_SVM", "Density_Good_Normalized"): 2.242,
+        ("L_SVM", "Purity_Good"): 0.602,
+        ("L_SVM", "Density_Best"): 25.862,
+        ("L_SVM", "Density_Best_Normalized"): 2.393,
+        ("L_SVM", "Purity_Best"): 0.568,
+    },
+}
 
 pytestmark = pytest.mark.usefixtures("verified_current_matlab_bundle")
 
@@ -481,9 +511,7 @@ def test_current_matlab_trace3_explore_membership(variant: str) -> None:
         (case.explore_rows[int(row)], str(case.expected_membership.columns[int(col)]))
         for row, col in positions
     }
-    expected_differences = (
-        _DEFAULT_BOUNDARY_AMBIGUITIES if variant == "trace3_default" else frozenset()
-    )
+    expected_differences = _BOUNDARY_AMBIGUITIES[variant]
     assert differences == expected_differences
 
     for row, column in expected_differences:
@@ -504,8 +532,9 @@ def test_current_matlab_trace3_explore_membership(variant: str) -> None:
         assert isinstance(python_polygon, Polygon | MultiPolygon)
         point = Point(case.explore_z[row_index])
 
-        # The rounded CSV puts `zoo` exactly on the exported vertex. MATLAB's
-        # original full-precision side-of-boundary information is unrecoverable.
+        # The round-trip CSV puts this repeated build/explore point exactly on
+        # the exported vertex. MATLAB's original side-of-boundary result differs
+        # from the boundary-inclusive serialized-geometry interpretation.
         assert exported.boundary.distance(point) == 0.0
         assert python_polygon.boundary.distance(point) == 0.0
         assert exported.touches(point)
@@ -532,34 +561,39 @@ def test_current_matlab_trace3_explore_rescore(variant: str) -> None:
         expected_best_inside = expected_membership[f"in_best_{label}"].to_numpy(
             dtype=np.bool_,
         )
-        boundary_delta = int(variant == "trace3_default" and label == "RandF")
+        good_boundary_rows = [
+            case.explore_rows.index(row)
+            for row, column in _BOUNDARY_AMBIGUITIES[variant]
+            if column == f"in_good_{label}"
+        ]
+        best_boundary_rows = [
+            case.explore_rows.index(row)
+            for row, column in _BOUNDARY_AMBIGUITIES[variant]
+            if column == f"in_best_{label}"
+        ]
 
         good = case.rescored.good[index]
         best = case.rescored.best[index]
         assert good.polygon is case.built.good[index].polygon
         assert best.polygon is case.built.best[index].polygon
-        assert good.elements == int(expected_good_inside.sum()) + boundary_delta
-        assert (
-            good.good_elements
-            == int(
-                np.logical_and(
-                    expected_good_inside,
-                    case.explore_y_bin[:, index],
-                ).sum(),
-            )
-            + boundary_delta
+        assert good.elements == int(expected_good_inside.sum()) + len(
+            good_boundary_rows,
         )
-        assert best.elements == int(expected_best_inside.sum()) + boundary_delta
-        assert (
-            best.good_elements
-            == int(
-                np.logical_and(
-                    expected_best_inside,
-                    zero_based_portfolio == index,
-                ).sum(),
-            )
-            + boundary_delta
+        assert good.good_elements == int(
+            np.logical_and(
+                expected_good_inside,
+                case.explore_y_bin[:, index],
+            ).sum(),
+        ) + int(case.explore_y_bin[good_boundary_rows, index].sum())
+        assert best.elements == int(expected_best_inside.sum()) + len(
+            best_boundary_rows,
         )
+        assert best.good_elements == int(
+            np.logical_and(
+                expected_best_inside,
+                zero_based_portfolio == index,
+            ).sum(),
+        ) + int((zero_based_portfolio[best_boundary_rows] == index).sum())
 
     expected_summary = _matlab_summary(
         pd.read_csv(
@@ -576,44 +610,11 @@ def test_current_matlab_trace3_explore_rescore(variant: str) -> None:
         (str(actual_summary.index[int(row)]), str(actual_summary.columns[int(col)]))
         for row, col in cells
     }
-    expected_differences = (
-        {
-            ("RandF", "Density_Good"),
-            ("RandF", "Density_Good_Normalized"),
-            ("RandF", "Purity_Good"),
-            ("RandF", "Density_Best"),
-            ("RandF", "Density_Best_Normalized"),
-            ("RandF", "Purity_Best"),
-        }
-        if variant == "trace3_default"
-        else set()
-    )
+    expected_values = _BOUNDARY_SUMMARY_VALUES[variant]
+    expected_differences = set(expected_values)
     assert differences == expected_differences
-    if variant == "trace3_default":
-        changed_columns = [
-            "Density_Good",
-            "Density_Good_Normalized",
-            "Purity_Good",
-            "Density_Best",
-            "Density_Best_Normalized",
-            "Purity_Best",
-        ]
-        np.testing.assert_array_equal(
-            actual_summary.reindex(
-                index=["RandF"],
-                columns=changed_columns,
-            )
-            .to_numpy(dtype=np.double)
-            .reshape(-1),
-            np.array([16.997, 2.025, 0.639, 19.177, 2.285, 0.617]),
-        )
-    else:
-        assert_frame_equal(
-            actual_summary,
-            expected_summary,
-            check_dtype=False,
-            check_exact=True,
-        )
+    for (algorithm, column), expected_value in expected_values.items():
+        assert actual_summary.loc[algorithm, column] == expected_value
 
 
 def test_current_matlab_legacy_svm_hyperparameter_units() -> None:

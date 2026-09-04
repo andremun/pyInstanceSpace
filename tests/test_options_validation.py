@@ -131,9 +131,21 @@ def test_prelim_configuration_validates_at_direct_boundaries(
 def test_none_seed_is_valid_not_rejected_as_a_bad_int(
     valid_options: InstanceSpaceOptions,
 ) -> None:
-    """`general.seed` may be `None` (non-deterministic run) - not a MATLAB field."""
+    """General and inherited stage seeds may be None for non-deterministic runs."""
     general = dataclasses.replace(valid_options.general, seed=None)
-    dataclasses.replace(valid_options, general=general)
+    sifted = dataclasses.replace(valid_options.sifted, seed=None)
+    pilot = dataclasses.replace(valid_options.pilot, seed=None)
+    dataclasses.replace(valid_options, general=general, sifted=sifted, pilot=pilot)
+
+
+def test_stage_seeds_load_from_matlab_option_names() -> None:
+    """Resolved MATLAB stage seeds map directly to the public option fields."""
+    options = InstanceSpaceOptions.from_dict(
+        {"sifted": {"seed": 17}, "pilot": {"seed": 23}},
+    )
+
+    assert options.sifted.seed == 17
+    assert options.pilot.seed == 23
 
 
 @pytest.mark.parametrize(
@@ -771,7 +783,9 @@ def test_pythia_valid_precalculated_params_make_tuning_count_irrelevant() -> Non
         (lambda: NormOptions.default(flag=cast(bool, 1)), "True or False"),
         (lambda: SelvarsOptions.default(selvars_type="bad"), "one of"),
         (lambda: SiftedOptions.default(k=0), "positive"),
+        (lambda: SiftedOptions.default(seed=-1), "non-negative"),
         (lambda: PilotOptions.default(n_tries=0), "positive"),
+        (lambda: PilotOptions.default(seed=-1), "non-negative"),
         (lambda: CloisterOptions.default(max_features=0), "positive"),
         (lambda: PythiaOptions.default(cv_folds=1), "at least 2"),
         (lambda: TraceOptions.default(min_instances=0), "positive"),

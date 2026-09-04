@@ -146,6 +146,7 @@ def _effective_options(variant: str) -> dict[str, Any]:
             "K": 10,
             "MaxIter": 1000,
             "Replicates": 100,
+            "seed": 42,
         },
         "pilot": {
             "analytic": False,
@@ -156,6 +157,7 @@ def _effective_options(variant: str) -> dict[str, Any]:
             "viewGroups": [],
             "topoWeight": 0,
             "verbose": False,
+            "seed": 42,
         },
         "cloister": {"pval": 0.05, "corrThreshold": 0.7, "maxFeatures": 20},
         "pythia": {

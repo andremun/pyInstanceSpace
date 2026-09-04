@@ -7,8 +7,8 @@
   `324830c`.
 - Branch 2: `codex/validation-serialization-trace3` at `67c73de`.
 - Branch 3: `codex/matlab-parity-next-wave`, integrating both lines at `030937d`.
-- Gold implementation: MATLAB InstanceSpace at `34c0129`, executed with R2026a
-  Update 4.
+- Gold implementation: MATLAB InstanceSpace v0.9.1 at `98a01ac`, executed with
+  R2026a Update 4.
 - Installed evidence: verified `reference-export/v2` under
   `tests/fixtures/matlab/current/`, containing 423 files.
 
@@ -55,8 +55,8 @@ equal-budget, repeated-seed candidate and objective traces.
 R2026a disproves issue #272's retry premise. Its all-points alpha can intentionally produce
 multiple regions. On the pinned two-cluster cloud, MATLAB and Python use radius `sqrt(0.5)`,
 retain two unit-area regions, and include all six points. Python preserves this topology.
-MATLAB's legacy CSV helper traces only the first boundary cycle; Python does not reproduce
-that output-only defect.
+MATLAB v0.9.1's CSV helper preserves every disconnected region but still reports and omits
+hole cycles. Python preserves both disconnected regions and holes.
 
 ## Three-dimensional pipeline
 
@@ -66,7 +66,8 @@ that output-only defect.
 source for SIFTED and PILOT. Standard analytic, numerical, and SIMPLS paths support both
 dimensions. Numerical vectors use MATLAB column-major packing; the loss averages instances
 before columns; rank-deficient analytic input falls back to the numerical solver. MATLAB's
-ten default restarts and stage-local MT19937 stream are explicit contracts.
+ten default restarts and stage-local seeded MT19937 stream are explicit contracts. SIFTED
+and PILOT inherit `general.seed` unless their stage-local seed is set explicitly.
 
 Every configured zero-based algorithm group produces one `2 x 3` view matrix and
 azimuth/elevation in radians. An empty group list resolves to one global group; overlapping
@@ -117,8 +118,8 @@ Footprint image overlays always use experimental `Ybin` and `P`, independent of
 
 ## Fixture trust boundary
 
-The installed 423-file v2 oracle was generated from clean MATLAB `34c0129` and clean Python
-generator `cf3cde0` under R2026a Update 4. The exporter identity is pinned to
+The installed 423-file v2 oracle was generated from clean MATLAB v0.9.1 at `98a01ac` and
+clean Python generator `4816b8c` under R2026a Update 4. The exporter identity is pinned to
 `d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
 The manifest records MATLAB plus Statistics and Machine Learning, Optimization, Global
 Optimization, and Financial Toolbox.
@@ -139,8 +140,8 @@ profile remains readable; diagnostic and historical bundles remain non-oracles.
   `X0`.
 - `CloisterOptions.hull_dims="all"` keeps a native n-dimensional hull; `2` selects MATLAB's
   legacy first-two-coordinate hull.
-- Python preserves every multi-region CSV component instead of MATLAB's first-cycle helper
-  defect.
+- Python preserves hole cycles that MATLAB v0.9.1's CSV helper still omits; both preserve
+  every disconnected region.
 - Python retains a useful whole-space `good_elements` count; MATLAB leaves the exported field
   unset.
 
@@ -148,6 +149,6 @@ profile remains readable; diagnostic and historical bundles remain non-oracles.
 
 - Strict v2 provenance and semantic verification: 423 files.
 - Provenance tests: 86 passed.
-- Current-gold readers: 40 passed, including native 3D TRACE at 3/3 passed.
-- Full-suite accounting: the CI-equivalent Linux gate passed all 1,039 collected tests
-  with 92.00% branch coverage and no uncaught warnings under `-W error`.
+- Current-gold readers: 41 passed, including native 3D TRACE at 3/3 passed.
+- Full-suite accounting: the local CI-equivalent gate passed all 1,046 collected tests
+  with 92.08% branch coverage and no uncaught warnings under `-W error`.

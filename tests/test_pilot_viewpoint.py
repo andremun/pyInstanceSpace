@@ -344,15 +344,15 @@ def test_invalid_x0_shape_uses_deterministic_default_starts(
     np.testing.assert_array_equal(first_capture[0], second_capture[0])
 
 
-def test_default_starts_match_matlab_default_twister_sequence() -> None:
-    """Preserve MATLAB's rng('default') values and column-major matrix fill."""
+def test_default_starts_match_matlab_seeded_twister_sequence() -> None:
+    """Preserve MATLAB's seed-42 values and column-major matrix fill."""
     starts = viewpoint._default_starts(4, 2)
     expected_unscaled = np.array(
         [
-            [0.8147236863931789, 0.6323592462254095],
-            [0.9057919370756192, 0.09754040499940952],
-            [0.12698681629350606, 0.2784982188670484],
-            [0.9133758561390194, 0.5468815192049838],
+            [0.3745401188473625, 0.15601864044243652],
+            [0.9507143064099162, 0.15599452033620265],
+            [0.7319939418114051, 0.05808361216819946],
+            [0.5986584841970366, 0.8661761457749352],
         ],
         dtype=np.float64,
     )
@@ -605,7 +605,7 @@ def test_matlab_source_invariants_when_reference_repo_is_available() -> None:
     source = matlab_source.read_text(encoding="utf-8")
     assert "LAMBDA = 0.2" in source
     assert "size(opts.X0,1)==2*n+2*n2" in source
-    assert "rng('default')" in source
+    assert "rng(opts.seed, 'twister')" in source
     assert "'FunctionTolerance',1e-20" in source
     assert "perf(i) = corr(Hd, pdist(Z*A')')" in source
     assert "viewdir = cross(A(1,:), A(2,:))" in source

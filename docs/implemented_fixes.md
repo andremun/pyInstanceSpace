@@ -8,7 +8,8 @@
   `324830c`
 - Branch 2: `codex/validation-serialization-trace3` at `67c73de`
 - Branch 3 integration merge: `030937d`
-- Gold implementation: MATLAB InstanceSpace at `34c0129`, run with R2026a Update 4
+- Gold implementation: MATLAB InstanceSpace v0.9.1 at `98a01ac`, run with R2026a
+  Update 4
 - Installed oracle: verified `reference-export/v2`, 423 files
 - Review date: 2026-08-21
 
@@ -41,9 +42,11 @@ boundary-exclusive proposal. Those four issues are already closed upstream.
 - Derive PYTHIA folds and classifier/search randomness from one-based `seed + i` and
   retain the actual splitter per algorithm.
 - **[Behavior-changing]** Match MATLAB PILOT's ten default restarts (formerly five in
-  Python), stage-local MT19937 starts, valid `precalcAlpha` precedence, column-major
+  Python), seeded stage-local MT19937 starts, valid `precalcAlpha` precedence, column-major
   packing, loss axes, and rank fallback. The default and explicit five-restart override
   are pinned in option tests; the ten generated starts match the verified R2026a export.
+- **[Behavior-changing]** Match v0.9.1's seeded random PRELIM tie-breaking and new
+  `sifted.seed`/`pilot.seed` options. Both stage seeds inherit `general.seed` when omitted.
 - Persist 3D viewpoint matrices and radian angles; an empty group list means one global
   view and overlapping groups remain valid.
 - Add a tetrahedral alpha complex with strict volume thresholds, vertex-connected
@@ -88,8 +91,8 @@ boundary-exclusive proposal. Those four issues are already closed upstream.
   to `X0`.
 - `CloisterOptions.hull_dims="all"` keeps a native n-dimensional hull. Set it to `2` for
   MATLAB's legacy first-two-coordinate hull.
-- Python preserves all multi-region CSV geometry instead of reproducing MATLAB's
-  first-boundary-cycle legacy output-helper defect.
+- Python preserves hole cycles that MATLAB v0.9.1's CSV helper still omits; both preserve
+  every disconnected region.
 - Python retains a useful whole-space `good_elements` count in memory; MATLAB leaves the
   corresponding exported field unset.
 - `Footprint.area` remains the compatibility field for 2D area or 3D volume;
@@ -98,13 +101,13 @@ boundary-exclusive proposal. Those four issues are already closed upstream.
 ## Verification
 
 - The installed v2 oracle contains 423 manifest-listed files generated from clean MATLAB
-  `34c0129` and clean Python generator `cf3cde0` under R2026a Update 4.
+  v0.9.1 at `98a01ac` and clean Python generator `4816b8c` under R2026a Update 4.
 - The run records MATLAB plus Statistics and Machine Learning, Optimization, Global
   Optimization, and Financial Toolbox.
 - Exporter identity:
   `d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
 - Provenance, strict-profile, identity, and semantic mutation tests: **86 passed**.
-- Current-gold scientific readers: **40 passed**, including native 3D TRACE build,
+- Current-gold scientific readers: **41 passed**, including native 3D TRACE build,
   topology, spectra, membership, and rescore at **3/3 passed**.
-- Full-suite accounting: the CI-equivalent Linux gate passed all **1,039 collected**
-  tests. Branch coverage was **92.00%**, with no uncaught warnings under `-W error`.
+- Full-suite accounting: the local CI-equivalent gate passed all **1,046 collected**
+  tests. Branch coverage was **92.08%**, with no uncaught warnings under `-W error`.

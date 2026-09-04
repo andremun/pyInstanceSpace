@@ -72,7 +72,7 @@ class BinaryPerformance(NamedTuple):
         (zero values substituted with `eps`, matching MATLAB).
     p : NDArray[np.int_]
         1-based index of the best-performing algorithm per instance, ties
-        broken by picking the first tied algorithm.
+        broken with MATLAB-compatible seeded random selection.
     num_good_algos : NDArray[np.double]
         Number of algorithms with good performance, per instance.
     beta : NDArray[np.bool_]
@@ -99,10 +99,8 @@ def compute_binary_performance(
     Ports MATLAB PRELIM.m's binary-performance section: an algorithm is
     "good" for an instance if its performance is within `epsilon` of the best
     (relative) or better than `epsilon` outright (absolute), per
-    `perf_opts.max_perf`/`abs_perf`. Ties for the best algorithm are broken by
-    picking the first tied algorithm - a deliberate, already-recorded
-    simplification (see roadmap F3), not a faithful port of MATLAB's random
-    `randi()` tie-break.
+    `perf_opts.max_perf`/`abs_perf`. Ties for the best algorithm use MATLAB's
+    seeded twister stream and ``randi`` selection rule.
 
     Shared by `PrelimStage._prelim()` (training, ground truth for the
     training set) and `InstanceSpace.explore()`'s evaluation path (F9, ground
@@ -174,18 +172,20 @@ def compute_binary_performance(
     best_algos = np.equal(y_raw, y_best_tie[:, np.newaxis])
     multiple_best_algos = np.sum(best_algos, axis=1) > 1
     aidx = np.arange(1, nalgos + 1)
+    rng = np.random.RandomState(general_opts.seed)
     for i in range(y_raw.shape[0]):
         if multiple_best_algos[i]:
             aux = aidx[best_algos[i]]
-            # Ties are broken by picking the first tied algorithm, not a
-            # random one (MATLAB uses randi() here) - see roadmap F3.
-            p[i] = aux[0]
+            # MATLAB randi(n) is floor(rand*n)+1. RandomState uses the same
+            # legacy twister and 53-bit double conversion as MATLAB.
+            choice = int(np.floor(rng.random_sample() * aux.size))
+            p[i] = aux[choice]
 
     logger.info(
         f"[{log_prefix}] -> For {round(100 * np.mean(multiple_best_algos))}% of the "
         "instances there is more than one best algorithm.",
     )
-    logger.info(f"[{log_prefix}] The first tied algorithm is used to break ties.")
+    logger.info(f"[{log_prefix}] Random selection is used to break ties.")
 
     num_good_algos = np.sum(y_bin, axis=1)
     if general_opts.verbose:

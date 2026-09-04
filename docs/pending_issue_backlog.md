@@ -43,6 +43,6 @@ already closed upstream.
   changes.
 - Never promote diagnostic or `legacy-unknown` data into the MATLAB oracle.
 
-These items do not block the verified 2D/3D build and explore paths. The CI-equivalent
-Linux gate passed all 1,039 tests with 92.00% branch coverage and no uncaught warnings
+These items do not block the verified 2D/3D build and explore paths. The local CI-equivalent
+gate passed all 1,046 tests with 92.08% branch coverage and no uncaught warnings
 under `-W error`.

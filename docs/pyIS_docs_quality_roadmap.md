@@ -7,10 +7,11 @@
 
 ---
 
-> **Historical roadmap; current-status banner (2026-08-21).** Status rows and
+> **Historical roadmap; current-status banner (2026-09-04).** Status rows and
 > “not started” claims below are preserved as dated history. Current parity uses the
-> installed 423-file, `matlab-verified` R2026a Update 4 v2 oracle (86 provenance tests;
-> 40 current readers). Issue #316 is now implemented through the typed stage-owned
+> installed 423-file, `matlab-verified` R2026a Update 4 v2 oracle from MATLAB v0.9.1
+> at `98a01ac` (86 provenance tests; 41 current readers). Issue #316 is implemented
+> through the typed stage-owned
 > inference contract; its older F18 rows below remain dated history. Predating numerical
 > files are `legacy-unknown`, even where this roadmap called them MATLAB golden/reference
 > data; they are not MATLAB oracles. See `docs/architecture.md`,

@@ -110,12 +110,9 @@ class GeneralOptions:
         per-classifier tuning progress), or only their top-level `[STAGE] message`
         lines.
     seed : int | None
-        Seed threaded through general random-number generation (both
-        `np.random.default_rng(seed=...)` and scikit-learn's `random_state=...`),
-        except where MATLAB explicitly resets a stage-local stream. In particular,
-        numerical PILOT starts reproduce MATLAB's `rng('default')` and therefore
-        do not depend on this seed. `None` requests non-deterministic behavior from
-        consumers that support it.
+        Seed threaded through general random-number generation. SIFTED and PILOT
+        inherit this value unless their own ``seed`` option is set explicitly.
+        ``None`` requests non-deterministic behavior from consumers that support it.
     """
 
     verbose: bool
@@ -320,6 +317,9 @@ class SiftedOptions:
     # Projection dimensionality for direct SIFTED calls. Aggregate execution
     # derives this from PilotOptions.dims to avoid conflicting public state.
     dims: int = DEFAULT_SIFTED_DIMS
+    # Stage-local RNG seed. None inherits GeneralOptions.seed, matching
+    # ISAdefaults.m's opts.sifted.seed propagation.
+    seed: int | None = None
 
     def __post_init__(self) -> None:
         """Normalize and validate SIFTED options."""
@@ -348,6 +348,7 @@ class SiftedOptions:
         stop_criteria: str = DEFAULT_SIFTED_STOP_CRITERIA,
         pval: float = DEFAULT_SIFTED_PVAL,
         dims: int = DEFAULT_SIFTED_DIMS,
+        seed: int | None = None,
     ) -> SiftedOptions:
         """Instantiate with default values."""
         return SiftedOptions(
@@ -370,6 +371,7 @@ class SiftedOptions:
             stop_criteria=stop_criteria,
             pval=pval,
             dims=dims,
+            seed=seed,
         )
 
 
@@ -405,6 +407,9 @@ class PilotOptions:
     # dims=3. Python indices are zero-based. A canonical empty tuple requests
     # one global viewpoint across the complete algorithm portfolio.
     view_groups: tuple[tuple[int, ...], ...] = ()
+    # Stage-local RNG seed. None inherits GeneralOptions.seed, matching
+    # ISAdefaults.m's opts.pilot.seed propagation.
+    seed: int | None = None
 
     def __post_init__(self) -> None:
         """Normalize and validate optional solver matrices."""
@@ -428,6 +433,7 @@ class PilotOptions:
         method: str = DEFAULT_PILOT_METHOD,
         dims: int = DEFAULT_PILOT_DIMS,
         view_groups: object = (),
+        seed: int | None = None,
     ) -> PilotOptions:
         """Instantiate with default values."""
         return PilotOptions(
@@ -440,6 +446,7 @@ class PilotOptions:
             method=method,
             dims=dims,
             view_groups=cast(tuple[tuple[int, ...], ...], view_groups),
+            seed=seed,
         )
 
 
@@ -982,6 +989,8 @@ def _validate_sifted_options(options: SiftedOptions) -> None:
     _check_stop_criteria(options.stop_criteria)
     _check_unit_range("sifted.pval", options.pval)
     _check_projection_dims("sifted.dims", options.dims)
+    if options.seed is not None:
+        _check_pos_int("sifted.seed", options.seed, zero_allowed=True)
 
 
 def _validate_pilot_options(options: PilotOptions) -> None:
@@ -997,6 +1006,8 @@ def _validate_pilot_options(options: PilotOptions) -> None:
     _check_logical("pilot.adjustRotation", options.adjust_rotation)
     _check_positive("pilot.costWeight", options.cost_weight)
     _check_projection_dims("pilot.dims", options.dims)
+    if options.seed is not None:
+        _check_pos_int("pilot.seed", options.seed, zero_allowed=True)
     object.__setattr__(
         options,
         "view_groups",
