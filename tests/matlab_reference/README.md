@@ -1,8 +1,8 @@
 # MATLAB Reference Data for the exploreIS Pipeline
 
 Ground-truth inputs, trained-model artifacts and stage outputs from the MATLAB
-implementation of the exploreIS pipeline, consumed by the validation tests in
-`tests/exploreIS/`. All files were exported from a single MATLAB run of the reference
+implementation of the exploreIS pipeline, consumed by the validation tests in each
+`tests/test_explore_<stage>.py`. All files were exported from a single MATLAB run of the reference
 toolkit (https://github.com/andremun/InstanceSpace) on the trial dataset, so the
 trained artifacts and the reference outputs are mutually consistent.
 
@@ -90,8 +90,8 @@ MATLAB's stage-by-stage outputs on the 235-instance test set. Every file carries
 
 ## Validation Criteria
 
-Per-stage thresholds and their rationale are documented in the validation tests under
-`tests/exploreIS/` — see that suite's README.
+Per-stage thresholds and their rationale are documented in each `tests/
+test_explore_<stage>.py` file — see `tests/README.md` for the full convention.
 
 ## Dataset Statistics
 

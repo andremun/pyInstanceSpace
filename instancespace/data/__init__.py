@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Contain dataclasses for instance space analysis.
 
 Module:

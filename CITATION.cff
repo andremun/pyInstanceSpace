@@ -1,0 +1,47 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "pyInstanceSpace: A toolkit for the assessment of algorithmic power"
+version: 0.2.1
+date-released: "2024-12-09"
+doi: 10.5281/zenodo.15562567
+license: LicenseRef-PolyForm-Noncommercial-1.0.0
+repository-code: "https://github.com/andremun/pyInstanceSpace"
+authors:
+  - family-names: Muñoz
+    given-names: "Mario Andrés"
+preferred-citation:
+  type: software
+  title: "Instance Space Analysis: A Python toolkit for the assessment of algorithmic power"
+  authors:
+    - family-names: Muñoz
+      given-names: "Mario Andrés"
+    - family-names: Smith-Miles
+      given-names: Kate
+  doi: 10.5281/zenodo.15562567
+  repository-code: "https://github.com/andremun/pyInstanceSpace"
+  year: 2025
+references:
+  - type: article
+    title: "instancespace: A Python package for insightful algorithm testing through Instance Space Analysis"
+    doi: 10.1016/j.softx.2025.102246
+    journal: SoftwareX
+    volume: 31
+    number: "102246"
+    year: 2025
+    authors:
+      - family-names: Güzel
+        given-names: "Yusuf Berdan"
+      - family-names: Khare
+        given-names: Kushagra
+      - family-names: Harvey
+        given-names: Nathan
+      - family-names: Dsouza
+        given-names: Kian
+      - family-names: Jang
+        given-names: "Dong Hyeog"
+      - family-names: Chen
+        given-names: Junheng
+      - family-names: Lam
+        given-names: "Cheng Ze"
+      - family-names: Muñoz
+        given-names: "Mario Andrés"

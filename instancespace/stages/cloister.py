@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """CLOISTER Stage Module for Correlation-Based Boundary Estimation.
 
 This module implements the CLOISTER stage, which estimates boundaries in a dataset
@@ -179,22 +181,60 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
         The output of the Cloister stage.
         """
         logger.info(
-            "  -> CLOISTER is using correlation to estimate a boundary for the space.",
+            "[CLOISTER]   -> CLOISTER is using correlation to estimate a boundary"
+            " for the space.",
         )
+
+        hull_dims = None if options.hull_dims == "all" else options.hull_dims
+
+        nfeats = x.shape[1]
+        if nfeats > options.max_features:
+            # Corner enumeration below is 2**nfeats - intractable past a
+            # point. Matches MATLAB's opts.maxFeatures fallback: skip
+            # enumeration entirely and use a plain convex hull of the
+            # projected instances as the boundary instead.
+            logger.warning(
+                f"[CLOISTER]   -> CLOISTER skipped: {nfeats} features exceeds "
+                f"limit of {options.max_features}. Using convex hull as boundary.",
+            )
+            z_all = CloisterStage._compute_convex_hull(np.dot(x, a.T), hull_dims)
+            logger.info("[CLOISTER] " + "-" * 65)
+            logger.info("[CLOISTER]   -> CLOISTER has completed.")
+            return CloisterOutput(z_all, z_all)
 
         rho = CloisterStage._compute_correlation(x, options)
         x_edge, remove = CloisterStage._generate_boundaries(x, rho, options)
-        z_edge = CloisterStage._compute_convex_hull(np.dot(x_edge, a.T))
-        z_ecorr = CloisterStage._compute_convex_hull(np.dot(x_edge[~remove, :], a.T))
+        z_edge = CloisterStage._compute_convex_hull(np.dot(x_edge, a.T), hull_dims)
 
-        if z_ecorr.size == 0:
-            logger.info("  -> The acceptable correlation threshold was too strict.")
-            logger.info("  -> The features are weakely correlated.")
-            logger.info("  -> Please consider increasing it.")
+        if z_edge.size == 0:
+            # Unlike a too-strict correlation threshold (below), an empty
+            # z_edge means the boundary polygon itself couldn't be built at
+            # all (degenerate points, NaN propagation, etc.) - MATLAB lets
+            # this fail loudly rather than silently returning an empty
+            # boundary, so this is logged as an error, not folded into the
+            # "threshold too strict" message below.
+            logger.error(
+                "[CLOISTER]   -> Could not construct a boundary polygon from "
+                "the feature bounds - check for degenerate or NaN-heavy "
+                "input data.",
+            )
             z_ecorr = z_edge
+        else:
+            z_ecorr = CloisterStage._compute_convex_hull(
+                np.dot(x_edge[~remove, :], a.T),
+                hull_dims,
+            )
+            if z_ecorr.size == 0:
+                logger.info(
+                    "[CLOISTER]   -> The acceptable correlation threshold was too"
+                    " strict.",
+                )
+                logger.info("[CLOISTER]   -> The features are weakly correlated.")
+                logger.info("[CLOISTER]   -> Please consider increasing it.")
+                z_ecorr = z_edge
 
-        logger.info("-----------------------------------------------------------------")
-        logger.info("  -> CLOISTER has completed.")
+        logger.info("[CLOISTER] " + "-" * 65)
+        logger.info("[CLOISTER]   -> CLOISTER has completed.")
 
         return CloisterOutput(z_edge, z_ecorr)
 
@@ -218,14 +258,27 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
             A matrix of Pearson correlation coefficients between each pair of features.
         """
         nfeats = x.shape[1]
+        min_valid_pairs = 2
 
         rho = np.zeros((nfeats, nfeats))
         pval = np.zeros((nfeats, nfeats))
 
+        # A feature column can carry sparse NaNs here (matching MATLAB's own
+        # documented "sparse NaNs reach CLOISTER" design) - pearsonr on raw
+        # columns silently returns (nan, nan) for a NaN-containing pair
+        # instead of computing over the valid overlap, which then flows
+        # through unfiltered (nan > p_val is False, so insignificant_pvals
+        # never catches it). Mask each pair's rows to the ones where both
+        # columns are valid instead.
         for i in range(nfeats):
             for j in range(nfeats):
                 if i != j:
-                    rho[i, j], pval[i, j] = pearsonr(x[:, i], x[:, j])
+                    valid = ~(np.isnan(x[:, i]) | np.isnan(x[:, j]))
+                    if np.sum(valid) < min_valid_pairs:
+                        rho[i, j] = 0.0
+                        pval[i, j] = 1.0
+                    else:
+                        rho[i, j], pval[i, j] = pearsonr(x[valid, i], x[valid, j])
                 else:
                     rho[i, j] = 0
                     pval[i, j] = 1
@@ -262,27 +315,44 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
         return binary_matrix[:, ::-1]
 
     @staticmethod
-    def _compute_convex_hull(points: NDArray[np.double]) -> NDArray[np.double]:
+    def _compute_convex_hull(
+        points: NDArray[np.double],
+        hull_dims: int | None = None,
+    ) -> NDArray[np.double]:
         """Calculate the convex hull of a set of points.
 
         Parameters
         ----------
         points : NDArray[np.double]
             A 2D array of points (instances x features).
+        hull_dims : int | None
+            Restrict the hull geometry to the first `hull_dims` columns of
+            `points` (matching MATLAB's `core/CLOISTER.m`, which always
+            builds a 2D hull on the first two projected columns). `None`
+            (this port's own default) uses every column, letting
+            `scipy.spatial.ConvexHull` build the hull in its native
+            dimensionality. #299 audit finding, issue 5. Either way, the
+            returned vertices keep every column of `points` - only the hull
+            geometry itself is computed on the restricted view.
 
         Returns
         -------
         NDArray[np.double]
             The vertices of the convex hull or an empty array if an error occurs.
         """
+        hull_points = points if hull_dims is None else points[:, :hull_dims]
         try:
-            hull = ConvexHull(points)
+            hull = ConvexHull(hull_points)
             return points[hull.vertices, :]
         except QhullError as qe:
-            logger.info("QhullError: Encountered geometrical degeneracy:", str(qe))
+            logger.warning(
+                f"[CLOISTER] QhullError: Encountered geometrical degeneracy: {qe}",
+            )
             return np.array([])
         except ValueError as ve:
-            logger.info("ValueError: Imcompatible value encountered:", str(ve))
+            logger.warning(
+                f"[CLOISTER] ValueError: Incompatible value encountered: {ve}",
+            )
             return np.array([])
 
     @staticmethod
@@ -308,15 +378,20 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
             A tuple containing the boundary coordinates (x_edge) and a boolean array
             indicating which boundaries should be removed.
         """
-        # if no feature selection. then make a note in the boundary construction
-        # that it won't work, because nfeats is so large that decimal to binary matrix
-        # conversion wont be able to make a matrix.
+        # Caller (cloister()) already guards nfeats > options.max_features
+        # before reaching here, so 2**nfeats corner enumeration below stays
+        # tractable.
         nfeats = x.shape[1]
 
         idx = CloisterStage._decimal_to_binary_matrix(nfeats)
         ncomb = idx.shape[0]
 
-        x_bnds = np.array([np.min(x, axis=0), np.max(x, axis=0)])
+        # nanmin/nanmax (not min/max): a feature column can carry sparse
+        # NaNs (matching MATLAB's documented "sparse NaNs reach CLOISTER"
+        # design, via its own omitnan bounds) - plain min/max would return
+        # NaN for that column and propagate through x_edge into
+        # ConvexHull, which errors on NaN input.
+        x_bnds = np.array([np.nanmin(x, axis=0), np.nanmax(x, axis=0)])
         x_edge = np.zeros((ncomb, nfeats))
         remove = np.zeros(ncomb, dtype=bool)
 

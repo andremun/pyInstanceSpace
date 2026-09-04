@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """SIFTED Stage: Feature Selection and Optimisation.
 
 This module implements the SIFTED stage, which focuses on feature selection,
@@ -44,6 +46,7 @@ from typing import NamedTuple
 import numpy as np
 import pandas as pd
 import pygad
+from loguru import logger
 from numpy.typing import NDArray
 from scipy.stats import pearsonr
 from sklearn.cluster import KMeans
@@ -53,6 +56,7 @@ from sklearn.neighbors import KNeighborsClassifier
 
 from instancespace.data.model import DataDense
 from instancespace.data.options import (
+    GeneralOptions,
     ParallelOptions,
     PilotOptions,
     SelvarsOptions,
@@ -114,6 +118,8 @@ class SiftedInput(NamedTuple):
         Dense data representation, if applicable.
     parallel_options : ParallelOptions
         Configuration options for parallel processing.
+    general_options : GeneralOptions
+        General options (e.g. the RNG seed), not specific to any one stage.
 
     """
 
@@ -133,6 +139,7 @@ class SiftedInput(NamedTuple):
     selvars_options: SelvarsOptions
     data_dense: DataDense | None
     parallel_options: ParallelOptions
+    general_options: GeneralOptions
 
 
 class SiftedOutput(NamedTuple):
@@ -166,8 +173,6 @@ class SiftedOutput(NamedTuple):
         List of feature labels.
     selvars : NDArray[np.intc]
         Array of indices for selected features after the sifted stage.
-    idx : NDArray[np.intc]
-        Array of indices for selected algorithms after the sifted stage.
     rho : NDArray[np.double], optional
         Array of coefficients or weights for features after the sifted stage.
     pval : NDArray[np.double], optional
@@ -192,7 +197,6 @@ class SiftedOutput(NamedTuple):
     s: pd.Series | None  # type: ignore[type-arg]
     feat_labels: list[str]
     selvars: NDArray[np.intc]
-    idx: NDArray[np.intc]
     rho: NDArray[np.double] | None
     pval: NDArray[np.double] | None
     silhouette_scores: list[float] | None
@@ -206,12 +210,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
     ----------
     MIN_FEAT_REQUIRED : int
         Minimum number of features required for selection (default is 3).
-    PVAL_THRESHOLD : float
-        P-value threshold for feature selection (default is 0.05).
     KFOLDS : int
         Number of folds for cross-validation (default is 5).
-    K_NEIGHBORS : int
-        Number of neighbors for k-NN classification (default is 3).
     parallel_options : ParallelOptions
         Options for parallel processing.
 
@@ -278,9 +278,13 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
     """
 
     MIN_FEAT_REQUIRED: int = 3
-    PVAL_THRESHOLD: float = 0.05
     KFOLDS: int = 5
-    K_NEIGHBORS: int = 3
+    # GA fitness function's internal PILOT call mirrors MATLAB's own hardcoded
+    # costfcn constants (core/SIFTED.m) - analytic solve for speed (this runs
+    # once per GA candidate, hundreds of times per SIFTED call) and ntries=5,
+    # independent of whatever PilotOptions the outer pipeline actually uses.
+    _GA_FITNESS_PILOT_ANALYTIC: bool = True
+    _GA_FITNESS_PILOT_NTRIES: int = 5
     parallel_options: ParallelOptions
 
     def __init__(
@@ -299,6 +303,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         feat_labels: list[str],
         opts: SiftedOptions,
         parallel_options: ParallelOptions,
+        general_opts: GeneralOptions,
     ) -> None:
         """Define the input variables for the stage.
 
@@ -328,6 +333,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             Instance labels for the dataset.
         parallel_options : ParallelOptions
             An instance of ParallelOptions containing parallel processing parameters.
+        general_opts : GeneralOptions
+            General options (e.g. the RNG seed), not specific to any one stage.
         """
         self.x = x
         self.y = y
@@ -343,6 +350,16 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         self.s = s
         self.opts = opts
         self.parallel_options = parallel_options
+        self.general_opts = general_opts
+
+    def _log(self, msg: str) -> None:
+        """Log a top-level, always-shown stage message."""
+        logger.info(f"[SIFTED] {msg}")
+
+    def _log_detail(self, msg: str) -> None:
+        """Log per-trial/per-iteration detail, only shown when general.verbose."""
+        if self.general_opts.verbose:
+            logger.debug(f"[SIFTED] {msg}")
 
     @staticmethod
     def _inputs() -> type[SiftedInput]:
@@ -383,6 +400,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             inst_labels=inputs.inst_labels,
             s=inputs.s,
             parallel_options=inputs.parallel_options,
+            general_options=inputs.general_options,
         )
 
     def sift(
@@ -411,6 +429,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         opts_selvars: SelvarsOptions,
         data_dense: DataDense | None,
         parallel_options: ParallelOptions,
+        general_options: GeneralOptions,
     ) -> SiftedOutput:
         """Core Sifted stage to process feature selection and performance.
 
@@ -448,6 +467,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             Dense data representation, if available.
         parallel_options : ParallelOptions
             Options for parallel processing.
+        general_options : GeneralOptions
+            General options (e.g. the RNG seed), not specific to any one stage.
 
         Returns
         -------
@@ -477,6 +498,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             feat_labels,
             opts,
             parallel_options,
+            general_options,
         )
 
         return sifted.sift(
@@ -525,33 +547,24 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             constraints before generating the output.
         """
         x = self.x
-        y = self.y
-        y_bin = self.y_bin
-        x_raw = self.x_raw
-        y_raw = self.y_raw
-        beta = self.beta
-        num_good_algos = self.num_good_algos
-        y_best = self.y_best
-        p = self.p
-        inst_labels = self.inst_labels
-        s = self.s
-        feat_labels = self.feat_labels
         opts = self.opts
 
         nfeats = x.shape[1]
-        idx = np.arange(nfeats)
-        rng = np.random.default_rng(seed=0)
+        rng = np.random.default_rng(seed=self.general_opts.seed)
 
-        # Prepare for Filter
-        bydensity = (
-            opts_selvars is not None
-            and "density_flag" in opts_selvars.__dict__
-            and opts_selvars.density_flag
-            and "min_distance" in opts_selvars.__dict__
-            and isinstance(opts_selvars.min_distance, float)
-            and "selvars_type" in opts_selvars.__dict__
-            and isinstance(opts_selvars.selvars_type, str)
-        )
+        if not opts.flag:
+            self._log("-> Feature selection is disabled. Using all features.")
+            return self._finalize_output(
+                x,
+                np.arange(nfeats, dtype=np.intc),
+                None,
+                None,
+                None,
+                None,
+                opts_selvars,
+                data_dense,
+                apply_density=False,
+            )
 
         if nfeats <= 1:
             raise NotEnoughFeatureError(
@@ -559,33 +572,22 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             )
 
         if nfeats <= SiftedStage.MIN_FEAT_REQUIRED:
-            print(
-                "-> There are 3 or less features to do selection.",
+            self._log(
+                "-> There are 3 or less features to do selection. "
                 "Skipping feature selection.",
             )
-            selvars = np.arange(nfeats)
-            return SiftedOutput(
+            return self._finalize_output(
                 x,
-                y,
-                y_bin,
-                x_raw,
-                y_raw,
-                beta,
-                num_good_algos,
-                y_best,
-                p,
-                inst_labels,
-                s,
-                list(feat_labels),
-                selvars,
-                idx,
+                np.arange(nfeats, dtype=np.intc),
                 None,
                 None,
                 None,
                 None,
+                opts_selvars,
+                data_dense,
             )
 
-        print("-> Selecting features based on correlation with performance.")
+        self._log("-> Selecting features based on correlation with performance.")
 
         x_aux, rho, pval, selvars = self.select_features_by_performance()
 
@@ -597,58 +599,38 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             )
 
         if nfeats <= SiftedStage.MIN_FEAT_REQUIRED:
-            print(
-                "-> There are 3 or less features to do selection.",
+            self._log(
+                "-> There are 3 or less features to do selection. "
                 "Skipping correlation clustering selection.",
             )
-            return SiftedOutput(
+            return self._finalize_output(
                 x_aux,
-                y,
-                y_bin,
-                x_raw,
-                y_raw,
-                beta,
-                num_good_algos,
-                y_best,
-                p,
-                inst_labels,
-                s,
-                [feat_labels[i] for i in selvars],
                 selvars,
-                idx,
                 rho,
                 pval,
                 None,
                 None,
+                opts_selvars,
+                data_dense,
             )
 
         if nfeats <= opts.k:
-            print(
-                "-> There are less features than clusters.",
+            self._log(
+                "-> There are less features than clusters. "
                 "Skipping correlation clustering selection.",
             )
-            return SiftedOutput(
+            return self._finalize_output(
                 x_aux,
-                y,
-                y_bin,
-                x_raw,
-                y_raw,
-                beta,
-                num_good_algos,
-                y_best,
-                p,
-                inst_labels,
-                s,
-                [feat_labels[i] for i in selvars],
                 selvars,
-                idx,
                 rho,
                 pval,
                 None,
                 None,
+                opts_selvars,
+                data_dense,
             )
 
-        print("-> Selecting features based on correlation clustering.")
+        self._log("-> Selecting features based on correlation clustering.")
 
         silhouette_scores, _ = self.evaluate_cluster(x_aux, rng)
 
@@ -656,9 +638,35 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
 
         x_aux, selvars = self._find_best_combination(x_aux, clust, selvars, rng)
 
-        print(f"Bydensity value is : {bydensity}")
-        # Run filter for small experiment
-        if bydensity and data_dense is not None:
+        return self._finalize_output(
+            x_aux,
+            selvars,
+            rho,
+            pval,
+            silhouette_scores,
+            clust,
+            opts_selvars,
+            data_dense,
+        )
+
+    def _finalize_output(
+        self,
+        x: NDArray[np.double],
+        selvars: NDArray[np.intc],
+        rho: NDArray[np.double] | None,
+        pval: NDArray[np.double] | None,
+        silhouette_scores: list[float] | None,
+        clust: NDArray[np.bool_] | None,
+        opts_selvars: SelvarsOptions,
+        data_dense: DataDense | None,
+        *,
+        apply_density: bool = True,
+    ) -> SiftedOutput:
+        """Build a SIFTED result and apply its optional post-selection filter."""
+        by_density = apply_density and opts_selvars.density_flag
+        self._log_detail(f"Bydensity value is : {by_density}")
+
+        if by_density and data_dense is not None:
             subset_index, _, _, _ = do_filter(
                 data_dense.x[:, selvars],
                 data_dense.y,
@@ -667,10 +675,9 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 opts_selvars.min_distance,
             )
             subset_index = ~subset_index
-            if data_dense.s is not None:
-                s = data_dense.s[subset_index]
+            dense_s = data_dense.s[subset_index] if data_dense.s is not None else None
             return SiftedOutput(
-                data_dense.x[subset_index][:selvars],
+                data_dense.x[subset_index][:, selvars],
                 data_dense.y[subset_index][:],
                 data_dense.y_bin[subset_index][:],
                 data_dense.x_raw[subset_index][:],
@@ -680,30 +687,29 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
                 data_dense.y_best[subset_index][:],
                 data_dense.p[subset_index],
                 data_dense.inst_labels[subset_index],
-                s,
-                [feat_labels[i] for i in selvars],
+                dense_s,
+                self.feat_labels[selvars].tolist(),
                 selvars,
-                idx,
                 rho,
                 pval,
                 silhouette_scores,
                 clust,
             )
+
         return SiftedOutput(
-            x_aux,
-            y,
-            y_bin,
-            x_raw,
-            y_raw,
-            beta,
-            num_good_algos,
-            y_best,
-            p,
-            inst_labels,
-            s,
-            [feat_labels[i] for i in selvars],
+            x,
+            self.y,
+            self.y_bin,
+            self.x_raw,
+            self.y_raw,
+            self.beta,
+            self.num_good_algos,
+            self.y_best,
+            self.p,
+            self.inst_labels,
+            self.s,
+            self.feat_labels[selvars].tolist(),
             selvars,
-            idx,
             rho,
             pval,
             silhouette_scores,
@@ -738,16 +744,26 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         rho, pval = self._compute_correlation(self.x, self.y)
 
         # Create a boolean mask where calculated pval exceeds threshold
-        insignificant_pval = pval > self.PVAL_THRESHOLD
+        insignificant_pval = pval > self.opts.pval
 
-        # Filter out insignificant correlations and take absolute values of correlations
-        filtered_rho = rho
+        # Filter out insignificant correlations and take absolute values of
+        # correlations. Not aliased to `rho` itself (unlike the previous
+        # `filtered_rho = rho` here) so the correlation coefficients returned
+        # in SiftedOutput.rho stay the genuine, unmodified values.
+        filtered_rho = np.abs(rho)
         filtered_rho[np.isnan(rho) | insignificant_pval] = 0
-        filtered_rho = np.abs(filtered_rho)
 
-        # Sort the correlations in descending order
+        # Sort by descending absolute correlation - both the sorted values
+        # and the feature indices that produced them. The threshold below
+        # must compare against the *sorted* value at each rank, not the
+        # unsorted, still-signed correlation of whichever feature happens to
+        # share that row's original index (row[i, :] are rank-i feature
+        # indices, so indexing rho by i directly compared the wrong feature's
+        # correlation against opts.rho, and thresholding the signed rho
+        # instead of its absolute value dropped legitimate strong negative
+        # correlations too).
+        sorted_rho = np.sort(filtered_rho, axis=0)[::-1, :]
         row = np.argsort(-filtered_rho, axis=0)
-        # sorted_rho = np.take_along_axis(rho, row, axis=0)
 
         nfeats = self.x.shape[1]
         selvars = np.zeros(nfeats, dtype=bool)
@@ -756,14 +772,47 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         selvars[np.unique(row[0, :])] = True
 
         # Take any feature that has correlation at least equal to opts.rho
-        for i in range(nfeats):
-            selvars[np.unique(row[i, rho[i, :] >= self.opts.rho])] = True
+        selvars[np.unique(row[sorted_rho >= self.opts.rho])] = True
 
         # Get indices of selected features
         selvars = np.where(selvars)[0]
         x_aux = self.x[:, selvars]
 
         return (x_aux, rho, pval, selvars)
+
+    @staticmethod
+    def _standardize_for_correlation_distance(
+        x_aux: NDArray[np.double],
+    ) -> NDArray[np.double]:
+        """Z-score each feature (column of x_aux) across instances.
+
+        MATLAB's `kmeans(Xaux', opts.K, 'Distance', 'correlation', ...)`
+        (core/SIFTED.m) clusters features using correlation distance, not
+        Euclidean - sklearn's `KMeans` has no metric parameter to match this
+        directly (#300 issue 7). For two vectors `u`, `v` of length `n`
+        z-scored with population (ddof=0) statistics, squared Euclidean
+        distance `||u - v||^2 = 2n * (1 - corr(u, v))` - a positive
+        monotonic transform of Pearson correlation distance. Clustering
+        z-scored feature vectors with ordinary Euclidean k-means therefore
+        assigns points to the same nearest centroid a correlation-distance
+        k-means would, without a hand-rolled Lloyd's-algorithm
+        implementation to independently verify.
+
+        Returns
+        -------
+        NDArray[np.double]
+            One row per feature (shape `(n_features, n_instances)`, i.e.
+            already transposed - the orientation `KMeans.fit_predict`
+            expects when clustering features rather than instances), each
+            row zero-mean/unit-variance across instances. A constant
+            feature (zero variance) is left zero-centred rather than
+            divided by zero.
+        """
+        features = x_aux.T
+        mean = features.mean(axis=1, keepdims=True)
+        std = features.std(axis=1, keepdims=True)
+        std[std == 0] = 1.0
+        return np.asarray((features - mean) / std, dtype=np.double)
 
     def select_features_by_clustering(
         self,
@@ -793,7 +842,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             random_state=rng.integers(1000),
         )
 
-        cluster_labels: NDArray[np.intc] = kmeans.fit_predict(x_aux.T)
+        standardized = SiftedStage._standardize_for_correlation_distance(x_aux)
+        cluster_labels: NDArray[np.intc] = kmeans.fit_predict(standardized)
 
         # Create a boolean matrix where each column represents a cluster
         clust = np.zeros((x_aux.shape[1], self.opts.k), dtype=bool)
@@ -822,8 +872,16 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         Returns
         -------
         float
-            The fitness score of the solution, representing the negative mean
-            squared error of the k-NN classification.
+            The fitness score of the solution: the worst (lowest) per-
+            algorithm k-NN classification accuracy. `pygad.GA` always
+            *maximizes* whatever this returns, so maximizing the minimum
+            per-algorithm accuracy directly is equivalent to MATLAB's
+            `fitcknn`/`kfoldLoss`-based `costfcn` (core/SIFTED.m), which
+            `ga()` *minimizes* as `max_i(loss_i)` - `-max_i(1 - acc_i) =
+            min_i(acc_i) - 1`, the same optimum up to an additive constant
+            - without needing a loss concept or a sign flip (#300 issue 5;
+            #312, the sign-convention finding this formulation sidesteps
+            rather than needing to resolve).
         """
         idx = np.zeros(instance.selfx.shape[1], dtype=bool)
 
@@ -832,28 +890,60 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             selected = aux[value % aux.size]
             idx[selected] = True
 
+        # Cache fitness by feature-selection bitmask, matching MATLAB's own
+        # costfcn (core/SIFTED.m: a persistent containers.Map keyed the same
+        # way) - the GA re-visits the same combination many times across
+        # generations. Scoped to this ga_instance (fresh dict per SIFTED
+        # call, attached alongside selfx/selfy_bin/etc. below), so unlike
+        # MATLAB's persistent variable there is no risk of stale results
+        # leaking in from an unrelated prior SIFTED call. Under
+        # parallel_processing, pygad pickles a separate ga_instance per
+        # worker process, so each worker's cache is its own - matching
+        # MATLAB's own per-worker persistent-state behaviour, not a gap
+        # relative to it.
+        cache_key = idx.tobytes()
+        if cache_key in instance.cost_cache:
+            cached: float = instance.cost_cache[cache_key]
+            return cached
+
         out = PilotStage.pilot(
             instance.selfx[:, idx],
             instance.selfy,
             instance.selffeat_labels[idx].tolist(),
-            PilotOptions.default(),
-            False,
+            PilotOptions.default(
+                analytic=SiftedStage._GA_FITNESS_PILOT_ANALYTIC,
+                n_tries=SiftedStage._GA_FITNESS_PILOT_NTRIES,
+            ),
+            instance.general_options,
+            _do_output=False,
         )
 
         z = out.z
 
-        y = -np.inf
+        # dims + 1 neighbours (D+1, generalised from 2D), matching MATLAB's
+        # kneighbours = dims + 1 (core/SIFTED.m).
+        kneighbours = instance.dims + 1
+        # Track the worst (minimum) per-algorithm accuracy directly, since
+        # pygad maximizes whatever this function returns - maximizing the
+        # worst-case accuracy is the same search as MATLAB's ga() minimizing
+        # the worst-case loss (see docstring), with no loss/sign-flip
+        # arithmetic needed at all.
+        y = np.inf
         for i in range(instance.selfy.shape[1]):
-            knn = KNeighborsClassifier(n_neighbors=SiftedStage.K_NEIGHBORS)
+            knn = KNeighborsClassifier(n_neighbors=kneighbours)
+            # Classification accuracy (#300 issue 5), not neg_mean_squared_error -
+            # y_bin is a good/bad class label, not a regression target, matching
+            # MATLAB's fitcknn/kfoldLoss classification loss.
             scores: NDArray[np.double] = cross_val_score(
                 knn,
                 z,
                 instance.selfy_bin[:, i].astype(int),
                 cv=instance.cv_partition,
-                scoring="neg_mean_squared_error",
+                scoring="accuracy",
             )
-            y = max(y, -scores.mean())
+            y = min(y, scores.mean())
 
+        instance.cost_cache[cache_key] = y
         return y
 
     def _find_best_combination(
@@ -919,18 +1009,21 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             ),
         )
 
-        ga_instance.selfx = self.x
+        ga_instance.selfx = x_aux
         ga_instance.selfy = self.y
         ga_instance.selfy_bin = self.y_bin
         ga_instance.cv_partition = cv_partition
         ga_instance.clust = clust
-        ga_instance.selffeat_labels = self.feat_labels
+        ga_instance.selffeat_labels = self.feat_labels[selvars]
+        ga_instance.general_options = self.general_opts
+        ga_instance.dims = self.opts.dims
+        ga_instance.cost_cache = {}
 
         ga_instance.run()
 
         best_solution, best_solution_fitness, _ = ga_instance.best_solution()
 
-        print(f"Cost value of the GA algorithm is:  {best_solution_fitness}")
+        self._log(f"Cost value of the GA algorithm is:  {best_solution_fitness}")
 
         # Decode the chromosome
         decoder = np.zeros(x_aux.shape[1], dtype=bool)
@@ -942,9 +1035,9 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         decoded_selvars = np.array(selvars)[decoder]
         selected_x = self.x[:, decoded_selvars]
 
-        print(
-            f"-> Keeping {selected_x.shape[1]} out of {x_aux.shape[1]}",
-            "features (clustering).",
+        self._log(
+            f"-> Keeping {selected_x.shape[1]} out of {x_aux.shape[1]}"
+            " features (clustering).",
         )
 
         return selected_x, decoded_selvars
@@ -970,19 +1063,32 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         cluster_labels : NDArray[np.intc]
             Labels for the selected cluster configuration.
         """
-        min_clusters = 2
+        min_clusters = 3
         max_clusters = x_aux.shape[1]
 
         silhouette_scores: list[float] = []
         labels: dict[int, NDArray[np.intc]] = {}
 
+        # MATLAB's KList is 3:nfeats (inclusive of nfeats), but sklearn's
+        # silhouette_score hard-errors when n_clusters == n_samples (nfeats
+        # here, since features are the points being clustered) instead of
+        # tolerating the singleton-cluster boundary the way MATLAB's
+        # evalclusters does. Matching that upper bound exactly would require
+        # a from-scratch silhouette implementation; kept exclusive for now.
+        # Clustering itself now uses correlation distance too (#300 issue 7),
+        # via the same standardize-then-Euclidean-k-means equivalence
+        # `select_features_by_clustering` uses - previously this used plain
+        # Euclidean k-means while silhouette_score below (unaffected by this
+        # change) already used metric="correlation", an inconsistency this
+        # closes.
+        standardized = SiftedStage._standardize_for_correlation_distance(x_aux)
         for n in range(min_clusters, max_clusters):
             kmeans = KMeans(
                 n_clusters=n,
                 n_init="auto",
                 random_state=rng.integers(1000),
             )
-            cluster_labels = kmeans.fit_predict(x_aux.T)
+            cluster_labels = kmeans.fit_predict(standardized)
             labels[n] = cluster_labels
             silhouette_scores.append(
                 silhouette_score(
@@ -998,9 +1104,9 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         max_k_silhoulette = min_clusters + max_k_silhoulette_index
 
         if max_k_silhoulette not in (self.opts.k, max_clusters):
-            print(
-                f"    Suggested k value {max_k_silhoulette} with silhoulette score of",
-                f"{silhouette_scores[max_k_silhoulette]:.4f}",
+            self._log_detail(
+                f"    Suggested k value {max_k_silhoulette} with silhoulette score of"
+                f" {silhouette_scores[max_k_silhoulette_index]:.4f}",
             )
 
         # matlab returning numOfObservation, inspected K value, criterion values,

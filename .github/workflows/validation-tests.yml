@@ -2,9 +2,9 @@ name: Validation Tests
 
 on:
   push:
-    branches: [development, main, "*-candidate"]
+    branches: [development, main, v0.9.0/development-branch-QSF, "*-candidate"]
   pull_request:
-    branches: [development, main, "*-candidate"]
+    branches: [development, main, v0.9.0/development-branch-QSF, "*-candidate"]
 
 permissions:
   contents: read
@@ -34,9 +34,22 @@ jobs:
       run: |-
         poetry install
 
-    # - name: Check formatting with black, linting with Ruff, and static check with Mypy
-    #   run: poetry run poe --fix test
+    - name: Audit dependencies for known vulnerabilities
+      # Non-blocking for now: a regression here should be visible without
+      # failing the build until we've built confidence it isn't noisy.
+      continue-on-error: true
+      run: |-
+        poetry run pip install pip-audit
+        poetry run pip-audit
 
     - name: Test with pytest
-      run: poetry run pytest
+      run: poetry run pytest --cov=instancespace --cov-report=term-missing --cov-report=xml
+
+    - name: Upload coverage to Codecov
+      if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        fail_ci_if_error: true
 

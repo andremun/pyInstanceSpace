@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Performing preliminary data processing.
 
 The main focus is on the `prelim` function, which prepares the input data for further
@@ -15,14 +17,231 @@ from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
 from scipy import optimize, stats
 from sklearn.model_selection import train_test_split
 
 from instancespace.data.model import DataDense
-from instancespace.data.options import PrelimOptions, SelvarsOptions
+from instancespace.data.options import (
+    GeneralOptions,
+    PerformanceOptions,
+    PrelimOptions,
+    SelvarsOptions,
+)
 from instancespace.stages.stage import Stage
 from instancespace.utils.filter import do_filter
+
+# Fraction of instances with a best-algorithm performance of exactly zero above
+# which a data-quality warning fires (matches MATLAB's PRELIM.m,
+# ISA:PRELIM:manyZeroBest).
+_MANY_ZERO_BEST_THRESHOLD = 0.05
+
+
+def _log_many_zero_best_warning(y_best: NDArray[np.double], log_prefix: str) -> None:
+    """Warn if too many instances have a best-algorithm performance of zero.
+
+    Matches MATLAB's ISA:PRELIM:manyZeroBest: once these zeros are
+    substituted with `eps` below, the relative-performance matrix becomes
+    uninformative (close to 1 everywhere) for those instances. Shared by
+    `PrelimStage._warn_many_zero_best()` (training) and
+    `compute_binary_performance()` (F9's explore()-time evaluation path).
+    """
+    frac_zero_best = np.mean(y_best == 0)
+    if frac_zero_best > _MANY_ZERO_BEST_THRESHOLD:
+        logger.warning(
+            f"[{log_prefix}] {frac_zero_best:.1%} of instances have a best-algorithm "
+            "performance of exactly zero; the relative-performance matrix will be "
+            "close to 1 everywhere for these instances.",
+        )
+
+
+class BinaryPerformance(NamedTuple):
+    """Ground-truth binary-performance fields derived from raw algorithm performance.
+
+    Attributes
+    ----------
+    y : NDArray[np.double]
+        Relative (or absolute) performance matrix - `y_raw` transformed by the
+        same `max_perf`/`abs_perf` branching used to derive `y_bin`.
+    y_bin : NDArray[np.bool_]
+        Binary matrix indicating instances with good algorithm performance.
+    y_best : NDArray[np.double]
+        Best observed performance value for each instance across all algorithms
+        (zero values substituted with `eps`, matching MATLAB).
+    p : NDArray[np.int_]
+        1-based index of the best-performing algorithm per instance, ties
+        broken by picking the first tied algorithm.
+    num_good_algos : NDArray[np.double]
+        Number of algorithms with good performance, per instance.
+    beta : NDArray[np.bool_]
+        Whether each instance clears `beta_threshold`'s fraction of good
+        algorithms.
+    """
+
+    y: NDArray[np.double]
+    y_bin: NDArray[np.bool_]
+    y_best: NDArray[np.double]
+    p: NDArray[np.int_]
+    num_good_algos: NDArray[np.double]
+    beta: NDArray[np.bool_]
+
+
+def compute_binary_performance(
+    y_raw: NDArray[np.double],
+    perf_opts: PerformanceOptions,
+    general_opts: GeneralOptions,
+    log_prefix: str = "PRELIM",
+) -> BinaryPerformance:
+    """Compute the binary measure of algorithm performance from raw `Y`.
+
+    Ports MATLAB PRELIM.m's binary-performance section: an algorithm is
+    "good" for an instance if its performance is within `epsilon` of the best
+    (relative) or better than `epsilon` outright (absolute), per
+    `perf_opts.max_perf`/`abs_perf`. Ties for the best algorithm are broken by
+    picking the first tied algorithm - a deliberate, already-recorded
+    simplification (see roadmap F3), not a faithful port of MATLAB's random
+    `randi()` tie-break.
+
+    Shared by `PrelimStage._prelim()` (training, ground truth for the
+    training set) and `InstanceSpace.explore()`'s evaluation path (F9, ground
+    truth for a test set using the *trained* `PerformanceOptions`) - one
+    implementation, not a second one written to match it by hand.
+    """
+    logger.info(
+        f"[{log_prefix}] -------------------------------------------------"
+        "------------------------",
+    )
+    logger.info(f"[{log_prefix}] -> Calculating the binary measure of performance")
+
+    y = y_raw.copy()
+    nalgos = y.shape[1]
+
+    msg = "An algorithm is good if its performance is "
+    if perf_opts.max_perf:
+        y_aux = y.copy()
+        y_aux[np.isnan(y_aux)] = -np.inf
+
+        y_best = np.max(y_aux, axis=1)
+        # Snapshot before the zero-value eps substitution below, so tied
+        # instances whose best performance is exactly zero can still be
+        # detected as ties (matches MATLAB's YbestTie).
+        y_best_tie = y_best.copy()
+        # add 1 to the index to match the MATLAB code
+        p = np.argmax(y_aux, axis=1) + 1
+
+        if perf_opts.abs_perf:
+            y_bin = y_aux >= perf_opts.epsilon
+            msg = msg + "higher than " + str(perf_opts.epsilon)
+        else:
+            _log_many_zero_best_warning(y_best, log_prefix)
+            y_best[y_best == 0] = np.finfo(float).eps
+            y[y == 0] = np.finfo(float).eps
+            y = 1 - y / y_best[:, np.newaxis]
+            y_bin = (1 - y_aux / y_best[:, np.newaxis]) <= perf_opts.epsilon
+            msg = (
+                msg + "within " + str(round(100 * perf_opts.epsilon)) + "% of the best."
+            )
+    else:
+        logger.info(f"[{log_prefix}] -> Minimizing performance.")
+        y_aux = y.copy()
+        y_aux[np.isnan(y_aux)] = np.inf
+
+        y_best = np.min(y_aux, axis=1)
+        # Snapshot before the zero-value eps substitution below, so tied
+        # instances whose best performance is exactly zero can still be
+        # detected as ties (matches MATLAB's YbestTie).
+        y_best_tie = y_best.copy()
+        # add 1 to the index to match the MATLAB code
+        p = np.argmin(y_aux, axis=1) + 1
+
+        if perf_opts.abs_perf:
+            y_bin = y_aux <= perf_opts.epsilon
+            msg = msg + "less than " + str(perf_opts.epsilon)
+        else:
+            _log_many_zero_best_warning(y_best, log_prefix)
+            y_best[y_best == 0] = np.finfo(float).eps
+            y[y == 0] = np.finfo(float).eps
+            y = y / y_best[:, np.newaxis] - 1
+            y_bin = (y_aux / y_best[:, np.newaxis] - 1) <= perf_opts.epsilon
+            msg = (
+                msg + "within " + str(round(100 * perf_opts.epsilon)) + "% of the best."
+            )
+
+    logger.info(f"[{log_prefix}] {msg}")
+
+    best_algos = np.equal(y_raw, y_best_tie[:, np.newaxis])
+    multiple_best_algos = np.sum(best_algos, axis=1) > 1
+    aidx = np.arange(1, nalgos + 1)
+    for i in range(y_raw.shape[0]):
+        if multiple_best_algos[i]:
+            aux = aidx[best_algos[i]]
+            # Ties are broken by picking the first tied algorithm, not a
+            # random one (MATLAB uses randi() here) - see roadmap F3.
+            p[i] = aux[0]
+
+    logger.info(
+        f"[{log_prefix}] -> For {round(100 * np.mean(multiple_best_algos))}% of the "
+        "instances there is more than one best algorithm.",
+    )
+    logger.info(f"[{log_prefix}] The first tied algorithm is used to break ties.")
+
+    num_good_algos = np.sum(y_bin, axis=1)
+    if general_opts.verbose:
+        logger.debug(f"[{log_prefix}] beta_threshold: {perf_opts.beta_threshold}")
+        logger.debug(f"[{log_prefix}] nalgos: {nalgos}")
+        logger.debug(f"[{log_prefix}] num_good_algos: {num_good_algos}")
+
+    beta = num_good_algos > (perf_opts.beta_threshold * nalgos)
+
+    return BinaryPerformance(
+        y=y,
+        y_bin=y_bin,
+        y_best=y_best,
+        p=p,
+        num_good_algos=num_good_algos,
+        beta=beta,
+    )
+
+
+def apply_bound_clip(
+    x: NDArray[np.double],
+    hi_bound: NDArray[np.double],
+    lo_bound: NDArray[np.double],
+) -> NDArray[np.double]:
+    """Clip each feature column of `x` to `[lo_bound, hi_bound]`.
+
+    Equivalent to (and verified bit-for-bit identical, including NaN
+    handling, against) the mask-multiply arithmetic this replaces -
+    `np.clip` simply expresses the same operation without hand-writing it
+    twice. Shared by `PrelimStage._bound()` (training, clipping to bounds
+    just fit from this same data) and `InstanceSpace._explore_prelim()`
+    (test data, clipping to the trained model's stored bounds) - one
+    implementation, not a second one written to match it by hand.
+    """
+    return np.clip(x, lo_bound, hi_bound)
+
+
+def apply_boxcox_zscore(
+    x: NDArray[np.double],
+    lambda_: float,
+    mu: float,
+    sigma: float,
+) -> NDArray[np.double]:
+    """Apply a Box-Cox transform at a known `lambda`, then z-score at known mu/sigma.
+
+    Verified bit-for-bit identical to `scipy.stats.zscore(stats.boxcox(x,
+    lambda_), ddof=1)` when `mu`/`sigma` are themselves `x`'s own
+    box-cox'd mean/std (ddof=1) - i.e. this is a drop-in replacement for
+    recomputing the z-score from scratch, not a new formula. Shared by
+    `PrelimStage._normalise()` (training, applying the lambda/mu/sigma it
+    just fit from this same column) and `InstanceSpace._explore_prelim()`
+    (test data, applying the trained model's stored lambda/mu/sigma) - one
+    implementation, not a second one written to match it by hand. `x` must
+    already be positive (the min-shift-by-1 step happens before this call).
+    """
+    transformed = np.asarray(stats.boxcox(x, lambda_), dtype=np.double)
+    return np.asarray((transformed - mu) / sigma, dtype=np.double)
 
 
 class PrelimInput(NamedTuple):
@@ -50,6 +269,8 @@ class PrelimInput(NamedTuple):
     selvars_options : SelvarsOptions
         Options for selecting variables within the Prelim stage, affecting criteria
         and file indices.
+    general_options : GeneralOptions
+        General options (e.g. the RNG seed), not specific to any one stage.
     """
 
     x: NDArray[np.double]
@@ -60,6 +281,7 @@ class PrelimInput(NamedTuple):
     inst_labels: pd.Series  # type: ignore[type-arg]
     prelim_options: PrelimOptions
     selvars_options: SelvarsOptions
+    general_options: GeneralOptions
 
 
 # needs to be changes to output including prelim output, and data changed by stage
@@ -111,8 +333,8 @@ class PrelimOutput(NamedTuple):
     y_best : NDArray[np.double]
         Best observed performance value for each instance across all algorithms.
     p : NDArray[np.int_]
-        Array of p-values for features based on statistical tests for feature
-          selection or ranking.
+        Index of the best-performing algorithm for each instance (1-based,
+          matching MATLAB).
     num_good_algos : NDArray[np.double]
         Number of algorithms per feature that meet a certain performance threshold.
     beta : NDArray[np.bool_]
@@ -191,16 +413,35 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         inst_labels: pd.Series,  # type: ignore[type-arg]
         prelim_opts: PrelimOptions,
         selvars_opts: SelvarsOptions,
+        general_opts: GeneralOptions,
     ) -> None:
         """See file docstring."""
         self.x = x
         self.y = y
         self.prelim_opts = prelim_opts
         self.selvars_opts = selvars_opts
+        self.general_opts = general_opts
         self.x_raw = x_raw
         self.y_raw = y_raw
         self.s = s
         self.inst_labels = inst_labels
+
+    def _log(self, msg: str) -> None:
+        """Log a top-level, always-shown stage message."""
+        logger.info(f"[PRELIM] {msg}")
+
+    def _log_detail(self, msg: str) -> None:
+        """Log per-trial/per-iteration detail, only shown when general.verbose."""
+        if self.general_opts.verbose:
+            logger.debug(f"[PRELIM] {msg}")
+
+    def _warn_many_zero_best(self, y_best: NDArray[np.double]) -> None:
+        """Warn if too many instances have a best-algorithm performance of zero.
+
+        Matches MATLAB's ISA:PRELIM:manyZeroBest. Delegates to the shared
+        `_log_many_zero_best_warning()` also used by `compute_binary_performance()`.
+        """
+        _log_many_zero_best_warning(y_best, "PRELIM")
 
     @staticmethod
     def _inputs() -> type[PrelimInput]:
@@ -244,6 +485,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             inputs.inst_labels,
             inputs.prelim_options,
             inputs.selvars_options,
+            inputs.general_options,
         )
 
         prelim = PrelimStage(
@@ -255,6 +497,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             inputs.inst_labels,
             inputs.prelim_options,
             inputs.selvars_options,
+            inputs.general_options,
         )
 
         (
@@ -324,6 +567,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         inst_labels: pd.Series,  # type: ignore[type-arg]
         prelim_opts: PrelimOptions,
         selvars_opts: SelvarsOptions,
+        general_opts: GeneralOptions,
     ) -> tuple[
         NDArray[np.double],  # PrelimDataChanged.x
         NDArray[np.double],  # PrelimDataChanged.y
@@ -368,6 +612,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             inst_labels,
             prelim_opts,
             selvars_opts,
+            general_opts,
         )
 
         return prelim_stage._prelim(  # noqa: SLF001
@@ -375,63 +620,6 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             y,
             prelim_opts,
         )
-
-    def _select_best_algorithms(
-        self,
-        y_raw: NDArray[np.double],
-        y_best: NDArray[np.double],
-        y_bin: NDArray[np.bool_],
-        nalgos: int,
-        beta_threshold: float,
-        p: NDArray[np.int_],
-    ) -> tuple[NDArray[np.double], NDArray[np.int_], NDArray[np.bool_]]:
-        """Select the best algorithms based on the given criteria.
-
-        Args
-        ----
-            y_raw: Raw algorithm predictions.
-            y_best: Best algorithm predictions.
-            y_bin: Binary labels.
-            nalgos: Number of algorithms.
-            betaThreshold: Beta threshold.
-            p: Placeholder for selected algorithms.
-
-        Returns
-        -------
-            num_good_algos: Number of good algorithms.
-            beta: Beta values.
-            p: Selected algorithms.
-        """
-        # testing for ties
-        # If there is a tie, we pick an algorithm at random
-        y_best = y_best[:, np.newaxis]
-
-        best_algos = np.equal(y_raw, y_best)
-        multiple_best_algos = np.sum(best_algos, axis=1) > 1
-        aidx = np.arange(1, nalgos + 1)
-
-        for i in range(self.y.shape[0]):
-            if multiple_best_algos[i].any():
-                aux = aidx[best_algos[i]]
-                # changed to pick the first one for testing purposes
-                # will need to change it back to random after testing complete
-                p[i] = aux[0]
-
-        print(
-            "-> For",
-            round(100 * np.mean(multiple_best_algos)),
-            "% of the instances there is more than one best algorithm.",
-        )
-        print("Random selection is used to break ties.")
-
-        num_good_algos = np.sum(y_bin, axis=1)
-        print("beta_threshold:", beta_threshold)
-        print("nalgos:", nalgos)
-        print("num_good_algos:", num_good_algos)
-
-        beta = num_good_algos > (beta_threshold * nalgos)
-
-        return num_good_algos, p, beta
 
     def _bound(self) -> _BoundOut:
         """Remove extreme outliers from the feature values.
@@ -444,20 +632,21 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             hi_bound: The upper bound for the feature values.
             lo_bound: The lower bound for the feature values.
         """
-        print("-> Removing extreme outliers from the feature values.")
-        med_val = np.median(self.x, axis=0)
+        self._log("-> Removing extreme outliers from the feature values.")
+        med_val = np.nanmedian(self.x, axis=0)
 
-        iq_range = stats.iqr(self.x, axis=0, interpolation="midpoint")
+        iq_range = stats.iqr(
+            self.x,
+            axis=0,
+            interpolation="midpoint",
+            nan_policy="omit",
+        )
 
-        hi_bound = med_val + 5 * iq_range
-        lo_bound = med_val - 5 * iq_range
+        multiplier = self.prelim_opts.iqr_multiplier
+        hi_bound = med_val + multiplier * iq_range
+        lo_bound = med_val - multiplier * iq_range
 
-        hi_mask = self.x > hi_bound
-        lo_mask = self.x < lo_bound
-
-        self.x = self.x * ~(hi_mask | lo_mask)
-        self.x += np.multiply(hi_mask, np.broadcast_to(hi_bound, self.x.shape))
-        self.x += np.multiply(lo_mask, np.broadcast_to(lo_bound, self.x.shape))
+        self.x = apply_bound_clip(self.x, hi_bound, lo_bound)
 
         return _BoundOut(
             x=self.x,
@@ -485,7 +674,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             sigma_y: The standard deviation of the performance matrix.
             mu_y: The mean of the performance matrix.
         """
-        print("-> Auto-normalizing the data using Box-Cox and Z transformations.")
+        self._log("-> Auto-normalizing the data using Box-Cox and Z transformations.")
 
         def boxcox_fmin(
             data: NDArray[np.double],
@@ -535,7 +724,13 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         nfeats = self.x.shape[1]
         nalgos = self.y.shape[1]
 
-        min_x = np.min(self.x, axis=0)
+        # nanmin (not min): a column with even one NaN must not have every
+        # other, otherwise-valid entry in that column turned into NaN by the
+        # shift below (plain `min` propagates NaN as the column minimum,
+        # which then poisons `x - min_x` for every row) - matches MATLAB's
+        # own `min(X, [], 1, 'omitnan')` and the unconditional nanmin already
+        # used elsewhere in `_prelim()` for this same statistic.
+        min_x = np.nanmin(self.x, axis=0)
         self.x = self.x - min_x + 1
         lambda_x = np.zeros(nfeats)
         mu_x = np.zeros(nfeats)
@@ -544,13 +739,18 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         for i in range(nfeats):
             aux = self.x[:, i]
             idx = np.isnan(aux)
-            aux, lambda_x[i] = boxcox_fmin(aux[~idx])
-            mu_x[i] = np.mean(aux)
-            sigma_x[i] = np.std(aux, ddof=1)
-            aux = stats.zscore(aux, ddof=1)
-            self.x[~idx, i] = aux
+            valid = aux[~idx]
+            fit_transformed, lambda_x[i] = boxcox_fmin(valid)
+            mu_x[i] = np.mean(fit_transformed)
+            sigma_x[i] = np.std(fit_transformed, ddof=1)
+            self.x[~idx, i] = apply_boxcox_zscore(
+                valid,
+                lambda_x[i],
+                mu_x[i],
+                sigma_x[i],
+            )
 
-        min_y = float(np.min(self.y))
+        min_y = float(np.nanmin(self.y))
 
         self.y = (self.y - min_y) + np.finfo(float).eps
 
@@ -608,78 +808,34 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         NDArray[np.double],  # PrelimOut.mu_y
     ]:
         y_raw = y.copy()
-        nalgos = y.shape[1]
 
-        print(
-            "-------------------------------------------------------------------------",
-        )
-        print("-> Calculating the binary measure of performance")
-
-        msg = "An algorithm is good if its performance is "
-        if prelim_opts.max_perf:
-            y_aux = y.copy()
-            y_aux[np.isnan(y_aux)] = -np.inf
-
-            y_best = np.max(y_aux, axis=1)
-            # add 1 to the index to match the MATLAB code
-            p = np.argmax(y_aux, axis=1) + 1
-
-            if prelim_opts.abs_perf:
-                y_bin = y_aux >= prelim_opts.epsilon
-                msg = msg + "higher than " + str(prelim_opts.epsilon)
-            else:
-                y_best[y_best == 0] = np.finfo(float).eps
-                y[y == 0] = np.finfo(float).eps
-                y = 1 - y / y_best[:, np.newaxis]
-                y_bin = (1 - y_aux / y_best[:, np.newaxis]) <= prelim_opts.epsilon
-                msg = (
-                    msg
-                    + "within "
-                    + str(round(100 * prelim_opts.epsilon))
-                    + "% of the best."
-                )
-
-        else:
-            print("-> Minimizing performance.")
-            y_aux = y.copy()
-            y_aux[np.isnan(y_aux)] = np.inf
-
-            y_best = np.min(y_aux, axis=1)
-            # add 1 to the index to match the MATLAB code
-            p = np.argmin(y_aux, axis=1) + 1
-
-            if prelim_opts.abs_perf:
-                y_bin = y_aux <= prelim_opts.epsilon
-                msg = msg + "less than " + str(prelim_opts.epsilon)
-            else:
-                y_best[y_best == 0] = np.finfo(float).eps
-                y[y == 0] = np.finfo(float).eps
-                y = 1 - y_best[:, np.newaxis] / y
-                y_bin = (1 - y_best[:, np.newaxis] / y_aux) <= prelim_opts.epsilon
-                msg = (
-                    msg
-                    + "within "
-                    + str(round(100 * prelim_opts.epsilon))
-                    + "% of the worst."
-                )
-
-        print(msg)
-
-        num_good_algos, p, beta = self._select_best_algorithms(
+        perf = compute_binary_performance(
             y_raw,
-            y_best,
-            y_bin,
-            nalgos,
-            prelim_opts.beta_threshold,
-            p,
+            PerformanceOptions(
+                max_perf=prelim_opts.max_perf,
+                abs_perf=prelim_opts.abs_perf,
+                epsilon=prelim_opts.epsilon,
+                beta_threshold=prelim_opts.beta_threshold,
+            ),
+            self.general_opts,
+            log_prefix="PRELIM",
+        )
+        y, y_bin, y_best, p, num_good_algos, beta = (
+            perf.y,
+            perf.y_bin,
+            perf.y_best,
+            perf.p,
+            perf.num_good_algos,
+            perf.beta,
         )
 
-        med_val = np.median(x, axis=0)
-        iq_range = stats.iqr(x, axis=0, interpolation="midpoint")
-        hi_bound = med_val + 5 * iq_range
-        lo_bound = med_val - 5 * iq_range
+        med_val = np.nanmedian(x, axis=0)
+        iq_range = stats.iqr(x, axis=0, interpolation="midpoint", nan_policy="omit")
+        multiplier = prelim_opts.iqr_multiplier
+        hi_bound = med_val + multiplier * iq_range
+        lo_bound = med_val - multiplier * iq_range
 
-        if prelim_opts.bound:
+        if prelim_opts.preproc and prelim_opts.bound:
             bound_out = self._bound()
             x = bound_out.x
             med_val = bound_out.med_val
@@ -689,16 +845,21 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
 
         nfeats = x.shape[1]
         nalgos = y.shape[1]
-        min_x = np.min(x, axis=0)
+        min_x = np.nanmin(x, axis=0)
         lambda_x = np.zeros(nfeats)
         mu_x = np.zeros(nfeats)
         sigma_x = np.zeros(nfeats)
-        min_y = float(np.min(y))
+        min_y = float(np.nanmin(y))
         lambda_y = np.zeros(nalgos)
         mu_y = np.zeros(nalgos)
         sigma_y = np.zeros(nalgos)
 
-        if prelim_opts.norm:
+        if prelim_opts.preproc and prelim_opts.norm:
+            # ``compute_binary_performance`` may replace raw Y with relative
+            # performance. Normalise that transformed matrix, not the raw Y
+            # retained by the stage constructor.
+            self.x = x
+            self.y = y
             normalise_out = self._normalise()
             x = normalise_out.x
             min_x = normalise_out.min_x
@@ -764,7 +925,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
     ]:
         data_dense = None
         # If we are only meant to take some observations
-        print("-------------------------------------------------------------------")
+        self._log("-------------------------------------------------------------------")
         ninst = x.shape[0]
         fractional = selvars_opts.small_scale_flag and isinstance(
             selvars_opts.small_scale,
@@ -772,11 +933,12 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         )
 
         path = Path(selvars_opts.file_idx)
-        print("path:", path)
-        print("path.is_file(file_idx):", path.is_file())
-        fileindexed = (
-            selvars_opts.file_idx_flag and Path(selvars_opts.file_idx).is_file()
-        )
+        self._log_detail(f"path: {path}")
+        self._log_detail(f"path.is_file(file_idx): {path.is_file()}")
+        if selvars_opts.file_idx_flag and not path.is_file():
+            msg = f"Subset index file does not exist: {path}"
+            raise FileNotFoundError(msg)
+        fileindexed = selvars_opts.file_idx_flag
 
         bydensity = (
             selvars_opts.density_flag
@@ -785,7 +947,7 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
         )
 
         if fractional:
-            print(
+            self._log(
                 f"-> Creating a small scale experiment for validation. \
                 Percentage of subset: \
                 {round(100 * selvars_opts.small_scale, 2)}%",
@@ -793,24 +955,39 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
             _, subset_idx = train_test_split(
                 np.arange(ninst),
                 test_size=selvars_opts.small_scale,
-                random_state=0,
+                random_state=self.general_opts.seed,
             )
             subset_index = np.zeros(ninst, dtype=bool)
             subset_index[subset_idx] = True
 
         elif fileindexed:
-            print("-> Using a subset of instances.")
+            self._log("-> Using a subset of instances.")
             subset_index = np.zeros(ninst, dtype=bool)
-            aux = np.genfromtxt(selvars_opts.file_idx, delimiter=",", dtype=int)
-            print("aux:", aux)
-            aux = aux[aux < ninst]
+            loaded = np.genfromtxt(path, delimiter=",", dtype=float)
+            indices = np.atleast_1d(loaded).ravel()
+            self._log_detail(f"indices (1-based): {indices}")
 
-            for i in range(len(aux)):
-                aux[i] = aux[i] - 1
-            subset_index[aux] = True
+            if indices.size == 0 or not np.all(np.isfinite(indices)):
+                msg = f"Subset index file must contain finite 1-based indices: {path}"
+                raise ValueError(msg)
+            if not np.all(indices == np.floor(indices)):
+                msg = f"Subset index file must contain integer indices: {path}"
+                raise ValueError(msg)
+
+            indices_1_based = indices.astype(np.int_)
+            invalid = (indices_1_based < 1) | (indices_1_based > ninst)
+            if np.any(invalid):
+                bad = indices_1_based[invalid].tolist()
+                msg = (
+                    f"Subset indices must be in MATLAB's 1-based range "
+                    f"[1, {ninst}]; got {bad}."
+                )
+                raise ValueError(msg)
+
+            subset_index[indices_1_based - 1] = True
 
         elif bydensity:
-            print(
+            self._log(
                 "-> Creating a small scale experiment for validation based on density.",
             )
             subset_index, _, _, _ = do_filter(
@@ -821,12 +998,12 @@ class PrelimStage(Stage[PrelimInput, PrelimOutput]):
                 selvars_opts.min_distance,
             )
             subset_index = ~subset_index
-            print(
+            self._log(
                 f"-> Percentage of instances retained: \
                 {round(100 * np.mean(subset_index), 2)}%",
             )
         else:
-            print("-> Using the complete set of the instances.")
+            self._log("-> Using the complete set of the instances.")
             subset_index = np.ones(ninst, dtype=bool)
 
         if fileindexed or fractional or bydensity:

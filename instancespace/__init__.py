@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Contains modules for instance space analysis.
 
 The module consists of various algorithms to perform instance space analysis.
@@ -16,25 +18,37 @@ directory. The instance space is represented as a Model object, which encapsulat
 analytical results and metadata of the instance space analysis.
 """
 
-from . import data, instance_space, stages
+from . import data, instance_space, progress_reporter, stages
 from .data import metadata, options
 from .data.metadata import Metadata
 from .data.model import ExploreResult
 from .data.options import InstanceSpaceOptions
 from .instance_space import InstanceSpace
 from .model import Model
+from .progress_reporter import (
+    CompositeProgressReporter,
+    FileProgressReporter,
+    HttpProgressReporter,
+    NullProgressReporter,
+    ProgressReporter,
+)
 
 __all__ = [
+    "CompositeProgressReporter",
     "ExploreResult",
+    "FileProgressReporter",
+    "HttpProgressReporter",
     "InstanceSpace",
     "InstanceSpaceOptions",
     "Metadata",
     "Model",
+    "NullProgressReporter",
+    "ProgressReporter",
     "options",
     "metadata",
     "data",
     "stages",
     "instance_space",
-    "stage_builder",
     "stage_runner",
+    "progress_reporter",
 ]

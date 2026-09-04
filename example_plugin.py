@@ -16,7 +16,7 @@ from instancespace.stages.prelim import PrelimStage
 from instancespace.stages.preprocessing import PreprocessingStage
 from instancespace.stages.pythia import PythiaStage
 from instancespace.stages.sifted import SiftedStage
-from instancespace.stages.stage import Stage
+from instancespace.stages.stage import RunAfter, Stage
 from instancespace.stages.trace import TraceStage
 
 
@@ -27,6 +27,13 @@ class ExamplePluginInput(NamedTuple):  # noqa: D101
     selection0: NDArray[np.int_]
     selection1: NDArray[np.int_]
     pythia_summary: pd.DataFrame
+    # Plugins attach to the pipeline explicitly rather than having their
+    # position inferred from matching input/output types (S2) - this plugin
+    # needs PythiaStage's outputs, so it must run after PythiaStage. The
+    # RunAfter marker itself is never passed to _run(); it's only read while
+    # building the schedule, and defaults here since nothing ever supplies it
+    # as a value.
+    run_after: RunAfter[PythiaStage] = RunAfter()
 
 
 class ExamplePluginOutput(NamedTuple):  # noqa: D101
@@ -74,7 +81,7 @@ class ExamplePlugin(Stage[ExamplePluginInput, ExamplePluginOutput]):  # noqa: D1
         return ExamplePluginOutput(blank="")
 
 
-script_dir = Path(__file__).parent / "tests" / "test_data" / "demo"
+script_dir = Path(__file__).parent / "examples" / "data"
 
 metadata_path = script_dir / "metadata.csv"
 options_path = script_dir / "options.json"

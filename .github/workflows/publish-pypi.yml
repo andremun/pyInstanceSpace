@@ -1,0 +1,72 @@
+name: Publish to PyPI
+
+# Deliberately gated: this only runs when a GitHub Release is published (a
+# human action, not a plain push/tag), plus a manual workflow_dispatch for
+# re-running a failed publish without cutting a new release. It never
+# triggers on ordinary pushes or PR merges, so publishing stays an opt-in
+# step, not an automatic side effect of merging.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+
+      - name: Poetry install
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: "1.8.2"
+
+      - name: Check pyproject.toml version matches the release tag
+        if: github.event_name == 'release'
+        run: |-
+          pkg_version="$(poetry version --short)"
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [ "$pkg_version" != "$tag_version" ]; then
+            echo "::error::pyproject.toml version ($pkg_version) does not match release tag ($GITHUB_REF_NAME)"
+            exit 1
+          fi
+
+      - name: Build sdist and wheel
+        run: poetry build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # Scoping to a GitHub Environment lets you require manual approval
+    # before publish (Settings -> Environments -> pypi -> required
+    # reviewers), and is also where PyPI's trusted-publisher config expects
+    # an environment name if you set one there.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/instancespace/
+    permissions:
+      # Required for PyPI Trusted Publishing (OIDC) - no stored API token.
+      id-token: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

@@ -1,1 +1,0 @@
-"""PILOT stage tests."""

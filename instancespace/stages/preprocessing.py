@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Preprocessing Stage Module.
 
 This module defines the classes and methods for the preprocessing stage
@@ -22,6 +24,7 @@ from typing import NamedTuple
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy._typing import NDArray
 
 from instancespace.data.options import (
@@ -223,7 +226,7 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             - List of selected feature labels.
             - List of selected algorithm labels.
         """
-        print("---------------------------------------------------")
+        logger.info("[PREPROCESSING] " + "-" * 65)
         new_x = x
         new_feat_labels = feat_labels
         new_y = y
@@ -234,8 +237,8 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             # if something were chosen, based on the logic index,
             # rather than the name string
             if selected_features:
-                print(
-                    f"-> Using the following features: "
+                logger.info(
+                    "[PREPROCESSING] -> Using the following features: "
                     f"{' '.join(selected_features)}",
                 )
 
@@ -246,20 +249,20 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
                 new_x = x[:, is_selected_feature]
                 new_feat_labels = selected_features
             else:
-                print(
-                    "No features were specified in opts.selvars."
+                logger.info(
+                    "[PREPROCESSING] No features were specified in opts.selvars."
                     "feats or it was an empty list.",
                 )
 
-        print("---------------------------------------------------")
+        logger.info("[PREPROCESSING] " + "-" * 65)
         if selvars.algos is not None:
             selected_algorithms = [
                 algo for algo in algo_labels if algo in selvars.algos
             ]
 
             if selected_algorithms:
-                print(
-                    f"-> Using the following algorithms: "
+                logger.info(
+                    "[PREPROCESSING] -> Using the following algorithms: "
                     f"{' '.join(selected_algorithms)}",
                 )
 
@@ -269,8 +272,8 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
                 new_y = y[:, is_selected_algo]
                 new_algo_labels = selected_algorithms
             else:
-                print(
-                    "No algorithms were specified in opts.selvars."
+                logger.info(
+                    "[PREPROCESSING] No algorithms were specified in opts.selvars."
                     "algos or it was an empty list.",
                 )
         return new_x, new_y, new_feat_labels, new_algo_labels
@@ -328,8 +331,8 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
         # Identify rows where all elements are NaN in X or Y
         idx = np.all(np.isnan(x), axis=1) | np.all(np.isnan(y), axis=1)
         if np.any(idx):
-            print(
-                "-> There are instances with too many missing values. "
+            logger.info(
+                "[PREPROCESSING] -> There are instances with too many missing values. "
                 "They are being removed to increase speed.",
             )
             # Remove instances (rows) where all values are NaN
@@ -346,8 +349,8 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
         idx = np.mean(np.isnan(new_x), axis=0) >= threshold
 
         if np.any(idx):
-            print(
-                "-> There are features with too many missing values. "
+            logger.info(
+                "[PREPROCESSING] -> There are features with too many missing values. "
                 "They are being removed to increase speed.",
             )
             new_x = new_x[:, ~idx]
@@ -358,8 +361,8 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
         # check if there are too many repeated instances
         max_duplic_ratio = 0.5
         if nuinst / ninst < max_duplic_ratio:
-            print(
-                "-> There are too many repeated instances. "
+            logger.info(
+                "[PREPROCESSING] -> There are too many repeated instances. "
                 "It is unlikely that this run will produce good results.",
             )
         return new_x, new_y, new_inst_labels, new_feat_labels, new_s

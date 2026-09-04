@@ -4,7 +4,7 @@
       "MaxPerf": true,
       "AbsPerf": true,
       "epsilon": 0.2,
-      "betaThreshold": 8765435678976546789
+      "betaThreshold": 0.876543
     },
     "auto": { "preproc": true },
     "bound": { "flag": true },
@@ -14,7 +14,7 @@
       "fileidx": "aaaaaaa",
       "densityflag": false,
       "mindistance": 0.10007,
-      "type": "Ftr&Good and so on",
+      "type": "Ftr&AP&Good",
       "algos": ["algo_NB", "algo_CART", "algo_KNN", "algo_RBF_SVM", "algo_RandF"]
     },
     "sifted": {
