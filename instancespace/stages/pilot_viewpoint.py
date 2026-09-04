@@ -25,11 +25,7 @@ _ORTHOGONALITY_WEIGHT = 0.2
 _DEFAULT_N_TRIES = 10
 _MAX_ITERATIONS = 30_000
 _FUNCTION_TOLERANCE = 1e-20
-# MATLAB's ``rng('default')`` resets its legacy twister to the reference
-# MT19937 state whose conventional seed is 5489. ``RandomState(5489)`` also
-# uses MATLAB's legacy 53-bit float conversion, unlike NumPy's modern
-# ``Generator(MT19937(...))`` seeding/conversion path.
-_MATLAB_DEFAULT_MT_SEED = 5489
+_DEFAULT_SEED = 42
 
 FloatArray = NDArray[np.float64]
 ViewGroups = Sequence[Sequence[int]]
@@ -110,6 +106,7 @@ def pilot_viewpoint(
     n_tries: int = _DEFAULT_N_TRIES,
     x0: NDArray[np.double] | None = None,
     parallel_options: ParallelOptions | None = None,
+    seed: int | None = _DEFAULT_SEED,
 ) -> PilotViewpointResult:
     """Find optimal 2D camera viewpoints for a 3D PILOT projection.
 
@@ -136,6 +133,8 @@ def pilot_viewpoint(
         deterministic starts.
     parallel_options : ParallelOptions | None
         Optional process-level parallelism across independent restarts.
+    seed : int | None
+        Stage RNG seed for generated starts. MATLAB's default is 42.
 
     Returns
     -------
@@ -153,7 +152,7 @@ def pilot_viewpoint(
     for group in groups:
         group_y = y_array[:, group]
         parameter_count = _VIEW_DIMS * _PROJECTION_DIMS + _VIEW_DIMS * len(group)
-        starts = _resolve_starts(x0, parameter_count, n_tries)
+        starts = _resolve_starts(x0, parameter_count, n_tries, seed)
         trials = _run_trials(
             starts,
             z_array,
@@ -261,6 +260,7 @@ def _resolve_starts(
     x0: NDArray[np.double] | None,
     parameter_count: int,
     n_tries: int,
+    seed: int | None = _DEFAULT_SEED,
 ) -> FloatArray:
     """Accept an exact MATLAB-shaped X0 or create deterministic starts."""
     if x0 is not None:
@@ -274,12 +274,16 @@ def _resolve_starts(
         ):
             return starts.astype(np.float64, copy=True)
     _validate_n_tries(n_tries)
-    return _default_starts(parameter_count, n_tries)
+    return _default_starts(parameter_count, n_tries, seed)
 
 
-def _default_starts(parameter_count: int, n_tries: int) -> FloatArray:
-    """Return MATLAB-style deterministic starts without changing global RNG state."""
-    rng = np.random.RandomState(_MATLAB_DEFAULT_MT_SEED)
+def _default_starts(
+    parameter_count: int,
+    n_tries: int,
+    seed: int | None = _DEFAULT_SEED,
+) -> FloatArray:
+    """Return MATLAB-twister starts without changing global RNG state."""
+    rng = np.random.RandomState(seed)
     values = rng.random_sample(parameter_count * n_tries)
     matlab_matrix = values.reshape((parameter_count, n_tries), order="F")
     return np.asarray(2.0 * matlab_matrix - 1.0, dtype=np.float64)

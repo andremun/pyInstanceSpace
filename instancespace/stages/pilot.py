@@ -224,6 +224,11 @@ class PilotStage(
             n_tries=inputs.pilot_options.n_tries,
             x0=inputs.pilot_options.x0,
             parallel_options=inputs.parallel_options,
+            seed=(
+                inputs.pilot_options.seed
+                if inputs.pilot_options.seed is not None
+                else inputs.general_options.seed
+            ),
         )
         return output._replace(viewpoint=viewpoint)
 
@@ -275,13 +280,14 @@ class PilotStage(
     def _default_numerical_starts(
         parameter_count: int,
         n_tries: int,
+        seed: int | None = 42,
     ) -> NDArray[np.double]:
-        """Return MATLAB `rng('default')` starts without touching global state.
+        """Return MATLAB-twister starts without touching global state.
 
-        PILOT and PILOTviewpoint share the same MT19937 seed-5489, legacy
-        53-bit conversion, and column-major matrix-fill contract.
+        PILOT and PILOTviewpoint share the configured seed, legacy 53-bit
+        conversion, and column-major matrix-fill contract.
         """
-        return _matlab_default_starts(parameter_count, n_tries)
+        return _matlab_default_starts(parameter_count, n_tries, seed)
 
     @staticmethod
     def _pack_solution(
@@ -428,6 +434,11 @@ class PilotStage(
                     x0 = PilotStage._default_numerical_starts(
                         expected_rows,
                         options.n_tries,
+                        (
+                            options.seed
+                            if options.seed is not None
+                            else general_options.seed
+                        ),
                     )
                     n_tries = options.n_tries
 

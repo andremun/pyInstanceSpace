@@ -141,7 +141,7 @@ _REFERENCE_REQUIRED_TOOLBOXES: Final = {
     "Global Optimization Toolbox",
     "Financial Toolbox",
 }
-_GOLD_MATLAB_COMMIT: Final = "34c01293fef99b4eabd53323c393cb184cc95a8e"
+_GOLD_MATLAB_COMMIT: Final = "98a01ac0513c0dd0f8a9bd91ed2926c871334d7b"
 _CANONICAL_DATASET_SHA256: Final = {
     "shared_inputs/reference/metadata.csv": (
         "961c65397b619a6e8e40df0ea6f90fbda448b8deb8a56e5a319e1be8f442bf0c"
@@ -155,7 +155,7 @@ _REFERENCE_V2_EXPORTER_SHA256: Final = (
     "d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c"
 )
 _VERIFIED_V2_CONTENT_ROOT_SHA256: Final = (
-    "a35e30a9553051f436da779c0e87b79324ddf7a1b181ec906fc786e9a130e4fa"
+    "f44107a6716c4f204affc006cba6219a2aedeff221a0bccb1d7bd4893de6162f"
 )
 _BASE_STAGE_VARIANTS: Final = {
     ("build", "prelim", "default"),
@@ -179,7 +179,7 @@ _OPTION_FIELDS: Final = {
         "mindistance",
         "type",
     },
-    "sifted": {"flag", "rho", "pval", "K", "MaxIter", "Replicates"},
+    "sifted": {"flag", "rho", "pval", "K", "MaxIter", "Replicates", "seed"},
     "pilot": {
         "analytic",
         "ntries",
@@ -189,6 +189,7 @@ _OPTION_FIELDS: Final = {
         "viewGroups",
         "topoWeight",
         "verbose",
+        "seed",
     },
     "cloister": {"pval", "corrThreshold", "maxFeatures"},
     "pythia": {
@@ -239,8 +240,10 @@ _INT_OPTION_FIELDS: Final = {
     ("sifted", "K"),
     ("sifted", "MaxIter"),
     ("sifted", "Replicates"),
+    ("sifted", "seed"),
     ("pilot", "ntries"),
     ("pilot", "dims"),
+    ("pilot", "seed"),
     ("cloister", "maxFeatures"),
     ("pythia", "kFold"),
     ("pythia", "nTuningIter"),

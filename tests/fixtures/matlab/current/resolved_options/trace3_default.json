@@ -49,7 +49,8 @@
       "pval": 0.05,
       "K": 10,
       "MaxIter": 1000,
-      "Replicates": 100
+      "Replicates": 100,
+      "seed": 42
     },
     "pilot": {
       "analytic": false,
@@ -59,7 +60,8 @@
       "alpha": 1,
       "viewGroups": [],
       "topoWeight": 0,
-      "verbose": false
+      "verbose": false,
+      "seed": 42
     },
     "cloister": {
       "pval": 0.05,

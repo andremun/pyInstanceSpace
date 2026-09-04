@@ -257,7 +257,12 @@ def test_prelim() -> None:
         np.array(y_best).flatten(),
         np.array(ybest_output, dtype=np.float64),
     )
-    assert np.allclose(p, np.array(p_output, dtype=np.float64))
+    expected_p = np.asarray(p_output, dtype=np.int_)
+    finite_y = np.where(np.isnan(y_raw), np.inf, y_raw)
+    tied = np.sum(finite_y == np.min(finite_y, axis=1)[:, None], axis=1) > 1
+    np.testing.assert_array_equal(p[~tied], expected_p[~tied])
+    rows = np.arange(y_raw.shape[0])
+    assert np.all(finite_y[rows, p - 1] == np.min(finite_y, axis=1))
     assert np.allclose(num_good_algos, num_good_algos_output.values.flatten())
     assert np.allclose(beta, np.array(beta_output, dtype=bool))
 
@@ -373,7 +378,12 @@ def test_prelim_run() -> None:
         np.array(y_best).flatten(),
         np.array(ybest_output_run, dtype=np.float64),
     )
-    assert np.allclose(p, np.array(p_output_run, dtype=np.float64))
+    expected_p = np.asarray(p_output_run, dtype=np.int_)
+    finite_y = np.where(np.isnan(y_raw_run), np.inf, y_raw_run)
+    tied = np.sum(finite_y == np.min(finite_y, axis=1)[:, None], axis=1) > 1
+    np.testing.assert_array_equal(p[~tied], expected_p[~tied])
+    rows = np.arange(y_raw_run.shape[0])
+    assert np.all(finite_y[rows, p - 1] == np.min(finite_y, axis=1))
 
 
 def _collect_warnings(
@@ -562,11 +572,8 @@ def test_prelim_zero_value_ties_are_detected() -> None:
 
     Previously, tie detection compared raw performance against the
     *eps-substituted* best value, so a genuine zero-value tie between two
-    algorithms was silently never counted - even though the final `p` value
-    coincidentally comes out the same either way (both mechanisms pick the
-    first tied index), the tie must still be *reported* correctly, and this
-    is the plumbing a future (not-yet-implemented) smarter tie-break needs
-    to actually run on zero-value ties instead of silently skipping them.
+    algorithms was silently never counted. The seeded MATLAB-compatible
+    tie-break must run on zero-value ties instead of silently skipping them.
 
     Exercises `compute_binary_performance()` (F9's extraction, shared with
     `explore()`'s evaluation path) rather than the training-only method it
@@ -596,7 +603,19 @@ def test_prelim_zero_value_ties_are_detected() -> None:
     messages = _collect_info(_run)
 
     assert result is not None
-    assert result.p[0] == 1  # first tied algorithm (1-based), unchanged either way
+    assert result.p[0] == 2  # RandomState(0)'s first draw selects the second tie.
+    repeated = compute_binary_performance(
+        y_raw,
+        perf_opts,
+        GeneralOptions.default(seed=0),
+    )
+    alternate = compute_binary_performance(
+        y_raw,
+        perf_opts,
+        GeneralOptions.default(seed=1),
+    )
+    np.testing.assert_array_equal(repeated.p, result.p)
+    assert alternate.p[0] == 1
     assert any("50" in m and "more than one best algorithm" in m for m in messages)
 
 

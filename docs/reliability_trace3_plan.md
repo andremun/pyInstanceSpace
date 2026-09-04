@@ -3,7 +3,8 @@
 > **Superseded historical plan (2026-08-20).** This records the branch-two design and
 > its former 2D/current-gold limits. The implemented branch-three contract includes
 > native 3D PILOT, TRACE3, plotting, and serialization, backed by the installed
-> 423-file R2026a Update 4 v2 oracle (86 provenance tests; 40 current readers). See
+> 423-file R2026a Update 4 v2 oracle from MATLAB v0.9.1 at `98a01ac`
+> (86 provenance tests; 41 current readers). See
 > `docs/architecture.md` and `docs/implemented_fixes.md` for current status.
 
 ## Baseline

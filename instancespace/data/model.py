@@ -546,7 +546,8 @@ class ExploreResult:
         (n_instances,). `None` under the same condition as `y_actual`.
     p_actual : NDArray[np.int_] | None
         1-based index of the best-performing algorithm per instance, ties
-        broken to the first tied algorithm. Shape: (n_instances,). `None`
+        broken with MATLAB-compatible seeded random selection. Shape:
+        (n_instances,). `None`
         under the same condition as `y_actual`.
     beta_actual : NDArray[np.bool_] | None
         Whether each instance clears the beta threshold's fraction of good

@@ -73,6 +73,10 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   need the earlier Python behavior can set `PilotOptions.default(n_tries=5)` explicitly.
   The new default is pinned against `ISAdefaults.m`, the verified R2026a fixtures, and
   the release validation suite (#262).
+- **Behavior-changing:** MATLAB InstanceSpace v0.9.1 added stage-local
+  `sifted.seed` and `pilot.seed` options. Python now exposes matching fields, inherits
+  `GeneralOptions.seed` when they are omitted, and uses the selected PILOT seed for
+  numerical and viewpoint restarts.
 - `TraceOptions.method='trace3'` now implements MATLAB's current alpha-shape TRACE3
   algorithm with 2D polygons and native 3D tetrahedral meshes. Python keeps
   `method='legacy'` as its compatibility default; a 3D projection configured with that
@@ -98,6 +102,9 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
 
 ### Bug fixes
 
+- PRELIM now reproduces MATLAB's seeded random selection among exactly tied best
+  algorithms, including zero-valued ties, instead of always selecting the first tied
+  algorithm. The refreshed v0.9.1 oracle checks the choices exactly.
 - JSON option validation and loading now share one Unicode `casefold()` key
   canonicalizer, so accepted spellings load consistently and equivalent duplicates are
   rejected (#321). The unused legacy polygon-region filter reported in #320 was removed;

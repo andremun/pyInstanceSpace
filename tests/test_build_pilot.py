@@ -248,8 +248,8 @@ def test_numerical_c_keeps_every_algorithm_reconstruction_column() -> None:
     assert output.error == pytest.approx(expected_error)
 
 
-def test_pilot_default_starts_ignore_general_seed() -> None:
-    """MATLAB resets PILOT's local stream regardless of the general seed."""
+def test_pilot_default_starts_inherit_general_seed() -> None:
+    """MATLAB threads general.seed into PILOT when no local seed is supplied."""
     rng = np.random.default_rng(42)
     x = rng.random((30, 4))
     y = rng.random((30, 2))
@@ -283,13 +283,53 @@ def test_pilot_default_starts_ignore_general_seed() -> None:
 
     assert result_a.X0 is not None
     assert result_b.X0 is not None
-    np.testing.assert_array_equal(result_a.X0, result_b.X0)
+    assert not np.array_equal(result_a.X0, result_b.X0)
     np.testing.assert_array_equal(
         result_a.X0,
         PilotStage._default_numerical_starts(
             expected_rows,
             opts.n_tries,
+            0,
         ),
+    )
+
+
+def test_pilot_stage_seed_overrides_general_seed() -> None:
+    """An explicit pilot.seed wins over the inherited general seed."""
+    rng = np.random.default_rng(42)
+    x = rng.random((30, 4))
+    y = rng.random((30, 2))
+    opts = PilotOptions(None, None, False, 3, seed=7)
+    expected_rows = opts.dims * (x.shape[1] + x.shape[1] + y.shape[1])
+
+    with patch.object(
+        PilotStage,
+        "_solve_one_trial",
+        return_value=(np.ones(expected_rows), 0.0, 1.0),
+    ):
+        result_a = PilotStage.pilot(
+            x,
+            y,
+            ["f0", "f1", "f2", "f3"],
+            opts,
+            GeneralOptions(verbose=False, seed=0),
+            _do_output=False,
+        )
+        result_b = PilotStage.pilot(
+            x,
+            y,
+            ["f0", "f1", "f2", "f3"],
+            opts,
+            GeneralOptions(verbose=False, seed=1),
+            _do_output=False,
+        )
+
+    assert result_a.X0 is not None
+    assert result_b.X0 is not None
+    np.testing.assert_array_equal(result_a.X0, result_b.X0)
+    np.testing.assert_array_equal(
+        result_a.X0,
+        PilotStage._default_numerical_starts(expected_rows, opts.n_tries, 7),
     )
 
 
@@ -904,7 +944,7 @@ def test_numerical_solution_vector_uses_matlab_column_major_order() -> None:
 
 
 def test_default_numerical_starts_match_r2026a_without_global_rng_mutation() -> None:
-    """Pin MATLAB's seed-5489 values, 53-bit conversion, and matrix fill."""
+    """Pin MATLAB's seed-42 values, 53-bit conversion, and matrix fill."""
     global_state_before = np.random.get_state()
 
     starts = PilotStage._default_numerical_starts(4, 2)
@@ -912,10 +952,10 @@ def test_default_numerical_starts_match_r2026a_without_global_rng_mutation() -> 
     global_state_after = np.random.get_state()
     expected_unscaled = np.array(
         [
-            [0.8147236863931789, 0.6323592462254095],
-            [0.9057919370756192, 0.09754040499940952],
-            [0.12698681629350606, 0.2784982188670484],
-            [0.9133758561390194, 0.5468815192049838],
+            [0.3745401188473625, 0.15601864044243652],
+            [0.9507143064099162, 0.15599452033620265],
+            [0.7319939418114051, 0.05808361216819946],
+            [0.5986584841970366, 0.8661761457749352],
         ],
         dtype=np.double,
     )
@@ -1104,6 +1144,7 @@ def test_pilot_stage_run_attaches_viewpoint_for_three_dimensions() -> None:
         "n_tries": options.n_tries,
         "x0": options.x0,
         "parallel_options": parallel_options,
+        "seed": inputs.general_options.seed,
     }
 
 

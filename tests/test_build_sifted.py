@@ -381,7 +381,7 @@ def test_sifted_seed_reproducibility(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(SiftedStage, "evaluate_cluster", capture_rng_state)
 
-    def run(seed: int) -> NDArray[np.intc]:
+    def run(seed: int, stage_seed: int | None = None) -> NDArray[np.intc]:
         out = SiftedStage.sifted(
             inputs.x,
             inputs.y,
@@ -395,7 +395,7 @@ def test_sifted_seed_reproducibility(monkeypatch: pytest.MonkeyPatch) -> None:
             inputs.inst_labels,
             inputs.s,
             inputs.feat_labels,
-            fast_opts,
+            dataclasses.replace(fast_opts, seed=stage_seed),
             inputs.opts_selvar,
             None,
             ParallelOptions.default(),
@@ -406,11 +406,15 @@ def test_sifted_seed_reproducibility(monkeypatch: pytest.MonkeyPatch) -> None:
     selvars_a = run(0)
     selvars_b = run(0)
     run(1)
+    run(1, stage_seed=7)
+    run(2, stage_seed=7)
 
     np.testing.assert_array_equal(selvars_a, selvars_b)
-    assert len(rng_states) == 3
+    assert len(rng_states) == 5
     assert rng_states[0] == rng_states[1]
     assert rng_states[0] != rng_states[2]
+    assert rng_states[3] == rng_states[4]
+    assert rng_states[2] != rng_states[3]
 
 
 def test_select_features_by_performance_uses_sorted_threshold_comparison() -> None:

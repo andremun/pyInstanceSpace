@@ -7,9 +7,9 @@ from `v0.9.0/development-branch-QSF` at `3a7f21a`, which contains branch 1
 `codex/open-issue-big-rocks` at `d175048` through PR #319 (`324830c`). It carries branch 2
 `codex/validation-serialization-trace3` at `67c73de` through merge `030937d`.
 
-MATLAB InstanceSpace `34c0129` under R2026a Update 4 is the behavioral authority. The
+MATLAB InstanceSpace v0.9.1 at `98a01ac` under R2026a Update 4 is the behavioral authority. The
 verified 423-file v2 oracle is installed. Implementation and scientific gates are complete.
-The CI-equivalent Linux gate passed all 1,039 collected tests with 92.00% branch
+The local CI-equivalent gate passed all 1,046 collected tests with 92.08% branch
 coverage and no uncaught warnings under `-W error`.
 
 ## Delivery status
@@ -56,12 +56,12 @@ coverage and no uncaught warnings under `-W error`.
 
 8. **Closed out provenance and documentation — focused gates complete**
    - Generated and installed verified `reference-export/v2`: 423 files from clean MATLAB
-     `34c0129` and Python generator `cf3cde0`.
-   - Passed 86 provenance tests and 40 current-gold readers, including 3/3 native 3D TRACE
+     `98a01ac` and Python generator `4816b8c`.
+   - Passed 86 provenance tests and 41 current-gold readers, including 3/3 native 3D TRACE
      readers.
    - Updated implemented fixes, architecture, and the pending backlog.
-   - Recorded the CI-equivalent Linux result: all 1,039 collected tests passed with
-     92.00% branch coverage and no uncaught warnings.
+   - Recorded the local CI-equivalent result: all 1,046 collected tests passed with
+     92.08% branch coverage and no uncaught warnings.
 
 9. **Completed #316 stage-owned inference — complete and verified**
    - Added the typed `PredictiveStage` contract without changing build-only plugins or
@@ -73,7 +73,7 @@ coverage and no uncaught warnings under `-W error`.
 
 ## Test policy
 
-Tests compare scientific invariants rather than unstable simplex row order, optimizer
-rotation, or exact-tie choices. Counts, connectivity, orientation, and full-precision 3D
+Tests compare scientific invariants rather than unstable simplex row order or optimizer
+rotation. Seeded PRELIM tie choices, counts, connectivity, orientation, and full-precision 3D
 membership are exact. Floating geometry uses documented combined tolerances. No
 `legacy-unknown` or diagnostic artifact is promoted to a MATLAB oracle.

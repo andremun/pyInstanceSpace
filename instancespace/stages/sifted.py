@@ -578,7 +578,8 @@ class SiftedStage(
         opts = self.opts
 
         nfeats = x.shape[1]
-        rng = np.random.default_rng(seed=self.general_opts.seed)
+        seed = opts.seed if opts.seed is not None else self.general_opts.seed
+        rng = np.random.default_rng(seed=seed)
 
         if not opts.flag:
             self._log("-> Feature selection is disabled. Using all features.")

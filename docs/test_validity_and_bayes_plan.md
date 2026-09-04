@@ -2,7 +2,7 @@
 
 ## Authority
 
-MATLAB InstanceSpace `34c0129`, executed with R2026a Update 4, is the behavioral authority.
+MATLAB InstanceSpace v0.9.1 at `98a01ac`, executed with R2026a Update 4, is the behavioral authority.
 GitHub issues and reviews are audit leads. Only the installed, verified 423-file
 `reference-export/v2` bundle is a numerical oracle; `legacy-unknown` CSVs are regression
 snapshots only.
