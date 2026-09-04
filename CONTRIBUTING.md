@@ -10,9 +10,8 @@ the project's dependencies.
 ## Before opening a PR
 
 - Run `poetry run pytest` and make sure it passes.
-- Run `poe test` (ruff, mypy `--strict`, and black format checks — all already
-  configured for this project). Note: `poe test` does not currently run `pytest`
-  itself (tracked separately); run both commands until that's fixed.
+- Run `poe test` (ruff, mypy `--strict`, black format checks, and pytest with coverage — all already
+  configured for this project).
 - Code style: ruff for linting, mypy `--strict` for type checking, black for
   formatting — no additional setup needed, just run the commands above.
 - Use conventional-commit-style messages (`fix:`, `feat:`, `chore:`, ...), matching
