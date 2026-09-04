@@ -45,7 +45,7 @@ jobs:
       run: git clone --depth 1 --branch master https://github.com/andremun/InstanceSpace.git InstanceSpace
 
     - name: Set up Python 3.12
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: "3.12"
 
