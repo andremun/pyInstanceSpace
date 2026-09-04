@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 # Copyright (c) 2024-2026 Mario Andrés Muñoz
-"""PILOT: Obtaining a two-dimensional projection.
+"""PILOT: Obtaining a two- or three-dimensional projection.
 
 Projecting Instances with Linearly Observable Trends (PILOT)
 is a dimensionality reduction algorithm which aims to facilitate
@@ -23,10 +23,22 @@ from loguru import logger
 from numpy.typing import NDArray
 from scipy.spatial.distance import pdist
 from scipy.stats import mode, pearsonr
-from sklearn.cross_decomposition import PLSRegression
 
-from instancespace.data.options import GeneralOptions, ParallelOptions, PilotOptions
-from instancespace.stages.stage import Stage
+from instancespace.data.model import PilotOut
+from instancespace.data.options import (
+    PILOT_3D_DIMS,
+    GeneralOptions,
+    ParallelOptions,
+    PilotOptions,
+)
+from instancespace.stages.pilot_viewpoint import (
+    PilotViewpointResult,
+    pilot_viewpoint,
+)
+from instancespace.stages.pilot_viewpoint import (
+    _default_starts as _matlab_default_starts,
+)
+from instancespace.stages.stage import PredictiveStage, Stage
 
 
 class PilotInput(NamedTuple):
@@ -60,6 +72,12 @@ class PilotInput(NamedTuple):
     parallel_options: ParallelOptions
     general_options: GeneralOptions
     y_bin: NDArray[np.bool_]
+
+
+class PilotPredictInput(NamedTuple):
+    """Inputs for applying a fitted PILOT projection."""
+
+    x: NDArray[np.double]
 
 
 class PilotOutput(NamedTuple):
@@ -102,9 +120,13 @@ class PilotOutput(NamedTuple):
     error: NDArray[np.double]
     r2: NDArray[np.double]
     pilot_summary: pd.DataFrame
+    viewpoint: PilotViewpointResult | None = None
 
 
-class PilotStage(Stage[PilotInput, PilotOutput]):
+class PilotStage(
+    Stage[PilotInput, PilotOutput],
+    PredictiveStage[PilotPredictInput, PilotOut, NDArray[np.double]],
+):
     """Class for PILOT stage."""
 
     def __init__(
@@ -141,6 +163,14 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         return PilotOutput
 
     @staticmethod
+    def predict(
+        inputs: PilotPredictInput,
+        fitted: PilotOut,
+    ) -> NDArray[np.double]:
+        """Apply MATLAB's public uncentred explore projection."""
+        return inputs.x @ fitted.a.T
+
+    @staticmethod
     def _run(inputs: PilotInput) -> PilotOutput:
         """Implement all the code in and around this class in buildIS.
 
@@ -175,7 +205,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             pd.DataFrame
 
         """
-        return PilotStage.pilot(
+        output = PilotStage.pilot(
             inputs.x,
             inputs.y,
             inputs.feat_labels,
@@ -184,6 +214,23 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             y_bin=inputs.y_bin,
             parallel_options=inputs.parallel_options,
         )
+        if inputs.pilot_options.dims != PILOT_3D_DIMS:
+            return output
+
+        viewpoint = pilot_viewpoint(
+            output.z,
+            inputs.y,
+            view_groups=inputs.pilot_options.view_groups,
+            n_tries=inputs.pilot_options.n_tries,
+            x0=inputs.pilot_options.x0,
+            parallel_options=inputs.parallel_options,
+            seed=(
+                inputs.pilot_options.seed
+                if inputs.pilot_options.seed is not None
+                else inputs.general_options.seed
+            ),
+        )
+        return output._replace(viewpoint=viewpoint)
 
     @staticmethod
     def _pilot_print(
@@ -201,6 +248,80 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
     ) -> None:
         if _do_output and general_options.verbose:
             logger.debug(f"[PILOT] {a}")
+
+    @staticmethod
+    def _validate_numerical_option_shapes(
+        options: PilotOptions,
+        expected_rows: int,
+    ) -> None:
+        """Validate the highest-precedence solver matrix for this dataset.
+
+        MATLAB gives a valid ``precalcAlpha`` precedence over ``X0``. Unlike
+        MATLAB, Python rejects an explicitly supplied but wrongly shaped
+        ``precalcAlpha`` instead of silently falling through to ``X0``.
+        """
+        if options.precalc_alpha is not None:
+            expected_shape = (expected_rows, 1)
+            if options.precalc_alpha.shape != expected_shape:
+                msg = (
+                    "opts.pilot.precalcAlpha must have shape "
+                    f"{expected_shape}. Got {options.precalc_alpha.shape}."
+                )
+                raise ValueError(msg)
+            return
+        if options.x0 is not None and options.x0.shape[0] != expected_rows:
+            msg = (
+                f"opts.pilot.x0 must have {expected_rows} rows. "
+                f"Got {options.x0.shape}."
+            )
+            raise ValueError(msg)
+
+    @staticmethod
+    def _default_numerical_starts(
+        parameter_count: int,
+        n_tries: int,
+        seed: int | None = 42,
+    ) -> NDArray[np.double]:
+        """Return MATLAB-twister starts without touching global state.
+
+        PILOT and PILOTviewpoint share the configured seed, legacy 53-bit
+        conversion, and column-major matrix-fill contract.
+        """
+        return _matlab_default_starts(parameter_count, n_tries, seed)
+
+    @staticmethod
+    def _pack_solution(
+        a: NDArray[np.double],
+        b: NDArray[np.double],
+    ) -> NDArray[np.double]:
+        """Pack PILOT matrices using MATLAB's column-major vector layout."""
+        return np.concatenate(
+            (
+                np.asarray(a, dtype=np.double).reshape(-1, order="F"),
+                np.asarray(b, dtype=np.double).reshape(-1, order="F"),
+            ),
+        )
+
+    @staticmethod
+    def _unpack_solution(
+        theta: NDArray[np.double],
+        dims: int,
+        n: int,
+        m: int,
+    ) -> tuple[NDArray[np.double], NDArray[np.double]]:
+        """Unpack MATLAB's ``[A(:); B(:)]`` numerical solution vector."""
+        flat_theta = np.asarray(theta, dtype=np.double).reshape(-1)
+        expected_size = dims * (n + m)
+        if flat_theta.size != expected_size:
+            msg = (
+                "PILOT solution vector must contain "
+                f"{expected_size} values. Got {flat_theta.size}."
+            )
+            raise ValueError(msg)
+        split = dims * n
+        a = flat_theta[:split].reshape((dims, n), order="F")
+        b = flat_theta[split:].reshape((m, dims), order="F")
+        return a, b
 
     @staticmethod
     def pilot(
@@ -243,6 +364,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         n = x.shape[1]
         x_bar = np.concatenate((x, y), axis=1)
         m = x_bar.shape[1]
+        dims = options.dims
         hd = pdist(x).T
 
         # Following parameters are not generated in the matlab code
@@ -263,25 +385,32 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                 y,
                 x_bar,
                 m,
+                dims=dims,
                 _do_output=_do_output,
             )
 
         # Analytical solution
-        elif options.analytic:
+        elif options.analytic and np.linalg.matrix_rank(x) == n:
             out_a, out_z, out_c, out_b, error, r2 = PilotStage.analytic_solve(
                 x,
                 x_bar,
                 n,
                 m,
                 options.cost_weight,
+                dims=dims,
+                _do_output=_do_output,
             )
 
         # Numerical solution
         else:
-            if options.precalc_alpha is not None and options.precalc_alpha.shape == (
-                2 * m + 2 * n,
-                1,
-            ):
+            if options.analytic:
+                logger.warning(
+                    "Feature matrix rank-deficient; falling back to numerical "
+                    "solution.",
+                )
+            expected_rows = dims * (m + n)
+            PilotStage._validate_numerical_option_shapes(options, expected_rows)
+            if options.precalc_alpha is not None:
                 PilotStage._pilot_print(
                     " -> PILOT is using a pre-calculated solution.",
                     _do_output,
@@ -296,17 +425,26 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                         _do_output,
                     )
                     x0 = options.x0
+                    n_tries = x0.shape[1]
                 else:
                     PilotStage._pilot_print(
                         "  -> PILOT is using random starting points for BFGS.",
                         _do_output,
                     )
-                    rng = np.random.default_rng(seed=general_options.seed)
-                    x0 = 2 * rng.random((2 * m + 2 * n, options.n_tries)) - 1
+                    x0 = PilotStage._default_numerical_starts(
+                        expected_rows,
+                        options.n_tries,
+                        (
+                            options.seed
+                            if options.seed is not None
+                            else general_options.seed
+                        ),
+                    )
+                    n_tries = options.n_tries
 
-                alpha = np.zeros((2 * m + 2 * n, options.n_tries))
-                eoptim = np.zeros(options.n_tries)
-                perf = np.zeros(options.n_tries)
+                alpha = np.zeros((expected_rows, n_tries))
+                eoptim = np.zeros(n_tries)
+                perf = np.zeros(n_tries)
 
                 idx, alpha, eoptim, perf = PilotStage.numerical_solve(
                     x,
@@ -324,11 +462,13 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                     parallel_options,
                 )
 
-            out_a = alpha[: 2 * n, idx].reshape(2, n)
+            out_a, b = PilotStage._unpack_solution(alpha[:, idx], dims, n, m)
             out_z = x @ out_a.T
-            b = alpha[2 * n :, idx].reshape(m, 2)
             x_hat = out_z @ b.T
-            out_c = b[n + 1 : m, :].T
+            # MATLAB's 1-based ``B(n+1:m, :)`` starts at the first
+            # performance row.  In Python's 0-based indexing that is
+            # ``b[n:m]``; ``n + 1`` silently dropped the first algorithm.
+            out_c = b[n:m, :].T
             out_b = b[:n, :]
             error = np.sum((x_bar - x_hat) ** 2)
             # rowvar=False + the [:m, m:] block mirrors analytic_solve()'s (correct)
@@ -347,52 +487,24 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                 _do_output,
             )
 
-        if options.method == "pls" or options.analytic:
-            summary = pd.DataFrame(out_a)
-            summary.rename(
-                columns={
-                    summary.columns[num]: feat_labels[num]
-                    for num in range(len(feat_labels))
-                },
-                inplace=True,
-            )
-        else:
-            summary = pd.DataFrame(out_a, columns=feat_labels)
-
-        row_labels = ["Z_{1}", "Z_{2}"]
+        summary = pd.DataFrame(np.round(out_a, 4), columns=feat_labels)
+        row_labels = [f"Z_{{{index}}}" for index in range(1, dims + 1)]
         rldf = pd.DataFrame(row_labels)
         summary = rldf.join(summary)
 
-        if alpha is not None and x0 is not None:
-            alpha = alpha.astype(np.float16)
-            x_init: NDArray[np.double] = x0
-            pout = PilotOutput(
-                x_init,
-                alpha,
-                eoptim,
-                perf,
-                out_a,
-                out_z,
-                out_c,
-                out_b,
-                error,
-                r2,
-                summary,
-            )
-        else:
-            pout = PilotOutput(
-                x0,
-                alpha,
-                eoptim,
-                perf,
-                out_a,
-                out_z,
-                out_c,
-                out_b,
-                error,
-                r2,
-                summary,
-            )
+        pout = PilotOutput(
+            x0,
+            alpha,
+            eoptim,
+            perf,
+            out_a,
+            out_z,
+            out_c,
+            out_b,
+            error,
+            r2,
+            summary,
+        )
 
         PilotStage._pilot_print(
             "-------------------------------------------------------------------------",
@@ -503,13 +615,14 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         m: int,
         cost_weight: float = 1.0,
         _do_output: bool = True,
+        dims: int = 2,
     ) -> tuple[
         NDArray[np.double],
         NDArray[np.double],
         NDArray[np.double],
         NDArray[np.double],
         NDArray[np.double],
-        NDArray[np.float16],
+        NDArray[np.double],
     ]:
         """Solve the projection problem analytically.
 
@@ -528,6 +641,8 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             Scales the performance block relative to the feature block
             before the eigendecomposition; 1.0 weights both equally and
             reproduces the pre-cost_weight behaviour exactly.
+        dims : int
+            Output projection dimensionality, either 2 or 3.
 
         Returns:
         -------
@@ -542,7 +657,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         NDArray[np.double]
             The mean squared error between x_bar and its
             low-dimensional approximation.
-        NDArray[np.float16]
+        NDArray[np.double]
             The coefficient of determination between x_bar
             and its low-dimensional approximation.
         """
@@ -565,8 +680,9 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         # Scale the performance block (rows n:m, since x_bar is m x instances
         # here) by sqrt(cost_weight) before the eigendecomposition, matching
         # MATLAB's Xbarw(:,n+1:m) = sqrt(costWeight) * Xbarw(:,n+1:m) - a
-        # separate weighted copy, not a mutation of x_bar itself, since the
-        # unweighted x_bar is still needed below for A/B/Z/error/R2.
+        # separate weighted copy, not a mutation of x_bar itself. MATLAB
+        # uses this weighted matrix for both the eigendecomposition and A;
+        # the unweighted matrix remains necessary for error/R2.
         x_bar_weighted = x_bar.copy()
         x_bar_weighted[n:m, :] = np.sqrt(cost_weight) * x_bar_weighted[n:m, :]
 
@@ -576,7 +692,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
 
         indices = np.argsort(np.abs(d))
         indices = indices[::-1]
-        v = -1 * v[:, indices[:2]]
+        v = -1 * v[:, indices[:dims]]
 
         out_b = v[:n, :]
 
@@ -592,7 +708,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
 
         x_r = np.dot(x_transpose, xx_transpose_inverse)
 
-        out_a = v.T @ x_bar @ x_r
+        out_a = v.T @ x_bar_weighted @ x_r
         out_z = out_a @ x
 
         # Correct dimensions for x_hat computation
@@ -610,7 +726,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         c: NDArray[np.double] = out_c
         b: NDArray[np.double] = out_b
         err: NDArray[np.double] = error
-        corref: NDArray[np.float16] = r2.astype(np.float16)
+        corref: NDArray[np.double] = r2.astype(np.double)
 
         return (a, z, c, b, err, corref)
 
@@ -628,28 +744,18 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         NDArray[np.double],
         NDArray[np.double],
         NDArray[np.double],
-        NDArray[np.float16],
+        NDArray[np.double],
     ]:
         """Solve the projection problem via Partial Least Squares.
 
         MATLAB's `method='pls'` alternative (core/PILOT.m, F2/#262) to the
         analytic/numeric eigen-decomposition solvers above - a genuinely
-        different algorithm, not a variant of either. Written to take
-        `dims` as a parameter, matching MATLAB's own `plsregress(X, Y, d)`
-        call (already dims-generic in MATLAB for d=2 or d=3), so a future
-        public `dims` option on `PilotOptions` (F2's still-unstarted 3D
-        work) needs no changes here - only the caller passing a different
-        value.
+        different algorithm, not a variant of either. `dims` matches
+        MATLAB's own `plsregress(X, Y, d)` call.
 
-        Uses `sklearn.cross_decomposition.PLSRegression` with `scale=False`
-        - MATLAB's `plsregress` only mean-centres X/Y internally, never
-        scales to unit variance, unlike sklearn's own `scale=True` default,
-        which would silently diverge from MATLAB's actual preprocessing if
-        left at its default. Note: sklearn's `PLSRegression` uses a NIPALS-
-        based algorithm, while MATLAB's `plsregress` defaults to SIMPLS -
-        related but not identical algorithms, so exact bit-for-bit MATLAB
-        parity is not expected here the way this repo's other solvers are
-        verified, only an equivalent-quality projection.
+        Implements the SIMPLS routine used by MATLAB R2026a's `plsregress`.
+        Both inputs are mean-centred but not variance-scaled, matching the
+        default MATLAB call in `PILOT.m`.
 
         Args
         ----
@@ -662,13 +768,13 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         m : int
             Total number of features including appended Y.
         dims : int
-            Output projection dimensionality (2 or 3 in MATLAB; only 2 is
-            exercised/exposed as a public option today).
+            Output projection dimensionality, either 2 or 3.
 
         Returns
         -------
         NDArray[np.double]
-            Matrix A (dims x n), the projection matrix: Z = X @ A.T.
+            Matrix A (dims x n), the projection matrix:
+            Z = (X - mean(X)) @ A.T.
         NDArray[np.double]
             Matrix Z (instances x dims), the projected coordinates.
         NDArray[np.double]
@@ -679,7 +785,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         NDArray[np.double]
             The sum of squared reconstruction error between x_bar and its
             low-dimensional approximation.
-        NDArray[np.float16]
+        NDArray[np.double]
             The per-column coefficient of determination between x_bar and
             its low-dimensional approximation.
         """
@@ -696,35 +802,26 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             _do_output,
         )
 
+        max_components = min(x.shape[0] - 1, x.shape[1])
+        if dims <= 0 or dims > max_components:
+            msg = (
+                "PILOT PLS components must be between 1 and "
+                f"{max_components}. Got {dims}."
+            )
+            raise ValueError(msg)
+
         x_mean = x.mean(axis=0)
         y_mean = y.mean(axis=0)
+        x_centered = x - x_mean
+        y_centered = y - y_mean
 
-        pls = PLSRegression(n_components=dims, scale=False)
-        pls.fit(x, y)
-
-        # x_rotations_, not x_weights_: MATLAB's out.A = stats.W' is
-        # documented as "used by exploreIS to reproject new instances via
-        # Z=X*A'" - that identity holds for W under SIMPLS (MATLAB's
-        # plsregress default) specifically, because SIMPLS deflates the
-        # cross-covariance matrix rather than X itself. sklearn's NIPALS-
-        # based algorithm deflates X across components, so x_weights_ does
-        # NOT satisfy Z=(X-mean)@W.T beyond the first component (verified
-        # empirically: ~0.16 max error on a synthetic 3-component fit).
-        # x_rotations_ is what sklearn exposes specifically to make a
-        # single-step linear reprojection exact (verified: ~1e-16 max
-        # error) - using it here is what makes the "reproject new
-        # instances via Z=X*A'" property MATLAB's own comment describes
-        # actually hold for this port, not just for MATLAB's own algorithm.
-        out_a = pls.x_rotations_.T
-        out_b = pls.x_loadings_
-        out_c = pls.y_loadings_.T
-        # Read x_scores_ straight from the fitted model rather than
-        # recomputing Z from out_a by hand - guaranteed self-consistent
-        # with x_loadings_/y_loadings_ by construction regardless of
-        # sklearn's internal algorithm details, matching MATLAB's own
-        # reasoning for using plsregress's XS output directly (core/
-        # PILOT.m).
-        out_z = pls.x_scores_
+        out_b, y_loadings, out_z, weights = PilotStage._simpls(
+            x_centered,
+            y_centered,
+            dims,
+        )
+        out_a = weights.T
+        out_c = y_loadings.T
 
         b_c_stack = np.vstack([out_b, out_c.T])
         x_hat = out_z @ b_c_stack.T + np.concatenate([x_mean, y_mean])
@@ -736,9 +833,90 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         c: NDArray[np.double] = out_c
         b: NDArray[np.double] = out_b
         err: NDArray[np.double] = error
-        corref: NDArray[np.float16] = r2.astype(np.float16)
+        corref: NDArray[np.double] = r2.astype(np.double)
 
         return (a, z, c, b, err, corref)
+
+    @staticmethod
+    def _simpls(
+        x_centered: NDArray[np.double],
+        y_centered: NDArray[np.double],
+        n_components: int,
+    ) -> tuple[
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+        NDArray[np.double],
+    ]:
+        """Port MATLAB R2026a `plsregress`'s private SIMPLS routine.
+
+        MATLAB permits a degenerate component norm to cascade into non-finite
+        outputs. Python deliberately raises a named ``ValueError`` instead so
+        an unusable projection fails at its source with an actionable message.
+        """
+        n_instances, n_features = x_centered.shape
+        n_targets = y_centered.shape[1]
+        x_loadings = np.zeros((n_features, n_components), dtype=np.double)
+        y_loadings = np.zeros((n_targets, n_components), dtype=np.double)
+        x_scores = np.zeros((n_instances, n_components), dtype=np.double)
+        weights = np.zeros((n_features, n_components), dtype=np.double)
+
+        # Orthonormal basis for the span of successive X loadings. MATLAB
+        # uses it to deflate X0'Y0 without explicitly deflating X0 or Y0.
+        loading_basis = np.zeros((n_features, n_components), dtype=np.double)
+        covariance = x_centered.T @ y_centered
+
+        for component in range(n_components):
+            left_vectors, singular_values, right_vectors_t = np.linalg.svd(
+                covariance,
+                full_matrices=False,
+            )
+            x_weight = left_vectors[:, 0]
+            y_weight = right_vectors_t[0, :]
+            singular_value = singular_values[0]
+
+            x_score = x_centered @ x_weight
+            score_norm = np.linalg.norm(x_score)
+            if score_norm == 0 or not np.isfinite(score_norm):
+                msg = (
+                    f"PILOT SIMPLS component {component + 1} has a zero or "
+                    "non-finite X-score norm."
+                )
+                raise ValueError(msg)
+            x_score = x_score / score_norm
+            x_loading = x_centered.T @ x_score
+            y_loading = singular_value * y_weight / score_norm
+
+            x_loadings[:, component] = x_loading
+            y_loadings[:, component] = y_loading
+            x_scores[:, component] = x_score
+            weights[:, component] = x_weight / score_norm
+
+            # MATLAB repeats modified Gram-Schmidt twice for numerical
+            # stability before applying both deflation projections.
+            basis_vector = x_loading.copy()
+            for _ in range(2):
+                for previous in range(component):
+                    previous_basis = loading_basis[:, previous]
+                    basis_vector -= (previous_basis @ basis_vector) * previous_basis
+            loading_norm = np.linalg.norm(basis_vector)
+            if loading_norm == 0 or not np.isfinite(loading_norm):
+                msg = (
+                    f"PILOT SIMPLS component {component + 1} has a zero or "
+                    "non-finite orthogonalized X-loading norm."
+                )
+                raise ValueError(msg)
+            basis_vector /= loading_norm
+            loading_basis[:, component] = basis_vector
+
+            covariance -= np.outer(basis_vector, basis_vector @ covariance)
+            current_basis = loading_basis[:, : component + 1]
+            covariance -= current_basis @ (current_basis.T @ covariance)
+
+        # MATLAB orthogonalizes Y scores only when that optional output is
+        # requested. PILOT consumes X scores/loadings and stats.W, so no Y
+        # scores are formed here.
+        return x_loadings, y_loadings, x_scores, weights
 
     @staticmethod
     def numerical_solve(
@@ -773,7 +951,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             Total number of features including appended Y.
         alpha : NDArray[np.double]
             Flattened parameter vector containing
-            both A (2*n size) and B (m*2 size) matrices.
+            both A (dims*n size) and B (m*dims size) matrices.
         eoptim : NDArray[np.double]
             Optimized error function.
         perf : NDArray[np.double]
@@ -798,7 +976,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         -------
         NDArray[np.double]
             Flattened parameter vector containing
-            both A (2*n size) and B (m*2 size) matrices.
+            both A (dims*n size) and B (m*dims size) matrices.
         NDArray[np.double]
             Optimized error function.
         NDArray[np.double]
@@ -823,10 +1001,11 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             _do_output,
         )
 
+        n_tries = x0.shape[1]
         use_pool = (
             parallel_options is not None
             and parallel_options.flag
-            and opts.n_tries > 1
+            and n_tries > 1
             and multiprocessing.parent_process() is None
         )
 
@@ -835,7 +1014,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             assert parallel_options is not None
             n_workers = max(
                 1,
-                min(parallel_options.n_cores, opts.n_tries, os.cpu_count() or 1),
+                min(parallel_options.n_cores, n_tries, os.cpu_count() or 1),
             )
             with ProcessPoolExecutor(max_workers=n_workers) as executor:
                 futures = {
@@ -848,8 +1027,9 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                         n,
                         m,
                         opts.cost_weight,
+                        opts.dims,
                     ): i
-                    for i in range(opts.n_tries)
+                    for i in range(n_tries)
                 }
                 for future in as_completed(futures):
                     i = futures[future]
@@ -863,7 +1043,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                         general_options,
                     )
         else:
-            for i in range(opts.n_tries):
+            for i in range(n_tries):
                 xopts, fopts, perf_i = PilotStage._solve_one_trial(
                     x0[:, i],
                     x,
@@ -872,6 +1052,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
                     n,
                     m,
                     opts.cost_weight,
+                    opts.dims,
                 )
                 alpha[:, i] = xopts
                 eoptim[i] = fopts
@@ -894,6 +1075,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         n: int,
         m: int,
         cost_weight: float,
+        dims: int,
     ) -> tuple[NDArray[np.double], float, float]:
         """Run one BFGS restart of the numerical PILOT solver.
 
@@ -906,12 +1088,12 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         result = optim.fmin_bfgs(
             PilotStage.error_function,
             initial_guess,
-            args=(x_bar, n, m, cost_weight),
+            args=(x_bar, n, m, cost_weight, dims),
             full_output=True,
             disp=False,
         )
         xopts, fopts, _, _, _, _, _ = result
-        a = xopts[: 2 * n].reshape(2, n).astype(np.float64)
+        a, _ = PilotStage._unpack_solution(xopts, dims, n, m)
         z = np.dot(x, a.T)
         perf_i, _ = pearsonr(hd, pdist(z))
         return xopts, float(fopts), float(perf_i)
@@ -931,7 +1113,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         -------
         alpha : NDArray[np.float64]
             Flattened parameter vector containing
-            both A (2*n size) and B (m*2 size) matrices.
+            both A (d*n size) and B (m*d size) matrices.
         x_bar : NDArray[np.float64]
             Combined matrix of X and Y.
         n : int
@@ -943,9 +1125,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             (MATLAB's `pilotErrorFcn` costWeight). 1.0 weights every column
             equally, reproducing the pre-cost_weight behaviour exactly.
         d : int
-            Output projection dimensionality. Always 2 today (Python's
-            PILOT is 2D-only) - parameterised rather than hard-coded so a
-            future 3D projection doesn't have to touch this function.
+            Output projection dimensionality, either 2 or 3.
 
         Returns:
         -------
@@ -953,8 +1133,7 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
             The mean squared error between x_bar and its
             low-dimensional approximation.
         """
-        a = alpha[: d * n].reshape(d, n)
-        b = alpha[d * n :].reshape(m, d)
+        a, b = PilotStage._unpack_solution(alpha, d, n, m)
 
         # Compute the approximation of x_bar
         x_bar_approx = x_bar[:, :n].T
@@ -964,6 +1143,5 @@ class PilotStage(Stage[PilotInput, PilotOutput]):
         weights = np.ones(m, dtype=np.double)
         weights[n:m] = cost_weight
 
-        return float(
-            np.nanmean(np.nanmean(sq_err * weights, axis=1), axis=0),
-        )
+        column_losses = np.nanmean(sq_err * weights, axis=0)
+        return float(np.nanmean(column_losses))

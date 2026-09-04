@@ -17,7 +17,7 @@ from instancespace.stages.pilot import PilotStage
 
 def _collect_logs(
     fn: Callable[..., Any],
-    *args: Any,  # noqa: ANN401
+    *args: Any,
     level: str = "DEBUG",
 ) -> list[str]:
     """Run fn(*args) and return the loguru messages it emitted at/above level."""

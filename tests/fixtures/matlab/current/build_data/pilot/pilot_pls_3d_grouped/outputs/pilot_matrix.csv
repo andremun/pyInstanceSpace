@@ -1,0 +1,4 @@
+Row,Max_Normalized_Entropy_attributes,Normalized_Entropy_Class_Attribute,Mean_Mutual_Information_Attribute_Class,ErrorRate_Decision_Node,Max_Feature_Efficiency_F3,Collective_Feature_Efficiency_F4,Training_Error_Linear_Classifier_L2,Fraction_Points_Class_Boundary_N1,Nonlinearity_Nearest_Neighbor_Classifier_N4
+Z_{1},-0.0068,-0.0036,-0.012,0.0029,-0.0163,-0.0139,0.0094,0.0188,0.0137
+Z_{2},-0.0332,-0.0215,-0.0189,-0.0271,-0.0036,-0.0024,-0.0258,0.0008,0
+Z_{3},-0.039,0.0557,0.0144,-0.0534,-0.0098,-0.0027,-0.0147,0.0609,0.0025

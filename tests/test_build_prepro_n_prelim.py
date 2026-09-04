@@ -86,9 +86,7 @@ def test_integrated_prepro_n_prelim() -> None:
         pd.read_csv(csv_output_prelim_instlabels_run, header=None).iloc[:, 0].values
     )
     num_good_algos_output_run = (
-        pd.read_csv(csv_output_prelim_num_good_algos_run, header=None)
-        .iloc[:, 0]
-        .values
+        pd.read_csv(csv_output_prelim_num_good_algos_run, header=None).iloc[:, 0].values
     )
 
     prelim_opts = PrelimOptions(
@@ -124,7 +122,14 @@ def test_integrated_prepro_n_prelim() -> None:
         np.array(prelim_output.y_best).flatten(),
         np.array(ybest_output_run, dtype=np.float64),
     )
-    assert np.allclose(prelim_output.p, np.array(p_output_run, dtype=np.float64))
+    expected_p = np.asarray(p_output_run, dtype=np.int_)
+    finite_y = np.where(np.isnan(pre_output.y_raw), np.inf, pre_output.y_raw)
+    tied = np.sum(finite_y == np.min(finite_y, axis=1)[:, None], axis=1) > 1
+    np.testing.assert_array_equal(prelim_output.p[~tied], expected_p[~tied])
+    rows = np.arange(pre_output.y_raw.shape[0])
+    assert np.all(
+        finite_y[rows, prelim_output.p - 1] == np.min(finite_y, axis=1),
+    )
     assert np.allclose(prelim_output.x_raw, xraw_output_run)
     assert np.allclose(prelim_output.y_raw, yraw_output_run)
     assert np.array_equal(

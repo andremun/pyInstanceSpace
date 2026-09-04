@@ -10,19 +10,26 @@ to data analysis and model building.
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
 
+from instancespace.utils.alpha_shape import TetrahedralMesh
+
+if TYPE_CHECKING:
+    from instancespace.stages.pilot_viewpoint import PilotViewpointResult
+
 
 def pointwise_covers(
-    polygon: Polygon | MultiPolygon,
+    polygon: Polygon | MultiPolygon | TetrahedralMesh,
     points: NDArray[np.double],
 ) -> NDArray[np.bool_]:
     """Return MATLAB-compatible interior-or-boundary membership per point."""
+    if isinstance(polygon, TetrahedralMesh):
+        return polygon.covers(points)
     multi_point = MultiPoint(points)
     return np.fromiter(
         (polygon.covers(point) for point in multi_point.geoms),
@@ -209,6 +216,7 @@ class PilotOut:
     error: NDArray[np.double]  # or just the double
     r2: NDArray[np.double]
     summary: pd.DataFrame
+    viewpoint: "PilotViewpointResult | None" = None
 
     T = TypeVar("T", bound="PilotOut")
 
@@ -241,6 +249,7 @@ class PilotOut:
             error=stage_runner_output["error"],
             r2=stage_runner_output["r2"],
             summary=stage_runner_output["pilot_summary"],
+            viewpoint=stage_runner_output.get("viewpoint"),
         )
 
 
@@ -348,10 +357,10 @@ class Footprint:
 
     Attributes:
     ----------
-    polygon : Polygon | MultiPolygon | None
+    polygon : Polygon | MultiPolygon | TetrahedralMesh | None
         The geometric shape of the footprint.
     area : float
-        The area of the footprint.
+        The area (2D) or volume (3D), retained under the legacy field name.
     elements : int
         The number of data points within the footprint.
     good_elements : int
@@ -360,19 +369,34 @@ class Footprint:
         The density of points within the footprint.
     purity : float
         The purity of "good" elements in relation to all elements in the footprint.
+    dimension : int
+        The geometry coordinate count. Defaults to two for legacy constructors.
     """
 
-    polygon: Polygon | MultiPolygon | None
+    polygon: Polygon | MultiPolygon | TetrahedralMesh | None
     area: float
     elements: int
     good_elements: int
     density: float
     purity: float
+    dimension: int = 2
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        """Load pre-3D joblib footprints with their implicit 2D dimension."""
+        for name, value in state.items():
+            object.__setattr__(self, name, value)
+        if "dimension" not in state:
+            object.__setattr__(self, "dimension", 2)
+
+    @property
+    def measure(self) -> float:
+        """Return area in 2D or volume in 3D through one stable alias."""
+        return self.area
 
     @classmethod
     def from_polygon(
         cls: type["Footprint"],
-        polygon: Polygon | MultiPolygon | None,
+        polygon: Polygon | MultiPolygon | TetrahedralMesh | None,
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         smoothen: bool = False,
@@ -381,8 +405,8 @@ class Footprint:
 
         Parameters:
         ----------
-        polygon : Polygon | MultiPolygon
-            The polygon to create the footprint from.
+        polygon : Polygon | MultiPolygon | TetrahedralMesh
+            The geometry to create the footprint from.
         z : NDArray[np.double]
             The space of instances, represented as an array of data points (features).
         y_bin : NDArray[np.bool_]
@@ -399,23 +423,30 @@ class Footprint:
             return cls(None, 0, 0, 0, 0, 0)
 
         if smoothen:
+            if isinstance(polygon, TetrahedralMesh):
+                msg = "Three-dimensional TRACE meshes cannot be polygon-smoothed."
+                raise ValueError(msg)
             polygon = polygon.buffer(0.01).buffer(-0.01)
 
         if polygon.is_empty:
             return cls(None, 0, 0, 0, 0, 0)
 
+        measure = (
+            polygon.volume if isinstance(polygon, TetrahedralMesh) else polygon.area
+        )
         elements = int(np.sum(pointwise_covers(polygon, z)))
         good_elements = int(np.sum(pointwise_covers(polygon, z[y_bin])))
-        density = float(elements / polygon.area) if polygon.area != 0 else 0.0
+        density = float(elements / measure) if measure != 0 else 0.0
         purity = float(good_elements / elements) if elements != 0 else 0.0
 
         return cls(
             polygon=polygon,
-            area=float(polygon.area),
+            area=float(measure),
             elements=elements,
             good_elements=good_elements,
             density=density,
             purity=purity,
+            dimension=polygon.dimension if isinstance(polygon, TetrahedralMesh) else 2,
         )
 
 
@@ -474,8 +505,10 @@ class ExploreResult:
         Processed features after PRELIM/SIFTED transformations.
         Shape: (n_instances, n_selected_features).
     z : NDArray[np.double]
-        Projected coordinates in 2D instance space from PILOT.
-        Shape: (n_instances, 2).
+        Projected coordinates from PILOT. Shape:
+        (n_instances, n_projection_dimensions), where the projection has two
+        or three coordinates. Full 3D explore results remain gated by TRACE's
+        pending native 3D geometry engine.
     y_hat : NDArray[np.bool_] | None
         Binary algorithm predictions from PYTHIA SVMs.
         Shape: (n_instances, n_algorithms). None if PYTHIA not applied.
@@ -513,7 +546,8 @@ class ExploreResult:
         (n_instances,). `None` under the same condition as `y_actual`.
     p_actual : NDArray[np.int_] | None
         1-based index of the best-performing algorithm per instance, ties
-        broken to the first tied algorithm. Shape: (n_instances,). `None`
+        broken with MATLAB-compatible seeded random selection. Shape:
+        (n_instances,). `None`
         under the same condition as `y_actual`.
     beta_actual : NDArray[np.bool_] | None
         Whether each instance clears the beta threshold's fraction of good
@@ -544,6 +578,10 @@ class ExploreResult:
         `Model.data.algo_labels`' own length. `None` under the same
         condition as `y_actual` (when there's no ground truth, column order
         is implicitly `Model.data.algo_labels` and never widened).
+    trace_out : TraceOut | None
+        Trained TRACE geometry rescored against this test set's ground truth.
+        Geometry and area remain unchanged; evidence metrics are updated. It is
+        `None` for feature-only explore data.
     """
 
     dataset_id: str
@@ -565,6 +603,7 @@ class ExploreResult:
     recall_actual: NDArray[np.double] | None = None
     cvcmat_actual: NDArray[np.double] | None = None
     algo_labels: list[str] | None = None
+    trace_out: TraceOut | None = None
 
 
 @dataclass(frozen=True)

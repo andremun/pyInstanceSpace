@@ -15,6 +15,9 @@ DEFAULT_PERFORMANCE_ABS_PERF = True
 DEFAULT_PERFORMANCE_EPSILON = 0.20
 DEFAULT_PERFORMANCE_BETA_THRESHOLD = 0.55
 
+DEFAULT_PRELIM_IQR_MULTIPLIER = 5.0
+DEFAULT_PRELIM_NAN_THRESHOLD = 0.20
+
 DEFAULT_AUTO_PREPROC = True
 
 DEFAULT_BOUND_FLAG = True
@@ -36,12 +39,9 @@ DEFAULT_SIFTED_K = 6
 # opts.pval (core/SIFTED.m). Was a hardcoded SiftedStage.PVAL_THRESHOLD
 # class constant; now a real option (#300 audit finding, issue 2).
 DEFAULT_SIFTED_PVAL = 0.05
-# Projection dimensionality the GA fitness function's internal PILOT call
-# uses for its KNN neighbour count (kneighbours = dims + 1), matching
-# MATLAB's opts.dims (core/SIFTED.m, restricted to {2, 3}). PILOT itself is
-# 2D-only in this port (3D projection is F2's unshipped future work), so
-# dims=3 is accepted for forward API compatibility but has no effect on
-# PILOT's actual output yet - same caveat as CloisterOptions.hull_dims.
+# Projection dimensionality for direct SIFTED calls. The aggregate pipeline
+# overrides it from PilotOptions.dims, just as MATLAB passes opts.pilot.dims
+# into a private SIFTED options copy (core/SIFTED.m and InstanceSpace.m).
 DEFAULT_SIFTED_DIMS = 2
 DEFAULT_SIFTED_NTREES = 50
 DEFAULT_SIFTED_MAX_ITER = 1000
@@ -59,8 +59,10 @@ DEFAULT_SIFTED_MUTATION_PROBABILITY = 0.05
 DEFAULT_SIFTED_STOP_CRITERIA = "saturate_5"
 
 DEFAULT_PILOT_ANALYTICS = False
-DEFAULT_PILOT_N_TRIES = 5
+# Standalone PILOT multi-start count from MATLAB's ISAdefaults.m.
+DEFAULT_PILOT_N_TRIES = 10
 DEFAULT_PILOT_ADJUST_ROTATION = False
+DEFAULT_PILOT_DIMS = 2
 # Scalar performance-reconstruction weight (MATLAB's opts.costWeight). 1.0
 # weights the performance block the same as the feature block - a no-op that
 # reproduces the pre-cost_weight behaviour exactly.
@@ -77,9 +79,8 @@ DEFAULT_CLOISTER_MAX_FEATURES = 20
 # default; scipy.spatial.ConvexHull handles n-D natively). MATLAB always
 # builds a 2D hull on the first two projected columns regardless of how
 # many columns A has (core/CLOISTER.m) - set to 2 for that behaviour.
-# #299 audit finding, issue 5. PILOT's projection is 2D-only in this port
-# (3D is F2's unshipped future work), so "all" and 2 are currently
-# equivalent in practice - documented, not silently assumed obvious.
+# #299 audit finding, issue 5. With a 3D PILOT projection, "all" retains the
+# full hull while 2 deliberately selects MATLAB's legacy planar behaviour.
 DEFAULT_CLOISTER_HULL_DIMS: Literal["all"] = "all"
 
 DEFAULT_PYTHIA_CV_FOLDS = 5
@@ -89,14 +90,18 @@ DEFAULT_PYTHIA_CLASSIFIER = "svm"
 DEFAULT_PYTHIA_TUNING = "sobol"
 DEFAULT_PYTHIA_N_TUNING_ITER = 20
 # Bypass classifier training entirely (core/PYTHIA.m's opts.skip). Only safe
-# with trace.use_sim=False - see InstanceSpaceOptions.__post_init__'s
-# cross-field guard for why (#298 Issue 10).
+# with trace.use_sim=False for legacy TRACE. TRACE3 can fall back to true labels.
 DEFAULT_PYTHIA_SKIP = False
 
 DEFAULT_TRACE_USE_SIM = True
+# Keep legacy TRACE as Python's default in this pass. TRACE3 uses the current
+# MATLAB purity default when callers omit the method-aware value.
 DEFAULT_TRACE_PURITY = 0.55
+DEFAULT_TRACE3_PURITY = 0.60
 DEFAULT_TRACE_METHOD = "legacy"
 DEFAULT_TRACE_CONTRA = True
+DEFAULT_TRACE_MIN_INSTANCES = 4
+DEFAULT_TRACE_MIN_AREA_FRAC = 0.01
 
 DEFAULT_OUTPUTS_CSV = True
 DEFAULT_OUTPUTS_WEB = False

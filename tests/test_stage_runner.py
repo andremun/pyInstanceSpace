@@ -225,7 +225,7 @@ def test_rerunning_earlier_stage() -> None:
     }
 
     stage_runner.run_stage(StageA, a=2)
-    assert "c" not in stage_runner._available_arguments  # noqa: SLF001
+    assert "c" not in stage_runner._available_arguments
     stage_b_output = stage_runner.run_stage(StageB)
 
     assert stage_b_output._asdict() == {
@@ -239,9 +239,9 @@ def test_schedule_snapshots_are_isolated_from_downstream_outputs() -> None:
 
     stage_runner.run_all(InitialArguments(1))
 
-    first_wave = stage_runner._schedule_output_data[0]  # noqa: SLF001
+    first_wave = stage_runner._schedule_output_data[0]
     assert first_wave == {"a": 1, "b": "1"}
-    assert first_wave is not stage_runner._available_arguments  # noqa: SLF001
+    assert first_wave is not stage_runner._available_arguments
 
 
 def test_successful_stage_override_persists_for_downstream_stages() -> None:
@@ -252,7 +252,7 @@ def test_successful_stage_override_persists_for_downstream_stages() -> None:
     stage_runner.run_stage(StageA, a=override)
     output = stage_runner.run_stage(StageD)
 
-    assert stage_runner._available_arguments["a"] == override  # noqa: SLF001
+    assert stage_runner._available_arguments["a"] == override
     assert output.e == "7 d"
 
 
@@ -268,8 +268,8 @@ def test_run_until_stage_executes_the_complete_target_wave() -> None:
 
     assert output["c"] == "1 2"
     assert output["d"] == "1 c"
-    assert stage_runner._current_schedule_item == len(  # noqa: SLF001
-        stage_runner._stage_order,  # noqa: SLF001
+    assert stage_runner._current_schedule_item == len(
+        stage_runner._stage_order,
     )
 
 
@@ -297,7 +297,7 @@ def test_extra_stage_run_after() -> None:
         InitialArguments,
     )
 
-    assert stage_runner._stage_order == [[StageA], [StageC], [StageB]]  # noqa: SLF001
+    assert stage_runner._stage_order == [[StageA], [StageC], [StageB]]
 
     output = stage_runner.run_all(InitialArguments(1))
 
@@ -317,7 +317,7 @@ def test_extra_stage_run_before() -> None:
         InitialArguments,
     )
 
-    assert stage_runner._stage_order == [[StageA], [StageD], [StageB]]  # noqa: SLF001
+    assert stage_runner._stage_order == [[StageA], [StageD], [StageB]]
 
     output = stage_runner.run_all(InitialArguments(1))
 
@@ -337,7 +337,7 @@ def test_multiple_extra_stages_share_a_wave() -> None:
         InitialArguments,
     )
 
-    assert stage_runner._stage_order == [  # noqa: SLF001
+    assert stage_runner._stage_order == [
         [StageA],
         [StageC, StageD],
         [StageB],
@@ -365,13 +365,13 @@ def test_stage_runner_is_picklable_after_running_a_stage() -> None:
 
     restored = pickle.loads(pickle.dumps(stage_runner))
 
-    assert restored._stages_ran == stage_runner._stages_ran  # noqa: SLF001
-    restored_args = restored._available_arguments  # noqa: SLF001
-    stage_runner_args = stage_runner._available_arguments  # noqa: SLF001
+    assert restored._stages_ran == stage_runner._stages_ran
+    restored_args = restored._available_arguments
+    stage_runner_args = stage_runner._available_arguments
     assert restored_args == stage_runner_args
     # The restored defaultdict's factory must still work, not just its
     # already-populated entries.
-    assert restored._stages_ran[StageC] is False  # noqa: SLF001
+    assert restored._stages_ran[StageC] is False
 
 
 def test_stage_runner_is_picklable_with_a_live_executor_in_arguments() -> None:
@@ -401,10 +401,9 @@ def test_stage_runner_is_picklable_with_a_live_executor_in_arguments() -> None:
 
         restored = pickle.loads(pickle.dumps(stage_runner))
 
-        assert "executor" not in restored._available_arguments  # noqa: SLF001
+        assert "executor" not in restored._available_arguments
         assert all(
-            "executor" not in schedule
-            for schedule in restored._schedule_output_data  # noqa: SLF001
+            "executor" not in schedule for schedule in restored._schedule_output_data
         )
     finally:
         executor.shutdown(wait=True)

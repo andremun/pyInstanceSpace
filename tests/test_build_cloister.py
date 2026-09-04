@@ -116,7 +116,7 @@ class TestCloister:
         input_x = input_data.input_x
         options = CloisterOptions.default()
 
-        rho_python = CloisterStage._compute_correlation(  # noqa: SLF001
+        rho_python = CloisterStage._compute_correlation(
             input_x,
             options,
         )
@@ -136,7 +136,7 @@ class TestCloister:
         input_x = input_data.input_x
         option = CloisterOptions(p_val=0, c_thres=0.7)
 
-        rho_python = CloisterStage._compute_correlation(input_x, option)  # noqa: SLF001
+        rho_python = CloisterStage._compute_correlation(input_x, option)
         rho_matlab = output_data.rho_zero
 
         assert np.allclose(rho_matlab, rho_python)
@@ -155,7 +155,7 @@ class TestCloister:
         input_x = input_data.input_x
         nfeats = input_x.shape[1]
 
-        index_python = CloisterStage._decimal_to_binary_matrix(nfeats)  # noqa: SLF001
+        index_python = CloisterStage._decimal_to_binary_matrix(nfeats)
         index_matlab = output_data.index
 
         assert np.all(index_matlab == index_python + 1)
@@ -165,7 +165,7 @@ class TestCloister:
         empty_x = np.empty((0, 0))
         nfeats = empty_x.shape[1]
 
-        index = CloisterStage._decimal_to_binary_matrix(nfeats)  # noqa: SLF001
+        index = CloisterStage._decimal_to_binary_matrix(nfeats)
 
         assert index.shape == (1, 1)
         assert index[0, 0] == 0
@@ -195,7 +195,7 @@ class TestCloister:
             options,
         )
 
-        z_edge_python, z_ecorr_python = CloisterStage._run(inputs)  # noqa: SLF001
+        z_edge_python, z_ecorr_python = CloisterStage._run(inputs)
         z_edge_matlab = output_data.z_edge
         z_ecorr_matlab = output_data.z_ecorr
 
@@ -205,13 +205,13 @@ class TestCloister:
     def test_convex_hull_qhull_error(self) -> None:
         """Test convex hull function properly handles qhull error."""
         points_collinear = np.array([[0, 0], [1, 1], [2, 2]])
-        output = CloisterStage._compute_convex_hull(points_collinear)  # noqa: SLF001
+        output = CloisterStage._compute_convex_hull(points_collinear)
         assert output.size == 0
 
     def test_convex_hull_value_error(self) -> None:
         """Test convex hull function properly handles value error."""
         points_one_dimension = np.array([[1], [2], [3]])
-        output = CloisterStage._compute_convex_hull(  # noqa: SLF001
+        output = CloisterStage._compute_convex_hull(
             points_one_dimension,
         )
         assert output.size == 0
@@ -229,14 +229,12 @@ class TestCloister:
         input_x = input_data.input_x
         options = CloisterOptions.default()
 
-        rho = CloisterStage._compute_correlation(input_x, options)  # noqa: SLF001
+        rho = CloisterStage._compute_correlation(input_x, options)
 
-        x_edge_python, remove_python = (
-            CloisterStage._generate_boundaries(  # noqa: SLF001
-                input_x,
-                rho,
-                options,
-            )
+        x_edge_python, remove_python = CloisterStage._generate_boundaries(
+            input_x,
+            rho,
+            options,
         )
         x_edge_matlab = output_data.x_edge
         remove_matlab = output_data.remove
@@ -256,7 +254,7 @@ class TestCloister:
         input_x = input_data.input_x
         options = CloisterOptions.default()
 
-        _, remove = CloisterStage._generate_boundaries(  # noqa: SLF001
+        _, remove = CloisterStage._generate_boundaries(
             input_x,
             rho_boundary,
             options,
@@ -308,13 +306,13 @@ class TestCloister:
         input_x = input_data.input_x.copy()
         options = CloisterOptions.default()
 
-        rho_before = CloisterStage._compute_correlation(  # noqa: SLF001
+        rho_before = CloisterStage._compute_correlation(
             input_x,
             options,
         )
 
         input_x[3, 0] = np.nan  # sparse NaN in one feature column
-        rho_after = CloisterStage._compute_correlation(input_x, options)  # noqa: SLF001
+        rho_after = CloisterStage._compute_correlation(input_x, options)
 
         assert not np.any(np.isnan(rho_after))
         # Only column 0's correlations can have shifted (fewer valid rows);
@@ -337,12 +335,12 @@ class TestCloister:
         """
         input_x = input_data.input_x.copy()
         input_x[3, 0] = np.nan
-        rho = CloisterStage._compute_correlation(  # noqa: SLF001
+        rho = CloisterStage._compute_correlation(
             input_x,
             CloisterOptions.default(),
         )
 
-        x_edge, _ = CloisterStage._generate_boundaries(  # noqa: SLF001
+        x_edge, _ = CloisterStage._generate_boundaries(
             input_x,
             rho,
             CloisterOptions.default(),
@@ -411,8 +409,8 @@ class TestCloister:
         rng = np.random.default_rng(0)
         points = rng.random((20, 3))
 
-        unrestricted = CloisterStage._compute_convex_hull(points)  # noqa: SLF001
-        explicit_all = CloisterStage._compute_convex_hull(points, None)  # noqa: SLF001
+        unrestricted = CloisterStage._compute_convex_hull(points)
+        explicit_all = CloisterStage._compute_convex_hull(points, None)
 
         np.testing.assert_array_equal(unrestricted, explicit_all)
 
@@ -433,8 +431,8 @@ class TestCloister:
         # hull boundary.
         points = rng.random((30, 3))
 
-        hull_2d = CloisterStage._compute_convex_hull(points, 2)  # noqa: SLF001
-        hull_full = CloisterStage._compute_convex_hull(points)  # noqa: SLF001
+        hull_2d = CloisterStage._compute_convex_hull(points, 2)
+        hull_full = CloisterStage._compute_convex_hull(points)
 
         assert hull_2d.shape[1] == points.shape[1]
         assert hull_full.shape[1] == points.shape[1]
@@ -452,7 +450,7 @@ class TestCloister:
         rng = np.random.default_rng(2)
         points = rng.random((10, 2))
 
-        output = CloisterStage._compute_convex_hull(points, 5)  # noqa: SLF001
+        output = CloisterStage._compute_convex_hull(points, 5)
 
         assert output.shape[1] == points.shape[1]
         assert output.shape[0] > 0
@@ -474,7 +472,7 @@ class TestCloister:
         options = CloisterOptions.default(hull_dims=2)
 
         inputs = CloisterInput(input_x, input_a, options)
-        z_edge_python, z_ecorr_python = CloisterStage._run(inputs)  # noqa: SLF001
+        z_edge_python, z_ecorr_python = CloisterStage._run(inputs)
 
         _assert_same_hull_cycle(output_data.z_edge, z_edge_python)
         _assert_same_hull_cycle(output_data.z_ecorr, z_ecorr_python)

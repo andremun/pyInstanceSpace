@@ -1,14 +1,18 @@
 # Test data audit and remediation proposal
 
-**Status:** Audit complete. §7's decision is made: single unified layout (Option A),
-documented only for now — the migration itself waits on GitHub issue #278 (the export
-script needs a real MATLAB run before any fixture moves onto its shape). Steps 1
-(delete confirmed-dead data), 2 (resolve the `prelim/run/output/` partial-orphan), 3
-(fix the `serialisers/actual_output/` scratch leak), and 4 (relocate `test_data/demo/`)
-are done. Step 5 (the unified-layout migration itself) remains open, blocked on #278 —
-tracked as GitHub issue T10e (#310); full status in §9. **§7.1 (added on request,
-2026-08-03) extends the target layout with a cross-stage/shared-input rule**,
-documented now so T10e's migration only has to move fixtures once, not twice.
+**Status:** Audit and migration complete. §7's single-layout decision is implemented.
+The canonical install is a 423-file, `matlab-verified` `reference-export/v2` bundle from
+MATLAB R2026a Update 4; provenance passed 86 tests and current readers passed 40. The
+The local CI-equivalent gate passed all 1,046 collected tests with 92.08% branch coverage.
+Frozen v1 remains readable. Steps 1–5 are
+implemented; #310 remains tracked for maintainer review. Sections 1–6 preserve the
+audit-time findings and paths, including items later remediated by those steps.
+
+**Identity:** MATLAB v0.9.1 `98a01ac0513c0dd0f8a9bd91ed2926c871334d7b`; generator
+`4816b8cf23ad9392e7a7f5aa85bfbc32080dfe84`; exporter
+`d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
+
+**§7.1** extends the target layout with a cross-stage/shared-input rule.
 **Scope:** every file under `tests/` in this repository, not only
 `tests/matlab_reference/`. Companion to `docs/pyIS_docs_quality_roadmap.md` §8.3 and
 `tests/matlab_export/README.md`.
@@ -116,8 +120,8 @@ obscures that difference.
   write target, regenerated on every run of `test_serialisers.py`. A `.gitignore` file
   sits inside each of its subdirectories, but git still tracks `output.zip` inside it —
   the same file that kept showing up as "modified" in this session's `git status`
-  output after running the test suite. `expected_output/` (the golden comparison
-  target) is the fixture that actually belongs in version control here.
+  output after running the test suite. `expected_output/` (the expected Python
+  regression target) is the fixture that actually belongs in version control here.
 
 ## 5. Category framework
 
@@ -127,16 +131,16 @@ directory declares its category, the reader does not have to guess.
 
 | Category | Origin | Purpose | Example |
 |---|---|---|---|
-| MATLAB build-path parity | MATLAB, training run | Check one stage's Python output against MATLAB, same inputs | `test_data/pythia/output/BO_gaussian/gaussian.csv` |
-| MATLAB explore-path parity | MATLAB, `explore()` run | Check test-set inference against MATLAB | `matlab_reference/explore_outputs/step4_pythia_predictions.csv` |
+| Verified MATLAB parity | Manifest-verified current MATLAB run | Check Python against complete, hashed stage inputs and outputs | `fixtures/matlab/current/manifest.json` |
+| Legacy unverified regression | Reported MATLAB origin, missing reproducibility evidence | Detect drift without making a parity claim | `test_data/pythia/output/BO_gaussian/gaussian.csv` |
 | Python-only synthetic | Hand-built or generated in Python | Exercise a code path no real MATLAB dataset reaches (degenerate input, invalid options, edge cases) | `test_data/load_file/illegal.json` |
-| Example / demo | Real-world, not a golden-value comparison | Show a working usage pattern, not verify numeric correctness | `test_data/demo/metadata/metadata_BBO.csv` |
+| Example / demo | Real-world, not an oracle comparison | Show a working usage pattern, not verify numeric correctness | `examples/data/metadata/metadata_BBO.csv` |
 | Test-run scratch output | Written by the test itself, not read by anything | Debugging artifact only, should not need version control | `test_data/serialisers/actual_output/` |
 
-Answering the question in your message directly: MATLAB-parity data (the first two
-rows) should keep coming from MATLAB, and only from MATLAB — hand-editing a
+Answering the question in your message directly: MATLAB-parity data (the first row)
+should keep coming from MATLAB, and only from MATLAB — hand-editing a
 MATLAB-comparison fixture to make a test pass would defeat the point of the comparison.
-Python-only synthetic data (row three) should keep coming from Python, since it tests
+Python-only synthetic data should keep coming from Python, since it tests
 Python-side logic that has no MATLAB counterpart to derive from. The problem this audit
 found is not that both kinds of origin exist. It is that nothing in the current
 directory layout tells you which kind you are looking at.
@@ -208,36 +212,34 @@ unrelated to the move — `examples/data/options.json`'s `selvars.type` is `"Ftr
 `tests/test_data/load_file/` left where it is, since "test data for loading tests" is an
 accurate name for exactly what it is.
 
-### Step 5 — Decide the target layout for MATLAB-parity data (open decision, see §7)
+### Step 5 — Install the verified MATLAB-parity layout (implemented, see §7)
 **[Behavior-changing] if it moves any fixture a currently-passing test reads** — needs
 the full `tests/matlab_reference`-style verification pass before and after, same as any
 other change to existing test data.
 
-This is the big one, and it is a decision, not a mechanical step. §7 lays out the
-options. Do not start moving `test_data/<stage>/` fixtures until one option is chosen.
+This was the big migration step. §7 records the chosen layout and the provenance gate
+that was satisfied before installation.
 
 ## 7. Decision: one layout, not two
 
-**Decided: Option A, single unified layout.** Documented here only — no fixture has
-moved yet, since the migration itself is blocked on GitHub issue #278 (the export
-script needs a real MATLAB run, and its output needs a review, before anything treats
-its shape as ground truth to migrate onto).
+**Decided: Option A, single unified layout.** The exporter now produces and verifies
+this layout, and `tools.fixture_provenance install` can atomically install only a
+verified bundle. Historical fixtures did not move: the R2024a diagnostic is rejected,
+while the reviewed R2026a bundle is installed under the canonical root.
 
-Target shape: `tests/matlab_export/pyis_export_reference_data.m`'s own output —
-`build_data/<stage>/<variant>/` and `explore_data/<stage>/<variant>/`, the same shape and
-the same naming convention on both sides (revised from an earlier draft's
+Canonical target: `tests/fixtures/matlab/current/`, containing `manifest.json`,
+`shared_inputs/`, `resolved_options/`, `build_data/<stage>/<variant>/`, and
+`explore_data/<stage>/<variant>/`. The build and explore roots use the same naming
+convention (revised from an earlier draft's
 `training_artifacts/`/`explore_outputs/` split, which used two different names for the
 build and explore roots and, worse, dropped the `<stage>/` level entirely on the explore
-side — exactly the kind of asymmetry this decision exists to rule out) — applied to every
-MATLAB-comparison fixture, including the ones now under `test_data/<stage>/`. Every stage
-gains explore-path coverage it does not have today, not only PYTHIA and TRACE. One
-convention, one place to look, for both build-path and explore-path data.
+side). PRELIM, SIFTED, and CLOISTER retain their base variants. PILOT adds standard and
+SIMPLS 2D/3D variants; TRACE adds native 3D evidence alongside the three downstream
+variants. One profile and one installed root replace alternate flattened layouts.
 
-Cost, recorded so it is not a surprise when Step 5 starts: every
-`test_build_*.py`/`test_explore_*.py` file's fixture paths need updating to point at
-the new layout. This is real work across a large number of test files, not a single
-mechanical rename, since the old and new layouts group the same data differently
-(stage-first versus phase-first) rather than just renaming directories in place.
+Current MATLAB comparisons now have at least one numerical reader per exported build and
+explore stage. Historical tests may keep their old paths as explicitly unverified
+regression checks; they are not silently promoted or mechanically renamed.
 
 ## 7.1 Addendum: cross-stage and shared-input data (added 2026-08-03)
 
@@ -264,14 +266,10 @@ every copy is read by something. It's the same data reaching four independent te
 files because each stage's fixtures were built by hand-copying the previous stage's
 output rather than pointing at it.
 
-**Fix, folded into the target layout:** under `build_data/<stage>/<variant>/`, a
-downstream stage's tests read the upstream stage's own `build_data/<upstream-stage>/
-<variant>/output/` directly — no separate copy under the downstream stage's own
-`input/`. This needs no new top-level category; it only requires each
-`test_build_*.py` file's fixture-loading code (or a shared `conftest.py` fixture, per
-T3) to point at the producing stage's output path instead of a private copy. This is
-squarely inside T10e's existing scope (it already touches every `test_build_*.py`
-fixture path), not separate work.
+**Fix, folded into the target layout:** the MATLAB oracle keeps explicit inputs beside
+each stage result so a parity test is self-contained; duplicate bytes are intentional and
+hashed. Python-only regression fixtures may share an upstream artifact where that does
+not obscure provenance. This is inside T10e's migration scope, not separate work.
 
 ### Pattern B — genuinely shared input data (no single producing stage)
 
@@ -283,26 +281,22 @@ different code paths against the *same* raw input. Unlike Pattern A, there's no
 upstream stage whose output this is — it's the pipeline's own entry point, needed
 identically by several unrelated test suites.
 
-**Fix, folded into the target layout:** a new top-level `shared_inputs/<name>/`
-directory, sibling to `build_data/` and `explore_data/`, holding raw input data with
-more than one independent consumer and no single owning stage. `metadata.csv` moves
-there; every reader points at the one copy. Naming is not locked in — `shared_inputs/`
-is this document's proposal, favoured over "global" (collides with Python's own
-`global` keyword) and "class" (already overloaded as "class label" in this codebase's
-own ML vocabulary) — open to revision before T10e executes.
+**Fix, folded into the target layout:** `shared_inputs/reference/` is the canonical home
+for `metadata.csv` and `metadata_test.csv`, sibling to `resolved_options/`, `build_data/`,
+and `explore_data/` inside the installed bundle.
 
-**Not in scope for this addendum:** actually moving any file. Like the rest of §7,
-this is a documented decision only, waiting on the same #278 blocker as the rest of
-Step 5 — recorded now so the target shape is settled before the migration starts, not
-discovered mid-migration.
+**Migration gate:** satisfied by the clean R2026a export, manifest review, strict Python
+verification, atomic install, and current-layout readers. Unknown-provenance data remains
+outside the oracle tree.
 
-## 8. What this audit did not do
+## 8. Current provenance boundary
 
-It did not run the MATLAB export script (`tests/matlab_export/`) against a real MATLAB
-checkout — that dependency is already tracked on GitHub issue #278 and is unchanged by
-this document. Step 1 (delete confirmed-dead data) is the only step this audit executed;
-Steps 2-5 are proposals, not completed actions. It did not audit `docs/`, `output/`, or
-any directory outside `tests/` — a repository-root sweep, if wanted, is separate work.
+The earlier 196-file R2024a diagnostic remains non-authoritative. The installed
+423-file v2 profile was generated from the clean identities recorded above under MATLAB
+R2026a Update 4, passed strict verification and scientific review, and was installed
+without relabeling historical fixtures. The former 229-file v1 profile remains supported
+only as a frozen readable format. `legacy-unknown` data is regression evidence, never a
+MATLAB oracle.
 
 ## 9. Tracking issues
 
@@ -315,7 +309,7 @@ Remediation is tracked under Phase T, as sub-issues of the Phase T parent (#273)
 | #307 | T10b — Resolve `prelim/run/output/` partial-orphan | Step 2 | Done — see commit history |
 | #308 | T10c — Fix `serialisers/actual_output/` scratch-output leak | Step 3 | Done — see commit history |
 | #309 | T10d — Relocate `test_data/demo/` out of `test_data/` | Step 4 | Done — see commit history |
-| #310 | T10e — Migrate onto the unified layout (§7, §7.1) | Step 5 | Open, blocked on #278 |
+| #310 | T10e — Migrate onto the unified layout (§7, §7.1) | Step 5 | Implemented and verified locally; pending maintainer review |
 | #311 | `examples/data/options.json`'s `selvars.type` invalid value | Found verifying Step 4 | Done — see commit history |
 
 Pick up a step by reading its GitHub issue first, then the corresponding section above —

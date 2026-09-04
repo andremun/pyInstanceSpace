@@ -17,7 +17,7 @@ for these five classifiers to verify against (only `'svm'` does).
 """
 
 from collections.abc import Callable
-from typing import NamedTuple
+from typing import NamedTuple, Self, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -28,6 +28,8 @@ from sklearn.neighbors import KernelDensity, KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from skopt.space import Categorical, Dimension, Integer, Real
+
+from instancespace.utils.numerics import matlab_round
 
 
 class KernelNB(ClassifierMixin, BaseEstimator):  # type: ignore[misc]
@@ -102,12 +104,65 @@ class KernelNB(ClassifierMixin, BaseEstimator):  # type: ignore[misc]
         return predictions
 
 
+class _MatlabKNeighborsClassifier(KNeighborsClassifier):  # type: ignore[misc]
+    """KNN estimator with MATLAB's per-fit ``NumNeighbors`` normalization.
+
+    R2026a's ``fitcknn`` keeps PYTHIA's requested/search value for reporting,
+    but the fitted model silently caps ``NumNeighbors`` to the number of rows
+    available to that particular fit.  Cross-validation therefore applies a
+    potentially different effective cap in every training fold.  Scikit-learn
+    instead accepts the oversized value during ``fit`` and then raises during
+    prediction.  Preserve the requested value separately for cloning and
+    repeated fits while leaving the fitted estimator's public ``n_neighbors``
+    at MATLAB's effective value.  This shared fit boundary covers Sobol,
+    Bayesian, pre-calculated, and final-model training alike.
+    """
+
+    n_neighbors: object
+    n_samples_fit_: int
+    _requested_n_neighbors: object
+
+    def get_params(self, deep: bool = True) -> dict[str, object]:
+        """Expose the nominal value so fitted estimators clone faithfully."""
+        parameters: dict[str, object] = super().get_params(deep=deep)
+        if hasattr(self, "_requested_n_neighbors"):
+            parameters["n_neighbors"] = self._requested_n_neighbors
+        return parameters
+
+    def set_params(self, **parameters: object) -> Self:
+        """Track an explicitly supplied nominal neighbour count."""
+        if "n_neighbors" in parameters:
+            self._requested_n_neighbors = parameters["n_neighbors"]
+        super().set_params(**parameters)
+        return self
+
+    def fit(
+        self,
+        x: object,
+        y: object,
+    ) -> Self:
+        """Fit after applying MATLAB's current-fit effective cap."""
+        if not hasattr(self, "_requested_n_neighbors"):
+            self._requested_n_neighbors = self.n_neighbors
+        self.n_neighbors = self._requested_n_neighbors
+        super().fit(x, y)
+        requested = cast(int, self._requested_n_neighbors)
+        self.n_neighbors = min(
+            int(requested),
+            int(self.n_samples_fit_),
+        )
+        return self
+
+
 class ParamSpec(NamedTuple):
-    """One tunable hyperparameter's search range.
+    """One tunable hyperparameter's MATLAB-facing search range.
 
     Mirrors one column of MATLAB's `classifierBayesVars`/`sobolToParams`
     (`core/PYTHIA.m`) - the range a classifier's hyperparameter is searched
-    over, for both the `'sobol'` and `'bayes'` tuning strategies.
+    over, for both the `'sobol'` and `'bayes'` tuning strategies. `low` and
+    `high` always use the values MATLAB reports and accepts in
+    `opts.pythia.params`; conversion to the estimator's own units happens at
+    the final boundary.
 
     Attributes
     ----------
@@ -117,9 +172,9 @@ class ParamSpec(NamedTuple):
         Human-readable label, matching `ISAgetClassifierFcn.m`'s
         p1label/p2label (used for the PYTHIA summary table's columns).
     low : float
-        Lower bound of the search range, in `sklearn_name`'s own units.
+        Lower bound of the search range, in MATLAB/reporting units.
     high : float
-        Upper bound of the search range, in `sklearn_name`'s own units.
+        Upper bound of the search range, in MATLAB/reporting units.
     log_scale : bool
         Whether to sample/search log-uniformly rather than linearly.
     is_int : bool
@@ -127,10 +182,13 @@ class ParamSpec(NamedTuple):
     categories : tuple[str, ...] | None
         Set only for categorical parameters (KNN's distance metric);
         `low`/`high` are unused when this is set.
-    report : Callable[[float], float] | None
-        Converts a raw sklearn value back to the unit MATLAB reports it in,
-        for parameters where the two differ (e.g. logistic regression's
-        `C` back to `Lambda = 1/C`). Identity if omitted.
+    to_estimator : Callable[[float], float] | None
+        Converts a MATLAB/reporting-unit value to the estimator's own units.
+        Identity if omitted.
+    to_reported : Callable[[float], float] | None
+        Converts an estimator value back to MATLAB/reporting units. Identity
+        if omitted. Kept separate from `to_estimator` because KernelScale and
+        sklearn's `gamma` are not related by a self-inverse transform.
     """
 
     sklearn_name: str
@@ -140,28 +198,57 @@ class ParamSpec(NamedTuple):
     log_scale: bool = False
     is_int: bool = False
     categories: tuple[str, ...] | None = None
-    report: Callable[[float], float] | None = None
+    to_estimator: Callable[[float], float] | None = None
+    to_reported: Callable[[float], float] | None = None
+
+    def _convert_to_estimator(self, value: float | int) -> float | int:
+        """Convert a numeric reporting-unit value to estimator units."""
+        if self.to_estimator is not None:
+            return self.to_estimator(float(value))
+        return value
 
     def sample(self, x: float) -> float | int | str:
-        """Map a uniform sample `x` in [0,1] to this parameter's real value."""
+        """Map `x` in [0,1] through MATLAB units into estimator units."""
         if self.categories is not None:
-            index = min(len(self.categories) - 1, int(x * len(self.categories)))
+            # MATLAB's sobolToParams uses max(1,min(n,ceil(x*n))). Sobol can
+            # land exactly on dyadic boundaries, where floor-based binning
+            # would incorrectly advance to the next category.
+            one_based_index = max(
+                1,
+                min(len(self.categories), int(np.ceil(x * len(self.categories)))),
+            )
+            index = one_based_index - 1
             return self.categories[index]
         if self.log_scale:
             log_low, log_high = np.log(self.low), np.log(self.high)
             value = float(np.exp(log_low + x * (log_high - log_low)))
         else:
             value = self.low + x * (self.high - self.low)
-        return int(max(self.low, round(value))) if self.is_int else float(value)
+        if self.is_int:
+            value = max(int(self.low), int(matlab_round(value)))
+        return self._convert_to_estimator(value)
 
     def dimension(self) -> Dimension:
-        """Return this parameter's search space as a `skopt` dimension (`'bayes'`)."""
+        """Return this parameter's estimator-unit `skopt` search dimension."""
         if self.categories is not None:
             return Categorical(list(self.categories), name=self.sklearn_name)
+        estimator_low = float(self._convert_to_estimator(self.low))
+        estimator_high = float(self._convert_to_estimator(self.high))
+        lower_bound = min(estimator_low, estimator_high)
+        upper_bound = max(estimator_low, estimator_high)
         if self.is_int:
-            return Integer(int(self.low), int(self.high), name=self.sklearn_name)
+            return Integer(
+                int(lower_bound),
+                int(upper_bound),
+                name=self.sklearn_name,
+            )
         prior = "log-uniform" if self.log_scale else "uniform"
-        return Real(self.low, self.high, prior=prior, name=self.sklearn_name)
+        return Real(
+            lower_bound,
+            upper_bound,
+            prior=prior,
+            name=self.sklearn_name,
+        )
 
     def reported(self, value: float | int | str) -> float:
         """Return the value to store in `PythiaOutput`, in MATLAB's own units."""
@@ -169,7 +256,10 @@ class ParamSpec(NamedTuple):
             if self.categories is None:
                 return float("nan")
             return float(self.categories.index(value) + 1)
-        return self.report(value) if self.report is not None else float(value)
+        numeric_value = float(value)
+        if self.to_reported is not None:
+            return self.to_reported(numeric_value)
+        return numeric_value
 
     def from_precalc(self, value: float) -> float | int | str:
         """Map a raw `opts.pythia.params` value (MATLAB units) to this classifier's own.
@@ -181,13 +271,15 @@ class ParamSpec(NamedTuple):
         [0,1] search-space fraction the way `sample()`'s input is.
         """
         if self.categories is not None:
-            index = min(len(self.categories) - 1, max(0, round(value) - 1))
+            index = min(
+                len(self.categories) - 1,
+                max(0, int(matlab_round(value)) - 1),
+            )
             return self.categories[index]
-        if self.report is not None:
-            # report() maps sklearn's own value to MATLAB's units (e.g. Lambda
-            # = 1/C); every registered mapping of that shape is self-inverse.
-            return self.report(value)
-        return int(round(value)) if self.is_int else float(value)
+        normalized: float | int = value
+        if self.is_int:
+            normalized = max(int(self.low), int(matlab_round(value)))
+        return self._convert_to_estimator(normalized)
 
 
 class ClassifierSpec(NamedTuple):
@@ -221,7 +313,9 @@ def _build_svm(seed: int | None, is_poly_krnl: bool) -> ClassifierMixin:
         kernel="poly" if is_poly_krnl else "rbf",
         random_state=seed,
         probability=True,
-        degree=2,
+        # MATLAB's fitcsvm defaults PolynomialOrder to 3; PYTHIA does not
+        # override it when selecting the polynomial kernel.
+        degree=3,
         coef0=1,
     )
 
@@ -231,7 +325,7 @@ def _build_knn(seed: int | None, is_poly_krnl: bool) -> ClassifierMixin:
     # deterministic given fixed training data. algorithm='brute' is required
     # once the distance metric is tunable: 'cosine'/'correlation' aren't
     # supported by the default ball_tree/kd_tree algorithms.
-    return KNeighborsClassifier(algorithm="brute")
+    return _MatlabKNeighborsClassifier(algorithm="brute")
 
 
 def _build_tree(seed: int | None, is_poly_krnl: bool) -> ClassifierMixin:
@@ -255,12 +349,40 @@ def _build_ensemble(seed: int | None, is_poly_krnl: bool) -> ClassifierMixin:
     return RandomForestClassifier(random_state=seed)
 
 
+def _kernel_scale_to_gamma(kernel_scale: float) -> float:
+    """Convert MATLAB KernelScale to sklearn's kernel coefficient."""
+    return 1.0 / kernel_scale**2
+
+
+def _gamma_to_kernel_scale(gamma: float) -> float:
+    """Convert sklearn's kernel coefficient to MATLAB KernelScale."""
+    return float(1.0 / np.sqrt(gamma))
+
+
+def _lambda_to_c(regularization: float) -> float:
+    """Convert MATLAB's regularization strength to sklearn's inverse strength."""
+    return 1.0 / regularization
+
+
+def _c_to_lambda(inverse_regularization: float) -> float:
+    """Convert sklearn's inverse strength to MATLAB's regularization strength."""
+    return 1.0 / inverse_regularization
+
+
 _REGISTRY: dict[str, ClassifierSpec] = {
     "svm": ClassifierSpec(
         build=_build_svm,
         supports_sample_weight=True,
         param1=ParamSpec("C", "BoxConstraint", 2**-10, 2**4, log_scale=True),
-        param2=ParamSpec("gamma", "KernelScale", 2**-10, 2**4, log_scale=True),
+        param2=ParamSpec(
+            "gamma",
+            "KernelScale",
+            2**-10,
+            2**4,
+            log_scale=True,
+            to_estimator=_kernel_scale_to_gamma,
+            to_reported=_gamma_to_kernel_scale,
+        ),
     ),
     "knn": ClassifierSpec(
         build=_build_knn,
@@ -290,17 +412,17 @@ _REGISTRY: dict[str, ClassifierSpec] = {
         build=_build_linear,
         supports_sample_weight=True,
         # Lambda (MATLAB's regularization strength, log-uniform [1e-6,1e3])
-        # is inversely related to sklearn's C (inverse regularization
-        # strength); sampling C log-uniformly over the inverted range
-        # [1/1e3, 1/1e-6] is the equivalent search, reporting back via
-        # Lambda = 1/C to match MATLAB's own label/units.
+        # is inversely related to sklearn's C. ParamSpec keeps the declared
+        # range in MATLAB units, then converts the estimator-facing Bayes,
+        # Sobol, and pre-calculated values at their shared boundary.
         param1=ParamSpec(
             "C",
             "Lambda",
-            1e-3,
-            1e6,
+            1e-6,
+            1e3,
             log_scale=True,
-            report=lambda c: 1.0 / c,
+            to_estimator=_lambda_to_c,
+            to_reported=_c_to_lambda,
         ),
         param2=None,
     ),
