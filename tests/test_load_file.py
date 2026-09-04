@@ -6,9 +6,10 @@ csv file and option is also correctly loaded from json file.
 """
 
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 
 import pytest
+from loguru import logger
 
 from instancespace.data.default_options import (
     DEFAULT_AUTO_PREPROC,
@@ -54,6 +55,25 @@ from instancespace.instance_space import (
 )
 
 script_dir = Path(__file__).parent
+
+
+def _collect_error_logs(fn: Any, *args: Any) -> tuple[Any, str]:  # noqa: ANN401
+    """Run fn(*args), returning its result and loguru ERROR-level messages.
+
+    `capsys` can't see loguru's output here: loguru's default sink binds
+    `sys.stderr` once at import time, before any test's `capsys` fixture has
+    installed its per-test patched stream.
+    """
+    messages: list[str] = []
+    sink_id = logger.add(
+        lambda msg: messages.append(msg.record["message"]),
+        level="ERROR",
+    )
+    try:
+        result = fn(*args)
+    finally:
+        logger.remove(sink_id)
+    return result, "\n".join(messages)
 
 
 class TestMetadata:
@@ -197,47 +217,48 @@ class TestMetadata:
         assert source is not None, "Expected 's' to be not None"
         assert source.count() == self.expected_source
 
-    def test_metadata_invalid_path(
-        self: Self,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
+    def test_metadata_invalid_path(self: Self) -> None:
         """Test FileNotFound exception is thrown with invalid path."""
         invalid_path = script_dir / "invalid_path"
         option_path = script_dir / "test_data/load_file/options.json"
 
-        returned = instance_space_from_files(invalid_path, option_path)
+        returned, logs = _collect_error_logs(
+            instance_space_from_files,
+            invalid_path,
+            option_path,
+        )
 
         assert returned is None
-
-        captured = capsys.readouterr()
-        output = captured.out
-
         expected_error_msg = "[Errno 2] No such file or directory:"
-        assert expected_error_msg in output
+        assert expected_error_msg in logs
 
-    def test_data_empty(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_data_empty(self: Self) -> None:
         """Test dummy exception is thrown with invalid path."""
         data_path = script_dir / "test_data/load_file/dummydata.csv"
         option_path = script_dir / "test_data/load_file/options.json"
 
-        returned = instance_space_from_files(data_path, option_path)
+        returned, logs = _collect_error_logs(
+            instance_space_from_files,
+            data_path,
+            option_path,
+        )
         assert returned is None
-
-        captured = capsys.readouterr()
         expected_error_msg = "is empty."
-        assert expected_error_msg in captured.out
+        assert expected_error_msg in logs
 
-    def test_illegal_csv(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_illegal_csv(self: Self) -> None:
         """Test dummy exception is thrown with invalid path."""
         data_path = script_dir / "test_data/load_file/illegal.csv"
         option_path = script_dir / "test_data/load_file/options.json"
 
-        returned = instance_space_from_files(data_path, option_path)
+        returned, logs = _collect_error_logs(
+            instance_space_from_files,
+            data_path,
+            option_path,
+        )
         assert returned is None
-
-        captured = capsys.readouterr()
         expected_error_msg = "Error tokenizing data"
-        assert expected_error_msg in captured.out
+        assert expected_error_msg in logs
 
 
 class TestOption:
@@ -268,7 +289,7 @@ class TestOption:
             ("perf", "max_perf", True),
             ("perf", "abs_perf", True),
             ("perf", "epsilon", 0.2),
-            ("perf", "beta_threshold", 8765435678976546789),
+            ("perf", "beta_threshold", 0.876543),
             ("auto", "preproc", True),
             ("bound", "flag", True),
             ("norm", "flag", True),
@@ -278,7 +299,7 @@ class TestOption:
             ("selvars", "file_idx", "aaaaaaa"),
             ("selvars", "density_flag", False),
             ("selvars", "min_distance", 0.10007),
-            ("selvars", "selvars_type", "Ftr&Good and so on"),
+            ("selvars", "selvars_type", "Ftr&AP&Good"),
             (
                 "selvars",
                 "feats",
@@ -301,7 +322,6 @@ class TestOption:
             ("pythia", "cv_folds", 59),
             ("pythia", "is_poly_krnl", True),
             ("pythia", "use_weights", True),
-            ("pythia", "use_grid_search", True),
             ("trace", "use_sim", True),
             ("trace", "purity", 0.59999),
             ("outputs", "csv", True),
@@ -334,7 +354,7 @@ class TestOption:
             ("perf", "max_perf", True),
             ("perf", "abs_perf", True),
             ("perf", "epsilon", 0.2),
-            ("perf", "beta_threshold", 8765435678976546789),
+            ("perf", "beta_threshold", 0.876543),
             ("auto", "preproc", True),
             ("bound", "flag", True),
             ("norm", "flag", True),
@@ -344,7 +364,7 @@ class TestOption:
             ("selvars", "file_idx", "aaaaaaa"),
             ("selvars", "density_flag", False),
             ("selvars", "min_distance", 0.10007),
-            ("selvars", "selvars_type", "Ftr&Good and so on"),
+            ("selvars", "selvars_type", "Ftr&AP&Good"),
             (
                 "selvars",
                 "feats",
@@ -367,7 +387,6 @@ class TestOption:
             ("pythia", "cv_folds", 59),
             ("pythia", "is_poly_krnl", True),
             ("pythia", "use_weights", True),
-            ("pythia", "use_grid_search", True),
             ("trace", "use_sim", True),
             ("trace", "purity", 0.59999),
             ("outputs", "csv", True),
@@ -408,27 +427,27 @@ class TestOption:
         """
         assert directory_options == test_valid_options
 
-    def test_option_value_error(self: Self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_option_value_error(self: Self) -> None:
         """Test loading option with invalid attribute name will raise value error."""
         invalid_option_path = script_dir / "test_data/load_file/options_invalid.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
 
-        returned = instance_space_from_files(metadata_path, invalid_option_path)
+        returned, logs = _collect_error_logs(
+            instance_space_from_files,
+            metadata_path,
+            invalid_option_path,
+        )
         assert returned is None
-        captured = capsys.readouterr()
         expected_error_msg = (
             "Error details: The following fields from JSON are not defined in the data "
             "class PerformanceOptions\n"
-            "   maxperf_invalid\n"
-            "Failed to initialize options\n"
+            "   maxperf_invalid"
         )
 
-        assert expected_error_msg in captured.out
+        assert expected_error_msg in logs
+        assert "Failed to initialize options" in logs
 
-    def test_option_value_unexpected(
-        self: Self,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
+    def test_option_value_unexpected(self: Self) -> None:
         """
         Another invalid attribute case in the JSON file.
 
@@ -438,19 +457,19 @@ class TestOption:
         invalid_option_path = script_dir / "test_data/load_file/options_name_by_us.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
 
-        returned = instance_space_from_files(metadata_path, invalid_option_path)
+        returned, logs = _collect_error_logs(
+            instance_space_from_files,
+            metadata_path,
+            invalid_option_path,
+        )
         assert returned is None
-        captured = capsys.readouterr()
         expected_error_msg = (
-            "Error details: Conflicting fields in JSON: " "'purity' was defined twice\n"
+            "Error details: Conflicting fields in JSON: " "'purity' was defined twice"
         )
 
-        assert expected_error_msg in captured.out
+        assert expected_error_msg in logs
 
-    def test_option_value_specified_twice(
-        self: Self,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
+    def test_option_value_specified_twice(self: Self) -> None:
         """
         Another invalid attribute case in the JSON file.
 
@@ -462,30 +481,32 @@ class TestOption:
         )
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
 
-        returned = instance_space_from_files(metadata_path, invalid_option_path)
+        returned, logs = _collect_error_logs(
+            instance_space_from_files,
+            metadata_path,
+            invalid_option_path,
+        )
         assert returned is None
-        captured = capsys.readouterr()
         expected_error_msg = (
-            "Error details: Conflicting fields in JSON: "
-            "'MaxPerf' was defined twice\n"
+            "Error details: Conflicting fields in JSON: " "'MaxPerf' was defined twice"
         )
 
-        assert expected_error_msg in captured.out
+        assert expected_error_msg in logs
 
-    def test_option_invalid_path(
-        self: Self,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
+    def test_option_invalid_path(self: Self) -> None:
         """Test FileNotFound exception is thrown with invalid path."""
         invalid_options_path = script_dir / "invalid_path"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
 
-        returned = instance_space_from_files(metadata_path, invalid_options_path)
+        returned, logs = _collect_error_logs(
+            instance_space_from_files,
+            metadata_path,
+            invalid_options_path,
+        )
         assert returned is None
 
-        captured = capsys.readouterr()
         expected_error_msg = " [Errno 2] No such file or directory: "
-        assert expected_error_msg in captured.out
+        assert expected_error_msg in logs
 
     def test_missing_field(self: Self) -> None:
         """Loading from json, and any top field and sub fields are missing."""
@@ -508,35 +529,38 @@ class TestOption:
         assert loaded_options.selvars.small_scale == wanted_value
         assert loaded_options.selvars.file_idx_flag is DEFAULT_SELVARS_FILE_IDX_FLAG
 
-    def test_extra_top_fields(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_extra_top_fields(self) -> None:
         """Any top field are not defined in the class."""
         path = script_dir / "test_data/load_file/options_extra_topfield.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
 
-        returned = instance_space_from_files(metadata_path, path)
+        returned, logs = _collect_error_logs(
+            instance_space_from_files,
+            metadata_path,
+            path,
+        )
         assert returned is None
-        captured = capsys.readouterr()
         expected_error_msg = (
             "Error details: Extra fields in JSON are not defined in "
-            "InstanceSpaceOptions:  {'INTENDED_EXTRA_FIELD_IN_JSON'}\n"
+            "InstanceSpaceOptions:  {'INTENDED_EXTRA_FIELD_IN_JSON'}"
         )
 
-        assert expected_error_msg in captured.out
+        assert expected_error_msg in logs
 
-    def test_json_with_invalid_content(
-        self,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
+    def test_json_with_invalid_content(self) -> None:
         """Any top field are not defined in the class."""
         path = script_dir / "test_data/load_file/illegal.json"
         metadata_path = script_dir / "test_data/load_file/metadata.csv"
 
-        returned = instance_space_from_files(metadata_path, path)
+        returned, logs = _collect_error_logs(
+            instance_space_from_files,
+            metadata_path,
+            path,
+        )
         assert returned is None
-        captured = capsys.readouterr()
         expected_error_msg = "Expecting value: line 2 column 24 (char 25)"
 
-        assert expected_error_msg in captured.out
+        assert expected_error_msg in logs
 
     @pytest.fixture()
     def test_dummy_options(self: Self) -> InstanceSpaceOptions:

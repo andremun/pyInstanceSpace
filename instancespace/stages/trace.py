@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """TRACE Stage Module for Performance-Based Footprint Estimation.
 
 This module implements the TRACE stage, which analyzes the performance of multiple
@@ -5,6 +7,11 @@ algorithms by generating geometric footprints. These footprints represent the ar
 of good, best, and beta performance based on the clustering of instance data. The
 footprints are further evaluated for their density and purity in relation to the
 performance metrics of the algorithms.
+
+This is a port of MATLAB's `TRACE_legacy.m` (DBSCAN-based footprint construction) —
+`TraceOptions.method` accordingly only accepts `'legacy'`; MATLAB's newer default
+algorithm, `TRACE3` (alpha-shape-based, no DBSCAN), was never ported and is out of
+scope (see roadmap F11).
 
 The TRACE stage has several key steps:
 1. Cluster the instance data using DBSCAN to identify regions of interest.
@@ -51,13 +58,14 @@ from typing import NamedTuple
 import alphashape
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
 from scipy.special import gamma
-from shapely.geometry import MultiPoint, MultiPolygon, Polygon
+from shapely.geometry import MultiPolygon, Polygon
 from shapely.ops import triangulate, unary_union
 
-from instancespace.data.model import Footprint
-from instancespace.data.options import ParallelOptions, TraceOptions
+from instancespace.data.model import Footprint, pointwise_covers
+from instancespace.data.options import GeneralOptions, ParallelOptions, TraceOptions
 from instancespace.stages.stage import Stage
 
 POLYGON_MIN_POINT_REQUIREMENT = 3
@@ -71,9 +79,10 @@ class TraceInputs(NamedTuple):
     z : NDArray[np.double]
         The space of instances, represented as an array of data points (features).
     selection0 : NDArray[np.int_]
-        Performance metrics from the Pythia algorithm, represented as an array.
+        PYTHIA selections as zero-based algorithm indices; ``-1`` means that no
+        algorithm was selected.
     p : NDArray[np.int_]
-        Performance metrics from the data source, represented as an array of values.
+        PRELIM selections as MATLAB-compatible one-based algorithm indices.
     beta : NDArray[np.bool_]
         A binary array indicating specific beta thresholds for the footprint.
     algo_labels : list[str]
@@ -87,6 +96,8 @@ class TraceInputs(NamedTuple):
     trace_options : TraceOptions
         Configuration options for the TRACE analysis, determining specific behaviour
         for footprint construction and evaluation.
+    general_options : GeneralOptions
+        General options (e.g. verbosity), not specific to any one stage.
     """
 
     z: NDArray[np.double]
@@ -98,6 +109,8 @@ class TraceInputs(NamedTuple):
     y_bin: NDArray[np.bool_]
     trace_options: TraceOptions
     parallel_options: ParallelOptions
+    general_options: GeneralOptions
+    executor: ThreadPoolExecutor | None = None
 
 
 class TraceOutputs(NamedTuple):
@@ -209,6 +222,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         algo_labels: list[str],
         trace_opts: TraceOptions,
         parallel_opts: ParallelOptions,
+        general_opts: GeneralOptions,
+        executor: ThreadPoolExecutor | None = None,
     ) -> None:
         """Initialise the Trace analysis with provided data and options.
 
@@ -229,6 +244,12 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Configuration options for TRACE and its subroutines.
         parallel_opts : ParallelOptions
             Configuration options for parallel processing in Matilda.
+        general_opts : GeneralOptions
+            General options (e.g. verbosity), not specific to any one stage.
+        executor : ThreadPoolExecutor | None
+            A caller-owned, already-running pool to submit footprint work to
+            instead of creating and tearing down a fresh one. ``None`` (the
+            default) preserves the previous per-call pool behaviour.
         """
         self.z = z
         self.y_bin = y_bin
@@ -237,6 +258,17 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         self.algo_labels = algo_labels
         self.opts = trace_opts
         self.parallel_opts = parallel_opts
+        self.general_opts = general_opts
+        self.executor = executor
+
+    def _log(self, msg: str) -> None:
+        """Log a top-level, always-shown stage message."""
+        logger.info(f"[TRACE] {msg}")
+
+    def _log_detail(self, msg: str) -> None:
+        """Log per-trial/per-iteration detail, only shown when general.verbose."""
+        if self.general_opts.verbose:
+            logger.debug(f"[TRACE] {msg}")
 
     @staticmethod
     def _inputs() -> type[TraceInputs]:
@@ -279,16 +311,21 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             tuple[Footprint, list[Footprint], list[Footprint], Footprint, pd.DataFrame]
                 The results of the trace stage
         """
-        print(
-            "========================================================================",
+        logger.info(
+            "[TRACE] ========================================================"
+            "================",
         )
-        print("-> Calling TRACE to perform the footprint analysis.")
-        print(
-            "========================================================================",
+        logger.info("[TRACE] -> Calling TRACE to perform the footprint analysis.")
+        logger.info(
+            "[TRACE] ========================================================"
+            "================",
         )
 
         if inputs.trace_options.use_sim:
-            print("  -> TRACE will use PYTHIA's results to calculate the footprints.")
+            logger.info(
+                "[TRACE]   -> TRACE will use PYTHIA's results to calculate the"
+                " footprints.",
+            )
             return TraceStage.trace(
                 inputs.z,
                 inputs.y_hat,
@@ -297,17 +334,69 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 inputs.algo_labels,
                 inputs.trace_options,
                 inputs.parallel_options,
+                inputs.general_options,
+                inputs.executor,
             )
-        print("  -> TRACE will use experimental data to calculate the footprints.")
+        logger.info(
+            "[TRACE]   -> TRACE will use experimental data to calculate the"
+            " footprints.",
+        )
+        experimental_selection = TraceStage._experimental_portfolio_indices(
+            inputs.p,
+            n_instances=inputs.z.shape[0],
+            n_algorithms=inputs.y_bin.shape[1],
+        )
         return TraceStage.trace(
             inputs.z,
             inputs.y_bin,
-            inputs.p,
+            experimental_selection,
             inputs.beta,
             inputs.algo_labels,
             inputs.trace_options,
             inputs.parallel_options,
+            inputs.general_options,
+            inputs.executor,
         )
+
+    @staticmethod
+    def _experimental_portfolio_indices(
+        p: NDArray[np.int_],
+        *,
+        n_instances: int,
+        n_algorithms: int,
+    ) -> NDArray[np.int_]:
+        """Validate PRELIM's one-based portfolio and convert it for TRACE.
+
+        ``Data.p`` deliberately preserves MATLAB's ``1..n_algorithms`` indexing.
+        TRACE's common implementation uses Python's ``0..n_algorithms-1`` indexing,
+        as does PYTHIA's ``selection0`` (with ``-1`` for no selection).  This method
+        is the sole conversion boundary for experimental TRACE input.
+        """
+        portfolio = np.asarray(p)
+        if portfolio.ndim != 1 or portfolio.shape[0] != n_instances:
+            msg = (
+                "Experimental portfolio p must be a one-dimensional array with "
+                "one entry per instance."
+            )
+            raise ValueError(msg)
+        if not (
+            np.issubdtype(portfolio.dtype, np.integer)
+            or np.issubdtype(portfolio.dtype, np.floating)
+        ):
+            msg = "Experimental portfolio p must contain numeric algorithm indices."
+            raise ValueError(msg)
+        if not np.all(np.isfinite(portfolio)) or not np.all(
+            portfolio == np.floor(portfolio),
+        ):
+            msg = "Experimental portfolio p must contain finite integer indices."
+            raise ValueError(msg)
+        if np.any(portfolio < 1) or np.any(portfolio > n_algorithms):
+            msg = (
+                "Experimental portfolio p must use one-based algorithm indices in "
+                f"the range 1..{n_algorithms}."
+            )
+            raise ValueError(msg)
+        return portfolio.astype(np.int_, copy=False) - 1
 
     @staticmethod
     def trace(
@@ -318,6 +407,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         algo_labels: list[str],
         trace_opts: TraceOptions,
         parallel_opts: ParallelOptions,
+        general_opts: GeneralOptions,
+        executor: ThreadPoolExecutor | None = None,
     ) -> TraceOutputs:
         """Perform the TRACE footprint analysis.
 
@@ -337,6 +428,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             Configuration options for TRACE and its subroutines.
         parallel_opts : ParallelOptions
             Configuration options for parallel processing in Matilda.
+        general_opts : GeneralOptions
+            General options (e.g. verbosity), not specific to any one stage.
+        executor : ThreadPoolExecutor | None
+            A caller-owned pool to reuse instead of creating a fresh one.
 
         Returns:
         -------
@@ -346,7 +441,17 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             An instance of TraceOut containing the analysis results, including
             the calculated footprints and summary statistics.
         """
-        trace = TraceStage(z, y_bin, p, beta, algo_labels, trace_opts, parallel_opts)
+        trace = TraceStage(
+            z,
+            y_bin,
+            p,
+            beta,
+            algo_labels,
+            trace_opts,
+            parallel_opts,
+            general_opts,
+            executor,
+        )
         return trace._trace()  # noqa: SLF001
 
     def _trace(self) -> TraceOutputs:
@@ -375,6 +480,14 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             An instance of TraceOut containing the analysis results, including
             the calculated footprints and summary statistics.
         """
+        if self.opts.method != "legacy":
+            msg = (
+                f"TraceOptions.method={self.opts.method!r} is not implemented - "
+                "only 'legacy' (MATLAB's TRACE_legacy.m algorithm, the only "
+                "variant this port implements) is supported."
+            )
+            raise NotImplementedError(msg)
+
         # Create a boolean array to calculate the space footprint
 
         true_array: NDArray[np.bool_] = np.array(
@@ -383,16 +496,16 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         )
 
         # Calculate the space footprint (area and density)
-        print("  -> TRACE is calculating the space area and density.")
+        self._log("  -> TRACE is calculating the space area and density.")
         space = self.build(true_array)  # Build the footprint for the entire space
-        print(f"    -> Space area: {space.area} | Space density: {space.density}")
+        self._log(f"    -> Space area: {space.area} | Space density: {space.density}")
 
         # Prepare to calculate footprints for each algorithm's
         # good and best performance
-        print(
+        self._log(
             "------------------------------------------------------------------------",
         )
-        print("  -> TRACE is calculating the algorithm footprints.")
+        self._log("  -> TRACE is calculating the algorithm footprints.")
 
         # Calculate the good and best performance footprints for all algorithms
         # Determine the number of algorithms being analyzed
@@ -400,72 +513,29 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         good, best = self.compute_algorithm_qualities(n_algos)
 
         # Detect and resolve contradictions between the best performance footprints
-        print(
-            "------------------------------------------------------------------------",
-        )
-        print(
-            "  -> TRACE is detecting and removing contradictory"
-            " sections of the footprints.",
-        )
-        for i in range(n_algos):
-            print(f"  -> Base algorithm '{self.algo_labels[i]}'")
-            start_base = (
-                time.time()
-            )  # Track the start time for processing this base algorithm
-
-            algo_1: NDArray[np.bool_] = np.array(
-                [int(v) == i for v in self.p],
-                dtype=np.bool_,
-            )
-
-            for j in range(i + 1, n_algos):
-                print(
-                    f"      -> TRACE is comparing '"
-                    f"{self.algo_labels[i]}' with '{self.algo_labels[j]}'",
-                )
-                start_test = time.time()  # Track the start time for the comparison
-
-                # Create boolean arrays indicating which points correspond
-                # to each algorithm's best performance
-
-                algo_2: NDArray[np.bool_] = np.array(
-                    [int(v) == j for v in self.p],
-                    dtype=np.bool_,
-                )
-
-                # Resolve contradictions between the compared algorithms'  footprints
-                best[i], best[j] = self.contra(best[i], best[j], algo_1, algo_2)
-
-                # Print the elapsed time for the comparison
-                elapsed_test = time.time() - start_test
-                print(
-                    f"      -> Test algorithm '{self.algo_labels[j]}' completed. "
-                    f"Elapsed time: {elapsed_test:.2f}s",
-                )
-
-            # Print the elapsed time for processing this base algorithm
-            elapsed_base = time.time() - start_base
-            print(
-                f"  -> Base algorithm '{self.algo_labels[i]}' completed. Elapsed time:"
-                f" {elapsed_base:.2f}s",
+        if self.opts.contra:
+            self._remove_contradictions(best, n_algos)
+        else:
+            self._log(
+                "  -> TRACE is skipping contradiction removal (trace.contra=False).",
             )
 
         # Calculate the footprint for the beta threshold,
         # which is a stricter performance threshold
-        print(
+        self._log(
             "------------------------------------------------------------------------",
         )
-        print("  -> TRACE is calculating the beta-footprint.")
+        self._log("  -> TRACE is calculating the beta-footprint.")
         hard = self.build(
             ~self.beta,
         )  # Build the footprint for instances not meeting the beta threshold
 
         # Prepare the summary table for all algorithms,
         # which includes various performance metrics
-        print(
+        self._log(
             "------------------------------------------------------------------------",
         )
-        print("  -> TRACE is preparing the summary table.")
+        self._log("  -> TRACE is preparing the summary table.")
 
         # Create a pandas DataFrame and name the column "Algorithms"
         algorithm_names_df = pd.DataFrame(self.algo_labels, columns=["Algorithm"])
@@ -504,9 +574,8 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         summary_df = pd.DataFrame(summary_data, columns=data_labels)
         final_df = pd.concat([algorithm_names_df, summary_df], axis=1)
         # Print the completed summary of the TRACE analysis
-        print("  -> TRACE has completed. Footprint analysis results:")
-        print(" ")
-        print(final_df)
+        self._log("  -> TRACE has completed. Footprint analysis results:")
+        self._log(f"\n{final_df}")
 
         # Return the results as a TraceOut dataclass instance
         return TraceOutputs(
@@ -516,6 +585,67 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             hard=hard,
             trace_summary=final_df,
         )
+
+    def _remove_contradictions(
+        self,
+        best: list[Footprint],
+        n_algos: int,
+    ) -> None:
+        """Detect and resolve contradictions between all pairs of best footprints.
+
+        Mutates `best` in place. Split out of `_trace()` so the `contra`
+        option (F11 - matches MATLAB legacy TRACE's `contra`, default `True`)
+        can skip this step entirely rather than branching around it inline.
+        """
+        self._log(
+            "------------------------------------------------------------------------",
+        )
+        self._log(
+            "  -> TRACE is detecting and removing contradictory"
+            " sections of the footprints.",
+        )
+        for i in range(n_algos):
+            self._log(f"  -> Base algorithm '{self.algo_labels[i]}'")
+            start_base = (
+                time.time()
+            )  # Track the start time for processing this base algorithm
+
+            algo_1: NDArray[np.bool_] = np.array(
+                [int(v) == i for v in self.p],
+                dtype=np.bool_,
+            )
+
+            for j in range(i + 1, n_algos):
+                self._log_detail(
+                    f"      -> TRACE is comparing '"
+                    f"{self.algo_labels[i]}' with '{self.algo_labels[j]}'",
+                )
+                start_test = time.time()  # Track the start time for the comparison
+
+                # Create boolean arrays indicating which points correspond
+                # to each algorithm's best performance
+
+                algo_2: NDArray[np.bool_] = np.array(
+                    [int(v) == j for v in self.p],
+                    dtype=np.bool_,
+                )
+
+                # Resolve contradictions between the compared algorithms'  footprints
+                best[i], best[j] = self.contra(best[i], best[j], algo_1, algo_2)
+
+                # Print the elapsed time for the comparison
+                elapsed_test = time.time() - start_test
+                self._log_detail(
+                    f"      -> Test algorithm '{self.algo_labels[j]}' completed. "
+                    f"Elapsed time: {elapsed_test:.2f}s",
+                )
+
+            # Print the elapsed time for processing this base algorithm
+            elapsed_base = time.time() - start_base
+            self._log(
+                f"  -> Base algorithm '{self.algo_labels[i]}' completed. Elapsed time:"
+                f" {elapsed_base:.2f}s",
+            )
 
     def build(self, y_bin: NDArray[np.bool_]) -> Footprint:
         """Construct a footprint polygon using DBSCAN clustering.
@@ -542,17 +672,20 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
         labels = self.run_dbscan(y_bin, unique_rows)
         flag = False
-        polygon_body: Polygon = Polygon()
+        polygon_body: Polygon | MultiPolygon = Polygon()
         for i in range(1, int(np.max(labels)) + 1):
             polydata = unique_rows[labels == i]
 
             aux = self.fit_poly(polydata, y_bin)
-            if aux:
+            if aux is not None and not aux.is_empty:
                 if not flag:
                     polygon_body = aux
                     flag = True
                 else:
                     polygon_body = polygon_body.union(aux)
+
+        if not flag or polygon_body.is_empty:
+            return self.throw()
 
         return Footprint.from_polygon(
             polygon=polygon_body,
@@ -597,20 +730,19 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         contradiction = base_polygon.intersection(test_polygon)
 
         while not contradiction.is_empty and num_tries <= max_tries:
-            num_elements = np.sum(
-                [contradiction.contains(point) for point in MultiPoint(self.z).geoms],
-            )
+            num_elements = np.sum(pointwise_covers(contradiction, self.z))
+            if num_elements == 0:
+                self._log_detail(
+                    "        -> The contradicting area contains no instances; "
+                    "leaving both footprints unchanged.",
+                )
+                break
+
             num_good_elements_base = np.sum(
-                [
-                    contradiction.contains(point)
-                    for point in MultiPoint(self.z[y_base]).geoms
-                ],
+                pointwise_covers(contradiction, self.z[y_base]),
             )
             num_good_elements_test = np.sum(
-                [
-                    contradiction.contains(point)
-                    for point in MultiPoint(self.z[y_test]).geoms
-                ],
+                pointwise_covers(contradiction, self.z[y_test]),
             )
 
             purity_base = num_good_elements_base / num_elements
@@ -618,7 +750,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
             if purity_base > purity_test:
                 c_area = contradiction.area / test_polygon.area
-                print(
+                self._log_detail(
                     f"        -> {round(100 * c_area, 1)}% of the test footprint "
                     "is contradictory.",
                 )
@@ -627,7 +759,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                     test_polygon = self.tight(test_polygon, y_test)
             elif purity_test > purity_base:
                 c_area = contradiction.area / base_polygon.area
-                print(
+                self._log_detail(
                     f"        -> {round(100 * c_area, 1)}% of the base footprint "
                     "is contradictory.",
                 )
@@ -635,11 +767,11 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 if num_tries < max_tries:
                     base_polygon = self.tight(base_polygon, y_base)
             else:
-                print(
+                self._log_detail(
                     "        -> Purity of the contradicting areas is equal for both "
                     "footprints.",
                 )
-                print("        -> Ignoring the contradicting area.")
+                self._log_detail("        -> Ignoring the contradicting area.")
                 break
 
             if base_polygon.is_empty or test_polygon.is_empty:
@@ -658,7 +790,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         self,
         polygon: Polygon | MultiPolygon,
         y_bin: NDArray[np.bool_],
-    ) -> Polygon | None:
+    ) -> Polygon | MultiPolygon:
         """Refine an existing polygon by removing slivers and improving its shape.
 
         Parameters:
@@ -670,39 +802,35 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
 
         Returns:
         -------
-        Polygon | None:
-            The refined polygon, or None if the refinement fails.
+        Polygon | MultiPolygon:
+            The refined polygon, or an empty polygon if refinement fails.
         """
-        if polygon is None:
-            return None
-
         splits = (
             [item for item in polygon.geoms]
             if isinstance(polygon, MultiPolygon)
             else [polygon]
         )
         n_polygons = len(splits)
-        refined_polygons = []
+        refined_polygons: list[Polygon] = []
 
         for i in range(n_polygons):
-            criteria = np.logical_and(splits[i].contains(MultiPoint(self.z)), y_bin)
+            criteria = np.logical_and(
+                pointwise_covers(splits[i], self.z),
+                y_bin,
+            )
             polydata = self.z[criteria]
 
             if polydata.shape[0] < POLYGON_MIN_POINT_REQUIREMENT:
                 continue
 
-            temp_polygon = Polygon(polydata)
+            aux = self.fit_poly(polydata, y_bin)
 
-            boundary = temp_polygon.boundary
-            filtered_polydata = polydata[boundary]
-            aux = self.fit_poly(filtered_polydata, y_bin)
-
-            if aux:
+            if aux is not None and not aux.is_empty:
                 refined_polygons.append(aux)
 
-        if len(refined_polygons) > 0:
+        if refined_polygons:
             return unary_union(refined_polygons)
-        return None
+        return Polygon()
 
     def fit_poly(
         self,
@@ -736,19 +864,11 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
                 return None
             tri = triangulate(polygon)
             for piece in tri:
-                elements = np.sum(
-                    [
-                        piece.convex_hull.contains(point)
-                        for point in MultiPoint(self.z).geoms
-                    ],
-                )
+                elements = np.sum(pointwise_covers(piece.convex_hull, self.z))
                 good_elements = np.sum(
-                    [
-                        piece.convex_hull.contains(point)
-                        for point in MultiPoint(self.z[y_bin]).geoms
-                    ],
+                    pointwise_covers(piece.convex_hull, self.z[y_bin]),
                 )
-                if elements > 0 and (good_elements / elements) < self.opts.purity:
+                if elements == 0 or (good_elements / elements) < self.opts.purity:
                     polygon = polygon.difference(piece)
 
         return polygon
@@ -796,8 +916,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             for element in out
         ]
 
-    @staticmethod
-    def throw() -> Footprint:
+    def throw(self) -> Footprint:
         """Generate a footprint with default values, indicating insufficient data.
 
         Returns:
@@ -805,15 +924,17 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         Footprint:
             An instance of Footprint with default values.
         """
-        print("        -> There are not enough instances to calculate a footprint.")
-        print("        -> The subset of instances used is too small.")
+        self._log_detail(
+            "        -> There are not enough instances to calculate a footprint.",
+        )
+        self._log_detail("        -> The subset of instances used is too small.")
         return Footprint(None, 0, 0, 0, 0, 0)
 
     @staticmethod
     def run_dbscan(
         y_bin: NDArray[np.bool_],
         data: NDArray[np.double],
-    ) -> NDArray[np.float64]:
+    ) -> NDArray[np.int_]:
         """Perform DBSCAN clustering on the dataset.
 
         Parameters:
@@ -828,7 +949,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         NDArray[np.int_]:
             Array of cluster labels for each data point.
         """
-        nn = max(min(np.ceil(np.sum(y_bin) / 20), 50), 3)
+        nn = int(max(min(np.ceil(np.sum(y_bin) / 20), 50), 3))
         # Compute Eps
         eps = TraceStage.epsilon(data, nn)
         return TraceStage.dbscan(data, nn, eps)
@@ -860,7 +981,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
     def dist(
         i: NDArray[np.double],
         x: NDArray[np.double],
-    ) -> float | NDArray[np.double]:
+    ) -> NDArray[np.double]:
         """Calculate the Euclidean distances between objects.
 
         Parameters:
@@ -875,16 +996,14 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         D: float
             Euclidean distance (m,)
         """
-        m, n = x.shape
+        _, n = x.shape
 
-        return (
-            float(np.abs(x - i).flatten())
-            if n == 1
-            else np.sqrt(np.sum((x - i) ** 2, axis=1))
-        )
+        if n == 1:
+            return np.asarray(np.abs(x[:, 0] - i[0]), dtype=np.double)
+        return np.asarray(np.sqrt(np.sum((x - i) ** 2, axis=1)), dtype=np.double)
 
     @staticmethod
-    def dbscan(x: NDArray[np.double], k: int, eps: float) -> NDArray[np.float64]:
+    def dbscan(x: NDArray[np.double], k: int, eps: float) -> NDArray[np.int_]:
         """Density-Based Spatial Clustering of Applications with Noise (DBSCAN).
 
         Parameters:
@@ -907,10 +1026,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             eps = TraceStage.epsilon(x, k)
         # Augment x with indices
         x_with_index = np.hstack((np.arange(m).reshape(m, 1), x))
-        type_ = np.zeros(m)  # 1: core, 0: border, -1: noise
+        type_ = np.zeros(m, dtype=np.int_)  # 1: core, 0: border, -1: noise
         no = 1  # Cluster label
-        touched = np.zeros(m)  # 0: not processed, 1: processed
-        classes = np.zeros(m)  # Cluster assignment
+        touched = np.zeros(m, dtype=np.bool_)
+        classes = np.zeros(m, dtype=np.int_)  # Cluster assignment
         for i in range(m):
             if touched[i] == 0:
                 ob = x_with_index[i, :]
@@ -965,10 +1084,10 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
             The index of the algorithm, and its good and best performance footprints.
         """
         start_time = time.time()
-        print(f"    -> Good performance footprint for '{self.algo_labels[i]}'")
+        self._log(f"    -> Good performance footprint for '{self.algo_labels[i]}'")
         good_performance = self.build(self.y_bin[:, i])
 
-        print(f"    -> Best performance footprint for '{self.algo_labels[i]}'")
+        self._log(f"    -> Best performance footprint for '{self.algo_labels[i]}'")
         bool_array: NDArray[np.bool_] = np.array(
             [int(v) == i for v in self.p],
             dtype=np.bool_,
@@ -976,7 +1095,7 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         best_performance = self.build(bool_array)
 
         elapsed_time = time.time() - start_time
-        print(
+        self._log(
             f"    -> Algorithm '{self.algo_labels[i]}' completed. "
             f"Elapsed time: {elapsed_time:.2f}s",
         )
@@ -1001,20 +1120,37 @@ class TraceStage(Stage[TraceInputs, TraceOutputs]):
         tuple[list[Footprint], list[Footprint]]:
             Lists of good and best performance footprints for each algorithm.
         """
-        # Determine the number of workers available for parallel processing
         good: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0) for _ in range(n_algos)]
         best: list[Footprint] = [Footprint(None, 0, 0, 0, 0, 0) for _ in range(n_algos)]
-        worker_count = min(self.parallel_opts.n_cores, multiprocessing.cpu_count())
-        with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            futures = [
-                executor.submit(self.process_algorithm, i) for i in range(n_algos)
-            ]
-            for future in as_completed(futures):
-                i: int
-                good_performance: Footprint
-                best_performance: Footprint
-                i, good_performance, best_performance = future.result()
-                good[i] = good_performance
-                best[i] = best_performance
+
+        if not self.parallel_opts.flag:
+            for i in range(n_algos):
+                _, good[i], best[i] = self.process_algorithm(i)
+        elif self.executor is not None:
+            self._submit_algorithm_futures(self.executor, n_algos, good, best)
+        else:
+            worker_count = min(self.parallel_opts.n_cores, multiprocessing.cpu_count())
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                self._submit_algorithm_futures(executor, n_algos, good, best)
 
         return good, best
+
+    def _submit_algorithm_futures(
+        self,
+        executor: ThreadPoolExecutor,
+        n_algos: int,
+        good: list[Footprint],
+        best: list[Footprint],
+    ) -> None:
+        """Submit each algorithm's footprint computation to `executor` and gather it.
+
+        `good`/`best` are filled in place, indexed by algorithm.
+        """
+        futures = [executor.submit(self.process_algorithm, i) for i in range(n_algos)]
+        for future in as_completed(futures):
+            i: int
+            good_performance: Footprint
+            best_performance: Footprint
+            i, good_performance, best_performance = future.result()
+            good[i] = good_performance
+            best[i] = best_performance

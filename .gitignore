@@ -298,3 +298,7 @@ Desktop.ini
 
 # Pycharm
 .idea
+
+# Default output_dir used by the liveDemoExploreIS notebook and other local
+# InstanceSpace runs (Model.save_to_csv / save_graphs)
+/output/

@@ -30,6 +30,7 @@ alphashape = "^1.3.1"
 loguru = "^0.7.2"
 scikit-optimize = "^0.10.2"
 scikit-learn = "^1.5.2"
+joblib = "^1.4.2"
 black = "^26.3.1"
 
 [tool.poetry.group.dev.dependencies]
@@ -40,6 +41,7 @@ mypy = "^1.9.0"
 pdoc = "^14.4.0"
 docconvert = "^2.1.0"
 ipykernel = "^6.29.5"
+pytest-cov = "^7.1.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -53,11 +55,12 @@ check_black = "black ."
 
 test_ruff = "ruff check --no-fix"
 test_black = "black . --check"
+test_pytest = "pytest --cov=instancespace --cov-report=term-missing --cov-report=xml"
 
 check.sequence = ["format_docstrings", "check_black", "check_ruff", "check_mypy"]
 check.ignore_fail = "return_non_zero"
 
-test.sequence = ["test_ruff", "check_mypy", "test_black"]
+test.sequence = ["test_ruff", "check_mypy", "test_black", "test_pytest"]
 test.ignore_fail = "return_non_zero"
 
 [tool.ruff]
@@ -194,6 +197,22 @@ module = [
     'shapely.ops' ,
     'scipy.special' ,
     'sklearn.cluster',
-    'alphashape'
+    'alphashape',
+    'sklearn.base',
+    'sklearn.ensemble',
+    'sklearn.linear_model',
+    'sklearn.naive_bayes',
+    'sklearn.tree',
+    'sklearn.cross_decomposition',
+    'joblib',
 ]
 ignore_missing_imports = 'True'
+
+[tool.coverage.run]
+source = ["instancespace"]
+
+[tool.coverage.report]
+# Measured baseline (v1.30, full suite): 79% - set a few points below so the
+# gate catches a real regression without being tripped by normal fluctuation.
+fail_under = 75
+show_missing = true

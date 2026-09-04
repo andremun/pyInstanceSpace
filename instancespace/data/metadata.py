@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Defines data types for metadata.
 
 These classes define types for problem instances found in the metadata.csv file.
@@ -10,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
 from pandas import DataFrame
 
@@ -58,8 +61,13 @@ class Metadata:
         features_raw = data.loc[:, is_feat]
         algo_raw = data.loc[:, is_algo]
 
-        feature_names = features_raw.columns.tolist()
-        algorithm_names = algo_raw.columns.tolist()
+        # Strip the "feature_"/"algo_" column-naming convention so labels,
+        # graphs, and exported CSVs show the actual feature/algorithm name
+        # (matching MATLAB), not the raw CSV column name.
+        feature_names = [
+            name[len("feature_") :] for name in features_raw.columns.tolist()
+        ]
+        algorithm_names = [name[len("algo_") :] for name in algo_raw.columns.tolist()]
 
         return Metadata(
             feature_names=feature_names,
@@ -69,15 +77,6 @@ class Metadata:
             instance_sources=source_column,
             instance_labels=instance_labels,
         )
-
-    def to_file(self) -> str:
-        """Store metadata in a file from a Metadata object.
-
-        Returns
-        -------
-        The metadata object serialised into a string.
-        """
-        raise NotImplementedError
 
 
 def from_csv_file(file_path: Path | str) -> Metadata | None:
@@ -109,11 +108,11 @@ def from_csv_file(file_path: Path | str) -> Metadata | None:
     try:
         csv_df = pd.read_csv(file_path)
     except (FileNotFoundError, OSError, pd.errors.ParserError) as e:
-        print(f"{file_path}: {e!s}")
+        logger.error(f"{file_path}: {e!s}")
         return None
     except pd.errors.EmptyDataError as err:
-        print(f"{file_path}: {err!s}")
-        print(f"The file '{file_path}' is empty.")
+        logger.error(f"{file_path}: {err!s}")
+        logger.error(f"The file '{file_path}' is empty.")
         return None
 
     return Metadata.from_data_frame(csv_df)

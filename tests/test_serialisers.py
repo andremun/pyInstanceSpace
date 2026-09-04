@@ -5,17 +5,22 @@ import shutil
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
+import pytest
+from matplotlib.axes import Axes
 from numpy.typing import NDArray
 from scipy.io import loadmat
 from shapely.geometry import Polygon
 
+from instancespace import _serialisers as serialisers
 from instancespace.data.model import (
     CloisterOut,
     Data,
+    DataDense,
     FeatSel,
     Footprint,
     PilotOut,
@@ -78,32 +83,43 @@ class _MatlabResults:
 
     def get_model(self) -> Model:
         opts = self.workspace_data["model"]["opts"]
+        # MATLAB's .mat serialisation stores a `logical` field as a numeric
+        # 0/1 double whenever it wasn't set via an explicit true/false
+        # literal - loadmat then hands back a Python/numpy number, not a
+        # bool. bool(...) here mirrors what a real options.json (JSON
+        # true/false -> Python bool) already gives for free, and what
+        # MATLAB's own logical fields are semantically meant to be.
         parallel_options = ParallelOptions(
-            flag=opts["parallel"]["flag"],
+            flag=bool(opts["parallel"]["flag"]),
             n_cores=opts["parallel"]["ncores"],
         )
         performance_options = PerformanceOptions(
-            max_perf=opts["perf"]["MaxPerf"],
-            abs_perf=opts["perf"]["AbsPerf"],
+            max_perf=bool(opts["perf"]["MaxPerf"]),
+            abs_perf=bool(opts["perf"]["AbsPerf"]),
             epsilon=opts["perf"]["epsilon"],
             beta_threshold=opts["perf"]["betaThreshold"],
         )
-        auto_options = AutoOptions(preproc=opts["auto"]["preproc"])
-        bound_options = BoundOptions(flag=opts["bound"]["flag"])
-        norm_options = NormOptions(flag=opts["norm"]["flag"])
+        auto_options = AutoOptions(preproc=bool(opts["auto"]["preproc"]))
+        bound_options = BoundOptions(flag=bool(opts["bound"]["flag"]))
+        norm_options = NormOptions(flag=bool(opts["norm"]["flag"]))
         selvars_options = SelvarsOptions(
-            small_scale_flag=opts["selvars"]["smallscaleflag"],
+            small_scale_flag=bool(opts["selvars"]["smallscaleflag"]),
             small_scale=opts["selvars"]["smallscale"],
-            file_idx_flag=opts["selvars"]["fileidxflag"],
+            file_idx_flag=bool(opts["selvars"]["fileidxflag"]),
             file_idx=opts["selvars"]["fileidx"],
             feats=None,
             algos=None,
-            selvars_type=opts["selvars"]["type"],
+            # workspace.mat stores this as the literal typo 'Ftr&&Good' -
+            # not a value any real MATLAB build (or this repo) has ever
+            # recognised (core/FILTER.m's validTypes has no double-'&'
+            # variant); irrelevant to what these serialiser tests actually
+            # check, so corrected here rather than touching the binary fixture.
+            selvars_type=opts["selvars"]["type"].replace("&&", "&"),
             min_distance=opts["selvars"]["mindistance"],
-            density_flag=opts["selvars"]["densityflag"],
+            density_flag=bool(opts["selvars"]["densityflag"]),
         )
         sifted_options = SiftedOptions.default(
-            flag=opts["sifted"]["flag"],
+            flag=bool(opts["sifted"]["flag"]),
             rho=opts["sifted"]["rho"],
             k=opts["sifted"]["K"],
             n_trees=opts["sifted"]["NTREES"],
@@ -111,7 +127,7 @@ class _MatlabResults:
             replicates=opts["sifted"]["Replicates"],
         )
         pilot_options = PilotOptions.default(
-            analytic=opts["pilot"]["analytic"],
+            analytic=bool(opts["pilot"]["analytic"]),
             n_tries=opts["pilot"]["ntries"],
         )
         cloister_options = CloisterOptions(
@@ -120,18 +136,18 @@ class _MatlabResults:
         )
         pythia_options = PythiaOptions.default(
             cv_folds=opts["pythia"]["cvfolds"],
-            is_poly_krnl=opts["pythia"]["ispolykrnl"],
-            use_weights=opts["pythia"]["useweights"],
+            is_poly_krnl=bool(opts["pythia"]["ispolykrnl"]),
+            use_weights=bool(opts["pythia"]["useweights"]),
             # use_lib_svm=opts["pythia"]["uselibsvm"],
         )
         trace_options = TraceOptions.default(
-            use_sim=opts["trace"]["usesim"],
+            use_sim=bool(opts["trace"]["usesim"]),
             purity=opts["trace"]["PI"],
         )
         output_options = OutputOptions(
-            csv=opts["outputs"]["csv"],
-            web=opts["outputs"]["web"],
-            png=opts["outputs"]["png"],
+            csv=bool(opts["outputs"]["csv"]),
+            web=bool(opts["outputs"]["web"]),
+            png=bool(opts["outputs"]["png"]),
         )
 
         options = InstanceSpaceOptions(
@@ -184,8 +200,7 @@ class _MatlabResults:
         sifted_out = SiftedOut(
             rho=self.workspace_data["model"]["sifted"]["rho"],
             # MATLAB indexes by 1
-            idx=self.workspace_data["model"]["featsel"]["idx"] - 1,
-            selvars=self.workspace_data["model"]["sifted"]["selvars"],
+            selvars=self.workspace_data["model"]["sifted"]["selvars"] - 1,
             pval=None,  # self.workspace_data["model"]["sifted"]["pval"],
             silhouette_scores=None,  # self.workspace_data["model"]["sifted"][
             #    "silhouette_scores"
@@ -283,7 +298,7 @@ class _MatlabResults:
 
         return Model(
             data=data,
-            data_dense=data,
+            data_dense=cast(DataDense, data),
             feat_sel=feat_sel,
             prelim=prelim_out,
             sifted=sifted_out,
@@ -376,6 +391,188 @@ def test_save_graphs() -> None:
         assert Path.is_file(actual_file_path)
 
         # We can't test the images, so we must check visually that they are consistant
+
+
+def test_graph_portfolio_boundaries_use_zero_based_internal_indices(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Graph orchestration converts only Data.p and leaves PYTHIA unchanged."""
+    data = cast(
+        Data,
+        SimpleNamespace(
+            x=np.array([[0.0], [1.0]], dtype=np.double),
+            y=np.array([[0.0, 1.0], [1.0, 0.0]], dtype=np.double),
+            y_raw=np.array([[1.0, 2.0], [2.0, 1.0]], dtype=np.double),
+            y_bin=np.array([[False, True], [True, False]], dtype=np.bool_),
+            feat_labels=["feature"],
+            algo_labels=["first", "last"],
+            num_good_algos=np.ones(2, dtype=np.double),
+            p=np.array([1, 2], dtype=np.int_),
+            beta=np.array([False, True], dtype=np.bool_),
+            s=None,
+        ),
+    )
+    pythia = cast(
+        PythiaOut,
+        SimpleNamespace(
+            y_hat=np.array([[True, False], [False, False]], dtype=np.bool_),
+            selection0=np.array([0, -1], dtype=np.int_),
+        ),
+    )
+    pilot = cast(
+        PilotOut,
+        SimpleNamespace(z=np.array([[0.0, 0.0], [1.0, 1.0]], dtype=np.double)),
+    )
+    empty = Footprint(None, 0, 0, 0, 0, 0)
+    trace = cast(
+        TraceOut,
+        SimpleNamespace(good=[empty, empty], best=[empty, empty]),
+    )
+    selection_calls: list[NDArray[np.int_]] = []
+    footprint_calls: list[NDArray[np.int_]] = []
+
+    def no_draw(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+
+    def capture_selections(*args: object, **kwargs: object) -> None:
+        del kwargs
+        selection_calls.append(np.asarray(args[1], dtype=np.int_).copy())
+
+    def capture_footprint(*args: object, **kwargs: object) -> None:
+        del kwargs
+        footprint_calls.append(np.asarray(args[2], dtype=np.int_).copy())
+
+    monkeypatch.setattr(serialisers, "_draw_scatter", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_binary_performance", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_good_bad_footprint", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_sources", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_portfolio_selections", capture_selections)
+    monkeypatch.setattr(serialisers, "_draw_portfolio_footprint", capture_footprint)
+
+    experimental_options = cast(
+        InstanceSpaceOptions,
+        SimpleNamespace(trace=SimpleNamespace(use_sim=False)),
+    )
+    simulated_options = cast(
+        InstanceSpaceOptions,
+        SimpleNamespace(trace=SimpleNamespace(use_sim=True)),
+    )
+    serialisers.save_instance_space_graphs(
+        tmp_path,
+        data,
+        experimental_options,
+        pythia,
+        pilot,
+        trace,
+    )
+    serialisers.save_instance_space_graphs(
+        tmp_path,
+        data,
+        simulated_options,
+        pythia,
+        pilot,
+        trace,
+    )
+
+    np.testing.assert_array_equal(selection_calls[0], [0, 1])
+    np.testing.assert_array_equal(selection_calls[1], [0, -1])
+    np.testing.assert_array_equal(selection_calls[2], [0, 1])
+    np.testing.assert_array_equal(selection_calls[3], [0, -1])
+    np.testing.assert_array_equal(footprint_calls[0], [0, 1])
+    np.testing.assert_array_equal(footprint_calls[1], [0, -1])
+
+
+def test_draw_portfolio_selections_labels_every_internal_selection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Only -1 is None; algorithm zero and the last algorithm keep their labels."""
+    scatter_calls: list[tuple[str, NDArray[np.double]]] = []
+
+    def capture_scatter(
+        _self: Axes,
+        x: NDArray[np.double],
+        _y: NDArray[np.double],
+        **kwargs: object,
+    ) -> None:
+        scatter_calls.append((str(kwargs["label"]), np.asarray(x).copy()))
+
+    def no_legend(_self: Axes) -> None:
+        pass
+
+    monkeypatch.setattr("matplotlib.axes.Axes.scatter", capture_scatter)
+    monkeypatch.setattr("matplotlib.axes.Axes.legend", no_legend)
+    z = np.array(
+        [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [3.0, 3.0]],
+        dtype=np.double,
+    )
+
+    serialisers._draw_portfolio_selections(  # noqa: SLF001
+        z,
+        np.array([-1, 0, 2, 1], dtype=np.int_),
+        np.array(["first_algo", "middle_algo", "last_algo"]),
+        "Portfolio",
+        tmp_path / "portfolio.png",
+    )
+
+    assert [label for label, _ in scatter_calls] == [
+        "None",
+        "first algo",
+        "middle algo",
+        "last algo",
+    ]
+    assert [points.tolist() for _, points in scatter_calls] == [
+        [0.0],
+        [1.0],
+        [3.0],
+        [2.0],
+    ]
+
+
+def test_draw_portfolio_footprint_matches_each_algorithm_to_its_footprint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Portfolio polygons use best[i] for the matching zero-based selection i."""
+    best = [Footprint(None, i, 0, 0, 0, 0) for i in range(3)]
+    drawn: list[Footprint] = []
+
+    def no_scatter(
+        _self: Axes,
+        _x: NDArray[np.double],
+        _y: NDArray[np.double],
+        **_kwargs: object,
+    ) -> None:
+        pass
+
+    def no_legend(_self: Axes) -> None:
+        pass
+
+    def capture_footprint(
+        _ax: Axes,
+        footprint: Footprint,
+        _colour: tuple[float, float, float, float],
+        _alpha: float,
+    ) -> None:
+        drawn.append(footprint)
+
+    monkeypatch.setattr("matplotlib.axes.Axes.scatter", no_scatter)
+    monkeypatch.setattr("matplotlib.axes.Axes.legend", no_legend)
+    monkeypatch.setattr(serialisers, "_draw_footprint", capture_footprint)
+
+    serialisers._draw_portfolio_footprint(  # noqa: SLF001
+        np.array(
+            [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [3.0, 3.0]],
+            dtype=np.double,
+        ),
+        best,
+        np.array([-1, 0, 2, 1], dtype=np.int_),
+        np.array(["first", "middle", "last"]),
+        tmp_path / "footprints.png",
+    )
+
+    assert drawn == best
 
 
 def test_save_mat() -> None:

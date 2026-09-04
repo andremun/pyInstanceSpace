@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Defines a comprehensive set of data classes used in the instance space analysis.
 
 These classes are designed to encapsulate various aspects of the data and the results
@@ -13,7 +15,20 @@ from typing import Any, TypeVar
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from shapely.geometry import MultiPoint, Polygon
+from shapely.geometry import MultiPoint, MultiPolygon, Polygon
+
+
+def pointwise_covers(
+    polygon: Polygon | MultiPolygon,
+    points: NDArray[np.double],
+) -> NDArray[np.bool_]:
+    """Return MATLAB-compatible interior-or-boundary membership per point."""
+    multi_point = MultiPoint(points)
+    return np.fromiter(
+        (polygon.covers(point) for point in multi_point.geoms),
+        dtype=np.bool_,
+        count=len(multi_point.geoms),
+    )
 
 
 @dataclass(frozen=True)
@@ -90,25 +105,6 @@ class DataDense:
 
 
 @dataclass(frozen=True)
-class PreprocessingOut:
-    """Holds preprocessed data."""
-
-    pass
-
-
-@dataclass(frozen=True)
-class PreprocessingDataChanged:
-    """The fields of Data that the preprocessing stage changes."""
-
-    inst_labels: pd.Series  # type: ignore[type-arg]
-    feat_labels: list[str]
-    algo_labels: list[str]
-    x: NDArray[np.double]
-    y: NDArray[np.double]
-    s: pd.Series | None  # type: ignore[type-arg]
-
-
-@dataclass(frozen=True)
 class PrelimOut:
     """Contains preliminary output metrics calculated from the data."""
 
@@ -165,7 +161,6 @@ class SiftedOut:
     """Results of the sifting process in the data analysis pipeline."""
 
     selvars: NDArray[np.intc]
-    idx: NDArray[np.intc]
     rho: NDArray[np.double] | None
     pval: NDArray[np.double] | None
     silhouette_scores: list[float] | None
@@ -192,7 +187,6 @@ class SiftedOut:
         """
         return cls(
             selvars=stage_runner_output["selvars"],
-            idx=stage_runner_output["idx"],
             rho=stage_runner_output["rho"],
             pval=stage_runner_output["pval"],
             silhouette_scores=stage_runner_output["silhouette_scores"],
@@ -354,7 +348,7 @@ class Footprint:
 
     Attributes:
     ----------
-    polygon : Polygon | None
+    polygon : Polygon | MultiPolygon | None
         The geometric shape of the footprint.
     area : float
         The area of the footprint.
@@ -368,7 +362,7 @@ class Footprint:
         The purity of "good" elements in relation to all elements in the footprint.
     """
 
-    polygon: Polygon | None
+    polygon: Polygon | MultiPolygon | None
     area: float
     elements: int
     good_elements: int
@@ -378,7 +372,7 @@ class Footprint:
     @classmethod
     def from_polygon(
         cls: type["Footprint"],
-        polygon: Polygon | None,
+        polygon: Polygon | MultiPolygon | None,
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         smoothen: bool = False,
@@ -387,7 +381,7 @@ class Footprint:
 
         Parameters:
         ----------
-        polygon : Polygon
+        polygon : Polygon | MultiPolygon
             The polygon to create the footprint from.
         z : NDArray[np.double]
             The space of instances, represented as an array of data points (features).
@@ -401,24 +395,23 @@ class Footprint:
         Footprint:
             The created footprint, or an empty one if the polygon is empty.
         """
-        if polygon is None:
+        if polygon is None or polygon.is_empty:
             return cls(None, 0, 0, 0, 0, 0)
 
         if smoothen:
             polygon = polygon.buffer(0.01).buffer(-0.01)
 
-        elements = np.sum(
-            [polygon.contains(point) for point in MultiPoint(z).geoms],
-        )
-        good_elements = np.sum(
-            [polygon.contains(point) for point in MultiPoint(z[y_bin]).geoms],
-        )
-        density = elements / polygon.area if polygon.area != 0 else 0
-        purity = good_elements / elements if elements != 0 else 0
+        if polygon.is_empty:
+            return cls(None, 0, 0, 0, 0, 0)
+
+        elements = int(np.sum(pointwise_covers(polygon, z)))
+        good_elements = int(np.sum(pointwise_covers(polygon, z[y_bin])))
+        density = float(elements / polygon.area) if polygon.area != 0 else 0.0
+        purity = float(good_elements / elements) if elements != 0 else 0.0
 
         return cls(
             polygon=polygon,
-            area=polygon.area,
+            area=float(polygon.area),
             elements=elements,
             good_elements=good_elements,
             density=density,
@@ -486,20 +479,71 @@ class ExploreResult:
     y_hat : NDArray[np.bool_] | None
         Binary algorithm predictions from PYTHIA SVMs.
         Shape: (n_instances, n_algorithms). None if PYTHIA not applied.
+        `n_algorithms` includes a trailing column (always `False`) per
+        test-set-only algorithm absent from training when ground truth is
+        present (F9, full MATLAB parity) - see `algo_labels`.
     pr0_hat : NDArray[np.double] | None
         Probability predictions from PYTHIA SVMs.
         Shape: (n_instances, n_algorithms). None if PYTHIA not applied.
+        Same new-algorithm-column convention as `y_hat` (trailing `0.0`).
     selection0 : NDArray[np.int_] | None
         Recommended algorithm index for each instance.
-        Shape: (n_instances,). None if PYTHIA not applied.
+        Shape: (n_instances,). None if PYTHIA not applied. Never points at a
+        new-algorithm column (see `y_hat`) - those are given zero selection
+        precision, so they can never be the recommended algorithm.
     in_good : NDArray[np.bool_] | None
         Whether each instance falls in "good" footprint for each algorithm.
-        Shape: (n_instances, n_algorithms). None if TRACE not applied.
+        Shape: (n_instances, n_algorithms). None if TRACE not applied. Same
+        new-algorithm-column convention as `y_hat` (trailing `False` - no
+        trained footprint exists to test membership against).
     in_best : NDArray[np.bool_] | None
         Whether each instance falls in "best" footprint for each algorithm.
-        Shape: (n_instances, n_algorithms). None if TRACE not applied.
+        Shape: (n_instances, n_algorithms). None if TRACE not applied. Same
+        new-algorithm-column convention as `in_good`.
     inst_labels : pd.Series
         Instance labels/identifiers from the test metadata.
+    y_actual : NDArray[np.bool_] | None
+        Ground-truth binary good/bad label per algorithm (F9), derived from
+        `test_metadata`'s own `algo_*` performance columns using the
+        *trained* `PerformanceOptions`. Shape: (n_instances, n_algorithms).
+        `None` when the test set carries no algorithm performance columns at
+        all (the feature-only case - existing callers see no change).
+    y_best_actual : NDArray[np.double] | None
+        Best observed ground-truth performance per instance. Shape:
+        (n_instances,). `None` under the same condition as `y_actual`.
+    p_actual : NDArray[np.int_] | None
+        1-based index of the best-performing algorithm per instance, ties
+        broken to the first tied algorithm. Shape: (n_instances,). `None`
+        under the same condition as `y_actual`.
+    beta_actual : NDArray[np.bool_] | None
+        Whether each instance clears the beta threshold's fraction of good
+        algorithms. Shape: (n_instances,). `None` under the same condition
+        as `y_actual`.
+    accuracy_actual : NDArray[np.double] | None
+        Per-algorithm accuracy of PYTHIA's trained classifiers against
+        `y_actual`. Shape: (n_algorithms,). `NaN` for an algorithm absent
+        from the test set's ground truth, or a test-set-only algorithm with
+        no trained classifier to score (both "no CV model", matching
+        MATLAB's convention). `None` under the same condition as `y_actual`.
+    precision_actual : NDArray[np.double] | None
+        Per-algorithm precision, same shape/NaN convention as
+        `accuracy_actual`.
+    recall_actual : NDArray[np.double] | None
+        Per-algorithm recall, same shape/NaN convention as `accuracy_actual`.
+    cvcmat_actual : NDArray[np.double] | None
+        Per-algorithm confusion matrix `[tn, fp, fn, tp]` against
+        `y_actual`. Shape: (n_algorithms, 4). `NaN` row under the same
+        conditions as `accuracy_actual`. `None` under the same condition as
+        `y_actual`.
+    algo_labels : list[str] | None
+        The full algorithm order (trained algorithms, then any test-set-only
+        algorithm absent from training, in first-encountered order) that
+        `y_hat`/`pr0_hat`/`in_good`/`in_best`/`accuracy_actual`/etc.'s
+        per-algorithm columns index into (F9, full MATLAB parity) - needed
+        to interpret those columns once new algorithms widen them beyond
+        `Model.data.algo_labels`' own length. `None` under the same
+        condition as `y_actual` (when there's no ground truth, column order
+        is implicitly `Model.data.algo_labels` and never widened).
     """
 
     dataset_id: str
@@ -512,6 +556,15 @@ class ExploreResult:
     in_good: NDArray[np.bool_] | None
     in_best: NDArray[np.bool_] | None
     inst_labels: pd.Series  # type: ignore[type-arg]
+    y_actual: NDArray[np.bool_] | None = None
+    y_best_actual: NDArray[np.double] | None = None
+    p_actual: NDArray[np.int_] | None = None
+    beta_actual: NDArray[np.bool_] | None = None
+    accuracy_actual: NDArray[np.double] | None = None
+    precision_actual: NDArray[np.double] | None = None
+    recall_actual: NDArray[np.double] | None = None
+    cvcmat_actual: NDArray[np.double] | None = None
+    algo_labels: list[str] | None = None
 
 
 @dataclass(frozen=True)
@@ -540,5 +593,5 @@ class FeatSel:
             FeatSel: a FeatSel object
         """
         return cls(
-            idx=stage_runner_output["idx"],
+            idx=stage_runner_output["selvars"],
         )
