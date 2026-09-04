@@ -1,35 +1,28 @@
-"""Test module for Pythia class to verify its functionality.
+"""Tests for PYTHIA normalization, tuning, fitting, and output contracts."""
 
-The file contains the tests for the Pythia class to verify its functionality.
-The tests are compare the performance matrics including accurancy, precision and
-recall of the Pythia class with the expected output
-from the MATLAB implementation with diffcult kernel and optimisation.
-
-Tests includes:
-    - test_compute_znorm: Test that the output of the compute_znorm.
-    - test_bayes_opt_gaussian: Test that the output of the function is as expected
-        when BO is required.
-    - test_bayes_opt_poly: Test that the output of the function is as expected
-        when BO and polykernal is required.
-    - test_compare_output: Test that the output of the compute_znorm is as expected.
-"""
-
+import warnings
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import numpy as np
 import pandas as pd
 import pytest
 from numpy.typing import NDArray
+from scipy import stats
+from sklearn.exceptions import UndefinedMetricWarning  # type: ignore[import-untyped]
 from sklearn.model_selection import StratifiedKFold
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
+from skopt import BayesSearchCV
+from skopt.space import Categorical
 
+import instancespace.stages.pythia as pythia_module
 from instancespace.data.options import GeneralOptions, ParallelOptions, PythiaOptions
 from instancespace.stages.pythia import PythiaStage
 from instancespace.utils.get_classifier_fcn import get_classifier_fcn
 
 script_dir = Path(__file__).parent
-output_dir = script_dir / "test_data/pythia/output"
 
 csv_path_z_input = script_dir / "test_data/pythia/input/Z.csv"
 csv_path_y_input = script_dir / "test_data/pythia/input/y.csv"
@@ -59,21 +52,13 @@ parallel_opts = ParallelOptions(
     n_cores=2,
 )
 
-# See test_build_pilot_pythia.py's BAYES_N_ITER_FOR_TESTS for why (same
-# value, same reasoning - empirically verified against the MATLAB fixtures
-# this file's test_bayes_opt_gaussian/_poly compare against): a real
-# `tuning='bayes'` run defaults to `DEFAULT_PYTHIA_N_TUNING_ITER=20`
-# `BayesSearchCV` iterations per classifier (10 classifiers x 5 CV folds
-# each), which is what makes those two tests slow if left at the default.
-BAYES_N_ITER_FOR_TESTS = 15
-
 
 def test_compute_znorm() -> None:
     """Test that the output of the compute_znorm."""
     znorm = np.genfromtxt(csv_path_znorm_input, delimiter=",")
 
     pythia = PythiaStage(z, y, y_bin, y_best, algo)
-    _, _, znorm_test = pythia._compute_znorm(z)  # noqa: SLF001
+    _, _, znorm_test = pythia._compute_znorm(z)
     assert np.allclose(znorm, znorm_test)
 
 
@@ -93,7 +78,11 @@ def test_compare_output() -> None:
     mu = np.genfromtxt(csv_path_mu_input, delimiter=",")
 
     assert np.allclose(mu, pythia_out[0])
-    assert pythia_out[3].get_n_splits() == opt.cv_folds
+    assert len(pythia_out.cp) == len(algo)
+    assert all(
+        splitter is not None and splitter.get_n_splits() == opt.cv_folds
+        for splitter in pythia_out.cp
+    )
 
 
 def test_pythia_does_not_mutate_y_raw() -> None:
@@ -163,158 +152,215 @@ def test_pythia_seed_reproducibility() -> None:
     assert not np.array_equal(pr0_hat_a, pr0_hat_c)
 
 
-def test_bayes_opt_gaussian() -> None:
-    """Test that the output of the function is as expected when BO is required."""
-    opts = PythiaOptions(
-        cv_folds=5,
+def test_pythia_uses_repeatable_matlab_offset_seed_per_algorithm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each algorithm gets MATLAB's one-based ``seed + i`` RNG boundary."""
+    base_seed = 42
+    captures: list[
+        tuple[
+            int | None,
+            int | None,
+            int,
+            tuple[tuple[int, ...], ...],
+        ]
+    ] = []
+
+    def capture_fit(**kwargs: object) -> SimpleNamespace:
+        skf = cast(StratifiedKFold, kwargs["skf"])
+        labels = cast(NDArray[np.bool_], kwargs["y_bin"])
+        fit_z = cast(NDArray[np.double], kwargs["z"])
+        algorithm_options = cast(GeneralOptions, kwargs["general_options"])
+        folds = tuple(
+            tuple(test_indices.tolist()) for _, test_indices in skf.split(fit_z, labels)
+        )
+        captures.append(
+            (
+                algorithm_options.seed,
+                skf.random_state,
+                id(skf),
+                folds,
+            ),
+        )
+        probabilities = np.logical_not(labels).astype(np.double)
+        return SimpleNamespace(
+            classifier=SimpleNamespace(random_state=algorithm_options.seed),
+            Yhat=labels.copy(),
+            Ysub=labels.copy(),
+            Psub=probabilities,
+            Phat=probabilities,
+            c=1.0,
+            g=1.0,
+        )
+
+    monkeypatch.setattr(
+        PythiaStage,
+        "_fit_classifier",
+        staticmethod(capture_fit),
+    )
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    alternating = np.arange(y_bin_small.shape[0]) % 2 == 0
+    y_bin_small[:, 0] = alternating
+    y_bin_small[:, 1] = np.logical_not(alternating)
+    options = PythiaOptions(
+        cv_folds=2,
         is_poly_krnl=False,
         use_weights=False,
-        params=None,
-        tuning="bayes",  # exercise the Bayes-search path, not sobol
-        n_tuning_iter=BAYES_N_ITER_FOR_TESTS,
-    )
-    pythia = PythiaStage(z, y, y_bin, y_best, algo)
-    pythia_out = pythia.pythia(
-        z,
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-        parallel_opts,
-        GeneralOptions.default(),
+        params=np.ones((2, 2), dtype=np.double),
+        classifier="svm",
+        tuning="none",
     )
 
-    # read the actual output
-    matlab_output = pd.read_csv(output_dir / "BO_gaussian/gaussian.csv")
-
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
-    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
-    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
-
-    print(pythia_out[12])
-    print("====================================")
-    print(matlab_accuracy)
-    print("====================================")
-    print(pythia_out[13])
-    print("====================================")
-    print(matlab_precision)
-    print("====================================")
-    print(pythia_out[14])
-    print("====================================")
-    print(matlab_recall)
-
-    compare_performance(
-        pythia_out,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
+    first = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        options,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=base_seed),
+    )
+    second = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        options,
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=base_seed),
     )
 
-
-def test_bayes_opt_poly() -> None:
-    """Test that the output of the function is as expected when BO and polykernal is required."""  # noqa: E501
-    opts = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=True,
-        use_weights=False,
-        params=None,
-        tuning="bayes",  # exercise the Bayes-search path, not sobol
-        n_tuning_iter=BAYES_N_ITER_FOR_TESTS,
-    )
-    pythia = PythiaStage(z, y, y_bin, y_best, algo)
-    pythia_out = pythia.pythia(
-        z,
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-        parallel_opts,
-        GeneralOptions.default(),
-    )
-
-    # read the actual output
-    matlab_output = pd.read_csv(output_dir / "BO_poly/poly.csv")
-
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
-    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
-    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
-
-    compare_performance(
-        pythia_out,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
+    first_run = captures[:2]
+    second_run = captures[2:]
+    assert [item[0] for item in first_run] == [base_seed + 1, base_seed + 2]
+    assert [item[1] for item in first_run] == [base_seed + 1, base_seed + 2]
+    assert first_run[0][2] != first_run[1][2]
+    assert [item[3] for item in first_run] == [item[3] for item in second_run]
+    assert [splitter.random_state for splitter in first.cp if splitter is not None] == [
+        base_seed + 1,
+        base_seed + 2,
+    ]
+    np.testing.assert_array_equal(first.y_sub, second.y_sub)
 
 
-def compare_performance(
-    python_output: tuple[
-        list[float],
-        list[float],
-        NDArray[np.double],
-        StratifiedKFold,
-        list[SVC],
-        NDArray[np.double],
-        NDArray[np.bool_],
-        NDArray[np.bool_],
-        NDArray[np.double],
-        NDArray[np.double],
-        list[float],
-        list[float],
-        list[float],
-        list[float],
-        list[float],
-        NDArray[np.int_],
-        NDArray[np.int_],
-        pd.DataFrame,
-    ],
-    matlab_accuracy: NDArray[np.double],
-    matlab_precision: NDArray[np.double],
-    matlab_recall: NDArray[np.double],
-    algo_num: int,
-    tol: float,
+@pytest.mark.parametrize(
+    ("is_poly_krnl", "expected_kernel"),
+    [(False, "rbf"), (True, "poly")],
+    ids=["rbf", "polynomial"],
+)
+def test_bayes_svm_kernel_and_output_contract(
+    is_poly_krnl: bool,
+    expected_kernel: str,
 ) -> None:
-    """Test that whether the performance of model is as expected."""
-    total = 0
-    correct = 0
-    threshold = 0.9
+    """Fast Bayes coverage checks estimator and MATLAB-facing output invariants."""
+    matlab_default_polynomial_order = 3
+    tuning_iterations = 4
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    output = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        PythiaOptions(
+            cv_folds=2,
+            is_poly_krnl=is_poly_krnl,
+            use_weights=False,
+            params=None,
+            tuning="bayes",
+            n_tuning_iter=tuning_iterations,
+        ),
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+    svm_spec = get_classifier_fcn("svm")
+    assert svm_spec.param2 is not None
 
-    # tolerance
-    tol = 2.5
+    assert output.y_sub.shape == y_bin_small.shape
+    assert output.y_hat.shape == y_bin_small.shape
+    assert output.pr0_sub.shape == y_bin_small.shape
+    assert output.pr0_hat.shape == y_bin_small.shape
+    assert output.y_sub.dtype == np.bool_
+    assert output.y_hat.dtype == np.bool_
+    assert np.all(np.isfinite(output.pr0_sub))
+    assert np.all(np.isfinite(output.pr0_hat))
+    assert np.all((output.pr0_sub >= 0) & (output.pr0_sub <= 1))
+    assert np.all((output.pr0_hat >= 0) & (output.pr0_hat <= 1))
 
-    # compare the performance of the model with the expected values
-    # if the performance is greater than the expected value, it is considered correct
-    # if the performance is within the tolerance, it is considered correct
-    for i in range(algo_num):
-        total += 3
+    for estimator, box_constraint, kernel_scale in zip(
+        output.svm,
+        output.box_consnt,
+        output.k_scale,
+        strict=True,
+    ):
+        assert isinstance(estimator, SVC)
+        assert estimator.kernel == expected_kernel
+        assert pytest.approx(box_constraint) == estimator.C
+        assert pytest.approx(1.0 / kernel_scale**2) == estimator.gamma
+        assert svm_spec.param1.low <= box_constraint <= svm_spec.param1.high
+        assert svm_spec.param2.low <= kernel_scale <= svm_spec.param2.high
+        if is_poly_krnl:
+            assert estimator.degree == matlab_default_polynomial_order
 
-        if (
-            python_output[12][i] * 100 >= matlab_accuracy[i]
-            or abs(python_output[12][i] * 100 - matlab_accuracy[i]) <= tol
-        ):
-            correct += 1
 
-        if (
-            python_output[13][i] * 100 >= matlab_precision[i]
-            or abs(python_output[13][i] * 100 - matlab_precision[i]) <= tol
-        ):
-            correct += 1
+def test_bayes_search_uses_documented_analogue_and_guided_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pin four seeds, the documented EI analogue, and guided evaluations."""
+    initial_points = 4
+    guided_points = 2
+    budget = initial_points + guided_points
+    base_seed = 42
+    constructor_calls: list[dict[str, object]] = []
+    searches: list[BayesSearchCV] = []
+    real_bayes_search = BayesSearchCV
 
-        if (
-            python_output[14][i] * 100 >= matlab_recall[i]
-            or abs(python_output[14][i] * 100 - matlab_recall[i]) <= tol
-        ):
-            correct += 1
+    def capture_constructor(**kwargs: object) -> BayesSearchCV:
+        constructor_calls.append(kwargs)
+        search = real_bayes_search(**kwargs)
+        searches.append(search)
+        return search
 
-    assert correct / total >= threshold
+    monkeypatch.setattr(pythia_module, "BayesSearchCV", capture_constructor)
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+
+    PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        PythiaOptions(
+            cv_folds=2,
+            is_poly_krnl=False,
+            use_weights=False,
+            params=None,
+            classifier="svm",
+            tuning="bayes",
+            n_tuning_iter=budget,
+        ),
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=base_seed),
+    )
+
+    assert len(constructor_calls) == len(algo_small)
+    for algorithm_index, (call, search) in enumerate(
+        zip(constructor_calls, searches, strict=True),
+    ):
+        expected_seed = base_seed + algorithm_index + 1
+        assert call["n_iter"] == budget
+        assert call["optimizer_kwargs"] == {
+            "n_initial_points": initial_points,
+            "acq_func": "EI",
+        }
+        assert call["random_state"] == expected_seed
+        assert cast(StratifiedKFold, call["cv"]).random_state == expected_seed
+        assert cast(SVC, call["estimator"]).random_state == expected_seed
+        assert len(search.cv_results_["params"]) == budget
+        assert len(search.optimizer_results_[0].x_iters) == budget
+        assert len(search.optimizer_results_[0].models) >= guided_points
 
 
 def _small_pythia_dataset() -> tuple[
@@ -448,9 +494,10 @@ def test_pythia_default_tuning_is_sobol() -> None:
 
 
 def test_pythia_sobol_produces_valid_svm_hyperparameters() -> None:
-    """F10: the Sobol search picks a C/gamma pair inside the searched range.
+    """F10: Sobol reports MATLAB BoxConstraint/KernelScale search values.
 
-    Mirrors MATLAB's `sobolToParams` range for SVM: C, gamma in [2^-10, 2^4].
+    The fitted SVC stores gamma in estimator units, while PYTHIA output keeps
+    MATLAB's KernelScale in [2^-10, 2^4].
     """
     min_value = 2**-10
     max_value = 2**4
@@ -478,6 +525,9 @@ def test_pythia_sobol_produces_valid_svm_hyperparameters() -> None:
     assert all(min_value <= c <= max_value for c in out.box_consnt)
     assert all(min_value <= g <= max_value for g in out.k_scale)
     assert all(isinstance(clf, SVC) for clf in out.svm)
+    for estimator, kernel_scale in zip(out.svm, out.k_scale, strict=True):
+        assert isinstance(estimator, SVC)
+        assert estimator.gamma == pytest.approx(1.0 / kernel_scale**2)
 
 
 def test_pythia_sobol_seed_reproducibility() -> None:
@@ -515,49 +565,25 @@ def test_pythia_sobol_seed_reproducibility() -> None:
 
 def test_pythia_tuning_none_requires_params() -> None:
     """F10: `tuning='none'` without pre-calculated params fails loudly."""
-    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
-    opts = PythiaOptions(
-        cv_folds=2,
-        is_poly_krnl=False,
-        use_weights=False,
-        params=None,
-        tuning="none",
-    )
-
     with pytest.raises(ValueError, match="tuning='none'"):
-        PythiaStage.pythia(
-            z_small,
-            y_small,
-            y_bin_small,
-            y_best_small,
-            algo_small,
-            opts,
-            ParallelOptions.default(),
-            GeneralOptions(verbose=False, seed=0),
+        PythiaOptions(
+            cv_folds=2,
+            is_poly_krnl=False,
+            use_weights=False,
+            params=None,
+            tuning="none",
         )
 
 
 def test_pythia_tuning_invalid_value_raises() -> None:
     """F10: an unrecognised `tuning` value fails loudly, not silently."""
-    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
-    opts = PythiaOptions(
-        cv_folds=2,
-        is_poly_krnl=False,
-        use_weights=False,
-        params=None,
-        tuning="not-a-real-strategy",
-    )
-
-    with pytest.raises(ValueError, match="not recognised"):
-        PythiaStage.pythia(
-            z_small,
-            y_small,
-            y_bin_small,
-            y_best_small,
-            algo_small,
-            opts,
-            ParallelOptions.default(),
-            GeneralOptions(verbose=False, seed=0),
+    with pytest.raises(ValueError, match="one of"):
+        PythiaOptions(
+            cv_folds=2,
+            is_poly_krnl=False,
+            use_weights=False,
+            params=None,
+            tuning="not-a-real-strategy",
         )
 
 
@@ -581,11 +607,12 @@ def test_pythia_precalc_params_does_not_crash(classifier: str) -> None:
     # precalcparams now rejects a mismatched shape instead of silently
     # accepting a 2-column array for every classifier regardless of how
     # many parameters it actually has.
-    params = (
-        np.array([[5.0, 2.0], [3.0, 1.0]])
-        if get_classifier_fcn(classifier).param2 is not None
-        else np.array([[5.0], [3.0]])
-    )
+    if classifier == "ensemble":
+        params = np.array([[50.0, 2.0], [30.0, 1.0]])
+    elif get_classifier_fcn(classifier).param2 is not None:
+        params = np.array([[5.0, 2.0], [3.0, 1.0]])
+    else:
+        params = np.array([[5.0], [3.0]])
     opts = PythiaOptions(
         cv_folds=2,
         is_poly_krnl=False,
@@ -612,6 +639,42 @@ def test_pythia_precalc_params_does_not_crash(classifier: str) -> None:
         np.testing.assert_allclose(out.k_scale, params[:, 1])
     else:
         assert all(np.isnan(g) for g in out.k_scale)
+
+
+@pytest.mark.parametrize("is_poly_krnl", [False, True])
+def test_pythia_precalc_svm_converts_matlab_kernel_scale_to_gamma(
+    is_poly_krnl: bool,
+) -> None:
+    """Precalculated SVM values use MATLAB units at the public boundary."""
+    matlab_default_polynomial_order = 3
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    kernel_scales = np.array([2.0, 4.0])
+    params = np.column_stack((np.array([5.0, 3.0]), kernel_scales))
+
+    out = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        PythiaOptions(
+            cv_folds=2,
+            is_poly_krnl=is_poly_krnl,
+            use_weights=False,
+            params=params,
+            classifier="svm",
+            tuning="none",
+        ),
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    np.testing.assert_allclose(out.k_scale, kernel_scales)
+    for estimator, kernel_scale in zip(out.svm, kernel_scales, strict=True):
+        assert isinstance(estimator, SVC)
+        assert estimator.gamma == pytest.approx(1.0 / kernel_scale**2)
+        if is_poly_krnl:
+            assert estimator.degree == matlab_default_polynomial_order
 
 
 def test_pythia_precalc_params_knn_distance_round_trips_through_category_index() -> (
@@ -651,7 +714,35 @@ def test_pythia_precalc_params_knn_distance_round_trips_through_category_index()
 
     np.testing.assert_allclose(out.k_scale, [2.0, 2.0])
     for clf in out.svm:
+        assert clf is not None
         assert clf.metric == "cityblock"
+
+
+def test_pythia_precalc_knn_normalizes_raw_discrete_values_publicly() -> None:
+    """Public KNN precalc follows MATLAB rounding and lower/category clamps."""
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    params = np.array([[2.5, 5.0], [-2.5, -1.0]])
+
+    out = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        PythiaOptions(
+            cv_folds=2,
+            is_poly_krnl=False,
+            use_weights=False,
+            params=params,
+            classifier="knn",
+            tuning="none",
+        ),
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    np.testing.assert_allclose(out.box_consnt, [3.0, 1.0])
+    np.testing.assert_allclose(out.k_scale, [4.0, 1.0])
 
 
 def test_compute_znorm_mu_sigma_are_from_raw_z() -> None:
@@ -667,7 +758,7 @@ def test_compute_znorm_mu_sigma_are_from_raw_z() -> None:
     rng = np.random.default_rng(0)
     z_raw = rng.normal(loc=50.0, scale=10.0, size=(30, 3))
 
-    mu, sigma, z_norm = PythiaStage._compute_znorm(z_raw)  # noqa: SLF001
+    mu, sigma, z_norm = PythiaStage._compute_znorm(z_raw)
 
     np.testing.assert_allclose(mu, np.mean(z_raw, axis=0))
     np.testing.assert_allclose(sigma, np.std(z_raw, ddof=1, axis=0))
@@ -676,6 +767,7 @@ def test_compute_znorm_mu_sigma_are_from_raw_z() -> None:
     assert not np.allclose(sigma, 1.0, atol=0.5)
 
 
+@pytest.mark.filterwarnings("error::RuntimeWarning")
 def test_pythia_use_weights_degenerate_falls_back_to_uniform(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -694,7 +786,7 @@ def test_pythia_use_weights_degenerate_falls_back_to_uniform(
         cv_folds=2,
         is_poly_krnl=False,
         use_weights=True,
-        params=None,
+        params=np.ones((2, 2)),
     )
 
     messages: list[str] = []
@@ -752,10 +844,13 @@ def test_pythia_degenerate_label_does_not_crash() -> None:
     np.testing.assert_allclose(out.pr0_sub[:, 0], 0.0)
     np.testing.assert_allclose(out.pr0_hat[:, 0], 0.0)
     assert np.isnan(out.box_consnt[0])
+    assert out.cp[0] is None
+    assert out.cp[1] is not None
     # The sentinel classifier must still behave like a real classifier for
     # any downstream consumer (e.g. InstanceSpace._explore_pythia) that
     # calls predict/predict_proba/classes_ on it without special-casing.
     sentinel = out.svm[0]
+    assert sentinel is not None
     probe = np.zeros((5, 2))
     np.testing.assert_array_equal(sentinel.predict(probe), np.full(5, True))
     proba = sentinel.predict_proba(probe)
@@ -860,7 +955,7 @@ def test_pythia_summary_algorithm_rows_match_raw_metrics(
     ):
         np.testing.assert_allclose(
             algorithm_rows[column].to_numpy(dtype=np.double),
-            np.round(100 * np.asarray(raw_metrics), 3),
+            np.round(100 * np.asarray(raw_metrics), 1),
         )
 
 
@@ -939,7 +1034,7 @@ def test_determine_selections_uses_negative_one_for_no_selection() -> None:
         dtype=bool,
     )
 
-    selection0, selection1 = PythiaStage._determine_selections(  # noqa: SLF001
+    selection0, selection1 = PythiaStage._determine_selections(
         nalgos,
         precision,
         y_hat,
@@ -954,7 +1049,7 @@ def test_determine_selections_uses_negative_one_for_no_selection() -> None:
 def test_weighted_selection_single_algorithm_uses_common_formula() -> None:
     """#314: shared weighting is zero-based and build retains its -1 sentinel."""
     y_hat = np.array([[True], [False]])
-    best, raw_selection = PythiaStage._weighted_selection(  # noqa: SLF001
+    best, raw_selection = PythiaStage._weighted_selection(
         1,
         [0.75],
         y_hat,
@@ -963,7 +1058,7 @@ def test_weighted_selection_single_algorithm_uses_common_formula() -> None:
     np.testing.assert_allclose(best, [0.75, 0.0])
     np.testing.assert_array_equal(raw_selection, [0, 0])
 
-    selection0, selection1 = PythiaStage._determine_selections(  # noqa: SLF001
+    selection0, selection1 = PythiaStage._determine_selections(
         1,
         [0.75],
         y_hat,
@@ -998,12 +1093,13 @@ def test_pythia_single_algorithm_build_selects_index_zero() -> None:
     np.testing.assert_array_equal(out.selection1, np.zeros(z_small.shape[0]))
 
 
+@pytest.mark.filterwarnings("error::RuntimeWarning")
 def test_skip_mode_bypasses_training_and_returns_empty_output() -> None:
     """#298 Issue 10: `opts.skip=True` matches MATLAB's `emptyPYTHIAout`.
 
-    No classifier is trained (`svm` holds only never-fitted
-    `_ConstantClassifier` placeholders), every prediction-derived field is a
-    "nothing trained" placeholder, and `mu`/`sigma` still describe the real
+    No classifier is trained (`svm` holds MATLAB-compatible empty slots),
+    every prediction-derived field is a "nothing trained" placeholder, and
+    `mu`/`sigma` still describe the real
     `z` (needed so a later eval-mode caller can normalise new data
     correctly, matching MATLAB's `emptyPYTHIAout` caller overwriting its own
     zeroed mu/sigma with the real zscore parameters).
@@ -1031,10 +1127,12 @@ def test_skip_mode_bypasses_training_and_returns_empty_output() -> None:
     )
 
     assert len(out.svm) == nalgos
+    assert out.svm == [None] * nalgos
     assert not np.any(out.y_sub)
     assert not np.any(out.y_hat)
     assert np.all(out.selection0 == -1)
     assert np.all(out.selection1 == -1)
+    assert out.cp == [None] * nalgos
     assert all(np.isnan(v) for v in out.accuracy)
     assert all(np.isnan(v) for v in out.precision)
     assert all(np.isnan(v) for v in out.recall)
@@ -1056,3 +1154,429 @@ def test_skip_mode_bypasses_training_and_returns_empty_output() -> None:
     # zscore parameters.
     np.testing.assert_allclose(out.mu, np.mean(z_small, axis=0))
     np.testing.assert_allclose(out.sigma, np.std(z_small, ddof=1, axis=0))
+
+
+def test_undefined_metrics_are_nan_without_warnings() -> None:
+    """Undefined algorithm and selector rates must match MATLAB NaN values."""
+    z_small, y_small, _y_bin, y_best_small, algo_small = _small_pythia_dataset()
+    y_bin_all_bad = np.zeros(y_small.shape, dtype=np.bool_)
+    opts = PythiaOptions(
+        cv_folds=2,
+        is_poly_krnl=False,
+        use_weights=False,
+        params=None,
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        warnings.simplefilter("error", UndefinedMetricWarning)
+        out = PythiaStage.pythia(
+            z_small,
+            y_small,
+            y_bin_all_bad,
+            y_best_small,
+            algo_small,
+            opts,
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=0),
+        )
+
+    assert all(np.isnan(value) for value in out.precision)
+    assert all(np.isnan(value) for value in out.recall)
+    np.testing.assert_array_equal(out.selection0, -1)
+    np.testing.assert_array_equal(out.selection1, 0)
+    selector = out.pythia_summary.iloc[-1]
+    assert np.isnan(selector["CV_model_precision"])
+    assert np.isnan(selector["CV_model_recall"])
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+def test_summary_uses_matlab_sample_standard_deviation() -> None:
+    """Summary standard deviations use N-1 and return zero for one value."""
+    summary = PythiaStage._generate_summary(
+        nalgos=2,
+        algo_labels=["a0", "a1"],
+        y=np.array([[1.0, np.nan], [3.0, 5.0], [5.0, np.nan]]),
+        y_hat=np.zeros((3, 2), dtype=np.bool_),
+        y_bin=np.zeros((3, 2), dtype=np.bool_),
+        y_best=np.array([1.0, 3.0, 5.0]),
+        selection0=np.full(3, -1, dtype=np.int_),
+        selection1=np.zeros(3, dtype=np.int_),
+        accuracy=[np.nan, np.nan],
+        precision=[np.nan, np.nan],
+        recall=[np.nan, np.nan],
+        box_consnt=[np.nan, np.nan],
+        k_scale=[np.nan, np.nan],
+        param1_label=None,
+        param2_label=None,
+    )
+
+    np.testing.assert_allclose(
+        summary.loc[:1, "Std_Perf_all_instances"].to_numpy(dtype=float),
+        [2.0, 0.0],
+    )
+    assert np.isnan(summary.iloc[-1]["CV_model_precision"])
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+def test_summary_excludes_selector_fallback_from_selected_performance() -> None:
+    """Selector selected-performance statistics use selection0, not selection1."""
+    summary = PythiaStage._generate_summary(
+        nalgos=2,
+        algo_labels=["a0", "a1"],
+        y=np.array([[1.0, 10.0], [3.0, 20.0]]),
+        y_hat=np.zeros((2, 2), dtype=np.bool_),
+        y_bin=np.zeros((2, 2), dtype=np.bool_),
+        y_best=np.array([10.0, 20.0]),
+        selection0=np.full(2, -1, dtype=np.int_),
+        selection1=np.zeros(2, dtype=np.int_),
+        accuracy=[np.nan, np.nan],
+        precision=[np.nan, np.nan],
+        recall=[np.nan, np.nan],
+        box_consnt=[np.nan, np.nan],
+        k_scale=[np.nan, np.nan],
+        param1_label=None,
+        param2_label=None,
+    )
+
+    selector = summary.iloc[-1]
+    expected_average = 2.0
+    assert selector["Avg_Perf_all_instances"] == expected_average
+    assert np.isnan(selector["Avg_Perf_selected_instances"])
+    assert np.isnan(selector["Std_Perf_selected_instances"])
+
+
+def test_pythia_ignores_contextually_mismatched_parameter_shape() -> None:
+    """MATLAB falls back to tuning when parameter rows do not fit the data."""
+    spec = get_classifier_fcn("svm")
+
+    checked = PythiaStage._check_precalcparams(
+        np.ones((1, 2)),
+        nalgos=2,
+        spec=spec,
+        classifier_name="svm",
+    )
+
+    assert checked is None
+
+
+def test_pythia_rejects_mismatched_parameters_when_tuning_is_disabled() -> None:
+    """MATLAB cannot recover from invalid parameters when tuning is disabled."""
+    options = PythiaOptions.default(
+        tuning="none",
+        params=np.ones((1, 2)),
+    )
+    checked = PythiaStage._check_precalcparams(
+        options.params,
+        nalgos=2,
+        spec=get_classifier_fcn("svm"),
+        classifier_name="svm",
+    )
+
+    with pytest.raises(ValueError, match="requires PythiaOptions.params"):
+        PythiaStage._validate_tuning(options, checked)
+
+
+@pytest.mark.parametrize(
+    ("classifier", "params"),
+    [
+        ("svm", [[2**-11, 32.0]]),
+        ("knn", [[2.5, 5.0]]),
+        ("tree", [[101.0]]),
+        ("nb", [[11.0]]),
+        ("linear", [[1e4]]),
+        ("ensemble", [[201.0, 20.5]]),
+    ],
+)
+def test_pythia_accepts_finite_precalculated_values_outside_tuning_ranges(
+    classifier: str,
+    params: list[list[float]],
+) -> None:
+    """Tuning search ranges do not restrict caller-supplied parameters."""
+    spec = get_classifier_fcn(classifier)
+    params_array = np.asarray(params, dtype=np.double)
+
+    checked = PythiaStage._check_precalcparams(
+        params_array,
+        nalgos=1,
+        spec=spec,
+        classifier_name=classifier,
+    )
+
+    assert checked is not None
+    np.testing.assert_array_equal(checked, params_array)
+
+
+@pytest.mark.parametrize(
+    ("params", "message"),
+    [
+        (np.array([[np.nan, 1.0]]), "finite"),
+        (np.array([[np.inf, 1.0]]), "finite"),
+        (np.array([[1.0 + 1.0j, 1.0]]), "real numbers"),
+    ],
+)
+def test_pythia_rejects_nonfinite_or_nonreal_precalculated_values(
+    params: NDArray[np.generic],
+    message: str,
+) -> None:
+    """Stage validation retains the real, finite matrix contract."""
+    spec = get_classifier_fcn("svm")
+
+    with pytest.raises(ValueError, match=message):
+        PythiaStage._check_precalcparams(
+            params,
+            nalgos=1,
+            spec=spec,
+            classifier_name="svm",
+        )
+
+
+@pytest.mark.parametrize(
+    ("classifier", "params", "parameter_name"),
+    [
+        ("svm", [[0.0, 1.0]], "BoxConstraint"),
+        ("svm", [[1.0, -1.0]], "KernelScale"),
+        ("nb", [[0.0]], "Bandwidth"),
+        ("linear", [[-1.0]], "Lambda"),
+    ],
+)
+def test_pythia_rejects_nonpositive_continuous_precalculated_values(
+    classifier: str,
+    params: list[list[float]],
+    parameter_name: str,
+) -> None:
+    """Continuous estimator parameters fail before unit conversion or fitting."""
+    spec = get_classifier_fcn(classifier)
+
+    with pytest.raises(ValueError, match=rf"{parameter_name}.*strictly positive"):
+        PythiaStage._check_precalcparams(
+            np.asarray(params, dtype=np.double),
+            nalgos=1,
+            spec=spec,
+            classifier_name=classifier,
+        )
+
+
+def test_pythia_precalculated_knn_clamps_each_fit_but_reports_request() -> None:
+    """Pre-calculated KNN values retain MATLAB's requested/reported semantics."""
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    alternating = np.arange(y_bin_small.shape[0]) % 2 == 0
+    y_bin_small[:, 0] = alternating
+    y_bin_small[:, 1] = np.logical_not(alternating)
+    requested_neighbors = 25
+    params = np.array([[requested_neighbors, 1.0], [3.0, 1.0]])
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        output = PythiaStage.pythia(
+            z_small,
+            y_small,
+            y_bin_small,
+            y_best_small,
+            algo_small,
+            PythiaOptions(
+                cv_folds=2,
+                is_poly_krnl=False,
+                use_weights=False,
+                params=params,
+                classifier="knn",
+                tuning="none",
+            ),
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=0),
+        )
+
+    assert output.box_consnt[0] == requested_neighbors
+    first_estimator = output.svm[0]
+    assert isinstance(first_estimator, KNeighborsClassifier)
+    assert first_estimator.n_neighbors == z_small.shape[0]
+    assert first_estimator.get_params(deep=False)["n_neighbors"] == requested_neighbors
+    assert output.y_sub.shape == y_bin_small.shape
+    assert not any(
+        "Expected n_neighbors <= n_samples_fit" in str(item.message) for item in caught
+    )
+
+
+def test_pythia_sobol_knn_clamps_oversized_candidate_per_fit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sobol keeps candidate 25 while every CV clone receives a valid K."""
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    alternating = np.arange(y_bin_small.shape[0]) % 2 == 0
+    y_bin_small[:, 0] = alternating
+    y_bin_small[:, 1] = np.logical_not(alternating)
+    requested_neighbors = 25
+    monkeypatch.setattr(
+        stats.qmc,
+        "Sobol",
+        lambda **_kwargs: SimpleNamespace(
+            random=lambda n: np.tile(np.array([[1.0, 0.0]]), (n, 1)),
+        ),
+    )
+
+    output = PythiaStage.pythia(
+        z_small,
+        y_small,
+        y_bin_small,
+        y_best_small,
+        algo_small,
+        PythiaOptions(
+            cv_folds=2,
+            is_poly_krnl=False,
+            use_weights=False,
+            params=None,
+            classifier="knn",
+            tuning="sobol",
+            n_tuning_iter=1,
+        ),
+        ParallelOptions.default(),
+        GeneralOptions(verbose=False, seed=0),
+    )
+
+    assert output.box_consnt == [requested_neighbors, requested_neighbors]
+    assert all(
+        isinstance(estimator, KNeighborsClassifier)
+        and estimator.n_neighbors == z_small.shape[0]
+        and estimator.get_params(deep=False)["n_neighbors"] == requested_neighbors
+        for estimator in output.svm
+    )
+
+
+def test_pythia_bayes_knn_clamps_oversized_candidate_without_score_warnings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bayesian KNN evaluates MATLAB-valid oversized candidates cleanly."""
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    alternating = np.arange(y_bin_small.shape[0]) % 2 == 0
+    y_bin_small[:, 0] = alternating
+    y_bin_small[:, 1] = np.logical_not(alternating)
+    requested_neighbors = 25
+    monkeypatch.setattr(
+        PythiaStage,
+        "_bayes_param_space",
+        staticmethod(
+            lambda _spec: {
+                "n_neighbors": Categorical([requested_neighbors]),
+                "metric": Categorical(["euclidean"]),
+            },
+        ),
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        output = PythiaStage.pythia(
+            z_small,
+            y_small,
+            y_bin_small,
+            y_best_small,
+            algo_small,
+            PythiaOptions(
+                cv_folds=2,
+                is_poly_krnl=False,
+                use_weights=False,
+                params=None,
+                classifier="knn",
+                tuning="bayes",
+                n_tuning_iter=1,
+            ),
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=0),
+        )
+
+    assert output.box_consnt == [requested_neighbors, requested_neighbors]
+    assert all(
+        isinstance(estimator, KNeighborsClassifier)
+        and estimator.n_neighbors == z_small.shape[0]
+        and estimator.get_params(deep=False)["n_neighbors"] == requested_neighbors
+        for estimator in output.svm
+    )
+    warning_messages = [str(item.message) for item in caught]
+    assert not any("Scoring failed" in message for message in warning_messages)
+    assert not any(
+        "Expected n_neighbors <= n_samples_fit" in message
+        for message in warning_messages
+    )
+
+
+def test_pythia_warns_and_runs_when_folds_exceed_class_count() -> None:
+    """Match MATLAB by allowing sparse-class stratified test folds."""
+    from loguru import logger
+
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    y_bin_small[:, 0] = False
+    y_bin_small[:4, 0] = True
+    messages: list[str] = []
+    sink_id = logger.add(messages.append, level="WARNING")
+    try:
+        with pytest.warns(UserWarning, match="least populated class"):
+            output = PythiaStage.pythia(
+                z_small,
+                y_small,
+                y_bin_small,
+                y_best_small,
+                algo_small,
+                PythiaOptions(
+                    cv_folds=5,
+                    is_poly_krnl=False,
+                    use_weights=False,
+                    params=np.array([[3.0, 1.0], [3.0, 1.0]]),
+                    classifier="knn",
+                    tuning="none",
+                ),
+                ParallelOptions.default(),
+                GeneralOptions(verbose=False, seed=0),
+            )
+    finally:
+        logger.remove(sink_id)
+
+    assert output.y_hat.shape == y_bin_small.shape
+    assert any(
+        "exceeds class count 4" in message and "continuing" in message
+        for message in messages
+    )
+
+
+def test_pythia_rejects_cv_that_leaves_single_class_training_fold() -> None:
+    """Reject a singleton minority class because one training fold loses it."""
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    y_bin_small[:, 0] = False
+    y_bin_small[0, 0] = True
+
+    with pytest.raises(ValueError, match="single-class.*a0.*count 1"):
+        PythiaStage.pythia(
+            z_small,
+            y_small,
+            y_bin_small,
+            y_best_small,
+            algo_small,
+            PythiaOptions(
+                cv_folds=2,
+                is_poly_krnl=False,
+                use_weights=False,
+                params=None,
+            ),
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=0),
+        )
+
+
+def test_pythia_rejects_more_folds_than_instances() -> None:
+    """Fail clearly before constructing an impossible cross-validator."""
+    z_small, y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+
+    with pytest.raises(ValueError, match="cv_folds=21.*number of instances 20"):
+        PythiaStage.pythia(
+            z_small,
+            y_small,
+            y_bin_small,
+            y_best_small,
+            algo_small,
+            PythiaOptions(
+                cv_folds=21,
+                is_poly_krnl=False,
+                use_weights=False,
+                params=None,
+            ),
+            ParallelOptions.default(),
+            GeneralOptions(verbose=False, seed=0),
+        )

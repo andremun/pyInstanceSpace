@@ -1,0 +1,93 @@
+{
+  "schema_version": "pyinstancespace.resolved-options/v1",
+  "name": "trace3_pythia_skip",
+  "description": "TRACE3 true-label fallback with PYTHIA explicitly skipped.",
+  "options": {
+    "general": {
+      "seed": 42,
+      "verbose": false,
+      "parallel": false,
+      "ncores": 18
+    },
+    "outputs": {
+      "csv": false,
+      "png": false,
+      "fig": false,
+      "web": false
+    },
+    "perf": {
+      "MaxPerf": false,
+      "AbsPerf": false,
+      "epsilon": 0.05,
+      "betaThreshold": 0.55
+    },
+    "prelim": {
+      "iqrMultiplier": 5,
+      "nanThreshold": 0.2
+    },
+    "auto": {
+      "preproc": true
+    },
+    "bound": {
+      "flag": true
+    },
+    "norm": {
+      "flag": true
+    },
+    "selvars": {
+      "smallscaleflag": false,
+      "smallscale": 0.3,
+      "fileidxflag": false,
+      "fileidx": "",
+      "densityflag": false,
+      "mindistance": 0.1,
+      "type": "Ftr&Good"
+    },
+    "sifted": {
+      "flag": true,
+      "rho": 0.1,
+      "pval": 0.05,
+      "K": 10,
+      "MaxIter": 1000,
+      "Replicates": 100,
+      "seed": 42
+    },
+    "pilot": {
+      "analytic": false,
+      "ntries": 10,
+      "dims": 2,
+      "method": "standard",
+      "alpha": 1,
+      "viewGroups": [],
+      "topoWeight": 0,
+      "verbose": false,
+      "seed": 42
+    },
+    "cloister": {
+      "pval": 0.05,
+      "corrThreshold": 0.7,
+      "maxFeatures": 20
+    },
+    "pythia": {
+      "flag": true,
+      "kFold": 5,
+      "tuning": "sobol",
+      "nTuningIter": 20,
+      "params": [],
+      "skip": true,
+      "ispolykrnl": false,
+      "useweights": false,
+      "ensembleMethod": "Bag",
+      "verbose": false,
+      "seed": 42,
+      "classifier": "knn"
+    },
+    "trace": {
+      "method": "trace3",
+      "PI": 0.6,
+      "minInstances": 4,
+      "minAreaFrac": 0.01,
+      "contra": false
+    }
+  }
+}

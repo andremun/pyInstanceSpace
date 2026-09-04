@@ -1,15 +1,16 @@
-"""Tests for TRACE stage's explore()-time inference (_explore_trace).
+# ruff: noqa: ANN001, COM812, D103, PLR2004, PT018, SLF001
+"""Tests for TRACE stage-owned explore-time inference.
 
 Unit tests exercise footprint-membership logic directly, plus TraceStage's
 pool-reuse hook (Q6) - the actual mechanism `compute_algorithm_qualities` uses to
 decide whether to submit work to a caller-supplied pool or create its own, not the
 footprint computation itself (covered by the validation test below).
 
-The validation test loads MATLAB-trained footprint polygons
+The historical regression test loads legacy-unknown footprint polygons
 (training_artifacts/trace/good_<algo>.csv, best_<algo>.csv) together with the
-MATLAB-projected 2D test coordinates (explore_outputs/step3_after_pilot.csv) and
-verifies that _explore_trace reproduces the boolean membership matrix in
-step5_trace_membership.csv.
+stored 2D test coordinates and verifies that stage inference reproduces the
+stored boolean membership matrix exactly. Authoritative MATLAB compatibility is
+covered separately by the provenance-verified R2026a readers.
 
 Scope note. step5's ``in_space`` column is sourced from CLOISTER's
 ``model.cloist.Zecorr`` via the extract script's ``inpolygon`` call, not
@@ -17,25 +18,27 @@ from exploreIS. exploreIS does not compute per-instance in_space, and
 CLOISTER training is out of scope for this port. The validation here covers
 the ``in_good_*`` and ``in_best_*`` columns only.
 
-Threshold: per-column boolean agreement >= 99%. MATLAB ``isinterior`` and
-``shapely.Polygon.covers`` both include boundary points. The 1% tolerance
-allows for floating-point boundary edge cases after CSV round-trip.
+No disagreement budget is used: the legacy snapshot currently has no ambiguous
+boundary row, while verified-current tests characterize boundary cases explicitly.
 """
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd
+import pytest
+from numpy.typing import NDArray
 from shapely.geometry import MultiPolygon, Polygon
 
 from instancespace.data.model import Footprint, TraceOut
 from instancespace.data.options import GeneralOptions, ParallelOptions
 from instancespace.instance_space import InstanceSpace
-from instancespace.stages.trace import TraceStage
+from instancespace.stages.trace import TracePredictInput, TracePredictOutput, TraceStage
+from instancespace.utils.alpha_shape import AlphaShape3D, TetrahedralMesh
 
 REFERENCE_DIR = Path("tests/matlab_reference")
 ARTIFACTS_DIR = REFERENCE_DIR / "training_artifacts" / "trace"
@@ -55,30 +58,50 @@ ALGO_ORDER = [
 ]
 
 
-def make_footprint(polygon: Polygon | None) -> Footprint:
-    return cast(Footprint, SimpleNamespace(polygon=polygon))
+def make_footprint(
+    polygon: Polygon | TetrahedralMesh | None,
+    dimension: int = 2,
+) -> Footprint:
+    return cast(Footprint, SimpleNamespace(polygon=polygon, dimension=dimension))
 
 
 def make_instance_space(
-    good_polys: list[Polygon | None],
-    best_polys: list[Polygon | None],
+    good_polys: list[Polygon | TetrahedralMesh | None],
+    best_polys: list[Polygon | TetrahedralMesh | None],
+    trained_dimensions: int = 2,
 ) -> InstanceSpace:
     trace = Mock(spec=TraceOut)
-    trace.good = [make_footprint(p) for p in good_polys]
-    trace.best = [make_footprint(p) for p in best_polys]
+    trace.space = make_footprint(None, trained_dimensions)
+    trace.good = [make_footprint(p, trained_dimensions) for p in good_polys]
+    trace.best = [make_footprint(p, trained_dimensions) for p in best_polys]
+    trace.hard = make_footprint(None, trained_dimensions)
     model = Mock()
     model.trace = trace
+    model.pilot = SimpleNamespace(
+        z=np.zeros((1, trained_dimensions), dtype=np.double),
+    )
     instance_space = Mock(spec=InstanceSpace)
     instance_space._model = model
     instance_space._require_model = Mock(return_value=model)
     return instance_space
 
 
+def _predict_trace(
+    instance_space: InstanceSpace,
+    z: NDArray[np.double],
+    n_new_algos: int = 0,
+) -> TracePredictOutput:
+    """Call the stage contract with fitted state held by InstanceSpace."""
+    model = cast(Any, instance_space)._require_model()
+    fitted = cast(TraceOut, model.trace)
+    return TraceStage.predict(TracePredictInput(z, n_new_algos), fitted)
+
+
 def test_trace_output_shapes() -> None:
     square = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
     space = make_instance_space([square, square, square], [square, square, square])
     z = np.random.default_rng().random((5, 2))
-    in_good, in_best = InstanceSpace._explore_trace(space, z)
+    in_good, in_best = _predict_trace(space, z)
     assert in_good.shape == (5, 3)
     assert in_best.shape == (5, 3)
     assert in_good.dtype == np.bool_
@@ -90,7 +113,7 @@ def test_trace_inside_outside_and_matlab_boundary_semantics() -> None:
     square = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
     space = make_instance_space([square], [square])
     z = np.array([[0.5, 0.5], [2.0, 2.0], [0.0, 0.0]])
-    in_good, in_best = InstanceSpace._explore_trace(space, z)  # noqa: SLF001
+    in_good, in_best = _predict_trace(space, z)
     assert in_good[0, 0]
     assert not in_good[1, 0]
     assert in_good[2, 0]
@@ -99,10 +122,53 @@ def test_trace_inside_outside_and_matlab_boundary_semantics() -> None:
     assert in_best[2, 0]
 
 
+@pytest.mark.parametrize(
+    ("trained_dimensions", "explored_dimensions"),
+    [(2, 3), (3, 2)],
+)
+def test_trace_rejects_trained_and_explored_dimension_mismatch(
+    trained_dimensions: int,
+    explored_dimensions: int,
+) -> None:
+    """Neither trained nor explored coordinates may be silently discarded."""
+    square = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
+    space = make_instance_space(
+        [square],
+        [square],
+        trained_dimensions=trained_dimensions,
+    )
+    z = np.zeros((2, explored_dimensions), dtype=np.double)
+
+    with pytest.raises(ValueError, match="coordinate mismatch"):
+        _predict_trace(space, z)
+
+
+def test_trace_three_dimensional_mesh_membership_is_inclusive() -> None:
+    """Explore uses trained tetrahedra directly, including their boundaries."""
+    points = np.array(
+        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        dtype=np.double,
+    )
+    shape = AlphaShape3D.from_points(points)
+    assert shape is not None
+    mesh = shape.geometry(shape.critical_radius)
+    assert mesh is not None
+    space = make_instance_space([mesh], [mesh], trained_dimensions=3)
+    z = np.array(
+        [[0.1, 0.1, 0.1], [0.5, 0.5, 0.0], [0.34, 0.34, 0.34]],
+        dtype=np.double,
+    )
+
+    in_good, in_best = _predict_trace(space, z)
+
+    np.testing.assert_array_equal(in_good[:, 0], [True, True, False])
+    np.testing.assert_array_equal(in_best[:, 0], [True, True, False])
+
+
 def test_trace_none_polygon_returns_false() -> None:
     space = make_instance_space([None, None], [None, None])
     z = np.array([[0.5, 0.5], [1.0, 1.0]])
-    in_good, in_best = InstanceSpace._explore_trace(space, z)
+    in_good, in_best = _predict_trace(space, z)
     assert not in_good.any()
     assert not in_best.any()
 
@@ -113,7 +179,7 @@ def test_trace_per_algo_independent() -> None:
     right = Polygon([(2, 0), (3, 0), (3, 1), (2, 1)])
     space = make_instance_space([left, right], [left, right])
     z = np.array([[0.5, 0.5], [2.5, 0.5]])
-    in_good, in_best = InstanceSpace._explore_trace(space, z)
+    in_good, in_best = _predict_trace(space, z)
     assert in_good[0, 0] and not in_good[0, 1]
     assert not in_good[1, 0] and in_good[1, 1]
     assert in_best[0, 0] and not in_best[0, 1]
@@ -126,7 +192,7 @@ def test_trace_good_and_best_independent() -> None:
     best = Polygon([(5, 5), (6, 5), (6, 6), (5, 6)])
     space = make_instance_space([good], [best])
     z = np.array([[1.0, 1.0]])
-    in_good, in_best = InstanceSpace._explore_trace(space, z)
+    in_good, in_best = _predict_trace(space, z)
     assert in_good[0, 0]
     assert not in_best[0, 0]
 
@@ -142,7 +208,7 @@ def test_trace_widens_output_for_new_algorithms() -> None:
     space = make_instance_space([square], [square])
     z = np.array([[0.5, 0.5], [2.0, 2.0]])
 
-    in_good, in_best = InstanceSpace._explore_trace(space, z, n_new_algos=2)
+    in_good, in_best = _predict_trace(space, z, n_new_algos=2)
 
     assert in_good.shape == (2, 3)
     assert in_best.shape == (2, 3)
@@ -151,6 +217,70 @@ def test_trace_widens_output_for_new_algorithms() -> None:
     # New-algorithm columns (1, 2) are always False - no trained footprint.
     assert not in_good[:, 1:].any()
     assert not in_best[:, 1:].any()
+
+
+def test_trace_predict_does_not_rebuild_or_mutate_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Membership reads trained geometry without rebuilding footprints."""
+    square = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
+    space = make_instance_space([square], [square])
+    fitted = cast(TraceOut, cast(Any, space)._require_model().trace)
+    z = np.array([[0.5, 0.5], [2.0, 2.0]])
+    z_before = z.copy()
+    good_before = tuple(fitted.good)
+    best_before = tuple(fitted.best)
+    rebuild = Mock(side_effect=AssertionError("TRACE training was called"))
+    monkeypatch.setattr(TraceStage, "trace", rebuild)
+
+    TraceStage.predict(TracePredictInput(z), fitted)
+
+    rebuild.assert_not_called()
+    np.testing.assert_array_equal(z, z_before)
+    assert tuple(fitted.good) == good_before
+    assert tuple(fitted.best) == best_before
+    assert fitted.good[0].polygon is square
+    assert fitted.best[0].polygon is square
+
+
+def test_trace_instance_space_wrapper_remains_compatible() -> None:
+    """Keep the private wrapper compatible while orchestration migrates."""
+    square = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
+    space = make_instance_space([square], [square])
+    z = np.array([[0.5, 0.5], [2.0, 2.0]])
+
+    expected = _predict_trace(space, z)
+    actual = InstanceSpace._explore_trace(space, z)
+
+    for actual_field, expected_field in zip(actual, expected, strict=True):
+        np.testing.assert_array_equal(actual_field, expected_field)
+
+
+def test_trace_predict_rejects_invalid_fitted_dimension() -> None:
+    """A corrupt trained footprint dimension cannot be silently treated as 2D."""
+    square = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
+    space = make_instance_space([square], [square], trained_dimensions=4)
+
+    with pytest.raises(ValueError, match="fitted geometry"):
+        _predict_trace(space, np.zeros((2, 2), dtype=np.double))
+
+
+@pytest.mark.parametrize(
+    "z",
+    [
+        np.zeros(2, dtype=np.double),
+        np.zeros((2, 1), dtype=np.double),
+        np.zeros((2, 4), dtype=np.double),
+    ],
+)
+def test_trace_predict_rejects_invalid_explored_shape(
+    z: NDArray[np.double],
+) -> None:
+    """Only two-dimensional matrices with two or three coordinates are valid."""
+    space = make_instance_space([None], [None])
+
+    with pytest.raises(ValueError, match="two-dimensional matrix|coordinates"):
+        _predict_trace(space, z)
 
 
 def _bare_trace_stage(n_algos, executor) -> TraceStage:  # type: ignore[no-untyped-def]
@@ -258,13 +388,15 @@ def build_trace_from_artifacts() -> TraceOut:
     good_polys = [load_polygon(ARTIFACTS_DIR / f"good_{a}.csv") for a in ALGO_ORDER]
     best_polys = [load_polygon(ARTIFACTS_DIR / f"best_{a}.csv") for a in ALGO_ORDER]
     trace = Mock(spec=TraceOut)
-    trace.good = [SimpleNamespace(polygon=p) for p in good_polys]
-    trace.best = [SimpleNamespace(polygon=p) for p in best_polys]
+    trace.space = make_footprint(None)
+    trace.good = [make_footprint(p) for p in good_polys]
+    trace.best = [make_footprint(p) for p in best_polys]
+    trace.hard = make_footprint(None)
     return trace
 
 
-def test_trace_matches_matlab() -> None:
-    """Per-column boolean agreement >= 99% on all in_good_*/in_best_* columns."""
+def test_trace_matches_legacy_snapshot() -> None:
+    """Reproduce all stored legacy good/best memberships exactly."""
     trace = build_trace_from_artifacts()
 
     instance_space = Mock(spec=InstanceSpace)
@@ -273,28 +405,13 @@ def test_trace_matches_matlab() -> None:
     instance_space._require_model = Mock(return_value=instance_space._model)
 
     z = pd.read_csv(OUTPUTS_DIR / "step3_after_pilot.csv", index_col=0)
-    in_good, in_best = InstanceSpace._explore_trace(instance_space, z.to_numpy())
+    instance_space._model.pilot = SimpleNamespace(z=z.to_numpy(dtype=np.double))
+    in_good, in_best = _predict_trace(instance_space, z.to_numpy())
 
     ref = pd.read_csv(OUTPUTS_DIR / "step5_trace_membership.csv", index_col=0)
 
-    per_col_agreement = {}
     for j, algo in enumerate(ALGO_ORDER):
         ref_good = ref[f"in_good_{algo}"].to_numpy(dtype=np.bool_)
         ref_best = ref[f"in_best_{algo}"].to_numpy(dtype=np.bool_)
-        per_col_agreement[f"in_good_{algo}"] = (in_good[:, j] == ref_good).mean()
-        per_col_agreement[f"in_best_{algo}"] = (in_best[:, j] == ref_best).mean()
-
-    overall = float(np.mean(list(per_col_agreement.values())))
-
-    print(f"\nInput:    {z.shape[0]} instances x 2 coordinates")
-    print(f"Algorithms: {len(ALGO_ORDER)}")
-    for col, agr in per_col_agreement.items():
-        print(f"  {col:20s}: {agr * 100:6.2f}%")
-    print(f"Overall mean agreement: {overall * 100:.2f}%")
-
-    for col, agr in per_col_agreement.items():
-        assert agr >= 0.99, f"{col} agreement {agr * 100:.2f}% < 99%"
-    print(
-        f"[PASS] TRACE validation: overall {overall * 100:.2f}% across "
-        f"{len(per_col_agreement)} columns"
-    )
+        np.testing.assert_array_equal(in_good[:, j], ref_good)
+        np.testing.assert_array_equal(in_best[:, j], ref_best)

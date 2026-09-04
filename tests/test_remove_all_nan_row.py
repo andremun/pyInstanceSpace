@@ -8,12 +8,17 @@ and check against with the logic of original codes of BuildIS
 """
 
 import sys
+import warnings
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
-from instancespace.stages.preprocessing import PreprocessingStage
+from instancespace.stages.preprocessing import (
+    PreprocessingStage,
+    validate_viable_dimensions,
+)
 
 path_root = Path(__file__).parents[1]
 sys.path.append(str(path_root))
@@ -380,3 +385,64 @@ These testing codes are tested by artificial data
 and check against with the logic of original codes of BuildIS
 
 """
+
+
+def test_washing_rejects_an_empty_result_without_runtime_warnings() -> None:
+    """All removed rows produce one clear validation error before ratio checks."""
+    x = np.full((4, 3), np.nan)
+    y = np.full((4, 1), np.nan)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        with pytest.raises(ValueError, match="removed every instance"):
+            PreprocessingStage.remove_instances_with_many_missing_values(
+                x,
+                y,
+                None,
+                ["one", "two", "three"],
+                pd.Series(["a", "b", "c", "d"]),
+            )
+
+
+def test_washing_rejects_fewer_than_three_surviving_features() -> None:
+    """The 20 percent missing-value filter cannot create a nonviable build."""
+    x = np.ones((5, 3))
+    x[0, 0] = np.nan
+    y = np.ones((5, 1))
+
+    with pytest.raises(ValueError, match="at least three features"):
+        PreprocessingStage.remove_instances_with_many_missing_values(
+            x,
+            y,
+            None,
+            ["one", "two", "three"],
+            pd.Series(["a", "b", "c", "d", "e"]),
+        )
+
+
+@pytest.mark.parametrize(
+    ("x", "y", "message"),
+    [
+        (np.ones((3, 2)), np.ones((3, 1)), "at least three features"),
+        (np.ones((3, 3)), np.empty((3, 0)), "at least one algorithm"),
+        (np.ones((0, 3)), np.empty((0, 1)), "at least one instance"),
+    ],
+)
+def test_preprocessing_rejects_nonviable_input_dimensions(
+    x: np.ndarray,  # type: ignore[type-arg]
+    y: np.ndarray,  # type: ignore[type-arg]
+    message: str,
+) -> None:
+    """The standard preprocessing path enforces minimum viable dimensions."""
+    with pytest.raises(ValueError, match=message):
+        validate_viable_dimensions(x, y)
+
+
+def test_feature_only_explore_dimensions_are_valid() -> None:
+    """Explore may supply a trained portfolio instead of algorithm columns."""
+    validate_viable_dimensions(
+        np.ones((2, 3)),
+        np.empty((2, 0)),
+        require_algorithms=False,
+        context="Explore data",
+    )

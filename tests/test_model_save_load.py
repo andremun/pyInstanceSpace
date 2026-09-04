@@ -9,12 +9,14 @@ F7's whole point is that these objects round-trip natively through
 aren't picklable in the first place).
 """
 
+from dataclasses import replace
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
 import pytest
-from shapely.geometry import Polygon
+from shapely.geometry import MultiPolygon, Polygon
 from sklearn.svm import SVC
 
 from instancespace.data.model import (
@@ -31,6 +33,12 @@ from instancespace.data.model import (
 )
 from instancespace.data.options import InstanceSpaceOptions
 from instancespace.model import Model, ModelSignatureError
+from instancespace.stages.pilot_viewpoint import PilotViewpointResult
+from instancespace.utils.alpha_shape import AlphaShape3D, TetrahedralMesh
+
+TWO_DIMENSIONS = 2
+THREE_DIMENSIONS = 3
+LEGACY_FOOTPRINT_MEASURE = 2.5
 
 
 def _build_minimal_model() -> Model:
@@ -105,6 +113,12 @@ def _build_minimal_model() -> Model:
         error=np.zeros(1),
         r2=np.ones(1),
         summary=pd.DataFrame({"a": [1]}),
+        viewpoint=PilotViewpointResult(
+            groups=((0,),),
+            a=(np.eye(2, 3, dtype=np.float64),),
+            azimuth=(0.0,),
+            elevation=(np.pi / 2,),
+        ),
     )
 
     cloister = CloisterOut(
@@ -171,12 +185,60 @@ def _build_minimal_model() -> Model:
     )
 
 
+def _build_minimal_3d_model() -> Model:
+    """Build a model with genuinely three-dimensional PILOT numeric state."""
+    model = _build_minimal_model()
+    projection_matrix = np.array(
+        [[1.0, 0.0], [0.0, 1.0], [0.5, -0.25]],
+        dtype=np.double,
+    )
+    projection = model.data.x @ projection_matrix.T
+    viewpoint = PilotViewpointResult(
+        groups=((0,),),
+        a=(np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]),),
+        azimuth=(0.25,),
+        elevation=(1.0,),
+    )
+    return replace(
+        model,
+        pilot=replace(
+            model.pilot,
+            a=projection_matrix,
+            z=projection,
+            c=np.zeros((3, 1)),
+            b=np.zeros((model.data.x.shape[1], 3)),
+            summary=pd.DataFrame({"Row": ["Z_{1}", "Z_{2}", "Z_{3}"]}),
+            viewpoint=viewpoint,
+        ),
+        cloister=replace(
+            model.cloister,
+            z_edge=np.zeros((4, 3)),
+            z_ecorr=np.zeros((4, 3)),
+        ),
+    )
+
+
 def _assert_models_equal(original: Model, loaded: Model) -> None:
     assert np.array_equal(original.data.x, loaded.data.x)
     assert original.data.inst_labels.equals(loaded.data.inst_labels)
     assert original.data.feat_labels == loaded.data.feat_labels
     assert np.array_equal(original.feat_sel.idx, loaded.feat_sel.idx)
     assert np.array_equal(original.sifted.selvars, loaded.sifted.selvars)
+    np.testing.assert_array_equal(original.pilot.a, loaded.pilot.a)
+    np.testing.assert_array_equal(original.pilot.z, loaded.pilot.z)
+    np.testing.assert_array_equal(original.pilot.c, loaded.pilot.c)
+    np.testing.assert_array_equal(original.pilot.b, loaded.pilot.b)
+    np.testing.assert_array_equal(original.cloister.z_edge, loaded.cloister.z_edge)
+    np.testing.assert_array_equal(original.cloister.z_ecorr, loaded.cloister.z_ecorr)
+    assert original.pilot.viewpoint is not None
+    assert loaded.pilot.viewpoint is not None
+    assert original.pilot.viewpoint.groups == loaded.pilot.viewpoint.groups
+    np.testing.assert_array_equal(
+        original.pilot.viewpoint.a[0],
+        loaded.pilot.viewpoint.a[0],
+    )
+    assert original.pilot.viewpoint.azimuth == loaded.pilot.viewpoint.azimuth
+    assert original.pilot.viewpoint.elevation == loaded.pilot.viewpoint.elevation
     assert original.opts == loaded.opts
     assert isinstance(original.data_dense, DataDense)
     assert isinstance(loaded.data_dense, DataDense)
@@ -194,8 +256,8 @@ def _assert_models_equal(original: Model, loaded: Model) -> None:
 
     original_polygon = original.trace.space.polygon
     loaded_polygon = loaded.trace.space.polygon
-    assert original_polygon is not None
-    assert loaded_polygon is not None
+    assert isinstance(original_polygon, Polygon | MultiPolygon)
+    assert isinstance(loaded_polygon, Polygon | MultiPolygon)
     assert original_polygon.equals(loaded_polygon)
 
 
@@ -231,6 +293,7 @@ def test_from_stage_output_preserves_data_dense() -> None:
 
     assert built.data_dense is dense
     assert not np.array_equal(built.data_dense.x, built.data.x)
+    assert built.pilot.viewpoint is source.pilot.viewpoint
 
 
 def test_from_stage_output_preserves_absent_data_dense() -> None:
@@ -245,6 +308,25 @@ def test_from_stage_output_preserves_absent_data_dense() -> None:
     assert built.data_dense is None
 
 
+def test_from_legacy_stage_output_defaults_viewpoint_to_none() -> None:
+    """Models built from pre-viewpoint StageRunner payloads remain valid."""
+    source = _build_minimal_model()
+    output = _stage_output_for_model(source, source.data_dense)
+    output.pop("viewpoint")
+
+    built = Model.from_stage_runner_output(output, source.opts)
+
+    assert built.pilot.viewpoint is None
+
+
+def test_footprint_six_positional_constructor_remains_two_dimensional() -> None:
+    """Adding mesh metadata does not break the public legacy constructor."""
+    footprint = Footprint(None, LEGACY_FOOTPRINT_MEASURE, 4, 3, 1.6, 0.75)
+
+    assert footprint.area == footprint.measure == LEGACY_FOOTPRINT_MEASURE
+    assert footprint.dimension == TWO_DIMENSIONS
+
+
 def test_round_trip_unsigned(tmp_path: Path) -> None:
     """An unsigned model round-trips without creating a signature."""
     model = _build_minimal_model()
@@ -255,6 +337,95 @@ def test_round_trip_unsigned(tmp_path: Path) -> None:
 
     _assert_models_equal(model, loaded)
     assert not path.with_name(path.name + ".sig").exists()
+
+
+def test_round_trip_preserves_3d_projection_and_viewpoint(tmp_path: Path) -> None:
+    """The canonical joblib model retains 3D PILOT arrays and optimized views."""
+    model = _build_minimal_3d_model()
+    path = tmp_path / "model-3d.joblib"
+
+    model.save(path)
+    loaded = Model.load(path)
+
+    _assert_models_equal(model, loaded)
+    assert loaded.pilot.a.shape == (3, model.data.x.shape[1])
+    assert loaded.pilot.z.shape == (model.data.x.shape[0], 3)
+    assert loaded.pilot.viewpoint is not None
+    assert loaded.pilot.viewpoint.a[0].shape == (2, 3)
+
+
+def test_round_trip_preserves_native_three_dimensional_trace_mesh(
+    tmp_path: Path,
+) -> None:
+    """The canonical joblib model retains complete immutable TRACE3 geometry."""
+    model = _build_minimal_3d_model()
+    vertices = np.array(
+        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        dtype=np.double,
+    )
+    shape = AlphaShape3D.from_points(vertices)
+    assert shape is not None
+    mesh = shape.geometry(shape.critical_radius)
+    assert mesh is not None
+    footprint = Footprint.from_polygon(
+        mesh,
+        vertices,
+        np.ones(vertices.shape[0], dtype=np.bool_),
+    )
+    trace = TraceOut(
+        space=Footprint(None, footprint.area, 4, 4, 24.0, 1.0, 3),
+        good=[footprint],
+        best=[footprint],
+        hard=footprint,
+        summary=pd.DataFrame({"Algorithm": ["algo_0"]}),
+    )
+    path = tmp_path / "model-3d-trace.joblib"
+
+    replace(model, trace=trace).save(path)
+    loaded = Model.load(path)
+
+    loaded_mesh = loaded.trace.good[0].polygon
+    assert isinstance(loaded_mesh, TetrahedralMesh)
+    assert loaded.trace.good[0].dimension == THREE_DIMENSIONS
+    assert loaded.trace.good[0].measure == pytest.approx(1.0 / 6.0)
+    np.testing.assert_array_equal(loaded_mesh.vertices, mesh.vertices)
+    np.testing.assert_array_equal(loaded_mesh.tetrahedra, mesh.tetrahedra)
+    np.testing.assert_array_equal(loaded_mesh.boundary_faces, mesh.boundary_faces)
+    assert loaded_mesh.volume == mesh.volume
+    assert loaded_mesh.surface_area == mesh.surface_area
+    assert not loaded_mesh.vertices.flags.writeable
+
+
+def test_loads_legacy_joblib_without_pilot_viewpoint(tmp_path: Path) -> None:
+    """A pre-viewpoint PilotOut pickle resolves the additive field to None."""
+    model = _build_minimal_model()
+    legacy_pilot = replace(model.pilot, viewpoint=None)
+    object.__delattr__(legacy_pilot, "viewpoint")
+    assert "viewpoint" not in vars(legacy_pilot)
+    path = tmp_path / "legacy-model.joblib"
+    joblib.dump(replace(model, pilot=legacy_pilot), path)
+
+    loaded = Model.load(path)
+
+    assert loaded.pilot.viewpoint is None
+    np.testing.assert_array_equal(loaded.pilot.a, legacy_pilot.a)
+    np.testing.assert_array_equal(loaded.pilot.z, legacy_pilot.z)
+
+
+def test_loads_legacy_joblib_without_footprint_dimension(tmp_path: Path) -> None:
+    """Pre-3D footprints recover their formerly implicit 2D metadata."""
+    model = _build_minimal_model()
+    legacy_footprint = model.trace.space
+    object.__delattr__(legacy_footprint, "dimension")
+    assert "dimension" not in vars(legacy_footprint)
+    path = tmp_path / "legacy-footprint-model.joblib"
+    joblib.dump(model, path)
+
+    loaded = Model.load(path)
+
+    assert loaded.trace.space.dimension == TWO_DIMENSIONS
+    assert loaded.trace.good[0].dimension == TWO_DIMENSIONS
+    assert loaded.trace.space.polygon is not None
 
 
 def test_round_trip_signed(tmp_path: Path) -> None:

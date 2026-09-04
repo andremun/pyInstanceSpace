@@ -57,7 +57,7 @@ from instancespace.instance_space import (
 script_dir = Path(__file__).parent
 
 
-def _collect_error_logs(fn: Any, *args: Any) -> tuple[Any, str]:  # noqa: ANN401
+def _collect_error_logs(fn: Any, *args: Any) -> tuple[Any, str]:
     """Run fn(*args), returning its result and loguru ERROR-level messages.
 
     `capsys` can't see loguru's output here: loguru's default sink binds

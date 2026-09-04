@@ -116,7 +116,7 @@ def test_split_data() -> None:
         inst_labels,
         s,
         data_dense,
-    ) = prelim._filter(  # noqa: SLF001
+    ) = prelim._filter(
         inst_labels,
         x_before,
         y_before,
@@ -186,7 +186,7 @@ def test_split_data() -> None:
 
 
 def test_split_fractional() -> None:
-    """Test case for the split data function by using fractional option."""
+    """A fractional split returns exactly the rows selected by its mask."""
     # Create options for fractional split
 
     prelim_opts = PrelimOptions(
@@ -209,8 +209,6 @@ def test_split_fractional() -> None:
         min_distance=0.1,
         density_flag=False,
     )
-
-    data_dense = None
 
     x_before = np.genfromtxt(
         script_dir / "test_data/prelim/fractional/before/x_split.txt",
@@ -281,7 +279,7 @@ def test_split_fractional() -> None:
         inst_labels,
         s,
         data_dense,
-    ) = prelim._filter(  # noqa: SLF001
+    ) = prelim._filter(
         inst_labels_before,
         x_before,
         y_before,
@@ -296,58 +294,24 @@ def test_split_fractional() -> None:
         selvars_opts,
     )
 
-    x_after = np.genfromtxt(
-        script_dir / "test_data/prelim/fractional/after/x_split.txt",
-        delimiter=",",
+    assert subset_index.dtype == np.bool_
+    assert subset_index.shape == (x_before.shape[0],)
+    assert np.count_nonzero(subset_index) == x_before.shape[0] // 2
+    np.testing.assert_array_equal(x, x_before[subset_index])
+    np.testing.assert_array_equal(y, y_before[subset_index])
+    np.testing.assert_array_equal(x_raw, x_raw_before[subset_index])
+    np.testing.assert_array_equal(y_raw, y_raw_before[subset_index])
+    np.testing.assert_array_equal(y_bin, y_bin_before[subset_index])
+    np.testing.assert_array_equal(beta, beta_before[subset_index])
+    np.testing.assert_array_equal(
+        num_good_algos,
+        num_good_algos_before[subset_index],
     )
-    y_after = np.genfromtxt(
-        script_dir / "test_data/prelim/fractional/after/Y_split.txt",
-        delimiter=",",
-    )
-    x_raw_after = np.genfromtxt(
-        script_dir / "test_data/prelim/fractional/after/Xraw_split.txt",
-        delimiter=",",
-    )
-    y_raw_after = np.genfromtxt(
-        script_dir / "test_data/prelim/fractional/after/Yraw_split.txt",
-        delimiter=",",
-    )
-    y_bin_after = np.genfromtxt(
-        script_dir / "test_data/prelim/fractional/after/Ybin_split.txt",
-        delimiter=",",
-    )
-    beta_after = np.genfromtxt(
-        script_dir / "test_data/prelim/fractional/after/beta_split.txt",
-        delimiter=",",
-    )
-    num_good_algos_after = np.genfromtxt(
-        script_dir / "test_data/prelim/fractional/after/numGoodAlgos_split.txt",
-        delimiter=",",
-    )
-    y_best_after = np.genfromtxt(
-        script_dir / "test_data/prelim/fractional/after/Ybest_split.txt",
-        delimiter=",",
-    )
-    p_after = np.genfromtxt(
-        script_dir / "test_data/prelim/fractional/after/P_split.txt",
-        delimiter=",",
-    )
-    inst_labels_after = pd.read_csv(
-        script_dir / "test_data/prelim/fractional/after/instlabels_split.txt",
-        header=None,
-    ).loc[:, 0]
-
-    assert np.array_equal(x.shape, x_after.shape)
-    assert np.array_equal(y.shape, y_after.shape)
-    assert np.array_equal(x_raw.shape, x_raw_after.shape)
-    assert np.array_equal(y_raw.shape, y_raw_after.shape)
-    assert np.array_equal(y_bin.shape, y_bin_after.shape)
-    assert np.array_equal(beta.shape, beta_after.shape)
-    assert np.array_equal(num_good_algos.shape, num_good_algos_after.shape)
-    assert np.array_equal(y_best.shape, y_best_after.shape)
-    assert np.array_equal(p.shape, p_after.shape)
-    assert np.array_equal(inst_labels.shape, inst_labels_after.shape)
-    print("Fractional tests passed!")
+    np.testing.assert_array_equal(y_best, y_best_before[subset_index])
+    np.testing.assert_array_equal(p, p_before[subset_index])
+    pd.testing.assert_series_equal(inst_labels, inst_labels_before[subset_index])
+    assert s is None
+    assert data_dense is None
 
 
 def test_split_fileindexed() -> None:
@@ -444,7 +408,7 @@ def test_split_fileindexed() -> None:
         inst_labels,
         s,
         data_dense,
-    ) = prelim._filter(  # noqa: SLF001
+    ) = prelim._filter(
         inst_labels_before,
         x_before,
         y_before,
@@ -541,7 +505,7 @@ def _run_file_index_filter(
         options,
         GeneralOptions.default(),
     )
-    result = stage._filter(  # noqa: SLF001
+    result = stage._filter(
         labels,
         x,
         y,

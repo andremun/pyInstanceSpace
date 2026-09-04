@@ -1,0 +1,13 @@
+Row,Avg_Perf_all_instances,Std_Perf_all_instances,Probability_of_good,Avg_Perf_selected_instances,Std_Perf_selected_instances,CV_model_accuracy,CV_model_precision,CV_model_recall
+NB,0.173,0.13,0.119,,,0,,
+LDA,0.205,0.206,0.128,,,0,,
+QDA,0.379,0.279,0.021,,,0,,
+CART,0.136,0.118,0.149,,,0,,
+J48,0.127,0.118,0.238,,,0,,
+KNN,0.131,0.118,0.098,,,0,,
+L_SVM,0.134,0.127,0.264,,,0,,
+poly_SVM,0.195,0.145,0.077,,,0,,
+RBF_SVM,0.133,0.127,0.196,,,0,,
+RandF,0.154,0.196,0.434,,,0,,
+Oracle,0.093,0.098,1,,,,,
+Selector,0.154,0.196,0.434,,,,,0

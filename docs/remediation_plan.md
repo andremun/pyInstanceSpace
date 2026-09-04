@@ -1,5 +1,11 @@
 # Open-issue remediation plan
 
+> **Superseded historical plan.** Its MATLAB-availability and deferred-work statements
+> describe the predecessor `codex/open-issue-big-rocks` baseline. Current status includes
+> native 3D PILOT/TRACE3/output and an installed 423-file, `matlab-verified` MATLAB
+> R2026a Update 4 v2 oracle. See `docs/architecture.md`, `docs/implemented_fixes.md`,
+> and `docs/pending_issue_backlog.md`; the body below is retained as history.
+
 ## Baseline
 
 - Repository: `andremun/pyInstanceSpace`

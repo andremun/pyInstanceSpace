@@ -24,16 +24,9 @@ import pandas as pd
 from loguru import logger
 from matplotlib.axes import Axes
 from numpy.typing import NDArray
-from shapely.geometry import Point
-from sklearn.metrics import (
-    accuracy_score,
-    confusion_matrix,
-    precision_score,
-    recall_score,
-)
 
 from instancespace.data.metadata import Metadata, from_csv_file
-from instancespace.data.model import ExploreResult
+from instancespace.data.model import ExploreResult, TraceOut
 from instancespace.data.options import (
     AutoOptions,
     BoundOptions,
@@ -69,23 +62,25 @@ from instancespace.stage_runner import (
     named_tuple_to_stage_arguments,
 )
 from instancespace.stages.cloister import CloisterStage
-from instancespace.stages.pilot import PilotStage
+from instancespace.stages.pilot import PilotPredictInput, PilotStage
 from instancespace.stages.prelim import (
+    PrelimPredictInput,
     PrelimStage,
-    apply_bound_clip,
-    apply_boxcox_zscore,
     compute_binary_performance,
 )
-from instancespace.stages.preprocessing import PreprocessingStage
-from instancespace.stages.pythia import PythiaStage
-from instancespace.stages.sifted import SiftedStage
+from instancespace.stages.preprocessing import (
+    PreprocessingStage,
+    validate_viable_dimensions,
+)
+from instancespace.stages.pythia import (
+    PythiaEvaluateInput,
+    PythiaPredictInput,
+    PythiaStage,
+)
+from instancespace.stages.sifted import SiftedPredictInput, SiftedStage
 from instancespace.stages.stage import IN, OUT, Stage, StageClass
-from instancespace.stages.trace import TraceStage
+from instancespace.stages.trace import TracePredictInput, TraceStage
 from instancespace.utils.print_options import format_options
-
-# Fraction of explore()-time instances clipped to the training PRELIM bounds above
-# which an out-of-distribution warning fires (matches MATLAB's exploreIS.m).
-_OOD_CLIPPED_FRACTION_THRESHOLD = 0.05
 
 T = TypeVar("T", bound="_InstanceSpaceInputs")
 
@@ -163,10 +158,10 @@ _BUILTIN_STAGE_ORDER: list[StageScheduleElement] = [
 class ExploreStage(Enum):
     """One step of the explore()-time inference pipeline.
 
-    The explore-time counterpart of a build-time `StageClass`: `explore()`
-    reuses `build()`'s trained parameters rather than running the real
-    `Stage` subclasses in a predict mode (see roadmap item F8), so these
-    are lightweight identifiers, not `Stage` subclasses themselves.
+    These lightweight identifiers describe the lazy orchestration order.
+    Scientific inference is owned by the corresponding predictive stage;
+    metadata reconciliation and conditional evaluation remain coordinated by
+    :class:`InstanceSpace`.
     """
 
     PRELIM = "prelim"
@@ -204,6 +199,7 @@ class _EvaluationResult(NamedTuple):
     recall_actual: NDArray[np.double]
     cvcmat_actual: NDArray[np.double]
     algo_labels: list[str]
+    trace_out: TraceOut | None = None
 
 
 class InstanceSpace:
@@ -277,6 +273,11 @@ class InstanceSpace:
                 reporter, so omitting this changes nothing about existing
                 behaviour.
         """
+        validate_viable_dimensions(
+            metadata.features,
+            metadata.algorithms,
+            context="Build metadata",
+        )
         self._metadata = metadata
         self._options = options
         self._stages = stages
@@ -735,7 +736,7 @@ class InstanceSpace:
         to new test instances. It performs:
         1. Feature preprocessing (PRELIM normalization)
         2. Feature selection (SIFTED)
-        3. Dimensionality reduction to 2D (PILOT projection)
+        3. Dimensionality reduction to the trained 2D/3D PILOT projection
         4. Algorithm performance prediction (PYTHIA SVMs)
         5. Footprint membership analysis (TRACE)
 
@@ -761,7 +762,8 @@ class InstanceSpace:
             RuntimeError
                 If build() has not been called before explore().
             ValueError
-                If test_metadata features don't match training features.
+                If test_metadata features do not match training features, or trained
+                and explored projection dimensions differ.
         """
         # Run every inference stage, then assemble the result from each stage's output
         stages = {
@@ -807,6 +809,7 @@ class InstanceSpace:
                 evaluation_result.cvcmat_actual if evaluation_result else None
             ),
             algo_labels=evaluation_result.algo_labels if evaluation_result else None,
+            trace_out=evaluation_result.trace_out if evaluation_result else None,
         )
 
         self._explore_results.append(result)
@@ -854,7 +857,10 @@ class InstanceSpace:
             RuntimeError
                 If build() has not been called before explore().
             ValueError
-                If test_metadata features don't match training features.
+                If test_metadata features do not match training features. A fitted
+                TRACE/projection dimension mismatch is deliberately checked by
+                :meth:`TraceStage.predict` only when the lazy iterator advances to
+                TRACE, after PYTHIA has been yielded.
         """
         self._validate_for_explore(test_metadata)
 
@@ -870,18 +876,32 @@ class InstanceSpace:
         yield AnnotatedExploreOutput(ExploreStage.SIFTED, x)
         z = self._explore_pilot(x)
         yield AnnotatedExploreOutput(ExploreStage.PILOT, z)
-        pythia_result = self._explore_pythia(z, n_new_algos=len(new_algo_labels))
+        pythia_result = self._explore_pythia(z, len(new_algo_labels))
         yield AnnotatedExploreOutput(ExploreStage.PYTHIA, pythia_result)
+
         yield AnnotatedExploreOutput(
             ExploreStage.TRACE,
-            self._explore_trace(z, n_new_algos=len(new_algo_labels)),
+            self._explore_trace(z, len(new_algo_labels)),
         )
 
         if has_ground_truth:
             y_hat = pythia_result[0]
+            evaluation_result = self._explore_evaluate(
+                test_metadata,
+                y_hat,
+                new_algo_labels,
+            )
+            rescored_trace = TraceStage.rescore(
+                self._require_model().trace,
+                z,
+                evaluation_result.y_actual,
+                evaluation_result.p_actual,
+                evaluation_result.beta_actual,
+                evaluation_result.algo_labels,
+            )
             yield AnnotatedExploreOutput(
                 ExploreStage.EVALUATION,
-                self._explore_evaluate(test_metadata, y_hat, new_algo_labels),
+                evaluation_result._replace(trace_out=rescored_trace),
             )
 
     def _require_model(self) -> Model:
@@ -910,6 +930,12 @@ class InstanceSpace:
                 If test metadata features don't match training features.
         """
         self._require_model()
+        validate_viable_dimensions(
+            metadata.features,
+            metadata.algorithms,
+            require_algorithms=False,
+            context="Explore metadata",
+        )
 
         # Training feature names, pre-SIFTED: build() overwrites the model's own
         # feat_labels with the post-SIFTED subset, so the original metadata is the
@@ -979,240 +1005,54 @@ class InstanceSpace:
         return metadata.instance_labels
 
     def _explore_prelim(self, x: NDArray[np.double]) -> NDArray[np.double]:
-        """Apply PRELIM transformations to features.
-
-        Applies bound-clipping and Box-Cox/z-score normalisation using
-        parameters learned during training, via the same `apply_bound_clip`/
-        `apply_boxcox_zscore` functions `PrelimStage._bound()`/`_normalise()`
-        use at training time - a hand-duplicated second copy of the same
-        arithmetic previously lived here instead.
-
-        Only applies transformations when `AutoOptions.preproc` is enabled,
-        and then only the steps enabled by `BoundOptions.flag` and
-        `NormOptions.flag` (read from the same options used for training).
-
-        Args
-        ----
-            x : NDArray[np.double]
-                Raw feature matrix with shape (n_instances, n_features).
-
-        Returns
-        -------
-            NDArray[np.double]
-                Transformed feature matrix with shape (n_instances, n_features).
-        """
-        prelim = self._require_model().prelim
-        auto_preproc = self._options.auto.preproc
-        bound = auto_preproc and self._options.bound.flag
-        norm = auto_preproc and self._options.norm.flag
-
-        if bound:
-            clipped = np.any(
-                (x < prelim.lo_bound) | (x > prelim.hi_bound),
-                axis=1,
-            )
-            frac_clipped = np.mean(clipped)
-            if frac_clipped > _OOD_CLIPPED_FRACTION_THRESHOLD:
-                logger.warning(
-                    f"explore(): {frac_clipped:.1%} of test instances have at least "
-                    "one feature outside the training bounds and were clipped to "
-                    "them. This suggests the test set may not be well represented "
-                    "by the trained instance space; consider retraining with a "
-                    "combined dataset.",
-                )
-            x = apply_bound_clip(x, prelim.hi_bound, prelim.lo_bound)
-
-        if not norm:
-            return x
-
-        x_transformed = x.copy()
-        n_features = x.shape[1]
-
-        for i in range(n_features):
-            x_transformed[:, i] = x_transformed[:, i] - prelim.min_x[i] + 1
-
-            idx_valid = ~np.isnan(x_transformed[:, i])
-            if np.any(idx_valid):
-                x_transformed[idx_valid, i] = apply_boxcox_zscore(
-                    x_transformed[idx_valid, i],
-                    prelim.lambda_x[i],
-                    prelim.mu_x[i],
-                    prelim.sigma_x[i],
-                )
-
-        return x_transformed
+        """Compatibility wrapper for :meth:`PrelimStage.predict`."""
+        return PrelimStage.predict(
+            PrelimPredictInput(
+                x,
+                self._options.auto.preproc,
+                self._options.bound.flag,
+                self._options.norm.flag,
+            ),
+            self._require_model().prelim,
+        )
 
     def _explore_sifted(self, x: NDArray[np.double]) -> NDArray[np.double]:
-        """Apply feature selection from SIFTED stage.
-
-        Args
-        ----
-            x : NDArray[np.double]
-                Feature matrix with shape (n_instances, n_features).
-
-        Returns
-        -------
-            NDArray[np.double]
-                Feature matrix with selected features only.
-                Shape: (n_instances, n_selected_features).
-        """
-        sifted = self._require_model().sifted
-        selected_indices = sifted.selvars
-        return x[:, selected_indices]
+        """Compatibility wrapper for :meth:`SiftedStage.predict`."""
+        return SiftedStage.predict(
+            SiftedPredictInput(x),
+            self._require_model().sifted,
+        )
 
     def _explore_pilot(self, x: NDArray[np.double]) -> NDArray[np.double]:
-        """Project features to 2D instance space using PILOT.
-
-        Args
-        ----
-            x : NDArray[np.double]
-                Feature matrix with shape (n_instances, n_selected_features).
-
-        Returns
-        -------
-            NDArray[np.double]
-                2D coordinates with shape (n_instances, 2).
-        """
-        a = self._require_model().pilot.a
-        return x @ a.T
+        """Compatibility wrapper for :meth:`PilotStage.predict`."""
+        return PilotStage.predict(
+            PilotPredictInput(x),
+            self._require_model().pilot,
+        )
 
     def _explore_pythia(
         self,
         z: NDArray[np.double],
         n_new_algos: int = 0,
     ) -> tuple[NDArray[np.bool_], NDArray[np.double], NDArray[np.int_]]:
-        """Get algorithm predictions using PYTHIA's trained classifiers.
-
-        Ports MATLAB PYTHIAtest.m: z-score normalises the 2D coordinates using the
-        training projection's own mean/std, recomputed here from ``model.pilot.z``
-        via ``PythiaStage._compute_znorm`` (F8 - the same formula
-        ``PythiaStage._run()`` itself uses, rather than a separately
-        maintained copy) instead of reading back the stored
-        ``PythiaOutput.mu``/``sigma`` (the two are equal - both are simple
-        mean/std of the same raw training coordinates - this just avoids the
-        extra indirection), applies each per-algorithm classifier natively via
-        scikit-learn's own ``predict``/``predict_proba`` (an ``SVC`` unless
-        ``PythiaOptions.classifier`` selected a different registered type - S1
-        made this classifier-agnostic before F1 added the registry, so no
-        change was needed here), and picks the algorithm with the highest
-        precision-weighted positive prediction per instance via
-        ``PythiaStage._weighted_selection`` (F8 - the same selection formula
-        ``PythiaStage._determine_selections`` uses at training time).
-
-        ``n_new_algos`` (F9, full MATLAB parity) widens ``y_hat``/``pr0_hat``
-        by that many columns, defaulted to ``False``/``0.0`` - "no trained
-        classifier" placeholders, matching MATLAB's ``PYTHIAevalMode`` padding
-        for algorithms present in the test set but absent from training. The
-        widened columns are given zero precision before the weighted-selection
-        step, so ``selection0`` can never point at one of them (matching
-        MATLAB's ``selPrecision`` zero-padding).
-
-        Args
-        ----
-            z : NDArray[np.double]
-                2D coordinates with shape (n_instances, 2).
-            n_new_algos : int
-                Number of test-set-only algorithms (from `_find_new_algorithms`)
-                to pad the output with. `0` (default) reproduces this method's
-                pre-F9 behaviour exactly.
-
-        Returns
-        -------
-            tuple[NDArray[np.bool_], NDArray[np.double], NDArray[np.int_]]
-                - y_hat: binary good/bad predictions, shape
-                  (n_instances, n_trained_algorithms + n_new_algos)
-                - pr0_hat: posterior probability of the "bad" class, same shape
-                - selection0: recommended algorithm index (0-based) per instance,
-                  or -1 when no algorithm was predicted good. Shape (n_instances,)
-        """
-        model = self._require_model()
-        pythia = model.pythia
-        train_z = np.asarray(model.pilot.z, dtype=np.double)
-        mu, sigma, _ = PythiaStage._compute_znorm(train_z)  # noqa: SLF001
-        precision = np.asarray(pythia.precision, dtype=np.double)
-        svms = pythia.svm
-
-        z_norm = (z - mu) / sigma
-        n_inst = z_norm.shape[0]
-        n_trained = len(svms)
-        n_algos = n_trained + n_new_algos
-
-        y_hat = np.zeros((n_inst, n_algos), dtype=np.bool_)
-        pr0_hat = np.zeros((n_inst, n_algos), dtype=np.double)
-
-        for i, svc in enumerate(svms):
-            proba = svc.predict_proba(z_norm)
-            bad_idx = int(np.where(~svc.classes_)[0][0])
-            pr0_hat[:, i] = proba[:, bad_idx]
-            y_hat[:, i] = svc.predict(z_norm)
-
-        weighted_precision = np.zeros(n_algos, dtype=np.double)
-        weighted_precision[:n_trained] = precision
-
-        best, selection0 = PythiaStage._weighted_selection(  # noqa: SLF001
-            n_algos,
-            weighted_precision,
-            y_hat,
+        """Compatibility wrapper for :meth:`PythiaStage.predict`."""
+        predicted = PythiaStage.predict(
+            PythiaPredictInput(z, n_new_algos),
+            self._require_model().pythia,
         )
-        selection0[best <= 0] = -1
-
-        return y_hat, pr0_hat, selection0
+        return predicted[0], predicted[1], predicted[2]
 
     def _explore_trace(
         self,
         z: NDArray[np.double],
         n_new_algos: int = 0,
     ) -> tuple[NDArray[np.bool_], NDArray[np.bool_]]:
-        """Check footprint membership using TRACE polygons.
-
-        Ports the per-instance equivalent of MATLAB TRACEtest: for each test
-        point and each algorithm, check whether the point lies inside the
-        algorithm's good and best footprints. MATLAB's ``isinterior`` includes
-        boundary points; ``polygon.covers`` matches that semantics.
-
-        ``in_space`` is intentionally omitted: ``exploreIS.m`` does not compute
-        it, and the value in ``step5_trace_membership.csv`` is sourced from
-        CLOISTER (a build-time stage outside this port's scope).
-
-        ``n_new_algos`` (F9, full MATLAB parity) widens ``in_good``/``in_best``
-        by that many columns, defaulted to ``False`` - "no trained footprint"
-        placeholders, matching MATLAB's ``TRACEthrow3`` empty-footprint padding
-        for algorithms present in the test set but absent from training (there
-        is no membership to test against a footprint that was never built).
-
-        Args
-        ----
-            z : NDArray[np.double]
-                2D coordinates with shape (n_instances, 2).
-            n_new_algos : int
-                Number of test-set-only algorithms (from `_find_new_algorithms`)
-                to pad the output with. `0` (default) reproduces this method's
-                pre-F9 behaviour exactly.
-
-        Returns
-        -------
-            tuple[NDArray[np.bool_], NDArray[np.bool_]]
-                - in_good: (n_instances, n_trained_algorithms + n_new_algos) bool array
-                - in_best: same shape
-        """
-        trace = self._require_model().trace
-        n = z.shape[0]
-        n_trained = len(trace.good)
-        n_algos = n_trained + n_new_algos
-        points = [Point(z[i, 0], z[i, 1]) for i in range(n)]
-
-        in_good = np.zeros((n, n_algos), dtype=np.bool_)
-        in_best = np.zeros((n, n_algos), dtype=np.bool_)
-
-        for j in range(n_trained):
-            good_poly = trace.good[j].polygon
-            best_poly = trace.best[j].polygon
-            if good_poly is not None:
-                in_good[:, j] = [good_poly.covers(p) for p in points]
-            if best_poly is not None:
-                in_best[:, j] = [best_poly.covers(p) for p in points]
-
-        return in_good, in_best
+        """Compatibility wrapper for :meth:`TraceStage.predict`."""
+        predicted = TraceStage.predict(
+            TracePredictInput(z, n_new_algos),
+            self._require_model().trace,
+        )
+        return predicted[0], predicted[1]
 
     def _find_new_algorithms(
         self,
@@ -1264,9 +1104,9 @@ class InstanceSpace:
         for any instance (matching MATLAB's convention for missing ground
         truth), so no separate branch is needed for that case there. The
         returned mask records which of the *trained* columns have real ground
-        truth, so `_explore_evaluate` can report `NaN` accuracy/precision/
-        recall/confusion-matrix for an algorithm rather than compute one
-        against a fabricated all-bad label.
+        truth for callers that need that metadata. MATLAB-compatible PYTHIA
+        evaluation deliberately scores every non-empty trained classifier; an
+        absent column therefore remains the reconciled all-false truth vector.
 
         Algorithms in `new_algo_labels` (present in the test set, absent from
         training - see `_find_new_algorithms`) are appended as extra columns
@@ -1336,15 +1176,13 @@ class InstanceSpace:
         ground truth, matching MATLAB's exact formulas (`tp/(tp+fp)`,
         `tp/(tp+fn)`, `(tp+tn)/ninst`, `core/PYTHIA.m:379-381`).
 
-        Algorithms absent from the test set's ground truth (see
-        `_build_test_algo_matrix`) report `NaN` metrics rather than a
-        confusion matrix computed against a fabricated label. Algorithms in
-        `new_algo_labels` (full MATLAB parity, F9) always have real ground
-        truth by construction but never have a trained classifier, so they
-        also report `NaN` metrics - matching MATLAB's `PYTHIAevalMode`
-        ("no CV model" convention for `ii > modelalgos`) - while still
-        participating as full candidates in `y_best_actual`/`p_actual`/
-        `beta_actual` via the widened `compute_binary_performance` call.
+        A trained algorithm absent from the test metadata retains its
+        reconciled all-false truth column and is scored when its classifier is
+        non-empty, exactly as MATLAB does. Algorithms in `new_algo_labels`
+        always have real ground truth by construction but no trained-model
+        slot, so their rates stay `NaN` while their confusion rows remain zero.
+        They still participate as full candidates in `y_best_actual`/
+        `p_actual`/`beta_actual` through the widened performance calculation.
 
         Args
         ----
@@ -1368,9 +1206,7 @@ class InstanceSpace:
         """
         model = self._require_model()
         algo_labels = model.data.algo_labels
-        n_trained = len(algo_labels)
-
-        y_raw_test, has_ground_truth = self._build_test_algo_matrix(
+        y_raw_test, _ = self._build_test_algo_matrix(
             test_metadata,
             algo_labels,
             new_algo_labels,
@@ -1383,36 +1219,23 @@ class InstanceSpace:
             log_prefix="EXPLORE",
         )
 
-        n_algos = n_trained + len(new_algo_labels)
-        accuracy = np.full(n_algos, np.nan, dtype=np.double)
-        precision = np.full(n_algos, np.nan, dtype=np.double)
-        recall = np.full(n_algos, np.nan, dtype=np.double)
-        cvcmat = np.full((n_algos, 4), np.nan, dtype=np.double)
-
-        for i in range(n_trained):
-            if not has_ground_truth[i]:
-                continue
-            y_true = perf.y_bin[:, i]
-            y_pred = y_hat[:, i]
-            cm = confusion_matrix(y_true, y_pred, labels=[False, True])
-            tn, fp, fn, tp = cm.ravel()
-            cvcmat[i, :] = [tn, fp, fn, tp]
-            accuracy[i] = accuracy_score(y_true, y_pred)
-            precision[i] = precision_score(y_true, y_pred)
-            recall[i] = recall_score(y_true, y_pred)
-        # Columns [n_trained:] (new algorithms) stay NaN - no trained
-        # classifier exists for them, matching MATLAB's "no CV model"
-        # convention rather than scoring against a fabricated prediction.
+        evaluated = PythiaStage.evaluate(
+            PythiaEvaluateInput(
+                perf.y_bin,
+                y_hat,
+            ),
+            model.pythia,
+        )
 
         return _EvaluationResult(
             y_actual=perf.y_bin,
             y_best_actual=perf.y_best,
             p_actual=perf.p,
             beta_actual=perf.beta,
-            accuracy_actual=accuracy,
-            precision_actual=precision,
-            recall_actual=recall,
-            cvcmat_actual=cvcmat,
+            accuracy_actual=evaluated.accuracy,
+            precision_actual=evaluated.precision,
+            recall_actual=evaluated.recall,
+            cvcmat_actual=evaluated.cvcmat,
             algo_labels=[*algo_labels, *new_algo_labels],
         )
 
