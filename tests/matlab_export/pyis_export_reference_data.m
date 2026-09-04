@@ -4,13 +4,12 @@ function pyis_export_reference_data(toolkitRoot, outputRoot, varargin)
 %
 %   pyis_export_reference_data(toolkitRoot, outputRoot)
 %   pyis_export_reference_data(toolkitRoot, outputRoot, 'datasetRoot', dir)
+%   pyis_export_reference_data(..., 'generatorRoot', dir, 'mode', mode)
 %
 %   toolkitRoot - path to a checkout of https://github.com/andremun/InstanceSpace
 %                 (the directory containing InstanceSpace.m/buildIS.m).
-%   outputRoot  - destination directory for the exported fixtures (created
-%                 if missing). Existing files are overwritten -- point this
-%                 at a scratch directory and diff it against the committed
-%                 fixtures yourself before copying anything over.
+%   outputRoot  - new destination directory. It must not already exist. The
+%                 exporter builds in scratch space and publishes atomically.
 %   datasetRoot - (optional) directory containing metadata.csv +
 %                 metadata_test.csv. Defaults to toolkitRoot/test/data/,
 %                 the toolkit's own reference dataset (Munoz et al. 2018
@@ -19,31 +18,16 @@ function pyis_export_reference_data(toolkitRoot, outputRoot, varargin)
 %                 fixtures, verified directly (identical header + row
 %                 counts) rather than assumed.
 %
-%   Design, coverage rationale, and known gaps are documented in this
-%   file's sibling README.md (tests/matlab_export/README.md in
-%   pyInstanceSpace) -- read that first if you're regenerating fixtures
-%   for the first time. In short: this function runs the pipeline through
-%   InstanceSpace's own staged build() (prelim -> sifted -> pilot once,
-%   then cloister, then several pythia/trace option variants re-using the
-%   same upstream state), and exports each stage's real output struct
-%   (obj.model.<stage>) to CSV using the same writeArray2CSV/writeCell2CSV
-%   conventions output/scriptcsv.m already uses -- not a new format.
+%   generatorRoot - pyInstanceSpace checkout whose commit and exporter hash
+%                   are recorded. Defaults to the checkout containing this
+%                   script.
+%   mode          - 'verified' (default) requires clean repositories and
+%                   MATLAB R2026a; 'diagnostic' permits an older or dirty
+%                   environment but cannot produce a parity oracle.
 %
-%   Output layout is uniformly build_data/<stage>/<variant>/ and
-%   explore_data/<stage>/<variant>/ -- same shape, same top-level naming
-%   convention, on both sides. Stages whose output does not depend on
-%   opts.pythia/opts.trace (prelim, sifted, pilot, cloister on the build
-%   side) still get a <variant>/ level, always named 'default', so every
-%   consumer can rely on the same path depth regardless of stage --
-%   deliberately not left stage-only just because there is currently only
-%   one variant to put there.
-%
-%   NOT executed against real MATLAB before being committed to
-%   pyInstanceSpace -- written from direct inspection of this toolkit's
-%   source (InstanceSpace.m, core/*.m, output/scriptcsv.m, scriptfcn.m,
-%   test_integration.m), not guessed, but unverified by an actual run.
-%   Review before trusting its output; run once on a throwaway
-%   outputRoot first.
+%   The output contains manifest.json plus shared_inputs/, build_data/, and
+%   explore_data/. Every data file is hashed and described in the manifest.
+%   See the sibling README.md for the trust and review workflow.
 
 % -------------------------------------------------------------------------
 % Written for the Instance Space Analysis (ISA) Toolkit
@@ -53,24 +37,75 @@ function pyis_export_reference_data(toolkitRoot, outputRoot, varargin)
 % because it is meant to be committed to the MATLAB repo.
 % -------------------------------------------------------------------------
 
+scriptPath = [mfilename('fullpath') '.m'];
+defaultGeneratorRoot = fileparts(fileparts(fileparts(scriptPath)));
 p = inputParser;
 addRequired(p, 'toolkitRoot', @(x) (ischar(x) || isstring(x)) && isfolder(x));
 addRequired(p, 'outputRoot', @(x) ischar(x) || isstring(x));
 addParameter(p, 'datasetRoot', '', @(x) ischar(x) || isstring(x));
+addParameter(p, 'generatorRoot', defaultGeneratorRoot, ...
+    @(x) (ischar(x) || isstring(x)) && isfolder(x));
+addParameter(p, 'mode', 'verified', ...
+    @(x) any(strcmpi(char(x), {'verified', 'diagnostic'})));
 parse(p, toolkitRoot, outputRoot, varargin{:});
 
 toolkitRoot = ensureTrailingSlash(char(p.Results.toolkitRoot));
-outputRoot  = ensureTrailingSlash(char(p.Results.outputRoot));
+generatorRoot = ensureTrailingSlash(char(p.Results.generatorRoot));
+publishRoot = char(p.Results.outputRoot);
+mode = lower(char(p.Results.mode));
 datasetRoot = char(p.Results.datasetRoot);
 if isempty(datasetRoot)
     datasetRoot = [toolkitRoot 'test/data/'];
 end
 datasetRoot = ensureTrailingSlash(datasetRoot);
 
-if ~isfile([datasetRoot 'metadata.csv'])
-    error('pyis_export:missingDataset', ...
-        'metadata.csv not found in ''%s''. Pass ''datasetRoot'' explicitly if the ' ...
-        'reference dataset lives elsewhere.', datasetRoot);
+requiredInputs = {'metadata.csv', 'metadata_test.csv'};
+for i = 1:numel(requiredInputs)
+    if ~isfile([datasetRoot requiredInputs{i}])
+        error('pyis_export:missingDataset', ...
+            'Required input ''%s'' was not found in ''%s''.', requiredInputs{i}, datasetRoot);
+    end
+end
+if isfile(publishRoot) || isfolder(publishRoot)
+    error('pyis_export:outputExists', ...
+        'outputRoot must not exist. Export into a new path: ''%s''.', publishRoot);
+end
+
+publishParent = fileparts(publishRoot);
+if isempty(publishParent)
+    publishParent = pwd;
+end
+mkdirIfMissing(publishParent);
+scratchRoot = tempname(publishParent);
+workRoot = tempname(publishParent);
+mkdir(scratchRoot);
+mkdir(workRoot);
+cleanupObj = onCleanup(@() cleanupTemporaryRoots(scratchRoot, workRoot));
+outputRoot = ensureTrailingSlash(scratchRoot);
+pipelineRoot = ensureTrailingSlash(workRoot);
+
+matlabState = gitState(toolkitRoot);
+generatorState = gitState(generatorRoot);
+matlabRelease = ['R' version('-release')];
+installed = ver;
+installedToolboxes = {installed.Name};
+requiredToolboxes = {'MATLAB', 'Statistics and Machine Learning Toolbox', ...
+    'Optimization Toolbox', 'Global Optimization Toolbox', 'Financial Toolbox'};
+missingToolboxes = setdiff(requiredToolboxes, installedToolboxes, 'stable');
+if ~isempty(missingToolboxes)
+    error('pyis_export:missingToolbox', ...
+        'Fixture export requires these missing toolboxes: %s.', ...
+        strjoin(missingToolboxes, ', '));
+end
+if strcmp(mode, 'verified')
+    if matlabState.dirty || generatorState.dirty
+        error('pyis_export:dirtySource', ...
+            'Verified exports require clean MATLAB and generator repositories.');
+    end
+    if ~strcmp(matlabRelease, 'R2026a')
+        error('pyis_export:oldMatlab', ...
+            'Reference-export/v2 requires MATLAB R2026a; found %s.', matlabRelease);
+    end
 end
 
 % ---- Make the toolkit's own code resolvable, same as InstanceSpace.m's
@@ -86,13 +121,16 @@ for i = 1:numel(subdirs)
 end
 addpath(toolkitRoot);
 
-mkdirIfMissing(outputRoot);
-mkdirIfMissing([outputRoot 'input/']);
+mkdirIfMissing([outputRoot 'shared_inputs/reference/']);
 mkdirIfMissing([outputRoot 'build_data/']);
 mkdirIfMissing([outputRoot 'explore_data/']);
 
-copyfile([datasetRoot 'metadata.csv'], [outputRoot 'input/metadata.csv']);
-copyfile([datasetRoot 'metadata_test.csv'], [outputRoot 'input/metadata_test.csv']);
+copyfile([datasetRoot 'metadata.csv'], [outputRoot 'shared_inputs/reference/metadata.csv']);
+copyfile([datasetRoot 'metadata_test.csv'], ...
+    [outputRoot 'shared_inputs/reference/metadata_test.csv']);
+copyfile([datasetRoot 'metadata.csv'], [pipelineRoot 'metadata.csv']);
+copyfile([datasetRoot 'metadata_test.csv'], [pipelineRoot 'metadata_test.csv']);
+[~, rawAlgolabels] = readMetadataLabels([datasetRoot 'metadata.csv']);
 
 startTime = tic;
 
@@ -101,53 +139,109 @@ startTime = tic;
 % downstream PYTHIA/TRACE variant below re-uses this same state instead of
 % re-running these (the expensive, option-invariant) stages per variant.
 % =========================================================================
-fprintf('[EXPORT] Building base pipeline (prelim -> sifted -> pilot -> cloister) on %s\n', datasetRoot);
-obj = InstanceSpace(datasetRoot);
-obj = obj.build('stages', {'prelim', 'sifted', 'pilot', 'cloister'});
+fprintf('[EXPORT] Building the base pipeline from %s\n', datasetRoot);
+exportOpts = struct();
+exportOpts.general = struct('seed', 42, 'verbose', false, 'parallel', false);
+exportOpts.outputs = struct('csv', false, 'png', false, 'fig', false, 'web', false);
+obj = InstanceSpace(pipelineRoot, exportOpts);
+obj = obj.build('stages', {'prelim'});
+preSiftedData = obj.model.data;
+exportDataSnapshot(preSiftedData, obj.model.featsel.labels, ...
+    [outputRoot 'build_data/prelim/default/inputs/']);
+exportPrelimArtifacts(obj.model.prelim, obj.model.featsel.labels, rawAlgolabels, ...
+    obj.model.data, [outputRoot 'build_data/prelim/default/outputs/']);
+
+obj = obj.build('stages', {'sifted'});
+exportSiftedInputs(preSiftedData, [outputRoot 'build_data/sifted/default/inputs/']);
+exportSiftedArtifacts(obj.model.sifted, [outputRoot 'build_data/sifted/default/outputs/']);
+
+prePilotObj = obj; % snapshot shared by the independent PILOT evidence variants below
+obj = obj.build('stages', {'pilot'});
+exportPilotInputs(obj.model.data, [outputRoot 'build_data/pilot/default/inputs/']);
+exportPilotArtifacts(obj.model.pilot, [outputRoot 'build_data/pilot/default/outputs/']);
+
+obj = obj.build('stages', {'cloister'});
+exportCloisterInputs(obj.model.data.X, obj.model.pilot.A, ...
+    [outputRoot 'build_data/cloister/default/inputs/']);
+exportCloisterArtifacts(obj.model.cloist, ...
+    [outputRoot 'build_data/cloister/default/outputs/']);
 
 % 'default/' is the only variant these four stages ever have (their output
 % doesn't depend on opts.pythia/opts.trace) -- written anyway, rather than
 % left stage-only, so every stage sits at the same build_data/<stage>/
 % <variant>/ depth as pythia/trace below.
-exportPrelimArtifacts(obj.model.prelim, obj.model.data, [outputRoot 'build_data/prelim/default/']);
-exportSiftedArtifacts(obj.model.sifted, [outputRoot 'build_data/sifted/default/']);
-exportPilotArtifacts(obj.model.pilot, [outputRoot 'build_data/pilot/default/']);
-exportCloisterArtifacts(obj.model.cloist, [outputRoot 'build_data/cloister/default/']);
-
 % =========================================================================
-% PYTHIA/TRACE variants -- mirrors the option cases test_integration.m
-% already exercises for its own regression suite (classifier_svm,
-% tuning_bayes, ...), reused here for fixture generation instead of
-% pass/fail checking. 'default' (MATLAB's own untouched opts -- KNN
-% classifier, Sobol tuning, TRACE3) comes first so the flat, backward-
-% compatible tests/matlab_reference/ layout is still produced exactly as
-% before (see exportLegacyExploreLayout, written to its own
-% legacy_explore_outputs/ root so it can't be confused with this script's
-% unified build_data/ + explore_data/ layout below); the svm-forced
-% variants add new coverage alongside it, not in place of it. EVERY
-% variant gets both a build() pass (build_data/) and an explore() pass
-% (explore_data/) on the model it just trained -- earlier drafts of this
-% script only ran explore() for the default case,
-% leaving the other three build-only. Add more variants here as Python's
-% test suite grows new classifier/tuning/kernel combinations it needs
-% MATLAB numbers for.
+% Required downstream variants: current defaults, TRACE3's explicit
+% PYTHIA-skip fallback, and retained legacy TRACE.
 % =========================================================================
 variants = { ...
-    struct('name', 'default', ...
+    struct('name', 'trace3_default', ...
            'desc', 'MATLAB''s own untouched defaults: KNN classifier, Sobol tuning, TRACE3.', ...
-           'pythia', struct(), 'ispolykrnl', false), ...
-    struct('name', 'sobol_svm', ...
-           'desc', 'SVM classifier (pyInstanceSpace''s own default), Sobol tuning, gaussian kernel.', ...
-           'pythia', struct('classifier', 'svm', 'tuning', 'sobol'), 'ispolykrnl', false), ...
-    struct('name', 'bayes_svm_gaussian', ...
-           'desc', 'Legacy Bayesian-optimisation tuning, gaussian kernel.', ...
-           'pythia', struct('classifier', 'svm', 'tuning', 'bayes'), 'ispolykrnl', false), ...
-    struct('name', 'bayes_svm_poly', ...
-           'desc', 'Legacy Bayesian-optimisation tuning, polynomial kernel.', ...
-           'pythia', struct('classifier', 'svm', 'tuning', 'bayes'), 'ispolykrnl', true) ...
+           'pythia', struct(), ...
+           'trace', struct('method', 'trace3', 'PI', 0.6, ...
+                           'minInstances', 4, 'minAreaFrac', 0.01, 'contra', false)), ...
+    struct('name', 'trace3_pythia_skip', ...
+           'desc', 'TRACE3 true-label fallback with PYTHIA explicitly skipped.', ...
+           'pythia', struct('skip', true), ...
+           'trace', struct('method', 'trace3', 'PI', 0.6, ...
+                           'minInstances', 4, 'minAreaFrac', 0.01, 'contra', false)), ...
+    struct('name', 'legacy_svm', ...
+           'desc', 'Retained legacy TRACE with SVM and Sobol tuning.', ...
+           'pythia', struct('classifier', 'svm', 'tuning', 'sobol', ...
+                            'ispolykrnl', false), ...
+           'trace', struct('method', 'legacy', 'PI', 0.55, ...
+                           'minInstances', 4, 'minAreaFrac', 0.01, 'contra', true)) ...
+};
+
+% Additive PILOT evidence variants for #262.  X0 and precalcAlpha are
+% effective MATLAB options (PILOT.m consumes them directly), so they are
+% retained in each variant's complete resolved option tree as well as
+% exported as explicit stage inputs.  X0 deliberately has three columns
+% while ntries is one: this proves MATLAB's documented rule that a valid
+% X0 column count overrides ntries.  One restart is enough for the separate
+% viewpoint optimisations and keeps fixture generation bounded.
+nPilotFeatures = size(prePilotObj.model.data.X, 2);
+nPilotAlgorithms = size(prePilotObj.model.data.Y, 2);
+if nPilotAlgorithms < 2
+    error('pyis_export:insufficientAlgorithms', ...
+        'Grouped PILOT viewpoint evidence requires at least two algorithms.');
+end
+pilotEvidenceNtries = 1;
+pilotX0Trials = 3;
+pilotX0Rows = 3 * (2 * nPilotFeatures + nPilotAlgorithms);
+pilotX0 = deterministicStarts(pilotX0Rows, pilotX0Trials);
+groupSplit = max(1, floor(nPilotAlgorithms / 2) - 1);
+pilotEvidenceVariants = { ...
+    struct('name', 'pilot_standard_analytic_3d', ...
+           'desc', 'Three-dimensional standard PILOT analytic solution with the default global viewpoint.', ...
+           'pilot', struct('method', 'standard', 'dims', 3, 'analytic', true, ...
+                           'ntries', pilotEvidenceNtries, 'viewGroups', {{}}), ...
+           'solverInput', 'none'), ...
+    struct('name', 'pilot_standard_numerical_3d_x0', ...
+           'desc', 'Three-dimensional standard PILOT numerical solution from explicit deterministic X0.', ...
+           'pilot', struct('method', 'standard', 'dims', 3, 'analytic', false, ...
+                           'ntries', pilotEvidenceNtries, 'viewGroups', {{}}, 'X0', pilotX0), ...
+           'solverInput', 'x0'), ...
+    struct('name', 'pilot_standard_numerical_3d_precalc', ...
+           'desc', 'Three-dimensional standard PILOT replay of the best exported numerical solution.', ...
+           'pilot', struct('method', 'standard', 'dims', 3, 'analytic', false, ...
+                           'ntries', pilotEvidenceNtries, 'viewGroups', {{}}), ...
+           'solverInput', 'precalc'), ...
+    struct('name', 'pilot_pls_2d', ...
+           'desc', 'Two-dimensional PILOT partial least squares solution from MATLAB SIMPLS.', ...
+           'pilot', struct('method', 'pls', 'dims', 2, 'analytic', false, ...
+                           'ntries', pilotEvidenceNtries, 'viewGroups', {{}}), ...
+           'solverInput', 'none'), ...
+    struct('name', 'pilot_pls_3d_grouped', ...
+           'desc', 'Three-dimensional PILOT partial least squares solution with two grouped viewpoints.', ...
+           'pilot', struct('method', 'pls', 'dims', 3, 'analytic', true, 'alpha', 3.0, ...
+                           'ntries', pilotEvidenceNtries, ...
+                           'viewGroups', {{1:groupSplit, groupSplit+1:nPilotAlgorithms}}), ...
+           'solverInput', 'none') ...
 };
 
 baseObj = obj; % snapshot with prelim/sifted/pilot/cloister already completed
+resolvedVariantRecords = cell(1, numel(variants) + numel(pilotEvidenceVariants));
 for v = 1:numel(variants)
     variant = variants{v};
     fprintf('[EXPORT] === PYTHIA/TRACE variant ''%s'': %s ===\n', variant.name, variant.desc);
@@ -156,41 +250,158 @@ for v = 1:numel(variants)
     for f = 1:numel(fields)
         obj.opts.pythia.(fields{f}) = variant.pythia.(fields{f});
     end
-    obj.opts.pythia.ispolykrnl = variant.ispolykrnl;
+    fields = fieldnames(variant.trace);
+    for f = 1:numel(fields)
+        obj.opts.trace.(fields{f}) = variant.trace.(fields{f});
+    end
+    % Re-run the toolkit's own validation/default resolution after applying
+    % variant overrides. The artifact below is the complete effective tree
+    % actually stored on the trained model, not a partial override list.
+    obj.opts = ISAdefaults(ISAvalidateOpts(obj.opts));
 
     % ---- Build path (training) ----
     obj = obj.build('stages', {'pythia', 'trace'});
+    resolvedPath = ['resolved_options/' variant.name '.json'];
+    writeJson(struct( ...
+        'schema_version', 'pyinstancespace.resolved-options/v1', ...
+        'name', variant.name, ...
+        'description', variant.desc, ...
+        'options', obj.model.opts), ...
+        [outputRoot resolvedPath]);
+    resolvedVariantRecords{v} = struct( ...
+        'name', variant.name, ...
+        'description', variant.desc, ...
+        'path', resolvedPath);
+    exportPythiaInputs(obj.model, ...
+        [outputRoot 'build_data/pythia/' variant.name '/inputs/']);
     exportPythiaArtifacts(obj.model.pythia, obj.model.data.algolabels, ...
-        [outputRoot 'build_data/pythia/' variant.name '/']);
+        [outputRoot 'build_data/pythia/' variant.name '/outputs/']);
+    exportTraceInputs(obj.model, ...
+        [outputRoot 'build_data/trace/' variant.name '/inputs/']);
     exportTraceArtifacts(obj.model.trace, obj.model.data.algolabels, ...
-        [outputRoot 'build_data/trace/' variant.name '/']);
+        [outputRoot 'build_data/trace/' variant.name '/outputs/']);
 
     % ---- Explore path (test-set inference on the model just trained) ----
     % Same build_data/<stage>/<variant>/ shape as the build path above --
     % split by stage (pythia, trace) rather than one flat per-variant
     % folder, so build_data/ and explore_data/ are structurally identical
     % and neither name has to be remembered as the "odd one out".
-    obj = obj.explore(datasetRoot);
+    obj = obj.explore(pipelineRoot);
     testOut = obj.getResults(1);
-    exportPythiaExploreArtifacts(testOut, [outputRoot 'explore_data/pythia/' variant.name '/']);
-    exportTraceExploreArtifacts(testOut, [outputRoot 'explore_data/trace/' variant.name '/']);
+    exportPythiaInputs(testOut, ...
+        [outputRoot 'explore_data/pythia/' variant.name '/inputs/']);
+    exportPythiaExploreArtifacts(testOut, ...
+        [outputRoot 'explore_data/pythia/' variant.name '/outputs/']);
+    exportTraceInputs(testOut, ...
+        [outputRoot 'explore_data/trace/' variant.name '/inputs/']);
+    exportTraceExploreArtifacts(testOut, ...
+        [outputRoot 'explore_data/trace/' variant.name '/outputs/']);
+end
 
-    if v == 1
-        % step1-3 (prelim/sifted/pilot's test-set transform) don't depend
-        % on opts.pythia/opts.trace, so they're identical across every
-        % variant here -- write them once, reproducing the flat step1-5
-        % filenames tests/matlab_reference/ already documents, under a
-        % clearly-separate legacy_explore_outputs/ root (not explore_data/)
-        % so this default variant stays a byte-for-byte drop-in for that
-        % existing fixture set without colliding with the new unified
-        % layout's own naming.
-        exportLegacyExploreLayout(testOut, [outputRoot 'legacy_explore_outputs/']);
+% =========================================================================
+% PILOT dimensionality/method/viewpoint evidence.  Each variant is built
+% from the same post-SIFTED snapshot.  A complete downstream build is still
+% required because InstanceSpace.explore intentionally rejects partial
+% models; PYTHIA skip avoids unrelated classifier fitting while retaining a
+% genuine public explore-path projection.
+% =========================================================================
+bestNumericalAlpha = [];
+for v = 1:numel(pilotEvidenceVariants)
+    variant = pilotEvidenceVariants{v};
+    fprintf('[EXPORT] === PILOT evidence variant ''%s'': %s ===\n', ...
+        variant.name, variant.desc);
+    obj = prePilotObj;
+    fields = fieldnames(variant.pilot);
+    for f = 1:numel(fields)
+        obj.opts.pilot.(fields{f}) = variant.pilot.(fields{f});
+    end
+    if strcmp(variant.solverInput, 'precalc')
+        if isempty(bestNumericalAlpha)
+            error('pyis_export:missingPrecalculatedPilot', ...
+                'The X0 evidence variant must run before precalc replay.');
+        end
+        obj.opts.pilot.precalcAlpha = bestNumericalAlpha;
+    end
+    obj.opts.pythia.skip = true;
+    obj.opts.trace.method = 'trace3';
+    obj.opts.trace.PI = 0.6;
+    obj.opts.trace.minInstances = 4;
+    obj.opts.trace.minAreaFrac = 0.01;
+    obj.opts.trace.contra = false;
+    obj.opts = ISAdefaults(ISAvalidateOpts(obj.opts));
+
+    isPLS = strcmpi(obj.opts.pilot.method, 'pls');
+    if isPLS
+        % PRELIM intentionally centres the reference study almost exactly.
+        % A deterministic nonzero shift makes this stage oracle sensitive to
+        % SIMPLS's mandatory internal centring instead of allowing an
+        % uncentred implementation to pass accidentally.
+        obj.model.data = shiftedPilotData(obj.model.data);
+    end
+    obj = obj.build('stages', {'pilot', 'cloister', 'pythia', 'trace'});
+    pilotData = obj.model.data;
+    pilotOut = obj.model.pilot;
+    resolvedOptions = obj.model.opts;
+    if strcmp(variant.solverInput, 'x0')
+        [~, bestIdx] = max(pilotOut.perf);
+        bestNumericalAlpha = pilotOut.alpha(:, bestIdx);
+    end
+
+    resolvedPath = ['resolved_options/' variant.name '.json'];
+    writeJson(struct( ...
+        'schema_version', 'pyinstancespace.resolved-options/v1', ...
+        'name', variant.name, ...
+        'description', variant.desc, ...
+        'options', resolvedOptions), ...
+        [outputRoot resolvedPath]);
+    resolvedVariantRecords{numel(variants) + v} = struct( ...
+        'name', variant.name, ...
+        'description', variant.desc, ...
+        'path', resolvedPath);
+
+    buildRoot = [outputRoot 'build_data/pilot/' variant.name '/'];
+    exportPilotInputs(pilotData, [buildRoot 'inputs/']);
+    exportPilotSolverInputs(resolvedOptions.pilot, variant.solverInput, ...
+        [buildRoot 'inputs/']);
+    exportPilotStageContext(isPLS, nPilotFeatures, nPilotAlgorithms, ...
+        [buildRoot 'inputs/stage_context.json']);
+    exportPilotArtifacts(pilotOut, [buildRoot 'outputs/'], ...
+        pilotData.algolabels);
+
+    % TRACE shares this already-built model and resolved option record.  The
+    % analytic standard 3D PILOT variant is therefore also the native TRACE3
+    % evidence variant; do not rebuild it under an equivalent option name.
+    isTrace3DEvidence = strcmp(variant.name, 'pilot_standard_analytic_3d');
+    if isTrace3DEvidence
+        traceBuildRoot = [outputRoot 'build_data/trace/' variant.name '/'];
+        exportTrace3DInputs(obj.model, [traceBuildRoot 'inputs/']);
+        exportTrace3DArtifacts(obj.model.trace, pilotData.algolabels, ...
+            [traceBuildRoot 'outputs/']);
+    end
+
+    obj = obj.explore(pipelineRoot);
+    testOut = obj.getResults(1);
+    exploreRoot = [outputRoot 'explore_data/pilot/' variant.name '/'];
+    exportPilotExploreInputs(testOut, obj.model, [exploreRoot 'inputs/']);
+    exportPilotExploreArtifacts(testOut, [exploreRoot 'outputs/']);
+    if isTrace3DEvidence
+        traceExploreRoot = [outputRoot 'explore_data/trace/' variant.name '/'];
+        exportTrace3DInputs(testOut, [traceExploreRoot 'inputs/']);
+        exportTraceExploreArtifacts(testOut, [traceExploreRoot 'outputs/']);
     end
 end
 
-writeProvenance(toolkitRoot, outputRoot);
+rmdir(workRoot, 's');
+writeManifest(toolkitRoot, scriptPath, outputRoot, mode, ...
+    resolvedVariantRecords, matlabState, generatorState, matlabRelease, ...
+    installedToolboxes, requiredToolboxes);
+[moved, moveMessage] = movefile(scratchRoot, publishRoot);
+if ~moved
+    error('pyis_export:publishFailed', ...
+        'Could not publish the completed bundle: %s', moveMessage);
+end
 
-fprintf('[EXPORT] Completed in %.1f s. Output written to %s\n', toc(startTime), outputRoot);
+fprintf('[EXPORT] Completed in %.1f s. Output written to %s\n', toc(startTime), publishRoot);
 fprintf('EOF:SUCCESS\n');
 end
 
@@ -198,14 +409,96 @@ end
 % Per-stage export functions
 % =========================================================================
 
-function exportPrelimArtifacts(prelimOut, data, destDir)
+function exportDataSnapshot(data, featlabels, destDir)
+mkdirIfMissing(destDir);
+writeMatrixCSV(data.Xraw, featlabels, data.instlabels(:), [destDir 'x_raw.csv']);
+writeMatrixCSV(data.Yraw, data.algolabels, data.instlabels(:), [destDir 'y_raw.csv']);
+writeMatrixCSV(data.X, featlabels, data.instlabels(:), [destDir 'x_processed.csv']);
+writeMatrixCSV(data.Y, data.algolabels, data.instlabels(:), [destDir 'y_processed.csv']);
+writeMatrixCSV(double(data.Ybin), data.algolabels, data.instlabels(:), [destDir 'y_bin.csv']);
+writeMatrixCSV(data.Ybest(:), {'y_best'}, data.instlabels(:), [destDir 'y_best.csv']);
+writeMatrixCSV(data.P(:), {'p_best_algo'}, data.instlabels(:), [destDir 'p.csv']);
+writeMatrixCSV(double(data.beta(:)), {'beta'}, data.instlabels(:), [destDir 'beta.csv']);
+writeTextCSV(featlabels, 'feature_name', [destDir 'feature_labels.csv']);
+writeTextCSV(data.algolabels, 'algorithm_name', [destDir 'algorithm_labels.csv']);
+end
+
+function exportSiftedInputs(data, destDir)
+mkdirIfMissing(destDir);
+writeMatrixCSV(data.X, data.featlabels, data.instlabels(:), [destDir 'x.csv']);
+writeMatrixCSV(data.Y, data.algolabels, data.instlabels(:), [destDir 'y.csv']);
+writeMatrixCSV(double(data.Ybin), data.algolabels, data.instlabels(:), [destDir 'y_bin.csv']);
+writeTextCSV(data.featlabels, 'feature_name', [destDir 'feature_labels.csv']);
+end
+
+function exportPilotInputs(data, destDir)
+mkdirIfMissing(destDir);
+writeMatrixCSV(data.X, data.featlabels, data.instlabels(:), [destDir 'x.csv']);
+writeMatrixCSV(data.Y, data.algolabels, data.instlabels(:), [destDir 'y.csv']);
+writeTextCSV(data.featlabels, 'feature_name', [destDir 'feature_labels.csv']);
+end
+
+function exportCloisterInputs(X, A, destDir)
+mkdirIfMissing(destDir);
+writeMatrixCSV(X, [], [], [destDir 'x.csv']);
+writeMatrixCSV(A, [], [], [destDir 'projection_a.csv']);
+end
+
+function exportPythiaInputs(model, destDir)
+mkdirIfMissing(destDir);
+writeMatrixCSV(model.pilot.Z, coordinateLabels(size(model.pilot.Z, 2)), ...
+    model.data.instlabels(:), ...
+    [destDir 'z.csv']);
+writeMatrixCSV(model.data.Yraw, model.data.algolabels, model.data.instlabels(:), ...
+    [destDir 'y_raw.csv']);
+writeMatrixCSV(double(model.data.Ybin), model.data.algolabels, model.data.instlabels(:), ...
+    [destDir 'y_bin.csv']);
+writeMatrixCSV(model.data.Ybest(:), {'y_best'}, model.data.instlabels(:), ...
+    [destDir 'y_best.csv']);
+writeTextCSV(model.data.algolabels, 'algorithm_name', [destDir 'algorithm_labels.csv']);
+end
+
+function exportTraceInputs(model, destDir)
+mkdirIfMissing(destDir);
+writeMatrixCSV(model.pilot.Z, coordinateLabels(size(model.pilot.Z, 2)), ...
+    model.data.instlabels(:), ...
+    [destDir 'z.csv']);
+writeMatrixCSV(double(model.data.Ybin), model.data.algolabels, model.data.instlabels(:), ...
+    [destDir 'y_bin.csv']);
+writeMatrixCSV(double(model.pythia.Yhat), model.data.algolabels, model.data.instlabels(:), ...
+    [destDir 'y_hat.csv']);
+writeMatrixCSV(model.data.P(:), {'p_best_algo'}, model.data.instlabels(:), [destDir 'p.csv']);
+writeMatrixCSV(double(model.data.beta(:)), {'beta'}, model.data.instlabels(:), ...
+    [destDir 'beta.csv']);
+writeTextCSV(model.data.algolabels, 'algorithm_name', [destDir 'algorithm_labels.csv']);
+end
+
+function exportTrace3DInputs(model, destDir)
+% Preserve enough precision to distinguish explore points microscopically
+% inside/outside a trained tetrahedral boundary.  The shared writer remains
+% unchanged so every pre-existing v1 and 2D v2 byte contract stays frozen.
+mkdirIfMissing(destDir);
+writeMatrixCSVFullPrecision(model.pilot.Z, coordinateLabels(size(model.pilot.Z, 2)), ...
+    model.data.instlabels(:), [destDir 'z.csv']);
+writeMatrixCSVFullPrecision(double(model.data.Ybin), model.data.algolabels, ...
+    model.data.instlabels(:), [destDir 'y_bin.csv']);
+writeMatrixCSVFullPrecision(double(model.pythia.Yhat), model.data.algolabels, ...
+    model.data.instlabels(:), [destDir 'y_hat.csv']);
+writeMatrixCSVFullPrecision(model.data.P(:), {'p_best_algo'}, ...
+    model.data.instlabels(:), [destDir 'p.csv']);
+writeMatrixCSVFullPrecision(double(model.data.beta(:)), {'beta'}, ...
+    model.data.instlabels(:), [destDir 'beta.csv']);
+writeTextCSV(model.data.algolabels, 'algorithm_name', [destDir 'algorithm_labels.csv']);
+end
+
+function exportPrelimArtifacts(prelimOut, featlabels, algolabels, data, destDir)
 % Exports PRELIM's per-feature/per-algorithm fit parameters and its
 % per-instance outputs. Field names verified directly against
 % core/PRELIM.m's out.* assignments, not assumed.
 mkdirIfMissing(destDir);
 
 featTable = table( ...
-    data.featlabels(:), prelimOut.minX(:), prelimOut.lambdaX(:), prelimOut.muX(:), ...
+    featlabels(:), prelimOut.minX(:), prelimOut.lambdaX(:), prelimOut.muX(:), ...
     prelimOut.sigmaX(:), prelimOut.medval(:), prelimOut.iqrange(:), prelimOut.hibound(:), ...
     prelimOut.lobound(:), ...
     'VariableNames', {'feature_name', 'min_x', 'lambda_x', 'mu_x', 'sigma_x', 'medval', ...
@@ -213,7 +506,7 @@ featTable = table( ...
 writetable(featTable, [destDir 'prelim_feature_params.csv']);
 
 algoTable = table( ...
-    data.algolabels(:), prelimOut.lambdaY(:), prelimOut.muY(:), prelimOut.sigmaY(:), ...
+    algolabels(:), prelimOut.lambdaY(:), prelimOut.muY(:), prelimOut.sigmaY(:), ...
     'VariableNames', {'algo_name', 'lambda_y', 'mu_y', 'sigma_y'});
 writetable(algoTable, [destDir 'prelim_algo_params.csv']);
 
@@ -224,7 +517,7 @@ instTable = table( ...
     prelimOut.beta(:), ...
     'VariableNames', {'instance_id', 'y_best', 'p_best_algo', 'num_good_algos', 'beta'});
 writetable(instTable, [destDir 'prelim_instance_outputs.csv']);
-writeMatrixCSV(prelimOut.Ybin, data.algolabels, data.instlabels(:), [destDir 'prelim_ybin.csv']);
+writeMatrixCSV(prelimOut.Ybin, algolabels, data.instlabels(:), [destDir 'prelim_ybin.csv']);
 end
 
 function exportSiftedArtifacts(siftedOut, destDir)
@@ -252,10 +545,16 @@ if isfield(siftedOut, 'Ksuggested')
     writetable(table(siftedOut.Ksuggested, 'VariableNames', {'k_suggested'}), ...
         [destDir 'sifted_k_suggested.csv']);
 end
-writeMatrixCSV(double(siftedOut.clust), [], [], [destDir 'sifted_clust_membership.csv']);
+if isfield(siftedOut, 'clust') && ~isempty(siftedOut.clust)
+    writeMatrixCSV(double(siftedOut.clust), [], [], [destDir 'sifted_clust_membership.csv']);
+end
+if isfield(siftedOut, 'selvars')
+    writeMatrixCSV(siftedOut.selvars(:), {'selected_index'}, [], ...
+        [destDir 'selected_indices.csv']);
+end
 end
 
-function exportPilotArtifacts(pilotOut, destDir)
+function exportPilotArtifacts(pilotOut, destDir, varargin)
 % pilot.summary is already a labelled cell table (feature name -> A's
 % coefficients per projected dimension) -- export it directly, same
 % pattern output/scriptcsv.m uses for container.pilot.summary, rather
@@ -268,6 +567,8 @@ end
 writeMatrixCSV(pilotOut.A, [], [], [destDir 'pilot_a_raw.csv']);
 writeMatrixCSV(pilotOut.B, [], [], [destDir 'pilot_b.csv']);
 writeMatrixCSV(pilotOut.C, [], [], [destDir 'pilot_c.csv']);
+writeMatrixCSV(pilotOut.Z, coordinateLabels(size(pilotOut.Z, 2)), [], ...
+    [destDir 'pilot_z.csv']);
 writeMatrixCSV(pilotOut.R2(:), {'r2'}, [], [destDir 'pilot_r2.csv']);
 writetable(table(pilotOut.error, 'VariableNames', {'error'}), [destDir 'pilot_error.csv']);
 % eoptim/perf/alpha/X0 only exist on the numerical (non-analytic) solve
@@ -285,6 +586,87 @@ end
 if isfield(pilotOut, 'X0') && ~isempty(pilotOut.X0)
     writeMatrixCSV(pilotOut.X0, [], [], [destDir 'pilot_x0.csv']);
 end
+if isfield(pilotOut, 'viewpoint') && ~isempty(pilotOut.viewpoint)
+    if isempty(varargin)
+        error('pyis_export:missingPilotAlgorithmLabels', ...
+            'Viewpoint export requires algorithm labels.');
+    end
+    exportPilotViewpointArtifacts(pilotOut.viewpoint, varargin{1}, destDir);
+end
+end
+
+function exportPilotSolverInputs(pilotOpts, solverInput, destDir)
+mkdirIfMissing(destDir);
+if strcmp(solverInput, 'x0')
+    writeMatrixCSV(pilotOpts.X0, [], [], [destDir 'x0.csv']);
+elseif strcmp(solverInput, 'precalc')
+    writeMatrixCSV(pilotOpts.precalcAlpha, {'precalc_alpha'}, [], ...
+        [destDir 'precalc_alpha.csv']);
+elseif ~strcmp(solverInput, 'none')
+    error('pyis_export:unknownPilotSolverInput', ...
+        'Unknown PILOT solver-input mode ''%s''.', solverInput);
+end
+end
+
+function exportPilotStageContext(isPLS, nfeatures, nalgorithms, filename)
+if isPLS
+    transform = 'deterministic-column-shift';
+    featureShift = 0.25 * (1:nfeatures);
+    algorithmShift = 0.4 * (1:nalgorithms);
+else
+    transform = 'none';
+    featureShift = [];
+    algorithmShift = [];
+end
+context = struct( ...
+    'schema_version', 'pyinstancespace.pilot-evidence-context/v1', ...
+    'scope', 'pilot-stage', ...
+    'upstream_snapshot', 'build_data/pilot/default/inputs', ...
+    'sifted_effective_pilot_dims', 2, ...
+    'input_transform', transform, ...
+    'feature_shift', featureShift, ...
+    'algorithm_shift', algorithmShift, ...
+    'explore_projection', 'InstanceSpace.explore: Z=X*A'' (uncentred)');
+writeJson(context, filename);
+end
+
+function exportPilotExploreInputs(testOut, trainedModel, destDir)
+mkdirIfMissing(destDir);
+writeMatrixCSV(testOut.data.X, trainedModel.data.featlabels, ...
+    testOut.data.instlabels(:), [destDir 'x.csv']);
+writeMatrixCSV(trainedModel.pilot.A, trainedModel.data.featlabels, ...
+    coordinateLabels(size(trainedModel.pilot.A, 1)), ...
+    [destDir 'projection_a.csv']);
+end
+
+function exportPilotExploreArtifacts(testOut, destDir)
+mkdirIfMissing(destDir);
+writeMatrixCSV(testOut.pilot.Z, coordinateLabels(size(testOut.pilot.Z, 2)), ...
+    testOut.data.instlabels(:), [destDir 'pilot_z.csv']);
+end
+
+function exportPilotViewpointArtifacts(viewpointOut, algolabels, destDir)
+ngroups = numel(viewpointOut.groups);
+groupRows = cell(0, 4);
+matrixRows = zeros(2 * ngroups, 5);
+for g = 1:ngroups
+    members = viewpointOut.groups{g};
+    for member = 1:numel(members)
+        groupRows(end+1, :) = {g, member, members(member), ...
+            algolabels{members(member)}}; %#ok<AGROW>
+    end
+    rows = (2*g-1):(2*g);
+    matrixRows(rows, :) = [repmat(g, 2, 1), (1:2)', viewpointOut.A{g}];
+end
+groupTable = cell2table(groupRows, 'VariableNames', ...
+    {'group', 'member', 'algorithm_index', 'algorithm'});
+writetable(groupTable, [destDir 'viewpoint_groups.csv']);
+matrixTable = array2table(matrixRows, 'VariableNames', ...
+    {'group', 'view_dimension', 'z_1', 'z_2', 'z_3'});
+writetable(matrixTable, [destDir 'viewpoint_a.csv']);
+angleTable = table((1:ngroups)', viewpointOut.azimuth(:), viewpointOut.elevation(:), ...
+    'VariableNames', {'group', 'azimuth', 'elevation'});
+writetable(angleTable, [destDir 'viewpoint_angles.csv']);
 end
 
 function exportCloisterArtifacts(cloistOut, destDir)
@@ -308,13 +690,30 @@ writeMatrixCSV(pythiaOut.Pr0sub, algolabels, [], [destDir 'pr0sub.csv']);
 writeMatrixCSV(pythiaOut.Pr0hat, algolabels, [], [destDir 'pr0hat.csv']);
 writeMatrixCSV(pythiaOut.selection0(:), {'selection0'}, [], [destDir 'selection0.csv']);
 writeMatrixCSV(pythiaOut.selection1(:), {'selection1'}, [], [destDir 'selection1.csv']);
+writeMatrixCSV(pythiaOut.mu, [], [], [destDir 'normalization_mu.csv']);
+writeMatrixCSV(pythiaOut.sigma, [], [], [destDir 'normalization_sigma.csv']);
 
-paramTable = table(algolabels(:), pythiaOut.param1(:), ...
-    'VariableNames', {'algo', 'param1'});
-if isfield(pythiaOut, 'param2') && ~isempty(pythiaOut.param2)
-    paramTable.param2 = pythiaOut.param2(:);
+metrics = table(algolabels(:), pythiaOut.accuracy(:), pythiaOut.precision(:), ...
+    pythiaOut.recall(:), 'VariableNames', ...
+    {'algorithm', 'accuracy', 'precision', 'recall'});
+if isfield(pythiaOut, 'cvcmat') && size(pythiaOut.cvcmat, 2) == 4
+    % PYTHIA stores cm(:)' in MATLAB column-major order: TN,FN,FP,TP.
+    % Export named columns rather than preserving that storage order.
+    metrics.true_negative = pythiaOut.cvcmat(:, 1);
+    metrics.false_positive = pythiaOut.cvcmat(:, 3);
+    metrics.false_negative = pythiaOut.cvcmat(:, 2);
+    metrics.true_positive = pythiaOut.cvcmat(:, 4);
 end
-writetable(paramTable, [destDir 'hyperparameters.csv']);
+writetable(metrics, [destDir 'raw_metrics.csv']);
+
+if isfield(pythiaOut, 'param1') && ~isempty(pythiaOut.param1)
+    paramTable = table(algolabels(:), pythiaOut.param1(:), ...
+        'VariableNames', {'algo', 'param1'});
+    if isfield(pythiaOut, 'param2') && ~isempty(pythiaOut.param2)
+        paramTable.param2 = pythiaOut.param2(:);
+    end
+    writetable(paramTable, [destDir 'hyperparameters.csv']);
+end
 end
 
 function exportTraceArtifacts(traceOut, algolabels, destDir)
@@ -323,13 +722,142 @@ if isfield(traceOut, 'summary') && ~isempty(traceOut.summary)
     writeCellCSV(traceOut.summary(2:end, 2:end), traceOut.summary(1, 2:end), ...
         traceOut.summary(2:end, 1), [destDir 'summary.csv']);
 end
+rows = cell(0, 14);
 for i = 1:numel(algolabels)
-    writeFootprintCSV(traceOut.good{i}, [destDir 'good_' algolabels{i} '.csv']);
-    writeFootprintCSV(traceOut.best{i}, [destDir 'best_' algolabels{i} '.csv']);
+    [goodParts, goodHoles] = writeFootprintCSV(traceOut.good{i}, ...
+        [destDir 'good_' algolabels{i} '.csv']);
+    rows(end+1, :) = footprintMetricRow('good', algolabels{i}, ...
+        traceOut.good{i}, goodParts, goodHoles); %#ok<AGROW>
+    [bestParts, bestHoles] = writeFootprintCSV(traceOut.best{i}, ...
+        [destDir 'best_' algolabels{i} '.csv']);
+    rows(end+1, :) = footprintMetricRow('best', algolabels{i}, ...
+        traceOut.best{i}, bestParts, bestHoles); %#ok<AGROW>
 end
 if isfield(traceOut, 'hard') && ~isempty(traceOut.hard)
-    writeFootprintCSV(traceOut.hard, [destDir 'hard.csv']);
+    [hardParts, hardHoles] = writeFootprintCSV(traceOut.hard, [destDir 'hard.csv']);
+    rows(end+1, :) = footprintMetricRow('hard', '', traceOut.hard, ...
+        hardParts, hardHoles);
 end
+rows(end+1, :) = footprintMetricRow('space', '', traceOut.space, 0, 0);
+metricNames = {'kind', 'algorithm', 'measure', 'measure_label', 'elements', ...
+    'good_elements', 'density', 'purity', 'alpha_radius', 'region_threshold', ...
+    'component_count', 'geometry_part_count', 'hole_count', 'empty'};
+writetable(cell2table(rows, 'VariableNames', metricNames), [destDir 'raw_metrics.csv']);
+end
+
+function exportTrace3DArtifacts(traceOut, algolabels, destDir)
+% Serialize native 3D alpha-complex topology without changing the frozen
+% two-dimensional TRACE artifact contract above.  Every footprint writes
+% all four files, including explicit header-only files when it is empty.
+mkdirIfMissing(destDir);
+if isfield(traceOut, 'summary') && ~isempty(traceOut.summary)
+    writeCellCSV(traceOut.summary(2:end, 2:end), traceOut.summary(1, 2:end), ...
+        traceOut.summary(2:end, 1), [destDir 'summary.csv']);
+end
+
+rows = cell(0, 17);
+for i = 1:numel(algolabels)
+    goodTopology = writeTrace3DMesh(traceOut.good{i}, ...
+        [destDir 'good_' algolabels{i}]);
+    rows(end+1, :) = trace3DMetricRow('good', algolabels{i}, ...
+        traceOut.good{i}, goodTopology); %#ok<AGROW>
+    bestTopology = writeTrace3DMesh(traceOut.best{i}, ...
+        [destDir 'best_' algolabels{i}]);
+    rows(end+1, :) = trace3DMetricRow('best', algolabels{i}, ...
+        traceOut.best{i}, bestTopology); %#ok<AGROW>
+end
+hardTopology = writeTrace3DMesh(traceOut.hard, [destDir 'hard']);
+rows(end+1, :) = trace3DMetricRow('hard', '', traceOut.hard, hardTopology);
+rows(end+1, :) = trace3DSpaceMetricRow(traceOut.space);
+
+metricNames = {'kind', 'algorithm', 'measure', 'measure_label', 'elements', ...
+    'good_elements', 'density', 'purity', 'alpha_radius', 'region_threshold', ...
+    'region_count', 'tetrahedron_count', 'boundary_face_count', ...
+    'alpha_spectrum_count', 'volume', 'surface_area', 'empty'};
+writetable(cell2table(rows, 'VariableNames', metricNames), [destDir 'raw_metrics.csv']);
+end
+
+function topology = writeTrace3DMesh(footprint, prefix)
+vertices = zeros(0, 3);
+tetrahedra = zeros(0, 4);
+faces = zeros(0, 3);
+spectrum = zeros(0, 1);
+regionCount = 0;
+volumeValue = 0;
+surfaceValue = 0;
+alphaRadius = NaN;
+regionThreshold = NaN;
+
+if isfield(footprint, 'polygon') && isa(footprint.polygon, 'alphaShape') && ...
+        size(footprint.polygon.Points, 2) == 3
+    poly = footprint.polygon;
+    vertices = poly.Points;
+    [tetrahedraRaw, tetrahedronPoints] = alphaTriangulation(poly);
+    tetrahedra = trace3DPointIndices(tetrahedronPoints, tetrahedraRaw, vertices);
+    [facesRaw, facePoints] = boundaryFacets(poly);
+    faces = trace3DPointIndices(facePoints, facesRaw, vertices);
+    spectrum = alphaSpectrum(poly);
+    spectrum = spectrum(isfinite(spectrum));
+    spectrum = spectrum(:);
+    regionCount = numRegions(poly);
+    volumeValue = volume(poly);
+    surfaceValue = surfaceArea(poly);
+    alphaRadius = poly.Alpha;
+    regionThreshold = poly.RegionThreshold;
+end
+
+writeIndexedMatrixCSVFullPrecision(vertices, 'vertex', ...
+    (1:size(vertices, 1))', {'z_1', 'z_2', 'z_3'}, [prefix '_vertices.csv']);
+tetrahedronTable = table((1:size(tetrahedra, 1))', tetrahedra(:, 1), ...
+    tetrahedra(:, 2), tetrahedra(:, 3), tetrahedra(:, 4), ...
+    'VariableNames', {'tetrahedron', 'v_1', 'v_2', 'v_3', 'v_4'});
+writetable(tetrahedronTable, [prefix '_tetrahedra.csv']);
+faceTable = table((1:size(faces, 1))', faces(:, 1), faces(:, 2), faces(:, 3), ...
+    'VariableNames', {'face', 'v_1', 'v_2', 'v_3'});
+writetable(faceTable, [prefix '_boundary_faces.csv']);
+writeIndexedMatrixCSVFullPrecision(spectrum, 'spectrum_index', ...
+    (1:numel(spectrum))', {'alpha'}, [prefix '_alpha_spectrum.csv']);
+
+topology = struct('alphaRadius', alphaRadius, ...
+    'regionThreshold', regionThreshold, 'regionCount', regionCount, ...
+    'tetrahedronCount', size(tetrahedra, 1), ...
+    'boundaryFaceCount', size(faces, 1), ...
+    'alphaSpectrumCount', numel(spectrum), 'volume', volumeValue, ...
+    'surfaceArea', surfaceValue, 'empty', isempty(tetrahedra));
+end
+
+function indices = trace3DPointIndices(returnedPoints, connectivity, vertices)
+% alphaTriangulation/boundaryFacets may return their own point array.  Map
+% coordinates explicitly instead of assuming that its indices are poly.Points.
+if isempty(connectivity)
+    indices = zeros(0, size(connectivity, 2));
+    return;
+end
+[found, pointIndices] = ismember(returnedPoints, vertices, 'rows');
+if any(~found)
+    error('pyis_export:trace3DPointMapping', ...
+        'TRACE3 topology contains a point absent from alphaShape.Points.');
+end
+indices = reshape(pointIndices(connectivity), size(connectivity));
+end
+
+function row = trace3DMetricRow(kind, algorithm, footprint, topology)
+row = {kind, algorithm, numericField(footprint, 'measure', 0), ...
+    textField(footprint, 'measureLabel', 'Volume'), ...
+    numericField(footprint, 'elements', 0), ...
+    numericField(footprint, 'goodElements', 0), ...
+    numericField(footprint, 'density', 0), ...
+    numericField(footprint, 'purity', 0), topology.alphaRadius, ...
+    topology.regionThreshold, topology.regionCount, topology.tetrahedronCount, ...
+    topology.boundaryFaceCount, topology.alphaSpectrumCount, topology.volume, ...
+    topology.surfaceArea, topology.empty};
+end
+
+function row = trace3DSpaceMetricRow(space)
+measure = numericField(space, 'measure', 0);
+row = {'space', '', measure, textField(space, 'measureLabel', 'Volume'), ...
+    numericField(space, 'elements', 0), NaN, numericField(space, 'density', 0), ...
+    numericField(space, 'purity', 1), NaN, NaN, 0, 0, 0, 0, measure, NaN, true};
 end
 
 function exportPythiaExploreArtifacts(testOut, destDir)
@@ -374,46 +902,9 @@ writeMatrixCSV(double(membership), membershipCols, testOut.data.instlabels(:), .
     [destDir 'membership.csv']);
 end
 
-function exportLegacyExploreLayout(testOut, destExplore)
-% Reproduces tests/matlab_reference/explore_outputs/'s existing flat
-% layout exactly (see that directory's own README.md for the full
-% field-by-field description) -- called once, for the 'default' variant
-% only, so this script's output stays a byte-for-byte drop-in replacement
-% for that existing fixture set rather than a same-data-different-name
-% reshuffle of it.
-mkdirIfMissing(destExplore);
-writeMatrixCSV(testOut.data.X, testOut.data.featlabels, testOut.data.instlabels(:), ...
-    [destExplore 'step1_after_prelim.csv']);
-% SIFTED's selection is already applied to testOut.data.X via
-% out.featsel.idx inside evaluateTestSet -- step2 is a duplicate of step1
-% under this class-based flow (unlike the older exploreIS.m script path),
-% recorded here rather than silently reproduced as an identical file so a
-% future reader isn't left guessing why the two match.
-writeMatrixCSV(testOut.data.X, testOut.data.featlabels, testOut.data.instlabels(:), ...
-    [destExplore 'step2_after_sifted.csv']);
-zcols = arrayfun(@(i) sprintf('z%d', i), 1:size(testOut.pilot.Z, 2), 'UniformOutput', false);
-writeMatrixCSV(testOut.pilot.Z, zcols, testOut.data.instlabels(:), ...
-    [destExplore 'step3_after_pilot.csv']);
-writeMatrixCSV(double(testOut.pythia.Yhat), testOut.data.algolabels, testOut.data.instlabels(:), ...
-    [destExplore 'step4_pythia_predictions.csv']);
-writeMatrixCSV(testOut.pythia.Pr0hat, testOut.data.algolabels, testOut.data.instlabels(:), ...
-    [destExplore 'step4_pythia_probabilities.csv']);
-
-membershipCols = [{'in_space'}, ...
-    strcat('in_good_', testOut.data.algolabels(:)'), ...
-    strcat('in_best_', testOut.data.algolabels(:)')];
-inSpace = true(size(testOut.data.instlabels(:))); % CLOISTER-derived; not validated, see README
-membership = [inSpace, footprintMembership(testOut.trace.good, testOut.pilot.Z), ...
-    footprintMembership(testOut.trace.best, testOut.pilot.Z)];
-writeMatrixCSV(double(membership), membershipCols, testOut.data.instlabels(:), ...
-    [destExplore 'step5_trace_membership.csv']);
-end
-
 function membership = footprintMembership(footprints, Z)
-% polyshape's containment test is isinterior(poly,x,y); alphaShape's is
-% inShape(shp,x,y) -- different method names for the two polygon types
-% TRACE can return (legacy vs. TRACE3, the current default), dispatched
-% on explicitly rather than assuming one applies to both.
+% polyshape is two-dimensional; alphaShape accepts the complete point
+% matrix, which is dimension-generic and is required for native 3D TRACE3.
 membership = false(size(Z, 1), numel(footprints));
 for i = 1:numel(footprints)
     if ~isfield(footprints{i}, 'polygon') || isempty(footprints{i}.polygon)
@@ -423,7 +914,7 @@ for i = 1:numel(footprints)
     if isa(poly, 'polyshape')
         membership(:, i) = isinterior(poly, Z(:, 1), Z(:, 2));
     elseif isa(poly, 'alphaShape')
-        membership(:, i) = inShape(poly, Z(:, 1), Z(:, 2));
+        membership(:, i) = inShape(poly, Z);
     end
 end
 end
@@ -441,6 +932,7 @@ function writeMatrixCSV(data, colNames, rowNames, filename)
 if isempty(data)
     return;
 end
+
 if isempty(colNames)
     colNames = arrayfun(@(i) sprintf('col_%d', i), 1:size(data, 2), 'UniformOutput', false);
 end
@@ -451,6 +943,60 @@ if ~isempty(rowNames)
     writetable(t, filename, 'WriteRowNames', true);
 else
     writetable(t, filename);
+end
+end
+
+function writeMatrixCSVFullPrecision(data, colNames, rowNames, filename)
+if isempty(colNames)
+    colNames = arrayfun(@(i) sprintf('col_%d', i), 1:size(data, 2), ...
+        'UniformOutput', false);
+end
+if isempty(rowNames)
+    writeIndexedMatrixCSVFullPrecision(data, '', zeros(size(data, 1), 1), ...
+        colNames, filename);
+else
+    writeIndexedMatrixCSVFullPrecision(data, 'Row', rowNames, colNames, filename);
+end
+end
+
+function writeIndexedMatrixCSVFullPrecision(data, indexName, indexValues, ...
+        colNames, filename)
+mkdirIfMissing(fileparts(filename));
+fid = fopen(filename, 'w');
+if fid == -1
+    error('pyis_export:csvWriteFailed', 'Could not open ''%s'' for writing.', filename);
+end
+cleanupObj = onCleanup(@() fclose(fid));
+if ~isempty(indexName)
+    fprintf(fid, '%s,', escapeCsvText(indexName));
+end
+for column = 1:numel(colNames)
+    if column > 1
+        fprintf(fid, ',');
+    end
+    fprintf(fid, '%s', escapeCsvText(colNames{column}));
+end
+fprintf(fid, '\n');
+for row = 1:size(data, 1)
+    if ~isempty(indexName)
+        fprintf(fid, '%s,', escapeCsvText(indexValues(row)));
+    end
+    for column = 1:size(data, 2)
+        if column > 1
+            fprintf(fid, ',');
+        end
+        fprintf(fid, '%.17g', data(row, column));
+    end
+    fprintf(fid, '\n');
+end
+clear cleanupObj;
+end
+
+function escaped = escapeCsvText(value)
+escaped = char(string(value));
+escaped = strrep(escaped, '"', '""');
+if contains(escaped, {',', '"', newline})
+    escaped = ['"' escaped '"'];
 end
 end
 
@@ -471,75 +1017,148 @@ else
 end
 end
 
-function writeFootprintCSV(footprint, filename)
-% Exports a single footprint's boundary as an (x, y) vertex list, with a
-% blank row delimiting separate regions -- the convention
-% tests/matlab_reference/README.md already documents. Handles both
-% polyshape (legacy TRACE) and alphaShape (TRACE3, the current default),
-% matching output/scriptcsv.m's own footprintBoundary/traceAlphaBoundary
-% logic for the alphaShape case.
-if ~isfield(footprint, 'polygon') || isempty(footprint.polygon)
-    return; % empty footprint -- a missing file already means this, per README
-end
-poly = footprint.polygon;
-if isa(poly, 'polyshape')
-    verts = poly.Vertices;
-elseif isa(poly, 'alphaShape')
-    if size(poly.Points, 2) ~= 2
-        return; % 3D boundary export not supported here either, see scriptcsv.m
+function [partCount, holeCount] = writeFootprintCSV(footprint, filename)
+% Serialize every disconnected component and interior ring without false
+% connecting edges. Empty footprints are explicit header-only CSV files.
+cycles = {};
+partIds = zeros(1, 0);
+ringNames = cell(1, 0);
+isHole = false(1, 0);
+if isfield(footprint, 'polygon') && ~isempty(footprint.polygon)
+    poly = footprint.polygon;
+    if isa(poly, 'polyshape') || ...
+            (isa(poly, 'alphaShape') && size(poly.Points, 2) == 2)
+        [cycles, partIds, ringNames, isHole] = footprintBoundaryRings(poly);
     end
-    [bf, bv] = boundaryFacets(poly);
-    if isempty(bf)
-        return;
-    end
-    verts = traceAlphaBoundary(bf, bv);
-else
-    return;
-end
-if isempty(verts)
-    return;
-end
-writetable(array2table(verts, 'VariableNames', {'x', 'y'}), filename);
 end
 
-function verts = traceAlphaBoundary(bf, bv)
-% Verbatim port of output/scriptcsv.m's traceAlphaBoundary: traces an
-% ordered closed polygon from a 2-D boundary-facets edge list. Works
-% correctly for simple (single-region) connected alpha shapes; footprints
-% with multiple disjoint regions are not stitched with NaN delimiters by
-% this port -- flagged here rather than silently producing a
-% mis-ordered vertex list. Left as a follow-up if a multi-region
-% alphaShape footprint is ever needed for a new fixture.
-n = size(bv, 1);
-if n == 0
-    verts = [];
+partCount = sum(~isHole);
+holeCount = sum(isHole);
+partColumn = zeros(0, 1);
+ringColumn = strings(0, 1);
+vertexColumn = zeros(0, 1);
+holeColumn = false(0, 1);
+z1 = zeros(0, 1);
+z2 = zeros(0, 1);
+for i = 1:numel(cycles)
+    coordinates = cycles{i};
+    nvertices = size(coordinates, 1);
+    partColumn = [partColumn; repmat(partIds(i), nvertices, 1)]; %#ok<AGROW>
+    ringColumn = [ringColumn; repmat(string(ringNames{i}), nvertices, 1)]; %#ok<AGROW>
+    vertexColumn = [vertexColumn; (1:nvertices)']; %#ok<AGROW>
+    holeColumn = [holeColumn; repmat(isHole(i), nvertices, 1)]; %#ok<AGROW>
+    z1 = [z1; coordinates(:, 1)]; %#ok<AGROW>
+    z2 = [z2; coordinates(:, 2)]; %#ok<AGROW>
+end
+boundaryTable = table(partColumn, ringColumn, vertexColumn, holeColumn, z1, z2, ...
+    'VariableNames', {'part', 'ring', 'vertex', 'is_hole', 'z_1', 'z_2'});
+mkdirIfMissing(fileparts(filename));
+writetable(boundaryTable, filename);
+end
+
+function cycles = splitBoundaryCoordinates(x, y)
+if iscell(x)
+    cycles = cell(1, numel(x));
+    for i = 1:numel(x)
+        cycles{i} = removeClosingVertex([x{i}(:), y{i}(:)]);
+    end
     return;
 end
-adj = zeros(n, 2);
-cnt = zeros(n, 1);
-for k = 1:size(bf, 1)
-    v1 = bf(k, 1);
-    v2 = bf(k, 2);
-    cnt(v1) = cnt(v1) + 1;
-    if cnt(v1) <= 2, adj(v1, cnt(v1)) = v2; end
-    cnt(v2) = cnt(v2) + 1;
-    if cnt(v2) <= 2, adj(v2, cnt(v2)) = v1; end
-end
-order = zeros(n, 1);
-order(1) = 1;
-prev = 0;
-curr = 1;
-for k = 2:n
-    nxt = adj(curr, adj(curr, :) ~= prev & adj(curr, :) ~= 0);
-    if isempty(nxt)
-        break;
+coordinates = [x(:), y(:)];
+separators = [0; find(any(isnan(coordinates), 2)); size(coordinates, 1) + 1];
+cycles = {};
+for i = 1:numel(separators)-1
+    segment = coordinates(separators(i)+1:separators(i+1)-1, :);
+    if ~isempty(segment)
+        cycles{end+1} = removeClosingVertex(segment); %#ok<AGROW>
     end
-    order(k) = nxt(1);
-    prev = curr;
-    curr = order(k);
 end
-valid = order ~= 0;
-verts = bv(order(valid), :);
+end
+
+function coordinates = removeClosingVertex(coordinates)
+if size(coordinates, 1) > 1 && isequal(coordinates(1, :), coordinates(end, :))
+    coordinates(end, :) = [];
+end
+end
+
+function [cycles, partIds, ringNames, isHole] = footprintBoundaryRings(poly)
+if isa(poly, 'alphaShape')
+    [triangles, points] = alphaTriangulation(poly);
+    polygon = polyshape();
+    for i = 1:size(triangles, 1)
+        coordinates = points(triangles(i, :), :);
+        polygon = union(polygon, polyshape(coordinates(:, 1), coordinates(:, 2), ...
+            'Simplify', false));
+    end
+else
+    polygon = poly;
+end
+
+parts = regions(polygon);
+cycles = {};
+partIds = zeros(1, 0);
+ringNames = cell(1, 0);
+isHole = false(1, 0);
+for part = 1:numel(parts)
+    [x, y] = boundary(parts(part));
+    partCycles = splitBoundaryCoordinates(x, y);
+    if isempty(partCycles)
+        continue;
+    end
+    areas = cellfun(@(coordinates) abs(polyarea(coordinates(:, 1), ...
+        coordinates(:, 2))), partCycles);
+    [~, exterior] = max(areas);
+    holeNumber = 0;
+    for ring = 1:numel(partCycles)
+        cycles{end+1} = partCycles{ring}; %#ok<AGROW>
+        partIds(end+1) = part; %#ok<AGROW>
+        isHole(end+1) = ring ~= exterior; %#ok<AGROW>
+        if ring == exterior
+            ringNames{end+1} = 'exterior'; %#ok<AGROW>
+        else
+            holeNumber = holeNumber + 1;
+            ringNames{end+1} = sprintf('hole_%d', holeNumber); %#ok<AGROW>
+        end
+    end
+end
+end
+
+function row = footprintMetricRow(kind, algorithm, footprint, parts, holes)
+measure = numericField(footprint, 'measure', numericField(footprint, 'area', 0));
+measureLabel = textField(footprint, 'measureLabel', 'Area');
+elements = numericField(footprint, 'elements', 0);
+goodElements = numericField(footprint, 'goodElements', NaN);
+density = numericField(footprint, 'density', 0);
+purity = numericField(footprint, 'purity', 0);
+alphaRadius = NaN;
+regionThreshold = NaN;
+componentCount = parts;
+if isfield(footprint, 'polygon') && isa(footprint.polygon, 'alphaShape')
+    alphaRadius = footprint.polygon.Alpha;
+    regionThreshold = footprint.polygon.RegionThreshold;
+    componentCount = numRegions(footprint.polygon);
+elseif isfield(footprint, 'polygon') && isa(footprint.polygon, 'polyshape')
+    componentCount = numel(regions(footprint.polygon));
+end
+empty = ~isfield(footprint, 'polygon') || isempty(footprint.polygon);
+row = {kind, algorithm, measure, measureLabel, elements, goodElements, density, ...
+    purity, alphaRadius, regionThreshold, componentCount, parts, holes, empty};
+end
+
+function value = numericField(container, name, fallback)
+if isfield(container, name) && isnumeric(container.(name)) && isscalar(container.(name))
+    value = container.(name);
+else
+    value = fallback;
+end
+end
+
+function value = textField(container, name, fallback)
+if isfield(container, name) && (ischar(container.(name)) || isstring(container.(name)))
+    value = char(container.(name));
+else
+    value = fallback;
+end
 end
 
 function names = sanitizeNames(names)
@@ -555,6 +1174,34 @@ names = matlab.lang.makeValidName(cellstr(names));
 names = matlab.lang.makeUniqueStrings(names);
 end
 
+function labels = coordinateLabels(dims)
+labels = arrayfun(@(index) sprintf('z_%d', index), 1:dims, ...
+    'UniformOutput', false);
+end
+
+function X0 = deterministicStarts(rows, ntries)
+state = rng;
+cleanupObj = onCleanup(@() rng(state));
+rng('default');
+X0 = 2 * rand(rows, ntries) - 1;
+end
+
+function data = shiftedPilotData(data)
+featureShift = 0.25 * (1:size(data.X, 2));
+algorithmShift = 0.4 * (1:size(data.Y, 2));
+data.X = data.X + featureShift;
+data.Y = data.Y + algorithmShift;
+end
+
+function [featlabels, algolabels] = readMetadataLabels(filename)
+metadata = readtable(filename, 'VariableNamingRule', 'preserve');
+names = metadata.Properties.VariableNames;
+featlabels = names(startsWith(names, 'feature_', 'IgnoreCase', true));
+algolabels = names(startsWith(names, 'algo_', 'IgnoreCase', true));
+featlabels = regexprep(featlabels, '^feature_', '', 'ignorecase');
+algolabels = regexprep(algolabels, '^algo_', '', 'ignorecase');
+end
+
 function mkdirIfMissing(d)
 if ~isfolder(d)
     mkdir(d);
@@ -567,45 +1214,165 @@ if ~(endsWith(s, '/') || endsWith(s, '\'))
 end
 end
 
-function writeProvenance(toolkitRoot, outputRoot)
-% Records exactly which MATLAB commit/version produced this export --
-% T5's actual ask (roadmap docs/pyIS_docs_quality_roadmap.md). Commit
-% this file alongside any regenerated fixture set.
-commit = gitCommit(toolkitRoot);
-toolkitVersion = readToolkitVersion(toolkitRoot);
+function writeTextCSV(values, columnName, filename)
+mkdirIfMissing(fileparts(filename));
+textTable = table(string(values(:)), 'VariableNames', {columnName});
+writetable(textTable, filename);
+end
 
-provenance = struct( ...
-    'matlab_commit', commit, ...
-    'matlab_repo', 'https://github.com/andremun/InstanceSpace', ...
-    'toolkit_version', toolkitVersion, ...
-    'dataset', 'test/data/metadata.csv + metadata_test.csv (Munoz et al. 2018 study)', ...
-    'generated_at', string(datetime('now', 'TimeZone', 'UTC'), 'yyyy-MM-dd''T''HH:mm:ss''Z'''), ...
-    'generator_script', 'pyis_export_reference_data.m', ...
-    'matlab_version', version());
-
-fid = fopen([outputRoot 'provenance.json'], 'w');
+function writeJson(value, filename)
+mkdirIfMissing(fileparts(filename));
+encoded = jsonencode(value, 'PrettyPrint', true);
+fid = fopen(filename, 'w');
 if fid == -1
-    warning('pyis_export:provenanceWriteFailed', ...
-        'Could not write provenance.json to ''%s''.', outputRoot);
-    return;
+    error('pyis_export:jsonWriteFailed', 'Could not open ''%s'' for writing.', filename);
 end
-fprintf(fid, '%s', jsonencode(provenance, 'PrettyPrint', true));
-fclose(fid);
+written = fprintf(fid, '%s\n', encoded);
+closeStatus = fclose(fid);
+if written <= 0 || closeStatus ~= 0
+    error('pyis_export:jsonWriteFailed', 'Could not write complete JSON to ''%s''.', filename);
+end
 end
 
-function commit = gitCommit(toolkitRoot)
-commit = 'unknown';
-try
-    originalDir = pwd();
-    cleanupObj = onCleanup(@() cd(originalDir)); %#ok<NASGU>
-    cd(toolkitRoot);
-    [status, cmdOut] = system('git rev-parse HEAD');
-    if status == 0
-        commit = strtrim(cmdOut);
+function writeManifest(toolkitRoot, scriptPath, outputRoot, mode, ...
+        resolvedVariantRecords, matlabState, generatorState, matlabRelease, ...
+        installedToolboxes, requiredToolboxes)
+listing = dir(fullfile(outputRoot, '**', '*'));
+listing = listing(~[listing.isdir]);
+files = repmat(struct('path', '', 'sha256', '', 'size_bytes', 0, ...
+    'media_type', '', 'role', '', 'phase', '', 'stage', '', 'variant', '', ...
+    'empty', false, 'rows', 0, 'columns', 0), 1, numel(listing));
+for i = 1:numel(listing)
+    fullPath = fullfile(listing(i).folder, listing(i).name);
+    relativePath = strrep(fullPath(numel(outputRoot)+1:end), '\', '/');
+    [phase, stage, variant, role] = describeManifestPath(relativePath);
+    [~, ~, extension] = fileparts(fullPath);
+    if strcmpi(extension, '.csv')
+        mediaType = 'text/csv';
+        % The fixture format is always comma-delimited.  Letting readtable
+        % infer a delimiter can misclassify underscores in one-column label
+        % files and record an incorrect manifest shape.
+        csvTable = readtable(fullPath, 'Delimiter', ',', ...
+            'VariableNamingRule', 'preserve', 'TextType', 'string');
+        rows = height(csvTable);
+        columns = width(csvTable);
+        empty = rows == 0;
+    elseif strcmpi(extension, '.json')
+        mediaType = 'application/json';
+        rows = 0;
+        columns = 0;
+        empty = false;
+    else
+        error('pyis_export:unknownFileType', ...
+            'Manifest cannot classify exported file ''%s''.', relativePath);
     end
-catch
-    % Leave 'unknown' -- not being able to shell out to git shouldn't
-    % abort the whole export.
+    files(i) = struct('path', relativePath, 'sha256', sha256File(fullPath), ...
+        'size_bytes', listing(i).bytes, 'media_type', mediaType, 'role', role, ...
+        'phase', phase, 'stage', stage, 'variant', variant, 'empty', empty, ...
+        'rows', rows, 'columns', columns);
+end
+[~, order] = sort({files.path});
+files = files(order);
+
+if strcmp(mode, 'verified')
+    trust = 'matlab-verified';
+else
+    trust = 'matlab-diagnostic';
+end
+resolvedOptions = struct();
+resolvedOptions.schema_version = 'pyinstancespace.resolved-options-index/v1';
+resolvedOptions.variants = [resolvedVariantRecords{:}];
+manifest = struct();
+manifest.schema_version = 'pyinstancespace.matlab-fixtures/v1';
+manifest.profile = 'pyinstancespace.reference-export/v2';
+manifest.bundle_id = 'reference-current';
+manifest.trust = trust;
+manifest.generated_at = string(datetime('now', 'TimeZone', 'UTC'), ...
+    'yyyy-MM-dd''T''HH:mm:ss.SSSXXX');
+manifest.dataset = struct('name', 'InstanceSpace reference study', 'seed', 42, ...
+    'training_input', 'shared_inputs/reference/metadata.csv', ...
+    'test_input', 'shared_inputs/reference/metadata_test.csv');
+manifest.resolved_options = resolvedOptions;
+manifest.matlab = struct('repo_commit', matlabState.commit, ...
+    'repo_dirty', matlabState.dirty, 'toolkit_version', readToolkitVersion(toolkitRoot), ...
+    'release', matlabRelease, 'version', version(), 'platform', computer(), ...
+    'installed_toolboxes', {installedToolboxes}, ...
+    'required_toolboxes', {requiredToolboxes});
+manifest.generator = struct('repo_commit', generatorState.commit, ...
+    'repo_dirty', generatorState.dirty, ...
+    'script', 'tests/matlab_export/pyis_export_reference_data.m', ...
+    'script_sha256', sha256File(scriptPath));
+manifest.files = files;
+writeJson(manifest, [outputRoot 'manifest.json']);
+end
+
+function [phase, stage, variant, role] = describeManifestPath(relativePath)
+parts = strsplit(relativePath, '/');
+role = relativePath;
+if strcmp(parts{1}, 'shared_inputs') || strcmp(parts{1}, 'resolved_options')
+    phase = 'shared';
+    stage = '';
+    if numel(parts) >= 2
+        variant = erase(parts{2}, '.json');
+    else
+        variant = 'reference';
+    end
+elseif strcmp(parts{1}, 'build_data') || strcmp(parts{1}, 'explore_data')
+    phase = erase(parts{1}, '_data');
+    if numel(parts) < 4
+        error('pyis_export:badLayout', 'Unexpected exported path ''%s''.', relativePath);
+    end
+    stage = parts{2};
+    variant = parts{3};
+else
+    error('pyis_export:badLayout', 'Unexpected exported path ''%s''.', relativePath);
+end
+end
+
+function state = gitState(root)
+originalDir = pwd();
+cleanupObj = onCleanup(@() cd(originalDir));
+cd(root);
+[commitStatus, commitOutput] = system('git rev-parse --verify HEAD');
+if commitStatus ~= 0
+    error('pyis_export:unknownCommit', ...
+        'Cannot resolve the Git commit for ''%s''.', root);
+end
+commit = lower(strtrim(commitOutput));
+if isempty(regexp(commit, '^[0-9a-f]{40}$', 'once'))
+    error('pyis_export:unknownCommit', ...
+        'Git returned an invalid commit for ''%s'': %s', root, commit);
+end
+[dirtyStatus, dirtyOutput] = system('git status --porcelain --untracked-files=all');
+if dirtyStatus ~= 0
+    error('pyis_export:gitStatusFailed', ...
+        'Cannot inspect repository cleanliness for ''%s''.', root);
+end
+state = struct('commit', commit, 'dirty', ~isempty(strtrim(dirtyOutput)));
+end
+
+function digest = sha256File(filename)
+fid = fopen(filename, 'r');
+if fid == -1
+    error('pyis_export:hashReadFailed', 'Could not read ''%s'' for hashing.', filename);
+end
+bytes = fread(fid, Inf, '*uint8');
+closeStatus = fclose(fid);
+if closeStatus ~= 0
+    error('pyis_export:hashReadFailed', 'Could not close ''%s'' after hashing.', filename);
+end
+messageDigest = java.security.MessageDigest.getInstance('SHA-256');
+messageDigest.update(bytes);
+rawDigest = typecast(messageDigest.digest(), 'uint8');
+digest = lower(reshape(dec2hex(rawDigest, 2).', 1, []));
+end
+
+function cleanupTemporaryRoots(scratchRoot, workRoot)
+if isfolder(workRoot)
+    rmdir(workRoot, 's');
+end
+if isfolder(scratchRoot)
+    rmdir(scratchRoot, 's');
 end
 end
 
@@ -613,10 +1380,15 @@ function v = readToolkitVersion(toolkitRoot)
 v = 'unknown';
 contentsFile = [toolkitRoot 'Contents.m'];
 if ~isfile(contentsFile)
-    return;
+    error('pyis_export:unknownToolkitVersion', ...
+        'Contents.m was not found in ''%s''.', toolkitRoot);
 end
 lines = strsplit(fileread(contentsFile), newline);
 if numel(lines) >= 2
     v = strtrim(regexprep(lines{2}, '^%\s*', ''));
+end
+if strcmp(v, 'unknown') || isempty(v)
+    error('pyis_export:unknownToolkitVersion', ...
+        'Could not read the toolkit version from ''%s''.', contentsFile);
 end
 end

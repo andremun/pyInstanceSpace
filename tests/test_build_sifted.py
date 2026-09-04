@@ -19,21 +19,24 @@ Tests includes:
 
 import dataclasses
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pandas as pd
 import pytest
 from numpy.typing import NDArray
 from sklearn.cluster import KMeans
+from sklearn.metrics import adjusted_rand_score
 
 from instancespace.data.model import DataDense
 from instancespace.data.options import (
     GeneralOptions,
     ParallelOptions,
+    PilotOptions,
     SelvarsOptions,
     SiftedOptions,
 )
-from instancespace.stages.sifted import SiftedInput, SiftedStage
+from instancespace.stages.sifted import SiftedInput, SiftedOutput, SiftedStage
 
 
 class SiftedMatlabInput:
@@ -197,11 +200,7 @@ def test_select_features_by_performance() -> None:
 
 
 def test_select_features_by_clustering() -> None:
-    """Test cluster selection against MATLAB's cluster selection output.
-
-    Despite the difference in cluster labels, we ensure that the number of items in
-    python's cluster are 80% same as items in matlab's cluster.
-    """
+    """Match the historical MATLAB partition independent of label numbering."""
     rng = np.random.default_rng(seed=0)
     inputs = SiftedMatlabInput()
     sifted = SiftedStage(
@@ -230,9 +229,8 @@ def test_select_features_by_clustering() -> None:
 def are_same_clusters(
     cluster_a: NDArray[np.intc],
     cluster_b: NDArray[np.intc],
-    threshold: float = 0.8,
 ) -> bool:
-    """Check if two clusters have same number of elements more than threshold set.
+    """Return whether two label arrays encode exactly the same partition.
 
     Parameters
     ----------
@@ -240,49 +238,38 @@ def are_same_clusters(
         The first cluster.
     cluster_b : NDArray[np.intc]
         The second cluster.
-    threshold : float, optional
-        The min ratio of matching elements between the two clusters (default is 0.8).
-
     Returns
     -------
     bool
-        True if the number of matching elements exceeds the threshold, False otherwise.
+        True when the partitions are identical modulo cluster-label permutation.
     """
-    cluster_a = np.array(cluster_a)
-    cluster_b = np.array(cluster_b)
-
-    unique_labels_a = np.unique(cluster_a)
-    total_elements = len(cluster_a)
-    matching_elements = 0
-
-    for label in unique_labels_a:
-        indices_a = np.where(cluster_a == label)[0]
-
-        # Find the corresponding label in B for the same indices
-        label_in_b = cluster_b[indices_a[0]]
-
-        # Count the number of matching labels in B for these indices
-        matches = np.sum(cluster_b[indices_a] == label_in_b)
-        matching_elements += matches
-
-    match_ratio = matching_elements / total_elements
-
-    return bool(match_ratio >= threshold)
+    labels_a = np.asarray(cluster_a).reshape(-1)
+    labels_b = np.asarray(cluster_b).reshape(-1)
+    if labels_a.shape != labels_b.shape or labels_a.size == 0:
+        return False
+    return bool(adjusted_rand_score(labels_a, labels_b) == 1.0)
 
 
-def test_run() -> None:
-    """Test the _run method of Sifted class.
+def test_cluster_comparison_rejects_collapsed_partition() -> None:
+    """Merging distinct reference clusters must never count as a match."""
+    reference = np.array([0, 0, 1, 1, 2, 2], dtype=np.intc)
+    collapsed = np.zeros(reference.shape, dtype=np.intc)
 
-    Given the output of sifted stage of matlab and python, compute the correlation
-    between them. Check for each column and row, there's only one value that has high
-    correlation (>0.9) and other correlation values are low (<0.9)
+    assert not are_same_clusters(reference, collapsed)
+
+
+def test_run_returns_exact_selected_source_columns() -> None:
+    """Keep selected values, indices, and labels on one exact column mapping.
+
+    The verified current-MATLAB suite separately pins the selected indices themselves.
+    This reduced-budget regression checks the aggregate output contract without using
+    a permissive categorical-correlation score against an older stochastic snapshot.
+    In particular, fabricated or numerically altered output columns must fail.
     """
     inputs = SiftedMatlabInput()
-    # The GA's default budget (100 generations x 50 pop) takes ~5 minutes here;
-    # the correlation-matrix check below is a fuzzy high/normal/low comparison
-    # (not an exact-match assertion), so it doesn't depend on exactly how
-    # thoroughly the GA searched - a much smaller budget still converges on
-    # good-enough feature combinations and cuts this test to a few seconds.
+    # The GA's default budget (100 generations x 50 population) takes about five
+    # minutes here. The exact output-mapping invariant does not depend on search
+    # thoroughness, so a smaller budget still exercises the complete path quickly.
     fast_opts = dataclasses.replace(
         inputs.opts,
         num_generations=5,
@@ -310,24 +297,67 @@ def test_run() -> None:
         general_options=GeneralOptions.default(),
     )
 
-    sifted_output = SiftedStage._run(sifted_input)  # noqa: SLF001
-    x_python, x_matlab = sifted_output[0], SiftedMatlabOutput().x_matlab
-    df_python = pd.DataFrame(x_python)
-    df_matlab = pd.DataFrame(x_matlab)
+    sifted_output = SiftedStage._run(sifted_input)
+    selected = sifted_output.selvars
 
-    # compute correlation matrix that has been categorised into high, normal and low
-    correlation_matrix = compute_correlation(df_python, df_matlab)
+    assert selected.ndim == 1
+    assert selected.size == np.unique(selected).size
+    assert np.all((selected >= 0) & (selected < inputs.x.shape[1]))
+    np.testing.assert_array_equal(sifted_output.x, inputs.x[:, selected])
+    assert (
+        sifted_output.feat_labels == np.asarray(inputs.feat_labels)[selected].tolist()
+    )
 
-    # test case pass if 70%
-    assert correlation_matrix_check(correlation_matrix, threshold=0.5)
+
+def test_run_derives_sifted_dims_from_outer_pilot_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The aggregate pipeline has one PILOT-owned dimensionality setting."""
+    captured: dict[str, SiftedOptions] = {}
+    expected = cast(SiftedOutput, object())
+    dims = 3
+
+    def _capture_sifted(**kwargs: object) -> SiftedOutput:
+        captured["opts"] = cast(SiftedOptions, kwargs["opts"])
+        return expected
+
+    monkeypatch.setattr(SiftedStage, "sifted", _capture_sifted)
+    matrix = np.zeros((1, 1), dtype=np.double)
+    result = SiftedStage._run(
+        SiftedInput(
+            x=matrix,
+            y=matrix,
+            y_bin=np.zeros((1, 1), dtype=np.bool_),
+            x_raw=matrix,
+            y_raw=matrix,
+            beta=np.zeros(1, dtype=np.bool_),
+            num_good_algos=np.zeros(1, dtype=np.double),
+            y_best=np.zeros(1, dtype=np.double),
+            p=np.ones(1, dtype=np.int_),
+            inst_labels=pd.Series(["instance"]),
+            feat_labels=["feature"],
+            s=None,
+            sifted_options=SiftedOptions.default(dims=2),
+            selvars_options=SelvarsOptions.default(),
+            data_dense=None,
+            parallel_options=ParallelOptions.default(),
+            general_options=GeneralOptions.default(),
+            pilot_options=PilotOptions.default(dims=dims),
+        ),
+    )
+
+    assert result is expected
+    assert captured["opts"].dims == dims
 
 
-def test_sifted_seed_reproducibility() -> None:
-    """Same seed gives identical selvars; a different seed gives different selvars.
+def test_sifted_seed_reproducibility(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Same seed reproduces selection while distinct seeds initialize distinct RNGs.
 
     Regression test for Q9 (general.seed threading): a cheap GA configuration
     (few generations/population) keeps this test fast while still exercising
-    the clustering and GA code paths that consume the seeded rng.
+    the clustering and GA code paths that consume the seeded RNG. Different seeds
+    are not required to produce different selected features: both searches may
+    legitimately converge to the same optimum.
     """
     inputs = SiftedMatlabInput()
     fast_opts = dataclasses.replace(
@@ -338,7 +368,20 @@ def test_sifted_seed_reproducibility() -> None:
         keep_elitism=1,
     )
 
-    def run(seed: int) -> NDArray[np.intc]:
+    rng_states: list[str] = []
+    original_evaluate_cluster = SiftedStage.evaluate_cluster
+
+    def capture_rng_state(
+        self: SiftedStage,
+        x_aux: NDArray[np.double],
+        rng: np.random.Generator,
+    ) -> tuple[list[float], NDArray[np.intc]]:
+        rng_states.append(repr(rng.bit_generator.state))
+        return original_evaluate_cluster(self, x_aux, rng)
+
+    monkeypatch.setattr(SiftedStage, "evaluate_cluster", capture_rng_state)
+
+    def run(seed: int, stage_seed: int | None = None) -> NDArray[np.intc]:
         out = SiftedStage.sifted(
             inputs.x,
             inputs.y,
@@ -352,7 +395,7 @@ def test_sifted_seed_reproducibility() -> None:
             inputs.inst_labels,
             inputs.s,
             inputs.feat_labels,
-            fast_opts,
+            dataclasses.replace(fast_opts, seed=stage_seed),
             inputs.opts_selvar,
             None,
             ParallelOptions.default(),
@@ -362,10 +405,16 @@ def test_sifted_seed_reproducibility() -> None:
 
     selvars_a = run(0)
     selvars_b = run(0)
-    selvars_c = run(1)
+    run(1)
+    run(1, stage_seed=7)
+    run(2, stage_seed=7)
 
     np.testing.assert_array_equal(selvars_a, selvars_b)
-    assert not np.array_equal(selvars_a, selvars_c)
+    assert len(rng_states) == 5
+    assert rng_states[0] == rng_states[1]
+    assert rng_states[0] != rng_states[2]
+    assert rng_states[3] == rng_states[4]
+    assert rng_states[2] != rng_states[3]
 
 
 def test_select_features_by_performance_uses_sorted_threshold_comparison() -> None:
@@ -481,7 +530,7 @@ def test_find_best_combination_uses_filtered_feature_matrix(
 
     monkeypatch.setattr("pygad.GA", _fake_ga)
 
-    sifted._find_best_combination(x_aux, clust, selvars, rng)  # noqa: SLF001
+    sifted._find_best_combination(x_aux, clust, selvars, rng)
 
     ga_instance = captured["instance"]
     assert ga_instance.selfx.shape[1] == x_aux.shape[1]
@@ -639,7 +688,7 @@ def test_standardize_for_correlation_distance_is_zero_mean_unit_variance() -> No
     rng = np.random.default_rng(0)
     x_aux = rng.random((20, 4))
 
-    standardized = SiftedStage._standardize_for_correlation_distance(  # noqa: SLF001
+    standardized = SiftedStage._standardize_for_correlation_distance(
         x_aux,
     )
 
@@ -652,7 +701,7 @@ def test_standardize_for_correlation_distance_handles_constant_feature() -> None
     """A zero-variance feature must not raise or produce NaN/inf."""
     x_aux = np.column_stack([np.full(10, 5.0), np.arange(10, dtype=float)])
 
-    standardized = SiftedStage._standardize_for_correlation_distance(  # noqa: SLF001
+    standardized = SiftedStage._standardize_for_correlation_distance(
         x_aux,
     )
 
@@ -724,13 +773,20 @@ def test_cost_fcn_uses_classification_accuracy_loss(
     instead of a real classification loss, matching MATLAB's
     `fitcknn`/`kfoldLoss`.
     """
+    dims = 3
 
     class _FakePilotOutput:
-        z = np.zeros((6, 2))
+        z = np.zeros((6, dims))
+
+    captured_pilot_options: list[PilotOptions] = []
+
+    def _fake_pilot(*args: object, **_kwargs: object) -> _FakePilotOutput:
+        captured_pilot_options.append(cast(PilotOptions, args[3]))
+        return _FakePilotOutput()
 
     monkeypatch.setattr(
         "instancespace.stages.sifted.PilotStage.pilot",
-        lambda *_a, **_k: _FakePilotOutput(),
+        _fake_pilot,
     )
 
     captured_scoring: list[str] = []
@@ -761,92 +817,21 @@ def test_cost_fcn_uses_classification_accuracy_loss(
         clust = np.ones((3, 1), dtype=bool)
         cv_partition = None
         general_options = GeneralOptions.default()
-        dims = 2
-        cost_cache: dict[bytes, float] = {}  # noqa: RUF012
+        dims = 3
+
+        def __init__(self) -> None:
+            self.cost_cache: dict[bytes, float] = {}
 
     instance = _FakeInstance()
     fitness = SiftedStage.cost_fcn(instance, np.array([0]), 0)
 
     assert captured_scoring == ["accuracy", "accuracy"]
+    assert captured_pilot_options[0].dims == dims
     # pygad maximizes fitness, so this must be the *worst* (minimum)
     # per-algorithm accuracy (0.7), not the best (0.9) and not a loss
     # value - maximizing the minimum accuracy directly is what makes the
     # GA search for feature sets where every algorithm classifies well.
     assert fitness == pytest.approx(0.7)
-
-
-def compute_correlation(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
-    """Compute correlation matrix and categorise them into high, normal and low.
-
-    Correlation values are categorised as high, normal, or low.
-
-    Parameters
-    ----------
-    df1 : pd.DataFrame
-        The first dataframe.
-    df2 : pd.DataFrame
-        The second dataframe.
-
-    Returns
-    -------
-    pd.DataFrame
-        A dataframe where the correlation values are categorised into high (1),
-        normal (0), and low (-1).
-    """
-    upper_bound = 0.7
-    lower_bound = 0.3
-
-    def categorise_value(x: float) -> int:
-        """Categorise correlation value into high, normal and low."""
-        if x > upper_bound:
-            return 1
-        if x < lower_bound:
-            return -1
-        return 0
-
-    # given two dataframe, compute correlation matrix
-    correlation_matrix = pd.DataFrame(index=df1.columns, columns=df2.columns)
-    for col1 in df1.columns:
-        for col2 in df2.columns:
-            correlation_matrix.loc[col1, col2] = df1[col1].corr(df2[col2])
-    correlation_matrix = correlation_matrix.abs()
-
-    # categorise correlation matrix's value to high and low
-    return correlation_matrix.map(categorise_value)
-
-
-def correlation_matrix_check(df: pd.DataFrame, threshold: float) -> bool:
-    """Check if at least threshold percentage of both rows and columns fulfil condition.
-
-    The condition is fulfilled if only one value in a row or column has a high
-    correlation (categorised as 1).
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The correlation matrix with categorised values.
-    threshold : float
-        The minimum percentage of rows and columns that must fulfill the condition.
-
-    Returns
-    -------
-    bool
-        True if the condition is satisfied for at least the threshold percentage,
-        False otherwise.
-    """
-    # for every row, calculate percentage of only one value has modified correlation
-    # equals to 1
-    row_condition = (df == 1).sum(axis=1) == 1
-    row_percentage = row_condition.mean()
-
-    # for every column, calculate percentage of only one value has modified correlation
-    # equals to 1
-    col_condition = (df == 1).sum(axis=0) == 1
-    col_percentage = col_condition.mean()
-
-    total_percentage = (row_percentage + col_percentage) / 2
-
-    return total_percentage >= threshold
 
 
 def _synthetic_sifted_stage(

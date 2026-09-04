@@ -1,22 +1,13 @@
-"""Test cases are here."""
+"""Package-level smoke tests."""
 
-import sys
-from pathlib import Path
-
-path_root = Path(__file__).parents[0]
-sys.path.append(str(path_root))
+import instancespace
 
 
-def test_assertions() -> None:
-    """
-    The test case for demonstration.
+def test_declared_public_api_is_importable() -> None:
+    """Every declared package export must exist and be declared only once."""
+    exports = instancespace.__all__
+    assert exports, "instancespace must expose a non-empty public API"
+    assert len(exports) == len(set(exports)), "instancespace.__all__ has duplicates"
 
-    Returns
-    -------
-        None
-
-    """
-    assert True, (
-        "Something is wrong with the Github Workflow - "
-        "please contact kharek@student.unimelb.edu.au"
-    )
+    missing = sorted(name for name in exports if not hasattr(instancespace, name))
+    assert not missing, f"instancespace.__all__ contains missing exports: {missing}"

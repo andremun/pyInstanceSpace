@@ -41,6 +41,8 @@ sifted(x, y, y_bin, x_raw, y_raw, beta, num_good_algos, y_best, p,
     and performance optimization using provided datasets and configuration options.
 """
 
+import warnings
+from dataclasses import replace
 from typing import NamedTuple
 
 import numpy as np
@@ -54,7 +56,7 @@ from sklearn.metrics import silhouette_score
 from sklearn.model_selection import KFold, cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
 
-from instancespace.data.model import DataDense
+from instancespace.data.model import DataDense, SiftedOut
 from instancespace.data.options import (
     GeneralOptions,
     ParallelOptions,
@@ -63,7 +65,7 @@ from instancespace.data.options import (
     SiftedOptions,
 )
 from instancespace.stages.pilot import PilotStage
-from instancespace.stages.stage import Stage
+from instancespace.stages.stage import PredictiveStage, Stage
 from instancespace.utils.filter import do_filter
 
 
@@ -140,6 +142,13 @@ class SiftedInput(NamedTuple):
     data_dense: DataDense | None
     parallel_options: ParallelOptions
     general_options: GeneralOptions
+    pilot_options: PilotOptions = PilotOptions.default()
+
+
+class SiftedPredictInput(NamedTuple):
+    """Inputs for applying fitted SIFTED feature selection."""
+
+    x: NDArray[np.double]
 
 
 class SiftedOutput(NamedTuple):
@@ -203,7 +212,10 @@ class SiftedOutput(NamedTuple):
     clust: NDArray[np.bool_] | None
 
 
-class SiftedStage(Stage[SiftedInput, SiftedOutput]):
+class SiftedStage(
+    Stage[SiftedInput, SiftedOutput],
+    PredictiveStage[SiftedPredictInput, SiftedOut, NDArray[np.double]],
+):
     """Stage in the processing pipeline for feature selection and instance filtering.
 
     Attributes
@@ -370,6 +382,14 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         return SiftedOutput
 
     @staticmethod
+    def predict(
+        inputs: SiftedPredictInput,
+        fitted: SiftedOut,
+    ) -> NDArray[np.double]:
+        """Apply fitted feature indices without re-running selection."""
+        return inputs.x[:, fitted.selvars]
+
+    @staticmethod
     def _run(inputs: SiftedInput) -> SiftedOutput:
         """Execute the SIFTED stage of the pipeline using the provided options and data.
 
@@ -383,12 +403,20 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         SiftedOutput
             Output of the sifted stage.
         """
+        # MATLAB's outer InstanceSpace owns projection dimensionality under
+        # opts.pilot and injects that value into a private SIFTED options copy.
+        # Keep SiftedOptions.dims for direct SIFTED calls, but prevent aggregate
+        # pipeline configuration from carrying two conflicting dimensions.
+        effective_options = replace(
+            inputs.sifted_options,
+            dims=inputs.pilot_options.dims,
+        )
         return SiftedStage.sifted(
             x=inputs.x,
             y=inputs.y,
             y_bin=inputs.y_bin,
             feat_labels=inputs.feat_labels,
-            opts=inputs.sifted_options,
+            opts=effective_options,
             opts_selvars=inputs.selvars_options,
             data_dense=inputs.data_dense,
             x_raw=inputs.x_raw,
@@ -550,7 +578,8 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
         opts = self.opts
 
         nfeats = x.shape[1]
-        rng = np.random.default_rng(seed=self.general_opts.seed)
+        seed = opts.seed if opts.seed is not None else self.general_opts.seed
+        rng = np.random.default_rng(seed=seed)
 
         if not opts.flag:
             self._log("-> Feature selection is disabled. Using all features.")
@@ -913,6 +942,7 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             PilotOptions.default(
                 analytic=SiftedStage._GA_FITNESS_PILOT_ANALYTIC,
                 n_tries=SiftedStage._GA_FITNESS_PILOT_NTRIES,
+                dims=instance.dims,
             ),
             instance.general_options,
             _do_output=False,
@@ -979,35 +1009,45 @@ class SiftedStage(Stage[SiftedInput, SiftedOutput]):
             random_state=rng.integers(1000),
         )
 
-        ga_instance = pygad.GA(
-            fitness_func=SiftedStage.cost_fcn,
-            num_generations=self.opts.num_generations,
-            num_parents_mating=self.opts.num_parents_mating,
-            sol_per_pop=self.opts.sol_per_pop,
-            gene_type=int,
-            num_genes=self.opts.k,
-            parent_selection_type=self.opts.parent_selection_type,
-            K_tournament=self.opts.k_tournament,
-            keep_elitism=self.opts.keep_elitism,
-            crossover_type=self.opts.crossover_type,
-            crossover_probability=self.opts.cross_over_probability,
-            mutation_type=self.opts.mutation_type,
-            mutation_probability=self.opts.mutation_probability,
-            # stop_criteria: saturate_5 or reach_0 (don't know if it is possible both)
-            stop_criteria=self.opts.stop_criteria,
-            random_seed=int(rng.integers(1000)),
-            init_range_low=1,
-            init_range_high=x_aux.shape[1],
-            save_solutions=True,
-            parallel_processing=(
-                [
-                    "process",
-                    self.parallel_options.n_cores,
-                ]
-                if self.parallel_options.flag
-                else None
-            ),
-        )
+        # PyGAD 3.3 warns about its own deprecated ``delay_after_gen`` default
+        # even though pyInstanceSpace neither supplies nor consumes it.  Filter
+        # only that exact upstream warning; unexpected GA warnings remain visible.
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message="The 'delay_after_gen' parameter is deprecated.*",
+                category=UserWarning,
+                module=r"pygad\.pygad",
+            )
+            ga_instance = pygad.GA(
+                fitness_func=SiftedStage.cost_fcn,
+                num_generations=self.opts.num_generations,
+                num_parents_mating=self.opts.num_parents_mating,
+                sol_per_pop=self.opts.sol_per_pop,
+                gene_type=int,
+                num_genes=self.opts.k,
+                parent_selection_type=self.opts.parent_selection_type,
+                K_tournament=self.opts.k_tournament,
+                keep_elitism=self.opts.keep_elitism,
+                crossover_type=self.opts.crossover_type,
+                crossover_probability=self.opts.cross_over_probability,
+                mutation_type=self.opts.mutation_type,
+                mutation_probability=self.opts.mutation_probability,
+                # stop_criteria: saturate_5 or reach_0
+                # (don't know whether both are supported together)
+                stop_criteria=self.opts.stop_criteria,
+                random_seed=int(rng.integers(1000)),
+                init_range_low=1,
+                init_range_high=x_aux.shape[1],
+                parallel_processing=(
+                    [
+                        "process",
+                        self.parallel_options.n_cores,
+                    ]
+                    if self.parallel_options.flag
+                    else None
+                ),
+            )
 
         ga_instance.selfx = x_aux
         ga_instance.selfy = self.y

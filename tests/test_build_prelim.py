@@ -24,6 +24,7 @@ from instancespace.data.options import (
     AutoOptions,
     GeneralOptions,
     PerformanceOptions,
+    PrelimConfigOptions,
     PrelimOptions,
     SelvarsOptions,
 )
@@ -140,7 +141,7 @@ def test_bound() -> None:
         selvars_opts,
         GeneralOptions.default(),
     )
-    prelim_bound = prelim._bound()  # noqa: SLF001
+    prelim_bound = prelim._bound()
     x = prelim_bound.x
     hi_bound = prelim_bound.hi_bound
     lo_bound = prelim_bound.lo_bound
@@ -256,7 +257,12 @@ def test_prelim() -> None:
         np.array(y_best).flatten(),
         np.array(ybest_output, dtype=np.float64),
     )
-    assert np.allclose(p, np.array(p_output, dtype=np.float64))
+    expected_p = np.asarray(p_output, dtype=np.int_)
+    finite_y = np.where(np.isnan(y_raw), np.inf, y_raw)
+    tied = np.sum(finite_y == np.min(finite_y, axis=1)[:, None], axis=1) > 1
+    np.testing.assert_array_equal(p[~tied], expected_p[~tied])
+    rows = np.arange(y_raw.shape[0])
+    assert np.all(finite_y[rows, p - 1] == np.min(finite_y, axis=1))
     assert np.allclose(num_good_algos, num_good_algos_output.values.flatten())
     assert np.allclose(beta, np.array(beta_output, dtype=bool))
 
@@ -361,18 +367,23 @@ def test_prelim_run() -> None:
         inst_labels,
         data_dense,
         s,
-    ) = PrelimStage._run(  # noqa: SLF001
+    ) = PrelimStage._run(
         inputs,
     )
 
-    assert np.allclose(x.shape, x_output_run.shape)
+    np.testing.assert_allclose(x, x_output_run, rtol=0, atol=2e-13)
     assert np.allclose(y, y_output_run)
     assert np.allclose(y_bin, ybin_output_run)
     assert np.allclose(
         np.array(y_best).flatten(),
         np.array(ybest_output_run, dtype=np.float64),
     )
-    assert np.allclose(p, np.array(p_output_run, dtype=np.float64))
+    expected_p = np.asarray(p_output_run, dtype=np.int_)
+    finite_y = np.where(np.isnan(y_raw_run), np.inf, y_raw_run)
+    tied = np.sum(finite_y == np.min(finite_y, axis=1)[:, None], axis=1) > 1
+    np.testing.assert_array_equal(p[~tied], expected_p[~tied])
+    rows = np.arange(y_raw_run.shape[0])
+    assert np.all(finite_y[rows, p - 1] == np.min(finite_y, axis=1))
 
 
 def _collect_warnings(
@@ -399,7 +410,7 @@ def test_prelim_many_zero_best_warning_fires_above_threshold() -> None:
     prelim_stage = PrelimStage.__new__(PrelimStage)
     # 2 of 10 instances (20%) have a best-algorithm performance of exactly zero.
     y_best = np.concatenate([np.zeros(2), np.ones(8)])
-    warn_many_zero_best = prelim_stage._warn_many_zero_best  # noqa: SLF001
+    warn_many_zero_best = prelim_stage._warn_many_zero_best
 
     messages = _collect_warnings(warn_many_zero_best, y_best)
 
@@ -410,7 +421,7 @@ def test_prelim_many_zero_best_warning_silent_below_threshold() -> None:
     """No warning when at most 5% of instances have Ybest == 0."""
     prelim_stage = PrelimStage.__new__(PrelimStage)
     y_best = np.ones(10)  # none are zero
-    warn_many_zero_best = prelim_stage._warn_many_zero_best  # noqa: SLF001
+    warn_many_zero_best = prelim_stage._warn_many_zero_best
 
     messages = _collect_warnings(warn_many_zero_best, y_best)
 
@@ -561,11 +572,8 @@ def test_prelim_zero_value_ties_are_detected() -> None:
 
     Previously, tie detection compared raw performance against the
     *eps-substituted* best value, so a genuine zero-value tie between two
-    algorithms was silently never counted - even though the final `p` value
-    coincidentally comes out the same either way (both mechanisms pick the
-    first tied index), the tie must still be *reported* correctly, and this
-    is the plumbing a future (not-yet-implemented) smarter tie-break needs
-    to actually run on zero-value ties instead of silently skipping them.
+    algorithms was silently never counted. The seeded MATLAB-compatible
+    tie-break must run on zero-value ties instead of silently skipping them.
 
     Exercises `compute_binary_performance()` (F9's extraction, shared with
     `explore()`'s evaluation path) rather than the training-only method it
@@ -595,7 +603,19 @@ def test_prelim_zero_value_ties_are_detected() -> None:
     messages = _collect_info(_run)
 
     assert result is not None
-    assert result.p[0] == 1  # first tied algorithm (1-based), unchanged either way
+    assert result.p[0] == 2  # RandomState(0)'s first draw selects the second tie.
+    repeated = compute_binary_performance(
+        y_raw,
+        perf_opts,
+        GeneralOptions.default(seed=0),
+    )
+    alternate = compute_binary_performance(
+        y_raw,
+        perf_opts,
+        GeneralOptions.default(seed=1),
+    )
+    np.testing.assert_array_equal(repeated.p, result.p)
+    assert alternate.p[0] == 1
     assert any("50" in m and "more than one best algorithm" in m for m in messages)
 
 
@@ -609,12 +629,29 @@ def test_prelim_options_copy_master_preprocessing_flag() -> None:
 
 
 def test_prelim_options_preserve_positional_iqr_multiplier() -> None:
-    """The existing seventh positional argument remains iqr_multiplier."""
+    """Existing positional IQR and master-switch arguments keep their meaning."""
     multiplier = 2.5
-    prelim = PrelimOptions(False, True, 0.2, 0.55, True, True, multiplier)
+    nan_threshold = 0.20
+    prelim = PrelimOptions(False, True, 0.2, 0.55, True, True, multiplier, False)
 
     assert prelim.iqr_multiplier == multiplier
-    assert prelim.preproc is True
+    assert prelim.preproc is False
+    assert prelim.nan_threshold == nan_threshold
+
+
+def test_prelim_options_propagate_build_level_configuration() -> None:
+    """The composed stage options carry both values from ``opts.prelim``."""
+    iqr_multiplier = 3.5
+    nan_threshold = 0.4
+    options = dataclasses.replace(
+        create_option(),
+        prelim=PrelimConfigOptions(iqr_multiplier, nan_threshold),
+    )
+
+    prelim = PrelimOptions.from_options(options)
+
+    assert prelim.iqr_multiplier == iqr_multiplier
+    assert prelim.nan_threshold == nan_threshold
 
 
 def test_prelim_master_switch_disables_bound_and_normalisation() -> None:
@@ -700,7 +737,7 @@ def test_prelim_normalises_relative_performance_with_sparse_nans() -> None:
         selvars_opts,
         GeneralOptions.default(),
     )
-    expected = expected_stage._normalise()  # noqa: SLF001
+    expected = expected_stage._normalise()
 
     result = PrelimStage.prelim(
         x.copy(),

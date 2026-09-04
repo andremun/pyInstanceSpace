@@ -1,45 +1,87 @@
 name: Validation Tests
 
 on:
+  # Validate every pull request, but avoid running the same head commit twice
+  # as both a push and a pull_request event. Direct pushes still gate the
+  # long-lived integration and release branches.
   push:
-    branches: [development, main, v0.9.0/development-branch-QSF, "*-candidate"]
-  pull_request:
-    branches: [development, main, v0.9.0/development-branch-QSF, "*-candidate"]
+    branches:
+    - main
+    - development
+    - "*-candidate"
+    - "v*/development-*"
+  pull_request: {}
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  merge_requirements_tests:
-    strategy:
-      fail-fast: false
-      matrix:
-        poetry-version: ["1.8.2"]
-
+  release_gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    defaults:
+      run:
+        working-directory: pyInstanceSpace
+
+    env:
+      MPLBACKEND: Agg
+      LOKY_MAX_CPU_COUNT: "2"
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      PYIS_ALLOW_DIAGNOSTIC_FIXTURES: "0"
+      PYIS_MATLAB_REFERENCE_BUNDLE: ${{ github.workspace }}/pyInstanceSpace/tests/fixtures/matlab/current
+      PYTHONHASHSEED: "0"
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
+      with:
+        path: pyInstanceSpace
+        persist-credentials: false
+
+    - name: Check out current MATLAB gold source
+      working-directory: .
+      run: git clone --depth 1 --branch master https://github.com/andremun/InstanceSpace.git InstanceSpace
+
     - name: Set up Python 3.12
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: "3.12"
 
-    - name: Poetry install
-      uses: abatilo/actions-poetry@v2
-      with:
-        poetry-version: ${{ matrix.poetry-version }}
+    - name: Install Poetry
+      run: python -m pip install --disable-pip-version-check poetry==2.3.3
 
-    - name: Install dependancies
+    - name: Install dependencies
+      run: poetry install --sync --no-interaction
+
+    - name: Validate lock file and package
       run: |-
-        poetry install
+        poetry check --lock
+        poetry build
+
+    - name: Check formatting, linting, and types
+      run: |-
+        poetry run ruff check --no-fix .
+        poetry run black --check .
+        poetry run mypy --strict .
+
+    - name: Verify MATLAB gold source and fixtures
+      run: |-
+        poetry run python -c 'import json, subprocess; from pathlib import Path; expected = json.loads(Path("tests/fixtures/matlab/current/manifest.json").read_text())["matlab"]["repo_commit"]; actual = subprocess.check_output(["git", "-C", "../InstanceSpace", "rev-parse", "HEAD"], text=True).strip(); assert actual == expected, f"MATLAB oracle is stale: manifest={expected}, master={actual}"'
+        poetry run python tools/fixture_provenance.py verify tests/fixtures/matlab/current
+        poetry run python tools/fixture_provenance.py inventory . tests/fixture_inventory.json
+
+    - name: Test with pytest
+      run: poetry run pytest --strict-config --strict-markers -ra -W error --cov=instancespace --cov-report=term-missing
 
     - name: Audit dependencies for known vulnerabilities
       # Non-blocking for now: a regression here should be visible without
-      # failing the build until we've built confidence it isn't noisy.
+      # failing the build until we've built confidence it isn't noisy. Keep it
+      # after the release gate so its ad-hoc install cannot perturb test deps.
       continue-on-error: true
       run: |-
-        poetry run pip install pip-audit
+        poetry run python -m pip install --upgrade pip pip-audit
         poetry run pip-audit
 
     - name: Test with pytest

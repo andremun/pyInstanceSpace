@@ -1,22 +1,37 @@
 """Test module for serialisers."""
 
-import os
+import hashlib
+import json
 import shutil
+import warnings
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 
+import joblib
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
 import pytest
+
+mpl.use("Agg")
+
+import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from matplotlib.path import Path as MatplotlibPath
+from mpl_toolkits.mplot3d import Axes3D  # type: ignore[import-untyped]
+from mpl_toolkits.mplot3d.art3d import (  # type: ignore[import-untyped]
+    Poly3DCollection,
+)
 from numpy.typing import NDArray
 from scipy.io import loadmat
-from shapely.geometry import Polygon
+from shapely.geometry import MultiPolygon, Polygon
 
 from instancespace import _serialisers as serialisers
+from instancespace import plotting
 from instancespace.data.model import (
     CloisterOut,
     Data,
@@ -45,15 +60,12 @@ from instancespace.data.options import (
     TraceOptions,
 )
 from instancespace.model import Model
+from instancespace.stages.pilot_viewpoint import PilotViewpointResult
+from instancespace.utils.alpha_shape import TetrahedralMesh
 
 script_dir = Path(__file__).parent
-
-# Clear the output before running the test
-for directory in ["csv", "web", "png"]:
-    output_directory = script_dir / "test_data/serialisers/actual_output" / directory
-    for file in os.listdir(output_directory):
-        if ".gitignore" not in file:
-            Path(output_directory / file).unlink()
+_SECOND_ALGORITHM_INDEX = 2
+_THREE_DIMENSIONS = 3
 
 
 @dataclass
@@ -106,7 +118,7 @@ class _MatlabResults:
             small_scale_flag=bool(opts["selvars"]["smallscaleflag"]),
             small_scale=opts["selvars"]["smallscale"],
             file_idx_flag=bool(opts["selvars"]["fileidxflag"]),
-            file_idx=opts["selvars"]["fileidx"],
+            file_idx="",
             feats=None,
             algos=None,
             # workspace.mat stores this as the literal typo 'Ftr&&Good' -
@@ -310,19 +322,122 @@ class _MatlabResults:
         )
 
 
-def test_save_to_csv() -> None:
+def _three_dimensional_model(model: Model) -> Model:
+    """Extend the MATLAB fixture with native, deterministic 3D TRACE geometry."""
+    third_coordinate = np.linspace(-1.0, 1.0, model.pilot.z.shape[0])
+    projection = np.column_stack((model.pilot.z, third_coordinate))
+    projection_matrix = np.vstack(
+        (model.pilot.a, np.linspace(0.1, 1.0, model.pilot.a.shape[1])),
+    )
+    response_coefficients = np.vstack(
+        (model.pilot.c, np.zeros((1, model.pilot.c.shape[1]))),
+    )
+    inverse_projection = np.column_stack(
+        (model.pilot.b, np.zeros(model.pilot.b.shape[0])),
+    )
+    projection_summary = pd.concat(
+        (model.pilot.summary, model.pilot.summary.iloc[[-1]].copy()),
+        ignore_index=True,
+    )
+    projection_summary.iloc[-1, 0] = "Z_{3}"
+    viewpoint = PilotViewpointResult(
+        groups=((0,),),
+        a=(np.eye(2, 3, dtype=np.float64),),
+        azimuth=(0.0,),
+        elevation=(np.pi / 2,),
+    )
+
+    edge_coordinate = np.linspace(-2.0, 2.0, model.cloister.z_edge.shape[0])
+    pruned_coordinate = np.linspace(
+        -1.5,
+        1.5,
+        model.cloister.z_ecorr.shape[0],
+    )
+    mesh = _unit_tetrahedral_mesh()
+    mesh_footprint = Footprint(
+        mesh,
+        mesh.volume,
+        4,
+        4,
+        4 / mesh.volume,
+        1.0,
+        dimension=3,
+    )
+    empty_footprint = Footprint(None, 0, 0, 0, 0, 0, dimension=3)
+    algorithm_count = len(model.trace.good)
+    good = [mesh_footprint, empty_footprint] + [
+        mesh_footprint for _ in range(max(0, algorithm_count - 2))
+    ]
+    best = [mesh_footprint, empty_footprint] + [
+        mesh_footprint for _ in range(max(0, algorithm_count - 2))
+    ]
+    return replace(
+        model,
+        pilot=replace(
+            model.pilot,
+            a=projection_matrix,
+            z=projection,
+            c=response_coefficients,
+            b=inverse_projection,
+            summary=projection_summary,
+            viewpoint=viewpoint,
+        ),
+        cloister=replace(
+            model.cloister,
+            z_edge=np.column_stack((model.cloister.z_edge, edge_coordinate)),
+            z_ecorr=np.column_stack((model.cloister.z_ecorr, pruned_coordinate)),
+        ),
+        trace=replace(
+            model.trace,
+            space=mesh_footprint,
+            good=good,
+            best=best,
+            hard=mesh_footprint,
+        ),
+    )
+
+
+def _unit_tetrahedral_mesh() -> TetrahedralMesh:
+    """Return one unit tetrahedron with outward-oriented boundary faces."""
+    return TetrahedralMesh(
+        vertices=np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0],
+            ],
+            dtype=np.double,
+        ),
+        tetrahedra=np.array([[0, 1, 2, 3]], dtype=np.int_),
+        boundary_faces=np.array(
+            [[1, 2, 3], [0, 3, 2], [0, 1, 3], [0, 2, 1]],
+            dtype=np.int_,
+        ),
+        alpha=float(np.sqrt(3) / 2),
+        region_threshold=0.01,
+        region_count=1,
+        volume=1 / 6,
+        surface_area=float(1.5 + np.sqrt(3) / 2),
+    )
+
+
+def test_save_to_csv(tmp_path: Path) -> None:
     """Test saving information from a completed instance space to CSVs."""
     model = _MatlabResults().get_model()
 
-    model.save_to_csv(script_dir / "test_data/serialisers/actual_output/csv")
+    actual_directory = tmp_path / "csv"
+    actual_directory.mkdir()
+    model.save_to_csv(actual_directory)
 
-    test_data_dir = script_dir / "test_data/serialisers"
+    expected_directory = script_dir / "test_data/serialisers/expected_output/csv"
+    expected_files = {path.name for path in expected_directory.iterdir()}
+    actual_files = {path.name for path in actual_directory.iterdir()}
+    assert actual_files == expected_files
 
-    for csv_file in os.listdir(
-        test_data_dir / "expected_output/csv",
-    ):
-        expected_file_path = test_data_dir / "expected_output/csv" / csv_file
-        actual_file_path = test_data_dir / "actual_output/csv" / csv_file
+    for csv_file in sorted(expected_files):
+        expected_file_path = expected_directory / csv_file
+        actual_file_path = actual_directory / csv_file
 
         # Expected file isn't a directory, and actual file exists
         assert Path.is_file(expected_file_path)
@@ -331,22 +446,287 @@ def test_save_to_csv() -> None:
         expected_data = pd.read_csv(expected_file_path)
         actual_data = pd.read_csv(actual_file_path)
 
-        pd.testing.assert_frame_equal(expected_data, actual_data)
+        if csv_file.endswith(("_best.csv", "_good.csv")):
+            assert list(actual_data.columns) == [
+                "Row",
+                "Part",
+                "Ring",
+                "Vertex",
+                "z_1",
+                "z_2",
+            ]
+            np.testing.assert_array_equal(
+                actual_data["Row"],
+                np.arange(1, len(actual_data) + 1),
+            )
+            np.testing.assert_array_equal(actual_data["Part"], 1)
+            np.testing.assert_array_equal(actual_data["Ring"], "exterior")
+            np.testing.assert_array_equal(
+                actual_data["Vertex"],
+                np.arange(1, len(actual_data) + 1),
+            )
+            pd.testing.assert_frame_equal(
+                expected_data[["z_1", "z_2"]],
+                actual_data[["z_1", "z_2"]],
+            )
+        else:
+            pd.testing.assert_frame_equal(expected_data, actual_data)
 
 
-def test_save_for_web() -> None:
+def test_3d_csv_export_uses_coordinates_and_versioned_trace_meshes(
+    tmp_path: Path,
+) -> None:
+    """A 3D projection keeps numeric outputs and writes native TRACE meshes."""
+    model = _three_dimensional_model(_MatlabResults().get_model())
+
+    model.save_to_csv(tmp_path)
+
+    expected_columns = ["Row", "z_1", "z_2", "z_3"]
+    coordinates = pd.read_csv(tmp_path / "coordinates.csv")
+    bounds = pd.read_csv(tmp_path / "bounds.csv")
+    pruned_bounds = pd.read_csv(tmp_path / "bounds_prunned.csv")
+    assert list(coordinates.columns) == expected_columns
+    assert list(bounds.columns) == expected_columns
+    assert list(pruned_bounds.columns) == expected_columns
+    np.testing.assert_allclose(coordinates["z_3"], model.pilot.z[:, 2])
+    np.testing.assert_allclose(bounds["z_3"], model.cloister.z_edge[:, 2])
+    np.testing.assert_allclose(
+        pruned_bounds["z_3"],
+        model.cloister.z_ecorr[:, 2],
+    )
+
+    assert not list(tmp_path.glob("footprint_*_best.csv"))
+    assert not list(tmp_path.glob("footprint_*_good.csv"))
+    assert (tmp_path / "footprint_meshes.json").is_file()
+    assert list(tmp_path.glob("footprint_*_vertices.csv"))
+    assert list(tmp_path.glob("footprint_*_tetrahedra.csv"))
+    assert list(tmp_path.glob("footprint_*_boundary_faces.csv"))
+    assert (tmp_path / "footprint_performance.csv").is_file()
+    assert (tmp_path / "projection_matrix.csv").is_file()
+    assert (
+        len(pd.read_csv(tmp_path / "projection_matrix.csv")) == model.pilot.z.shape[1]
+    )
+
+
+def test_3d_trace_mesh_interchange_round_trips_empty_and_oriented_geometry(
+    tmp_path: Path,
+) -> None:
+    """The additive mesh schema is lossless, one-based, and explicit for empties."""
+    model = _three_dimensional_model(_MatlabResults().get_model())
+
+    model.save_to_csv(tmp_path)
+
+    manifest = json.loads((tmp_path / "footprint_meshes.json").read_text())
+    assert manifest["schema_version"] == "pyinstancespace.trace-mesh/v1"
+    assert manifest["coordinate_dimension"] == _THREE_DIMENSIONS
+    assert manifest["algorithm_index_base"] == 1
+    assert manifest["mesh_index_base"] == 1
+    expected_records = 2 * len(model.data.algo_labels) + 1
+    assert len(manifest["footprints"]) == expected_records
+
+    record = next(
+        item
+        for item in manifest["footprints"]
+        if item["kind"] == "good" and item["algorithm_index"] == 1
+    )
+    assert record["algorithm"] == model.data.algo_labels[0]
+    assert record["empty"] is False
+    assert record["mesh_present"] is True
+    assert record["elements"] == model.trace.good[0].elements
+    assert record["good_elements"] == model.trace.good[0].good_elements
+    assert record["density"] == pytest.approx(model.trace.good[0].density)
+    assert record["purity"] == pytest.approx(model.trace.good[0].purity)
+    vertices = pd.read_csv(tmp_path / record["files"]["vertices"])
+    tetrahedra = pd.read_csv(tmp_path / record["files"]["tetrahedra"])
+    faces = pd.read_csv(tmp_path / record["files"]["boundary_faces"])
+    assert list(vertices) == ["vertex", "z_1", "z_2", "z_3"]
+    assert list(tetrahedra) == ["tetrahedron", "v_1", "v_2", "v_3", "v_4"]
+    assert list(faces) == ["face", "v_1", "v_2", "v_3"]
+    np.testing.assert_array_equal(vertices["vertex"], np.arange(1, 5))
+    np.testing.assert_array_equal(tetrahedra.iloc[:, 1:].to_numpy(), [[1, 2, 3, 4]])
+
+    reconstructed = TetrahedralMesh(
+        vertices=vertices.iloc[:, 1:].to_numpy(dtype=np.double),
+        tetrahedra=tetrahedra.iloc[:, 1:].to_numpy(dtype=np.int_) - 1,
+        boundary_faces=faces.iloc[:, 1:].to_numpy(dtype=np.int_) - 1,
+        alpha=record["alpha"],
+        region_threshold=record["region_threshold"],
+        region_count=record["region_count"],
+        volume=record["volume"],
+        surface_area=record["surface_area"],
+    )
+    expected = cast(TetrahedralMesh, model.trace.good[0].polygon)
+    assert reconstructed == expected
+    restored_footprint = Footprint(
+        reconstructed,
+        record["volume"],
+        record["elements"],
+        record["good_elements"],
+        record["density"],
+        record["purity"],
+        dimension=_THREE_DIMENSIONS,
+    )
+    assert restored_footprint == model.trace.good[0]
+
+    tetrahedron = set(reconstructed.tetrahedra[0])
+    for face in reconstructed.boundary_faces:
+        opposite_index = next(iter(tetrahedron - set(face)))
+        first, second, third = reconstructed.vertices[face]
+        opposite = reconstructed.vertices[opposite_index]
+        normal = np.cross(second - first, third - first)
+        assert float(np.dot(normal, opposite - first)) < 0
+
+    empty = next(
+        item
+        for item in manifest["footprints"]
+        if item["kind"] == "good" and item["algorithm_index"] == _SECOND_ALGORITHM_INDEX
+    )
+    assert empty == {
+        "algorithm": model.data.algo_labels[1],
+        "algorithm_index": 2,
+        "alpha": None,
+        "empty": True,
+        "elements": 0,
+        "files": empty["files"],
+        "good_elements": 0,
+        "kind": "good",
+        "mesh_present": False,
+        "density": 0.0,
+        "purity": 0.0,
+        "region_count": 0,
+        "region_threshold": None,
+        "surface_area": 0.0,
+        "volume": 0.0,
+    }
+    assert all(
+        pd.read_csv(tmp_path / filename).empty for filename in empty["files"].values()
+    )
+    restored_empty = Footprint(
+        None,
+        empty["volume"],
+        0,
+        0,
+        0,
+        0,
+        dimension=_THREE_DIMENSIONS,
+    )
+    assert restored_empty.polygon is None
+    assert restored_empty.dimension == _THREE_DIMENSIONS
+
+
+def test_3d_trace_mesh_export_rejects_inconsistent_footprint_metrics(
+    tmp_path: Path,
+) -> None:
+    """Manifest statistics cannot disagree with their retained geometry."""
+    model = _three_dimensional_model(_MatlabResults().get_model())
+    original = model.trace.good[0]
+    inconsistent = replace(original, area=original.area + 1.0)
+    model = replace(
+        model,
+        trace=replace(model.trace, good=[inconsistent, *model.trace.good[1:]]),
+    )
+
+    with pytest.raises(ValueError, match="volume does not match"):
+        model.save_to_csv(tmp_path)
+
+
+def test_3d_trace_mesh_export_rejects_present_empty_mesh(tmp_path: Path) -> None:
+    """Canonical empty output is polygon=None, never a fake present mesh."""
+    model = _three_dimensional_model(_MatlabResults().get_model())
+    empty_mesh = TetrahedralMesh(
+        vertices=np.empty((0, 3), dtype=np.double),
+        tetrahedra=np.empty((0, 4), dtype=np.int_),
+        boundary_faces=np.empty((0, 3), dtype=np.int_),
+        alpha=0.0,
+        region_threshold=0.0,
+        region_count=0,
+        volume=0.0,
+        surface_area=0.0,
+    )
+    wrong = Footprint(empty_mesh, 0, 0, 0, 0, 0, dimension=_THREE_DIMENSIONS)
+    model = replace(
+        model,
+        trace=replace(model.trace, good=[wrong, *model.trace.good[1:]]),
+    )
+
+    with pytest.raises(ValueError, match="present TetrahedralMesh.*nonempty"):
+        model.save_to_csv(tmp_path)
+
+
+def test_3d_trace_mesh_paths_are_safe_unique_and_deterministic(tmp_path: Path) -> None:
+    """Unsafe/colliding labels cannot escape the output directory or vary by run."""
+    model = _three_dimensional_model(_MatlabResults().get_model())
+    labels = list(model.data.algo_labels)
+    labels[:4] = ["../../same", "..\\..\\same", "CON", "con"]
+    model = replace(model, data=replace(model.data, algo_labels=labels))
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+
+    model.save_to_csv(first)
+    model.save_to_csv(second)
+
+    first_manifest = (first / "footprint_meshes.json").read_bytes()
+    assert first_manifest == (second / "footprint_meshes.json").read_bytes()
+    manifest = json.loads(first_manifest)
+    filenames = [
+        filename
+        for record in manifest["footprints"]
+        for filename in record["files"].values()
+    ]
+    assert len({filename.casefold() for filename in filenames}) == len(filenames)
+    assert all(Path(filename).name == filename for filename in filenames)
+    assert all("\\" not in filename for filename in filenames)
+    assert all((first / filename).is_file() for filename in filenames)
+    assert {path.name: path.read_bytes() for path in first.glob("footprint_*.*")} == {
+        path.name: path.read_bytes() for path in second.glob("footprint_*.*")
+    }
+
+
+def test_2d_csv_byte_contract_remains_frozen(tmp_path: Path) -> None:
+    """Adding 3D interchange must not change representative 2D output bytes."""
+    model = _MatlabResults().get_model()
+
+    model.save_to_csv(tmp_path)
+
+    expected_hashes = {
+        "coordinates.csv": (
+            "1b55451d906b458b29dd1fdd2afc45abd846e056942c493733e2f3a6080773bf"
+        ),
+        "footprint_CART_best.csv": (
+            "3f8d2bff9723dc98a77f2648cb4b77b19cba2dff78fdccb6cc201d1eb018a9c7"
+        ),
+        "footprint_performance.csv": (
+            "af43b86bcfbabc9a9fe42081b93044981f3f3507c1c1b9a2bc5cfafb30b62f0a"
+        ),
+        "projection_matrix.csv": (
+            "23ce24c701367a6025f6a8481b690ce311b2ed89df5bc30207559fc11942b81d"
+        ),
+    }
+    assert not (tmp_path / "footprint_meshes.json").exists()
+    for filename, expected_hash in expected_hashes.items():
+        assert hashlib.sha256((tmp_path / filename).read_bytes()).hexdigest() == (
+            expected_hash
+        )
+
+
+def test_save_for_web(tmp_path: Path) -> None:
     """Test saving information for export to the web frontend."""
     model = _MatlabResults().get_model()
 
-    model.save_for_web(script_dir / "test_data/serialisers/actual_output/web")
+    actual_directory = tmp_path / "web"
+    actual_directory.mkdir()
+    model.save_for_web(actual_directory)
 
-    test_data_dir = script_dir / "test_data/serialisers"
+    expected_directory = script_dir / "test_data/serialisers/expected_output/web"
+    expected_files = {path.name for path in expected_directory.iterdir()}
+    actual_files = {path.name for path in actual_directory.iterdir()}
+    assert actual_files == expected_files
 
-    for csv_file in os.listdir(
-        test_data_dir / "expected_output/web",
-    ):
-        expected_file_path = test_data_dir / "expected_output/web" / csv_file
-        actual_file_path = test_data_dir / "actual_output/web" / csv_file
+    for csv_file in sorted(expected_files):
+        expected_file_path = expected_directory / csv_file
+        actual_file_path = actual_directory / csv_file
 
         # Expected file isn't a directory, and actual file exists
         assert Path.is_file(expected_file_path)
@@ -365,39 +745,140 @@ def test_save_for_web() -> None:
             # There seems to be a rounding error in either python or MATLAB, so
             # allow an error of 1 for colours
             pd.testing.assert_frame_equal(expected_data, actual_data, rtol=0, atol=1)
-        elif csv_file in ["color_table.csv"]:
-            # We are using a different colormap, because the matlab one is proprietary
-            pass
+        elif csv_file == "color_table.csv":
+            # The Python export uses a non-proprietary colormap, so validate its
+            # dashboard contract rather than comparing MATLAB's colour values.
+            assert list(actual_data.columns) == ["R", "G", "B"]
+            assert actual_data.shape == (256, 3)
+            assert np.issubdtype(actual_data.to_numpy().dtype, np.integer)
+            assert np.all(
+                (actual_data.to_numpy() >= 0) & (actual_data.to_numpy() <= 255),
+            )
         else:
             pd.testing.assert_frame_equal(expected_data, actual_data)
 
 
-def test_save_graphs() -> None:
+def test_save_graphs(tmp_path: Path) -> None:
     """Test saving graphs from a completed instance space."""
     model = _MatlabResults().get_model()
 
-    model.save_graphs(script_dir / "test_data/serialisers/actual_output/png")
+    actual_directory = tmp_path / "png"
+    actual_directory.mkdir()
+    model.save_graphs(actual_directory)
 
-    test_data_dir = script_dir / "test_data/serialisers"
+    expected_directory = script_dir / "test_data/serialisers/expected_output/png"
+    expected_files = {path.name for path in expected_directory.iterdir()}
+    actual_files = {path.name for path in actual_directory.iterdir()}
+    assert actual_files == expected_files
 
-    for csv_file in os.listdir(
-        test_data_dir / "expected_output/png",
-    ):
-        expected_file_path = test_data_dir / "expected_output/png" / csv_file
-        actual_file_path = test_data_dir / "actual_output/png" / csv_file
+    for image_file in sorted(expected_files):
+        expected_file_path = expected_directory / image_file
+        actual_file_path = actual_directory / image_file
 
         # Expected file isn't a directory, and actual file exists
         assert Path.is_file(expected_file_path)
         assert Path.is_file(actual_file_path)
 
-        # We can't test the images, so we must check visually that they are consistant
+        image = plt.imread(actual_file_path)
+        assert image.size > 0
+        assert image.ndim in (2, 3)
+
+
+def test_3d_graph_scatter_uses_native_axis_camera_and_z_coordinates(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """PNG helpers retain z3 and apply azimuth/elevation in matplotlib order."""
+    z = np.array(
+        [[0.0, 1.0, 10.0], [2.0, 3.0, 11.0], [4.0, 5.0, 12.0]],
+    )
+    viewpoint = PilotViewpointResult(
+        groups=((0,),),
+        a=(np.eye(2, 3, dtype=np.float64),),
+        azimuth=(np.deg2rad(65.0),),
+        elevation=(np.deg2rad(35.0),),
+    )
+    angle = plotting._resolve_view_angle(viewpoint, 0)
+    captured: dict[str, object] = {}
+    save_figure = serialisers._save_figure
+
+    def inspect_figure(fig: Figure, output: Path) -> None:
+        axis = fig.axes[0]
+        captured["is_3d"] = isinstance(axis, Axes3D)
+        captured["azimuth"] = getattr(axis, "azim")
+        captured["elevation"] = getattr(axis, "elev")
+        captured["z"] = np.asarray(getattr(axis.collections[0], "_offsets3d")[2])
+        captured["z_limits"] = getattr(axis, "get_zlim")()
+        captured["zlabel"] = getattr(axis, "get_zlabel")()
+        save_figure(fig, output)
+
+    monkeypatch.setattr(serialisers, "_save_figure", inspect_figure)
+
+    serialisers._draw_scatter(
+        z,
+        np.array([0.0, 0.5, 1.0]),
+        "3D scatter",
+        tmp_path / "scatter.png",
+        angle,
+    )
+
+    assert captured["is_3d"] is True
+    assert captured["azimuth"] == pytest.approx(65.0)
+    assert captured["elevation"] == pytest.approx(35.0)
+    np.testing.assert_array_equal(
+        cast(NDArray[np.double], captured["z"]),
+        z[:, 2],
+    )
+    assert captured["zlabel"] == r"$z_{3}$"
+    z_lower, z_upper = cast(tuple[float, float], captured["z_limits"])
+    assert z_lower <= float(np.min(z[:, 2]))
+    assert z_upper >= float(np.max(z[:, 2]))
+    assert (tmp_path / "scatter.png").is_file()
+
+
+def test_3d_graph_export_renders_mesh_footprints_and_binary_scatters(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Native meshes enable footprint PNGs without losing binary scatters."""
+    model = _three_dimensional_model(_MatlabResults().get_model())
+    binary_outputs: list[str] = []
+    footprint_outputs: list[tuple[str, object]] = []
+
+    def no_draw(*_args: object, **_kwargs: object) -> None:
+        pass
+
+    def capture_binary(*args: object, **_kwargs: object) -> None:
+        binary_outputs.append(cast(Path, args[3]).name)
+
+    def capture_footprint(*args: object, **_kwargs: object) -> None:
+        footprint_outputs.append((cast(Path, args[4]).name, args[5]))
+
+    def capture_portfolio(*args: object, **_kwargs: object) -> None:
+        footprint_outputs.append((cast(Path, args[4]).name, args[5]))
+
+    monkeypatch.setattr(serialisers, "_draw_scatter", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_binary_performance", capture_binary)
+    monkeypatch.setattr(serialisers, "_draw_good_bad_footprint", capture_footprint)
+    monkeypatch.setattr(serialisers, "_draw_sources", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_portfolio_selections", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_portfolio_footprint", capture_portfolio)
+
+    model.save_graphs(tmp_path)
+
+    num_algorithms = model.data.y.shape[1]
+    assert len(binary_outputs) == 2 * num_algorithms + 1
+    assert "distribution_beta_score.png" in binary_outputs
+    assert len(footprint_outputs) == num_algorithms + 1
+    assert footprint_outputs[-1][0] == "footprint_portfolio.png"
+    assert footprint_outputs[0][1] == pytest.approx((0.0, 90.0))
 
 
 def test_graph_portfolio_boundaries_use_zero_based_internal_indices(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """Graph orchestration converts only Data.p and leaves PYTHIA unchanged."""
+    """Footprints always use MATLAB's true Ybin/P overlay contract."""
     data = cast(
         Data,
         SimpleNamespace(
@@ -431,6 +912,7 @@ def test_graph_portfolio_boundaries_use_zero_based_internal_indices(
     )
     selection_calls: list[NDArray[np.int_]] = []
     footprint_calls: list[NDArray[np.int_]] = []
+    good_bad_calls: list[NDArray[np.bool_]] = []
 
     def no_draw(*args: object, **kwargs: object) -> None:
         del args, kwargs
@@ -443,9 +925,13 @@ def test_graph_portfolio_boundaries_use_zero_based_internal_indices(
         del kwargs
         footprint_calls.append(np.asarray(args[2], dtype=np.int_).copy())
 
+    def capture_good_bad(*args: object, **kwargs: object) -> None:
+        del kwargs
+        good_bad_calls.append(np.asarray(args[2], dtype=np.bool_).copy())
+
     monkeypatch.setattr(serialisers, "_draw_scatter", no_draw)
     monkeypatch.setattr(serialisers, "_draw_binary_performance", no_draw)
-    monkeypatch.setattr(serialisers, "_draw_good_bad_footprint", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_good_bad_footprint", capture_good_bad)
     monkeypatch.setattr(serialisers, "_draw_sources", no_draw)
     monkeypatch.setattr(serialisers, "_draw_portfolio_selections", capture_selections)
     monkeypatch.setattr(serialisers, "_draw_portfolio_footprint", capture_footprint)
@@ -480,7 +966,12 @@ def test_graph_portfolio_boundaries_use_zero_based_internal_indices(
     np.testing.assert_array_equal(selection_calls[2], [0, 1])
     np.testing.assert_array_equal(selection_calls[3], [0, -1])
     np.testing.assert_array_equal(footprint_calls[0], [0, 1])
-    np.testing.assert_array_equal(footprint_calls[1], [0, -1])
+    np.testing.assert_array_equal(footprint_calls[1], [0, 1])
+    assert len(good_bad_calls) == 2 * data.y.shape[1]
+    np.testing.assert_array_equal(good_bad_calls[0], data.y_bin[:, 0])
+    np.testing.assert_array_equal(good_bad_calls[1], data.y_bin[:, 1])
+    np.testing.assert_array_equal(good_bad_calls[2], data.y_bin[:, 0])
+    np.testing.assert_array_equal(good_bad_calls[3], data.y_bin[:, 1])
 
 
 def test_draw_portfolio_selections_labels_every_internal_selection(
@@ -508,7 +999,7 @@ def test_draw_portfolio_selections_labels_every_internal_selection(
         dtype=np.double,
     )
 
-    serialisers._draw_portfolio_selections(  # noqa: SLF001
+    serialisers._draw_portfolio_selections(
         z,
         np.array([-1, 0, 2, 1], dtype=np.int_),
         np.array(["first_algo", "middle_algo", "last_algo"]),
@@ -561,7 +1052,7 @@ def test_draw_portfolio_footprint_matches_each_algorithm_to_its_footprint(
     monkeypatch.setattr("matplotlib.axes.Axes.legend", no_legend)
     monkeypatch.setattr(serialisers, "_draw_footprint", capture_footprint)
 
-    serialisers._draw_portfolio_footprint(  # noqa: SLF001
+    serialisers._draw_portfolio_footprint(
         np.array(
             [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [3.0, 3.0]],
             dtype=np.double,
@@ -575,41 +1066,44 @@ def test_draw_portfolio_footprint_matches_each_algorithm_to_its_footprint(
     assert drawn == best
 
 
-def test_save_mat() -> None:
+def test_save_mat(tmp_path: Path) -> None:
     """Test saving a mat file of the output directory."""
     model = _MatlabResults().get_model()
-    model.save_to_mat(script_dir / "test_data/serialisers/actual_output/mat")
+    output_directory = tmp_path / "mat"
+    output_directory.mkdir()
+    model.save_to_mat(output_directory)
     actual_output = loadmat(
-        script_dir / "test_data/serialisers/actual_output/mat/model.mat",
+        output_directory / "model.mat",
         chars_as_strings=True,
         simplify_cells=True,
     )["data"]["algolabels"]
-    print(actual_output)
     assert np.array_equal(model.data.algo_labels, actual_output)
 
 
-def test_save_zip() -> None:
+def test_save_zip(tmp_path: Path) -> None:
     """Test saving a zip file of the output directory."""
     model = _MatlabResults().get_model()
-    # Clear the output before running the test
-    clean_dir(script_dir / "test_data/serialisers/actual_output/png")
-    clean_dir(script_dir / "test_data/serialisers/actual_output/csv")
-    clean_dir(script_dir / "test_data/serialisers/actual_output/web")
-    clean_dir(script_dir / "test_data/serialisers/actual_output/mat")
+    output_directory = tmp_path / "actual_output"
+    csv_directory = output_directory / "csv"
+    web_directory = output_directory / "web"
+    png_directory = output_directory / "png"
+    mat_directory = output_directory / "mat"
+    for directory in (csv_directory, web_directory, png_directory, mat_directory):
+        directory.mkdir(parents=True)
 
     # Save the data to the output directory
-    model.save_graphs(script_dir / "test_data/serialisers/actual_output/png")
-    model.save_to_csv(script_dir / "test_data/serialisers/actual_output/csv")
-    model.save_for_web(script_dir / "test_data/serialisers/actual_output/web")
-    model.save_to_mat(script_dir / "test_data/serialisers/actual_output/mat")
+    model.save_graphs(png_directory)
+    model.save_to_csv(csv_directory)
+    model.save_for_web(web_directory)
+    model.save_to_mat(mat_directory)
 
     # Copy metadata and options from input folder into expected output folder
     shutil.copy(
         script_dir / "test_data/serialisers/input/metadata.csv",
-        script_dir / "test_data/serialisers/actual_output/csv/metadata.csv",
+        csv_directory / "metadata.csv",
     )
     zip_filename = "output.zip"
-    model.save_zip(zip_filename, script_dir / "test_data/serialisers/actual_output")
+    model.save_zip(zip_filename, output_directory)
     """Require the following files to be in the zip for dashboard"""
     required_files = [
         "coordinates.csv",
@@ -624,21 +1118,365 @@ def test_save_zip() -> None:
         "portfolio_svm.csv",
         "model.mat",
     ]
-    with zipfile.ZipFile(
-        script_dir / "test_data/serialisers/actual_output" / zip_filename,
-        "r",
-    ) as zf:
+    with zipfile.ZipFile(output_directory / zip_filename, "r") as zf:
         file_list = [Path(f).name for f in zf.namelist()]
         assert all(
             item in file_list for item in required_files
         ), f"Missing files: {set(required_files) - set(file_list)}"
 
+        assert "output/csv/coordinates.csv" in zf.namelist()
+        assert "output/mat/model.mat" in zf.namelist()
 
-def clean_dir(path: Path) -> None:
-    """Remove all files in a directory."""
-    ignored_files = [".gitignore"]
 
-    for file in os.listdir(path):
-        if file in ignored_files:
-            continue
-        Path.unlink(path / file)
+def test_csv_export_is_read_only_and_idempotent(tmp_path: Path) -> None:
+    """Repeated CSV exports must not change any model-owned state."""
+    model = _MatlabResults().get_model()
+    model_hash_before = joblib.hash(model)
+    trace_before = model.trace.summary.copy(deep=True)
+    pilot_summary = model.pilot.summary
+    assert pilot_summary is not None
+    pilot_before = pilot_summary.copy(deep=True)
+    pythia_before = model.pythia.summary.copy(deep=True)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", pd.errors.SettingWithCopyWarning)
+        model.save_to_csv(tmp_path)
+    first_export = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+
+    model.save_to_csv(tmp_path)
+    second_export = {path.name: path.read_bytes() for path in tmp_path.iterdir()}
+
+    pd.testing.assert_frame_equal(model.trace.summary, trace_before)
+    pd.testing.assert_frame_equal(pilot_summary, pilot_before)
+    pd.testing.assert_frame_equal(model.pythia.summary, pythia_before)
+    assert joblib.hash(model) == model_hash_before
+    assert second_export == first_export
+
+
+def test_footprint_csv_v2_preserves_parts_and_holes() -> None:
+    """The footprint table must keep each component and interior ring separate."""
+    first = Polygon(
+        [(0, 0), (4, 0), (4, 4), (0, 4)],
+        holes=[[(1, 1), (1, 2), (2, 2), (2, 1)]],
+    )
+    second = Polygon([(10, 10), (12, 10), (12, 12), (10, 12)])
+
+    frame = serialisers._footprint_boundary_frame(
+        MultiPolygon([first, second]),
+    )
+
+    assert list(frame.columns) == ["Row", "Part", "Ring", "Vertex", "z_1", "z_2"]
+    assert frame.groupby(["Part", "Ring"], sort=False).size().to_dict() == {
+        (1, "exterior"): 4,
+        (1, "hole_1"): 4,
+        (2, "exterior"): 4,
+    }
+    np.testing.assert_array_equal(frame["Row"], np.arange(1, 13))
+    assert not np.any(
+        np.logical_and(
+            frame["z_1"] == frame["z_1"].shift(),
+            frame["z_2"] == frame["z_2"].shift(),
+        ),
+    )
+
+
+def test_compound_footprint_paths_keep_holes_and_components() -> None:
+    """Each polygon part must have one path, and each hole must start a subpath."""
+    first = Polygon(
+        [(0, 0), (4, 0), (4, 4), (0, 4)],
+        holes=[[(1, 1), (1, 2), (2, 2), (2, 1)]],
+    )
+    second = Polygon([(10, 10), (12, 10), (12, 12), (10, 12)])
+    footprint = Footprint(MultiPolygon([first, second]), 0, 0, 0, 0, 0)
+    expected_parts = 2
+    fig, ax = plt.subplots()
+    try:
+        serialisers._draw_footprint(
+            ax,
+            footprint,
+            (0.0, 0.0, 1.0, 1.0),
+            0.3,
+        )
+        assert len(ax.patches) == expected_parts
+        move_counts = [
+            int(np.count_nonzero(patch.get_path().codes == MatplotlibPath.MOVETO))
+            for patch in ax.patches
+        ]
+        assert move_counts == [2, 1]
+    finally:
+        plt.close(fig)
+
+
+def test_draw_footprint_adds_native_boundary_face_collection() -> None:
+    """The internal graph renderer consumes every 3D boundary face directly."""
+    mesh = _unit_tetrahedral_mesh()
+    footprint = Footprint(mesh, mesh.volume, 4, 4, 24.0, 1.0, dimension=3)
+    fig = plt.figure()
+    axis = fig.add_subplot(projection="3d")
+    try:
+        serialisers._draw_footprint(
+            axis,
+            footprint,
+            (0.0, 0.0, 1.0, 1.0),
+            0.3,
+        )
+
+        collections = [
+            collection
+            for collection in axis.collections
+            if isinstance(collection, Poly3DCollection)
+        ]
+        assert len(collections) == 1
+        fig.canvas.draw()
+        assert len(collections[0].get_paths()) == len(mesh.boundary_faces)
+        x_limits = axis.get_xlim()
+        y_limits = axis.get_ylim()
+        z_limits = cast(Any, axis).get_zlim()
+        for lower, upper in (x_limits, y_limits, z_limits):
+            assert lower <= 0
+            assert upper >= 1
+    finally:
+        plt.close(fig)
+
+
+def test_3d_csv_export_rejects_shapely_geometry(tmp_path: Path) -> None:
+    """A 2D polygon cannot be mislabeled as native 3D TRACE output."""
+    model = _three_dimensional_model(_MatlabResults().get_model())
+    wrong = Footprint(
+        Polygon([(0, 0), (1, 0), (0, 1)]),
+        0.5,
+        3,
+        3,
+        6.0,
+        1.0,
+        dimension=3,
+    )
+    model = replace(
+        model,
+        trace=replace(model.trace, good=[wrong, *model.trace.good[1:]]),
+    )
+
+    with pytest.raises(ValueError, match="cannot serialize Shapely"):
+        model.save_to_csv(tmp_path)
+
+
+def test_portable_stems_are_safe_unique_and_deterministic() -> None:
+    """Unsafe and colliding labels must map to unique portable stems."""
+    labels = ["../../same", "..\\..\\same", "CON", "con", "", "A:B", "A?B"]
+
+    stems = serialisers._portable_stems(labels, "algorithm")
+
+    assert stems == serialisers._portable_stems(labels, "algorithm")
+    assert len({stem.casefold() for stem in stems}) == len(stems)
+    assert all("/" not in stem and "\\" not in stem for stem in stems)
+    assert all(stem not in {"", ".", ".."} for stem in stems)
+    assert all(stem.split(".", maxsplit=1)[0].upper() != "CON" for stem in stems)
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+@pytest.mark.filterwarnings("error::UserWarning")
+def test_scaling_and_scatter_handle_constant_and_missing_data(tmp_path: Path) -> None:
+    """Constant and missing values must scale and plot without warnings."""
+    values = np.array([[5.0, np.nan, 1.0], [5.0, np.nan, 3.0]])
+
+    scaled = serialisers._minmax_scale(values, axis=0)
+    np.testing.assert_allclose(scaled[:, [0, 2]], [[0.0, 0.0], [0.0, 1.0]])
+    assert np.all(np.isnan(scaled[:, 1]))
+    colours = serialisers._colour_scale(values)
+    np.testing.assert_allclose(colours[:, [0, 2]], [[0, 0], [0, 255]])
+    assert np.all(np.isnan(colours[:, 1]))
+    serialisers._write_colour_array_to_csv(
+        colours,
+        pd.Series(["constant", "missing", "range"]),
+        pd.Series(["row_1", "row_2"]),
+        tmp_path / "colours.csv",
+    )
+    written_colours = pd.read_csv(tmp_path / "colours.csv")
+    assert np.all(np.isnan(written_colours["missing"]))
+    serialisers._draw_scatter(
+        np.array([[0.0, 0.0], [1.0, 1.0]]),
+        np.array([np.nan, np.nan]),
+        "Missing",
+        tmp_path / "missing.png",
+    )
+    assert (tmp_path / "missing.png").is_file()
+
+
+def test_graph_scaling_matches_matlab_axis_contract(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Individual performance uses columns, and global performance uses one range."""
+    data = cast(
+        Data,
+        SimpleNamespace(
+            x=np.array([[4.0], [4.0]]),
+            y=np.ones((2, 2)),
+            y_raw=np.array([[0.0, 9.0], [9.0, 99.0]]),
+            y_bin=np.zeros((2, 2), dtype=np.bool_),
+            feat_labels=["feature"],
+            algo_labels=["first", "second"],
+            num_good_algos=np.zeros(2),
+            p=np.ones(2, dtype=np.int_),
+            beta=np.zeros(2, dtype=np.bool_),
+            s=None,
+        ),
+    )
+    pythia = cast(
+        PythiaOut,
+        SimpleNamespace(
+            y_hat=np.zeros((2, 2), dtype=np.bool_),
+            selection0=np.full(2, -1, dtype=np.int_),
+        ),
+    )
+    pilot = cast(PilotOut, SimpleNamespace(z=np.array([[0.0, 0.0], [1.0, 1.0]])))
+    empty = Footprint(None, 0, 0, 0, 0, 0)
+    trace = cast(TraceOut, SimpleNamespace(good=[empty, empty], best=[empty, empty]))
+    options = cast(
+        InstanceSpaceOptions,
+        SimpleNamespace(trace=SimpleNamespace(use_sim=True)),
+    )
+    scatter_values: dict[str, NDArray[np.double]] = {}
+
+    def capture_scatter(
+        _z: NDArray[np.double],
+        values: NDArray[np.double],
+        _title: str,
+        output: Path,
+        _view_angle: object,
+    ) -> None:
+        scatter_values[output.name] = np.asarray(values).copy()
+
+    def no_draw(*_args: object, **_kwargs: object) -> None:
+        pass
+
+    monkeypatch.setattr(serialisers, "_draw_scatter", capture_scatter)
+    monkeypatch.setattr(serialisers, "_draw_binary_performance", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_good_bad_footprint", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_portfolio_selections", no_draw)
+    monkeypatch.setattr(serialisers, "_draw_portfolio_footprint", no_draw)
+
+    serialisers.save_instance_space_graphs(
+        tmp_path,
+        data,
+        options,
+        pythia,
+        pilot,
+        trace,
+    )
+
+    np.testing.assert_allclose(
+        scatter_values["distribution_performance_individual_normalized_first.png"],
+        [0.0, 1.0],
+    )
+    np.testing.assert_allclose(
+        scatter_values["distribution_performance_individual_normalized_second.png"],
+        [0.0, 1.0],
+    )
+    np.testing.assert_allclose(
+        scatter_values["distribution_performance_global_normalized_first.png"],
+        [0.0, 0.5],
+    )
+    np.testing.assert_allclose(
+        scatter_values["distribution_performance_global_normalized_second.png"],
+        [0.5, 1.0],
+    )
+
+
+def test_save_errors_include_the_operation_and_target(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """CSV, image, and MAT failures must raise contextual errors."""
+    csv_target = tmp_path / "table.csv"
+
+    def fail_csv(*_args: object, **_kwargs: object) -> None:
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(pd.DataFrame, "to_csv", fail_csv)
+    with pytest.raises(serialisers.SerializationError, match="table.csv") as csv_error:
+        serialisers._write_dataframe_to_csv(
+            pd.DataFrame({"a": [1]}),
+            csv_target,
+        )
+    assert isinstance(csv_error.value.__cause__, PermissionError)
+
+    fig = plt.figure()
+    try:
+        monkeypatch.setattr(fig, "savefig", fail_csv)
+        with pytest.raises(serialisers.SerializationError, match="plot.png"):
+            serialisers._save_figure(fig, tmp_path / "plot.png")
+    finally:
+        plt.close(fig)
+
+    monkeypatch.setattr(serialisers, "savemat", fail_csv)
+    data = cast(Data, SimpleNamespace(algo_labels=["algorithm"]))
+    with pytest.raises(serialisers.SerializationError, match="model.mat"):
+        serialisers.save_instance_space_output_mat(tmp_path, data)
+
+
+def test_zip_preserves_relative_paths_and_unique_members(tmp_path: Path) -> None:
+    """Duplicate basenames in separate folders must stay separate in the archive."""
+    model = object.__new__(Model)
+    (tmp_path / "csv").mkdir()
+    (tmp_path / "web").mkdir()
+    (tmp_path / "csv" / "summary.txt").write_text("csv", encoding="utf-8")
+    (tmp_path / "web" / "summary.txt").write_text("web", encoding="utf-8")
+
+    model.save_zip("bundle.zip", tmp_path)
+    model.save_zip("bundle.zip", tmp_path)
+
+    with zipfile.ZipFile(tmp_path / "bundle.zip") as archive:
+        names = archive.namelist()
+        assert names == ["output/csv/summary.txt", "output/web/summary.txt"]
+        assert len(names) == len(set(names))
+        assert archive.read("output/csv/summary.txt") == b"csv"
+        assert archive.read("output/web/summary.txt") == b"web"
+
+
+@pytest.mark.parametrize(
+    "archive_name",
+    [
+        "../escape.zip",
+        "nested/file.zip",
+        "bad\\file.zip",
+        "CON.zip",
+        "trailing.zip.",
+    ],
+)
+def test_zip_rejects_unsafe_archive_names(
+    tmp_path: Path,
+    archive_name: str,
+) -> None:
+    """An archive name must not contain a path."""
+    model = object.__new__(Model)
+
+    with pytest.raises(ValueError, match="safe filename"):
+        model.save_zip(archive_name, tmp_path)
+
+
+def test_zip_rejects_symlink_inputs(tmp_path: Path) -> None:
+    """Archives must not follow symlinks inside the output tree."""
+    model = object.__new__(Model)
+    target = tmp_path / "target.txt"
+    target.write_text("data", encoding="utf-8")
+    (tmp_path / "linked.txt").symlink_to(target)
+
+    with pytest.raises(ValueError, match="ZIP input must not be a symlink"):
+        model.save_zip("bundle.zip", tmp_path)
+
+
+def test_zip_write_errors_include_target(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Archive creation failures must identify the failed target."""
+    model = object.__new__(Model)
+
+    def fail_zip(*_args: object, **_kwargs: object) -> None:
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(zipfile, "ZipFile", fail_zip)
+    with pytest.raises(serialisers.SerializationError, match="bundle.zip") as error:
+        model.save_zip("bundle.zip", tmp_path)
+    assert isinstance(error.value.__cause__, PermissionError)

@@ -52,8 +52,8 @@ To build them locally instead, run `pdoc instancespace`.
 
 ## Repository layout
 
-- `instancespace/` — the package itself: `instance_space.py` (the `InstanceSpace` class — `build()`/`explore()`/`explore_stage_iter()` — hardcodes the built-in 7-stage execution order), `stage_runner.py` (`StageRunner`, the execution/rollback engine, plus `build_stage_runner()` for attaching extra/plugin stages to that order via `RunBefore`/`RunAfter`), `stages/` (one module per pipeline stage — `preprocessing`, `prelim`, `sifted`, `pilot`, `pythia`, `cloister`, `trace`), `data/` (option and metadata dataclasses), `model.py` (the trained `Model` and its `save_to_csv`/`save_for_web`/`save_graphs`/`save_to_mat`/`save_zip` methods), and `scripting/` (CSV/plot output helpers).
-- `tests/` — the test suite, flat (no per-stage subdirectories): `tests/matlab_reference/` holds MATLAB-trained golden-reference artifacts used to validate the Python port stage by stage, `test_build_<stage>.py` covers a stage's `build()`-time behaviour, and `test_explore_<stage>.py` covers its `explore()`/`explore_stage_iter()`-time inference (unit + MATLAB validation tests together in one file). See `tests/README.md` for the full naming convention.
+- `instancespace/` — the package itself: `instance_space.py` (the `InstanceSpace` class — `build()`/`explore()`/`explore_stage_iter()` — hardcodes the built-in 7-stage execution order), `stage_runner.py` (`StageRunner`, the execution/rollback engine, plus `build_stage_runner()` for attaching extra/plugin stages to that order via `RunBefore`/`RunAfter`), `stages/` (one module per pipeline stage — `preprocessing`, `prelim`, `sifted`, `pilot`, `pythia`, `cloister`, `trace`), `data/` (option and metadata dataclasses), `_serialisers.py` (2D/3D CSV, mesh, plot, and MAT helpers), and `model.py` (the trained `Model` and its save methods).
+- `tests/` — the flat test suite. `tests/fixtures/matlab/current/` is reserved for manifest-verified current MATLAB data; `tests/matlab_reference/` contains unverified historical regression snapshots. `test_build_<stage>.py` covers training and `test_explore_<stage>.py` covers inference. See `tests/README.md`.
 - `examples/data/` — real, multi-dataset example data (BBO, JSS, KP, MFP, and more) used by `integration_demo.py`/`example_plugin.py` - not a test fixture.
 - `integration_demo.py` — the minimal runnable example: load metadata + options from `examples/data/`, construct an `InstanceSpace` with the full stage list, and `build()` it.
 - `example_plugin.py` — demonstrates writing a custom `Stage` and slotting it into the pipeline alongside the built-in stages.
@@ -95,7 +95,12 @@ result = space.explore(test_metadata)
 
 `explore()` returns the full result in one call; `explore_stage_iter()` runs the same stages but yields each one's output in turn (`prelim`, `sifted`, `pilot`, `pythia`, `trace`), for inspecting the pipeline one stage at a time. The operation manual `liveDemoIS.ipynb` — the Python counterpart of the MATLAB live demo (`liveDemoIS.m`) — walks through both `build()` and `explore()`/`explore_stage_iter()` stage by stage and is meant to be read as a usage guide; run it from the repository root.
 
-The port is validated stage by stage against the MATLAB implementation: `tests/matlab_reference/` holds the MATLAB-trained artifacts and reference outputs, `test_explore_<stage>.py` (e.g. run `pytest tests/test_explore_trace.py -v -s`) holds the validation and unit tests for each stage's `explore()`-time inference, and `docs/explore_validation.ipynb` documents how the validation numbers were obtained and how a from-scratch Python build behaves. `tests/README.md` documents the full naming convention.
+Stage tests combine synthetic contracts, historical regression snapshots, and a
+423-file `reference-export/v2` oracle generated from a clean MATLAB R2026a Update 4
+run. `tests/matlab_reference/` is explicitly unverified; the manifest-verified oracle
+lives under `tests/fixtures/matlab/current/`. The current MATLAB source and verified
+execution are the behavioral authority when an issue, review, or older document
+disagrees. `tests/README.md` documents the naming and trust conventions.
 
 ## Development Environment Setup Guide
 
@@ -154,11 +159,27 @@ compatibility with option files written for the MATLAB toolkit.
 
 ### Dimensionality reduction settings
 
-The toolkit uses PILOT as a dimensionality reduction method, with [BFGS](https://en.wikipedia.org/wiki/Broyden-Fletcher-Goldfarb-Shanno_algorithm) as a numerical solver. Technical details about it can be found [here](https://doi.org/10.1007/s10994-017-5629-5).
+PILOT produces either two or three coordinates. `method="standard"` uses the
+analytic solution or a multi-start [BFGS](https://en.wikipedia.org/wiki/Broyden-Fletcher-Goldfarb-Shanno_algorithm)
+solve; `method="pls"` uses the SIMPLS algorithm used by MATLAB R2026a's
+`plsregress`. Technical details about PILOT are available [here](https://doi.org/10.1007/s10994-017-5629-5).
 
--	```opts.pilot.analytic``` determines whether the analytic (set as ```TRUE```) or the numerical (set as ```FALSE```) solution to the dimensionality reduction problem should be used. We recommend leaving this setting as ```FALSE```due to the instability of the analytical solution caused by possible poor conditioning.
--	```opts.pilot.n_tries``` number of iterations that the numerical solution is attempted.
--	```opts.pilot.adjust_rotation``` (default ```FALSE```) rotates the trained projection so that instances poorly solved by every algorithm face a consistent direction (135°, upper-left), making it easier to visually compare the instance space across similar datasets or independent runs. Rotation is a rigid transform: pairwise distances, error, R², and footprint areas are unchanged either way. Ported from [PyISpace](https://gitlab.com/ita-ml/pyispace)'s `adjust_rotation()`.
+- `opts.pilot.method` selects `"standard"` (default) or `"pls"`. SIMPLS ignores
+  `opts.pilot.analytic`, matching MATLAB.
+- `opts.pilot.dims` selects a 2D (default) or 3D projection and is also passed to
+  SIFTED's candidate projections.
+- `opts.pilot.analytic` selects the analytic (`TRUE`) or numerical (`FALSE`)
+  standard solver. The numerical solver is safer for poorly conditioned inputs.
+- `opts.pilot.n_tries` sets the numerical restart count. `opts.pilot.x0` supplies
+  starting columns; `opts.pilot.precalc_alpha` replays a compatible solved column.
+- `opts.pilot.cost_weight` weights performance reconstruction relative to feature
+  reconstruction in the standard solver.
+- `opts.pilot.view_groups` supplies zero-based algorithm-index groups for 3D camera
+  optimization. An empty value creates one global viewpoint. The trained model stores
+  each 2-by-3 view and its azimuth/elevation for plotting.
+- `opts.pilot.adjust_rotation` (default `FALSE`) rotates a 2D projection so instances
+  poorly solved by every algorithm face 135°. It preserves pairwise distances,
+  reconstruction metrics, and footprint areas. This Python option is not used for 3D.
 
 ### Empirical bound estimation settings.
 
@@ -180,10 +201,21 @@ The toolkit trains one [scikit-learn](https://scikit-learn.org/) `SVC` per algor
 
 ### Footprint construction settings
 
-The toolkit uses TRACE, an algorithm based on [```shapely```](https://shapely.readthedocs.io/) polygons to define the regions in the space where we statistically infer good algorithm performance. The polygons are then pruned to remove those sections for which the evidence, as defined by a minimum purity value, is poor or non-existent.
+TRACE builds good, best, hard, and full-space footprints. `method="legacy"` retains
+the historical 2D DBSCAN/Shapely path and remains Python's compatibility default.
+`method="trace3"` implements MATLAB's current alpha-shape algorithm with 2D polygons
+or native 3D tetrahedral meshes. A 3D projection always dispatches to TRACE3 because
+legacy TRACE is 2D-only. Build metrics and `explore()` rescoring use the same exact,
+boundary-inclusive membership rule as MATLAB.
 
--	```opts.trace.use_sim``` makes use of the actual (set as ```FALSE```) or simulated data from the SVM results (set as ```TRUE```) to produce the footprints.
--	```opts.trace.purity``` minimum purity required for a section of a footprint.
+- `opts.trace.method` selects `"legacy"` (default) or `"trace3"`.
+- `opts.trace.use_sim` uses PYTHIA predictions (`TRUE`) or observed good-performance
+  labels (`FALSE`). TRACE3 falls back to observed labels when PYTHIA is skipped.
+- `opts.trace.purity` sets the minimum footprint purity. Its default is method-aware:
+  0.55 for legacy and 0.60 for TRACE3.
+- `opts.trace.contra` controls legacy contradiction removal.
+- `opts.trace.min_instances` and `opts.trace.min_area_frac` control TRACE3's minimum
+  support and retained area/volume.
 
 ### Automatic data bounding and scaling
 
@@ -207,6 +239,12 @@ The toolkit implements SIFTED, a routine to select features, given their cross-c
 ### Output settings
 
 These settings result in more information being stored in files or presented in the console output.
+
+Two-dimensional saves retain the existing polygon CSV and plot formats. Three-dimensional
+saves write `z_1`/`z_2`/`z_3` coordinates plus `footprint_meshes.json` and one-based
+vertex, tetrahedron, and outward-boundary-face CSV files under the
+`pyinstancespace.trace-mesh/v1` schema. Plots use native matplotlib 3D axes, mesh
+surfaces, and the stored global or per-algorithm PILOT viewpoint.
 
 - ```opts.outputs.csv``` This flag produces the output CSV files for post-processing and analysis. It is recommended to leave this setting as ```TRUE```.
 - ```opts.outputs.png``` This flag produces the output figure files for post-processing and analysis. It is recommended to leave this setting as ```TRUE```.

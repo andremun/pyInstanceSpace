@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 from numpy.typing import NDArray
 from pandas.testing import assert_frame_equal
-from shapely.geometry import Polygon
+from shapely.geometry import MultiPolygon, Polygon
 
 from instancespace.data.model import Footprint
 from instancespace.data.options import GeneralOptions, ParallelOptions, TraceOptions
@@ -126,7 +126,7 @@ def test_trace_pythia() -> None:
         GeneralOptions.default(),
     )
 
-    trace_output: TraceOutputs = TraceStage._run(trace_inputs)  # noqa: SLF001
+    trace_output: TraceOutputs = TraceStage._run(trace_inputs)
 
     correct_result_path = main_dir / "test_data/trace_csvs/correct_results_pythia.csv"
     expected_output = pd.read_csv(correct_result_path).sort_values("Algorithm")
@@ -247,7 +247,7 @@ def test_trace_run_normalises_only_the_experimental_portfolio(
         general_options=GeneralOptions.default(),
     )
 
-    output = TraceStage._run(inputs)  # noqa: SLF001
+    output = TraceStage._run(inputs)
 
     assert output is expected_output
     assert len(observed_portfolios) == 1
@@ -270,25 +270,25 @@ def test_trace_rejects_invalid_one_based_experimental_portfolios(
 ) -> None:
     """Malformed PRELIM portfolios fail at the explicit TRACE boundary."""
     with pytest.raises(ValueError, match="Experimental portfolio"):
-        TraceStage._experimental_portfolio_indices(  # noqa: SLF001
+        TraceStage._experimental_portfolio_indices(
             portfolio,  # type: ignore[arg-type]
             n_instances=2,
             n_algorithms=2,
         )
 
 
-def test_trace_method_other_than_legacy_raises() -> None:
-    """F11: `TraceOptions.method` other than 'legacy' fails loudly, not silently.
-
-    Only MATLAB's TRACE_legacy.m algorithm is ported; requesting 'trace3'
-    (or any other value) must not silently run legacy anyway.
-    """
+def test_trace3_method_dispatches_to_trace3(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The additive TRACE3 method no longer falls through to legacy."""
     inputs = _load_trace_fixture()._replace(
         trace_options=TraceOptions.default(method="trace3"),
     )
+    empty = Footprint(None, 0, 0, 0, 0, 0)
+    expected = TraceOutputs(empty, [], [], empty, pd.DataFrame())
+    monkeypatch.setattr(TraceStage, "_trace3", lambda _self: expected)
 
-    with pytest.raises(NotImplementedError, match="trace3"):
-        TraceStage._run(inputs)  # noqa: SLF001
+    assert TraceStage._run(inputs) is expected
 
 
 def test_trace_contra_false_skips_contradiction_removal() -> None:
@@ -310,7 +310,7 @@ def test_trace_contra_false_skips_contradiction_removal() -> None:
             level="INFO",
         )
         try:
-            TraceStage._run(inputs)  # noqa: SLF001
+            TraceStage._run(inputs)
         finally:
             logger.remove(sink_id)
         return messages
@@ -418,7 +418,7 @@ def test_trace_simulation() -> None:
         GeneralOptions.default(),
     )
 
-    trace_output: TraceOutputs = TraceStage._run(trace_inputs)  # noqa: SLF001
+    trace_output: TraceOutputs = TraceStage._run(trace_inputs)
     regression_baseline_path = (
         script_dir / "test_data/trace_csvs/correct_results_simulation.csv"
     )
@@ -491,8 +491,8 @@ def test_contra_keeps_both_footprints_when_overlap_has_no_evidence() -> None:
 
     refined_base, refined_test = trace.contra(base, test, y_base, y_test)
 
-    assert refined_base.polygon is not None
-    assert refined_test.polygon is not None
+    assert isinstance(refined_base.polygon, Polygon | MultiPolygon)
+    assert isinstance(refined_test.polygon, Polygon | MultiPolygon)
     assert refined_base.polygon.equals(base_polygon)
     assert refined_test.polygon.equals(test_polygon)
 
@@ -511,7 +511,7 @@ def test_contra_counts_boundary_points_as_contradiction_evidence() -> None:
 
     refined_base, refined_test = trace.contra(base, test, y_base, y_test)
 
-    assert refined_base.polygon is not None
+    assert isinstance(refined_base.polygon, Polygon | MultiPolygon)
     assert refined_base.polygon.equals(base_polygon)
     assert refined_test.polygon is None
 
@@ -544,8 +544,8 @@ def test_contra_unequal_purity_refines_the_weaker_footprint() -> None:
 
     refined_base, refined_test = trace.contra(base, test, y_base, y_test)
 
-    assert refined_base.polygon is not None
-    assert refined_test.polygon is not None
+    assert isinstance(refined_base.polygon, Polygon | MultiPolygon)
+    assert isinstance(refined_test.polygon, Polygon | MultiPolygon)
     assert refined_base.polygon.equals(base_polygon)
     assert not refined_test.polygon.is_empty
     assert refined_test.area < test.area

@@ -25,7 +25,7 @@ from instancespace.progress_reporter import (
 )
 
 
-def _fake_instance_space(available_arguments: dict[str, Any]) -> Any:  # noqa: ANN401
+def _fake_instance_space(available_arguments: dict[str, Any]) -> Any:
     runner = SimpleNamespace(_available_arguments=available_arguments)
     return SimpleNamespace(_runner=runner)
 
@@ -46,7 +46,7 @@ def test_serialize_stage_output_metadata_reports_shape_and_length() -> None:
 
     assert result["stage_name"] == "prelim"
     assert result["outputs"]["x"]["shape"] == [3, 2]
-    assert result["outputs"]["names"]["length"] == 2  # noqa: PLR2004
+    assert result["outputs"]["names"]["length"] == 2
     assert "pickle_data" not in result
 
 
@@ -143,10 +143,10 @@ class TestHttpProgressReporter:
         request = mock_urlopen.call_args[0][0]
         assert request.headers["Authorization"] == "Bearer secret-token"
         payload = json.loads(request.data.decode("utf-8"))
-        assert payload["job_id"] == 42  # noqa: PLR2004
+        assert payload["job_id"] == 42
         assert payload["event"] == "stage_completed"
         assert payload["stage_name"] == "prelim"
-        assert payload["duration_seconds"] == 1.5  # noqa: PLR2004
+        assert payload["duration_seconds"] == 1.5
 
     def test_network_failure_is_swallowed_not_raised(self) -> None:
         reporter = HttpProgressReporter(

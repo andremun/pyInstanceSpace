@@ -1,31 +1,32 @@
-"""Tests for PYTHIA stage's explore()-time inference (_explore_pythia).
+# ruff: noqa: COM812, D103, PLR2004, PT018, SLF001
+"""Tests for PYTHIA stage-owned explore-time inference.
 
-Post-S1, _explore_pythia calls scikit-learn's own predict()/predict_proba() on
+Stage inference calls scikit-learn's own predict()/predict_proba() on
 whatever's in model.pythia.svm, so the unit tests fit small real SVCs rather than
 hand-computing kernel arithmetic by hand - that arithmetic is sklearn's own
 responsibility now, not ours to re-verify. What's still ours to test: correctly
-deriving the z-score normalisation from model.pilot.z (not the stage's own,
-already-normalised, mu/sigma), and the precision-weighted selection logic.
+using the persisted training mean/std, and applying the precision-weighted
+selection logic.
 
-The validation test loads MATLAB-trained SVM artifacts (pythia/zscore.csv,
-pythia/precision.csv, pythia/svm_<algo>.csv) together with the MATLAB-projected 2D
-coordinates (explore_outputs/step3_after_pilot.csv) and verifies that
-_explore_pythia reproduces MATLAB's binary predictions and posterior probabilities.
-Post-S1, _explore_pythia only knows how to call .predict()/.predict_proba() on
+The historical regression test loads MATLAB-trained SVM artifacts
+(pythia/zscore.csv, pythia/precision.csv, pythia/svm_<algo>.csv) together with
+the matching projected coordinates. These fixtures predate the authenticated R2026a
+bundle, so exact replay protects compatibility but does not establish current-MATLAB
+parity.
+The stage only knows how to call .predict()/.predict_proba() on
 whatever is in model.pythia.svm - there's no live scikit-learn SVC trained on
 MATLAB's data to hand it, only MATLAB's exported numbers (support vectors, signed
 alphas, bias, kernel params, Platt A/B). _MatlabArtifactSvm wraps those numbers
 behind sklearn's calling convention, replicating the same kernel + Platt-sigmoid
-math _explore_pythia used before S1, so this MATLAB-fidelity check keeps working
-without needing to reconstruct a real fitted SVC's full internal state.
+math the old explore adapter used before S1, so this historical compatibility check
+keeps working without reconstructing a real fitted SVC's full internal state.
 
-Validation thresholds (per-stage port-fidelity check, MATLAB inputs in, MATLAB
-outputs out):
-- Binary prediction agreement >= 99%.
-- Probability Pearson |r| mean >= 0.99 across algorithms.
+The legacy predictions and probabilities are compared directly. Correlation is not
+used because it would accept inverted or shifted probabilities.
 """
 
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import Mock
 
 import numpy as np
@@ -36,7 +37,11 @@ from sklearn.svm import SVC
 
 from instancespace.data.model import PythiaOut
 from instancespace.instance_space import InstanceSpace
-from instancespace.stages.pythia import PythiaStage
+from instancespace.stages.pythia import (
+    PythiaPredictInput,
+    PythiaPredictOutput,
+    PythiaStage,
+)
 
 REFERENCE_DIR = Path("tests/matlab_reference")
 ARTIFACTS_DIR = REFERENCE_DIR / "training_artifacts" / "pythia"
@@ -53,10 +58,12 @@ def _fit_svc(rng: np.random.Generator, *, kernel: str = "rbf") -> SVC:
     is_poly_krnl else "rbf"` - "linear" is unreachable in production), matching
     PYTHIA's poly hyperparameters (degree=2, coef0=1) when kernel="poly".
     """
-    z = np.vstack([
-        rng.normal(-3.0, 0.5, size=(20, 2)),
-        rng.normal(3.0, 0.5, size=(20, 2)),
-    ])
+    z = np.vstack(
+        [
+            rng.normal(-3.0, 0.5, size=(20, 2)),
+            rng.normal(3.0, 0.5, size=(20, 2)),
+        ]
+    )
     y = np.array([False] * 20 + [True] * 20)
     kwargs = {"degree": 2, "coef0": 1} if kernel == "poly" else {}
     svc = SVC(kernel=kernel, probability=True, random_state=0, **kwargs)
@@ -73,11 +80,24 @@ def make_instance_space(
     model.pythia = Mock(spec=PythiaOut)
     model.pythia.svm = svms
     model.pythia.precision = precision
+    model.pythia.mu = np.mean(pilot_z, axis=0).tolist()
+    model.pythia.sigma = np.std(pilot_z, ddof=1, axis=0).tolist()
     model.pilot.z = pilot_z
     instance_space = Mock(spec=InstanceSpace)
     instance_space._model = model
     instance_space._require_model = Mock(return_value=model)
     return instance_space
+
+
+def _predict_pythia(
+    instance_space: InstanceSpace,
+    z: NDArray[np.double],
+    n_new_algos: int = 0,
+) -> PythiaPredictOutput:
+    """Call the stage contract with fitted state held by InstanceSpace."""
+    model = cast(Any, instance_space)._require_model()
+    fitted = cast(PythiaOut, model.pythia)
+    return PythiaStage.predict(PythiaPredictInput(z, n_new_algos), fitted)
 
 
 def _two_point_pilot_z(
@@ -99,7 +119,7 @@ def test_pythia_output_shapes() -> None:
         precision=np.array([0.9, 0.8, 0.7]),
     )
     z = rng.normal(size=(10, 2))
-    y_hat, pr0_hat, selection0 = InstanceSpace._explore_pythia(space, z)
+    y_hat, pr0_hat, selection0 = _predict_pythia(space, z)
     assert y_hat.shape == (10, 3)
     assert pr0_hat.shape == (10, 3)
     assert selection0.shape == (10,)
@@ -117,7 +137,7 @@ def test_pythia_matches_direct_svc_calls() -> None:
         precision=np.array([1.0]),
     )
     z = rng.normal(size=(15, 2))
-    y_hat, pr0_hat, _ = InstanceSpace._explore_pythia(space, z)
+    y_hat, pr0_hat, _ = _predict_pythia(space, z)
 
     # mu=(0,0), sigma=(1,1) -> normalisation is a no-op here.
     expected_proba = svc.predict_proba(z)
@@ -138,7 +158,7 @@ def test_pythia_matches_direct_svc_calls_poly_kernel() -> None:
         precision=np.array([1.0]),
     )
     z = rng.normal(size=(15, 2))
-    y_hat, pr0_hat, _ = InstanceSpace._explore_pythia(space, z)
+    y_hat, pr0_hat, _ = _predict_pythia(space, z)
 
     expected_proba = svc.predict_proba(z)
     expected_pred = svc.predict(z)
@@ -147,10 +167,10 @@ def test_pythia_matches_direct_svc_calls_poly_kernel() -> None:
     np.testing.assert_allclose(pr0_hat[:, 0], expected_proba[:, 0])
 
 
-def test_pythia_zscore_normalization_uses_pilot_z() -> None:
-    """z-score normalisation must be derived from model.pilot.z, not elsewhere.
+def test_pythia_zscore_normalization_uses_persisted_fitted_parameters() -> None:
+    """Inference must use the fitted PYTHIA mean/std, not refit from other state.
 
-    mu=(1,2), sigma=(2,4) via pilot_z; a raw input of exactly (1,2) should
+    With persisted mu=(1,2), sigma=(2,4), a raw input of exactly (1,2) should
     normalise to (0,0) and therefore match calling the SVC directly on (0,0).
     """
     rng = np.random.default_rng(0)
@@ -163,11 +183,103 @@ def test_pythia_zscore_normalization_uses_pilot_z() -> None:
         svms=[svc],
         precision=np.array([1.0]),
     )
+    model = cast(Any, space)._model
+    model.pythia.mu = mu.tolist()
+    model.pythia.sigma = sigma.tolist()
+    # An unrelated projection cannot affect persisted inference state.
+    model.pilot.z = np.full_like(pilot_z, 1000.0)
     z = np.array([[1.0, 2.0]])
-    _, pr0_hat, _ = InstanceSpace._explore_pythia(space, z)
+    _, pr0_hat, _ = _predict_pythia(space, z)
 
     expected = svc.predict_proba(np.array([[0.0, 0.0]]))[:, 0]
     np.testing.assert_allclose(pr0_hat[:, 0], expected)
+
+
+def test_pythia_predict_does_not_fit_or_mutate_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Prediction reads persisted models and parameters without training changes."""
+    rng = np.random.default_rng(0)
+    svc = _fit_svc(rng)
+    pilot_z = _two_point_pilot_z(np.array([1.0, 2.0]), np.array([2.0, 4.0]))
+    space = make_instance_space(pilot_z, [svc], np.array([0.75]))
+    fitted = cast(PythiaOut, cast(Any, space)._require_model().pythia)
+    z = np.array([[1.0, 2.0], [3.0, 6.0]])
+    z_before = z.copy()
+    mu_before = list(fitted.mu)
+    sigma_before = list(fitted.sigma)
+    precision_before = np.asarray(fitted.precision).copy()
+    support_vectors_before = svc.support_vectors_.copy()
+    fit = Mock(side_effect=AssertionError("classifier training was called"))
+    monkeypatch.setattr(svc, "fit", fit)
+
+    PythiaStage.predict(PythiaPredictInput(z), fitted)
+
+    fit.assert_not_called()
+    np.testing.assert_array_equal(z, z_before)
+    assert fitted.mu == mu_before
+    assert fitted.sigma == sigma_before
+    np.testing.assert_array_equal(fitted.precision, precision_before)
+    np.testing.assert_array_equal(svc.support_vectors_, support_vectors_before)
+
+
+def test_pythia_distinguishes_skipped_and_genuine_always_bad_slots() -> None:
+    """Empty slots have no probability signal; an always-bad model has P(bad)=1."""
+    constant_bad = PythiaStage._fit_degenerate(
+        np.zeros(2, dtype=np.bool_),
+        "always-bad",
+    ).classifier
+
+    def fitted(
+        classifier: object | None,
+        accuracy: float,
+    ) -> PythiaOut:
+        model = Mock(spec=PythiaOut)
+        model.mu = [0.0, 0.0]
+        model.sigma = [1.0, 1.0]
+        model.svm = [classifier]
+        model.accuracy = [accuracy]
+        model.precision = [np.nan]
+        model.recall = [np.nan]
+        return cast(PythiaOut, model)
+
+    z = np.zeros((2, 2), dtype=np.double)
+    current_skip = PythiaStage.predict(
+        PythiaPredictInput(z),
+        fitted(None, np.nan),
+    )
+    genuine_bad = PythiaStage.predict(
+        PythiaPredictInput(z),
+        fitted(constant_bad, 1.0),
+    )
+    legacy_skip = PythiaStage.predict(
+        PythiaPredictInput(z),
+        fitted(constant_bad, np.nan),
+    )
+
+    np.testing.assert_array_equal(current_skip.y_hat, False)
+    np.testing.assert_array_equal(current_skip.pr0_hat, 0.0)
+    np.testing.assert_array_equal(genuine_bad.y_hat, False)
+    np.testing.assert_array_equal(genuine_bad.pr0_hat, 1.0)
+    # Pre-fix skip checkpoints used an always-bad sentinel plus all-NaN rates.
+    np.testing.assert_array_equal(legacy_skip.y_hat, False)
+    np.testing.assert_array_equal(legacy_skip.pr0_hat, 0.0)
+
+
+def test_pythia_instance_space_wrapper_remains_compatible() -> None:
+    """Keep the private wrapper compatible while orchestration migrates."""
+    rng = np.random.default_rng(0)
+    svc = _fit_svc(rng)
+    pilot_z = _two_point_pilot_z(np.array([1.0, 2.0]), np.array([2.0, 4.0]))
+    space = make_instance_space(pilot_z, [svc], np.array([0.75]))
+    z = np.array([[1.0, 2.0], [3.0, 6.0]])
+
+    expected = _predict_pythia(space, z)
+    actual = InstanceSpace._explore_pythia(space, z)
+
+    assert type(actual) is tuple
+    for actual_field, expected_field in zip(actual, expected, strict=True):
+        np.testing.assert_array_equal(actual_field, expected_field)
 
 
 def test_pythia_selection0_picks_highest_precision_positive() -> None:
@@ -181,7 +293,7 @@ def test_pythia_selection0_picks_highest_precision_positive() -> None:
         precision=np.array([0.5, 0.9]),
     )
     z = np.array([[3.0, 3.0]])  # deep in the "good" cluster
-    y_hat, _, selection0 = InstanceSpace._explore_pythia(space, z)
+    y_hat, _, selection0 = _predict_pythia(space, z)
     assert y_hat[0, 0] and y_hat[0, 1]
     assert selection0[0] == 1  # higher precision algo
 
@@ -197,7 +309,7 @@ def test_pythia_selection0_none_when_no_positive() -> None:
         precision=np.array([0.9, 0.9]),
     )
     z = np.array([[-3.0, -3.0]])  # deep in the "bad" cluster
-    y_hat, _, selection0 = InstanceSpace._explore_pythia(space, z)
+    y_hat, _, selection0 = _predict_pythia(space, z)
     assert not y_hat[0, 0] and not y_hat[0, 1]
     assert selection0[0] == -1
 
@@ -220,7 +332,7 @@ def test_pythia_widens_output_for_new_algorithms() -> None:
     )
     z = np.array([[3.0, 3.0]])  # deep in the "good" cluster
 
-    y_hat, pr0_hat, selection0 = InstanceSpace._explore_pythia(space, z, n_new_algos=2)
+    y_hat, pr0_hat, selection0 = _predict_pythia(space, z, n_new_algos=2)
 
     assert y_hat.shape == (1, 3)
     assert pr0_hat.shape == (1, 3)
@@ -242,18 +354,12 @@ def test_pythia_selection0_nalgos_equals_one() -> None:
     )
 
     z_good = np.array([[3.0, 3.0]])  # deep in the "good" cluster
-    y_hat_good, _, selection0_good = InstanceSpace._explore_pythia(  # noqa: SLF001
-        space,
-        z_good,
-    )
+    y_hat_good, _, selection0_good = _predict_pythia(space, z_good)
     assert y_hat_good[0, 0]
     assert selection0_good[0] == 0
 
     z_bad = np.array([[-3.0, -3.0]])  # deep in the "bad" cluster
-    y_hat_bad, _, selection0_bad = InstanceSpace._explore_pythia(  # noqa: SLF001
-        space,
-        z_bad,
-    )
+    y_hat_bad, _, selection0_bad = _predict_pythia(space, z_bad)
     assert not y_hat_bad[0, 0]
     assert selection0_bad[0] == -1  # "no selection" sentinel, unaffected by the above
 
@@ -305,7 +411,7 @@ def test_pythia_weighted_selection_is_shared_by_build_and_explore(
         precision=np.array([0.1, 0.9]),
     )
     z = np.array([[3.0, 3.0]])  # deep in the "good" cluster
-    _, _, selection0_explore = InstanceSpace._explore_pythia(space, z)
+    _, _, selection0_explore = _predict_pythia(space, z)
     assert selection0_explore[0] == 0
 
     expected_call_count = 2  # training path + explore path
@@ -393,12 +499,11 @@ def load_svm(path: Path) -> _MatlabArtifactSvm:
 
 
 def build_pythia_from_artifacts() -> tuple[PythiaOut, NDArray[np.double]]:
-    """Return a mocked PythiaOut plus a synthetic pilot.z with matching mu/sigma.
+    """Return a mocked PythiaOut plus a compatibility pilot projection.
 
-    _explore_pythia derives its z-score normalisation from model.pilot.z (see its
-    docstring for why PYTHIA's own stored mu/sigma aren't usable for this), so this
-    builds a 2-point array whose mean and std reproduce MATLAB's exported zscore.csv
-    values exactly, rather than a large synthetic training set.
+    The stage reads MATLAB's exported mean/std directly from persisted PYTHIA
+    state. The synthetic two-point projection is retained only for the temporary
+    private InstanceSpace wrapper compatibility path.
     """
     zscore = pd.read_csv(ARTIFACTS_DIR / "zscore.csv").iloc[0]
     precision_df = pd.read_csv(ARTIFACTS_DIR / "precision.csv")
@@ -413,12 +518,14 @@ def build_pythia_from_artifacts() -> tuple[PythiaOut, NDArray[np.double]]:
     pythia = Mock(spec=PythiaOut)
     pythia.svm = svms
     pythia.precision = precision_df["precision"].to_numpy(dtype=np.double)
+    pythia.mu = mu.tolist()
+    pythia.sigma = sigma.tolist()
     pythia._algo_order = algo_order
     return pythia, pilot_z
 
 
-def test_pythia_matches_matlab() -> None:
-    """PYTHIA binary agreement >= 99%, probability |r| mean >= 0.99."""
+def test_pythia_matches_legacy_matlab_snapshot() -> None:
+    """Replay the historical MATLAB binary and probability outputs exactly."""
     pythia, pilot_z = build_pythia_from_artifacts()
     algo_order = pythia._algo_order  # type: ignore[attr-defined]
 
@@ -430,7 +537,7 @@ def test_pythia_matches_matlab() -> None:
     instance_space._model.pilot.z = pilot_z
     instance_space._require_model = Mock(return_value=instance_space._model)
 
-    y_hat, pr0_hat, _ = InstanceSpace._explore_pythia(instance_space, z.to_numpy())
+    y_hat, pr0_hat, _ = _predict_pythia(instance_space, z.to_numpy())
 
     ref_pred = pd.read_csv(OUTPUTS_DIR / "step4_pythia_predictions.csv", index_col=0)
     ref_prob = pd.read_csv(OUTPUTS_DIR / "step4_pythia_probabilities.csv", index_col=0)
@@ -438,29 +545,5 @@ def test_pythia_matches_matlab() -> None:
     ref_pred = ref_pred[algo_order].to_numpy(dtype=np.bool_)
     ref_prob = ref_prob[algo_order].to_numpy(dtype=np.double)
 
-    assert y_hat.shape == ref_pred.shape
-    assert pr0_hat.shape == ref_prob.shape
-
-    agreement = (y_hat == ref_pred).mean()
-    per_algo_r = np.array([
-        np.corrcoef(pr0_hat[:, i], ref_prob[:, i])[0, 1]
-        for i in range(len(algo_order))
-    ])
-    mean_abs_r = np.mean(np.abs(per_algo_r))
-
-    print(f"\nInput:    {z.shape[0]} instances x 2 coordinates")
-    print(f"Algorithms: {len(algo_order)}")
-    print(f"Binary agreement with MATLAB: {agreement * 100:.2f}%")
-    print(f"Probability Pearson r (per algo): {per_algo_r}")
-    print(f"Mean |r|: {mean_abs_r:.4f}")
-
-    assert agreement >= 0.99, (
-        f"Binary agreement {agreement * 100:.2f}% < 99% threshold"
-    )
-    assert mean_abs_r >= 0.99, (
-        f"Mean |Pearson r| {mean_abs_r:.4f} < 0.99 threshold"
-    )
-    print(
-        f"[PASS] PYTHIA validation: {agreement * 100:.2f}% agreement, "
-        f"|r|={mean_abs_r:.3f}",
-    )
+    np.testing.assert_array_equal(y_hat, ref_pred)
+    np.testing.assert_allclose(pr0_hat, ref_prob, rtol=0, atol=1e-13)
