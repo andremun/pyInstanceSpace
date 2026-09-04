@@ -28,9 +28,9 @@ toolkit rather than a single change.
 - `stage_runner.py` executes a hardcoded, explicit 7-stage order (see the *Better
   engineering* entry below); `build_stage_runner()` attaches any extra/plugin stage to
   it via an explicit `RunBefore`/`RunAfter` declaration.
-- `tests/matlab_reference/` provides a cross-implementation golden-reference harness:
-  MATLAB-trained artifacts checked in, validated against Python's output stage by stage
-  under documented tolerance thresholds.
+- `tests/matlab_reference/` provides historical cross-implementation regression data.
+  Its generator provenance is unknown, so it is not treated as a MATLAB oracle; the
+  verified replacement is recorded under *Unreleased* below.
 
 ### Bug fixes
 
@@ -62,13 +62,30 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   (135°, upper-left), making similar datasets easier to visually compare across runs.
   Rotation is a rigid transform — pairwise distances, error, R², and footprint areas are
   unchanged either way (R1).
-- Added `TraceOptions.method` (only `'legacy'` is implemented; any other value raises
-  `NotImplementedError` rather than silently running legacy anyway) and
-  `TraceOptions.contra` (default `True`), which now actually gates TRACE's
-  contradiction-removal step instead of always running it unconditionally. Corrects a
-  documentation error along the way: `trace.py` has always been a port of MATLAB's
-  *legacy* DBSCAN-based TRACE algorithm, not `TRACE3` as previously (incorrectly)
-  recorded (F11).
+- PILOT now supports `dims=2` and `dims=3` for the standard analytic/numerical solvers
+  and MATLAB R2026a-compatible SIMPLS (`method='pls'`). Three-dimensional builds also
+  optimize and persist a global or grouped 2D camera viewpoint. `cost_weight`, `x0`,
+  `precalc_alpha`, restart selection, and public explore projection follow the MATLAB
+  option and dispatch contracts (#262).
+- **Behavior-changing:** the default numerical PILOT restart count changed from the
+  former Python value of 5 to MATLAB R2026a's `opts.pilot.ntries = 10`. This doubles the
+  default multi-start budget and can select a different fitted projection. Callers that
+  need the earlier Python behavior can set `PilotOptions.default(n_tries=5)` explicitly.
+  The new default is pinned against `ISAdefaults.m`, the verified R2026a fixtures, and
+  the release validation suite (#262).
+- **Behavior-changing:** MATLAB InstanceSpace v0.9.1 added stage-local
+  `sifted.seed` and `pilot.seed` options. Python now exposes matching fields, inherits
+  `GeneralOptions.seed` when they are omitted, and uses the selected PILOT seed for
+  numerical and viewpoint restarts.
+- `TraceOptions.method='trace3'` now implements MATLAB's current alpha-shape TRACE3
+  algorithm with 2D polygons and native 3D tetrahedral meshes. Python keeps
+  `method='legacy'` as its compatibility default; a 3D projection configured with that
+  default warns and dispatches to TRACE3 because legacy TRACE is 2D-only.
+  `TraceOptions.contra` continues to gate legacy contradiction removal (#313).
+- CSV and plotting output now support 3D projections. Mesh output uses the versioned
+  `pyinstancespace.trace-mesh/v1` manifest with one-based vertices, tetrahedra, and
+  outward boundary faces; plotting uses native matplotlib 3D axes, mesh surfaces, and
+  stored global/per-algorithm viewpoints (#265).
 - **Behavior-changing:** `PythiaOptions.tuning` (`'sobol'`/`'bayes'`/`'none'`, default
   `'sobol'`) selects PYTHIA's SVM hyperparameter search strategy, matching MATLAB's own
   default. `'sobol'` evaluates `PythiaOptions.n_tuning_iter` (default 20) scrambled Sobol
@@ -85,6 +102,19 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
 
 ### Bug fixes
 
+- PRELIM now reproduces MATLAB's seeded random selection among exactly tied best
+  algorithms, including zero-valued ties, instead of always selecting the first tied
+  algorithm. The refreshed v0.9.1 oracle checks the choices exactly.
+- JSON option validation and loading now share one Unicode `casefold()` key
+  canonicalizer, so accepted spellings load consistently and equivalent duplicates are
+  rejected (#321). The unused legacy polygon-region filter reported in #320 was removed;
+  active TRACE3 simplex filtering is unchanged.
+- PYTHIA now derives cross-validation, classifier, and search randomness from MATLAB's
+  per-algorithm `seed + i` boundary. KNN retains the requested 1--25 parameter for
+  reporting while capping its effective neighbour count independently for each fold or
+  final fit. Bayesian tuning remains skopt EI, the closest available base analogue to
+  MATLAB's EI-plus; no convergence or default change was inferred from legacy data
+  (#304).
 - Graph labels, exported CSV headers, and filenames no longer leak the metadata.csv
   `feature_`/`algo_` column-naming prefix (e.g. `algo_CART` is now `CART`), and the
   `z_1`/`z_2` axis labels on generated plots now actually render as subscripts instead
@@ -113,9 +143,17 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   `ThreadPoolExecutor` references, passing them through by reference instead of
   attempting to copy them, which both isn't deepcopy-safe and would have silently
   defeated Q6's pool-reuse purpose even if it somehow succeeded.
+- TRACE3 build membership and `explore()` rescoring now use MATLAB's inclusive boundary
+  semantics in both dimensions. Three-dimensional points near a tetrahedron face use an
+  exact orientation fallback, removing floating-point tolerance shells that could admit
+  exterior instances and change purity or selection results (#313).
 
 ### Better engineering
 
+- Removed the unused `_validate_explore_trace_dimensions()` compatibility hook. TRACE
+  dimension validation remains stage-owned in `TraceStage.predict()` and runs exactly
+  when a lazy `explore_stage_iter()` advances to TRACE; PYTHIA remains inspectable first.
+  This cleanup changes neither outputs nor stage order (#316).
 - Dependency security bumps: `pillow` (12.2.0 → 12.3.0), `tornado` (6.5.5 → 6.5.7),
   `click` (8.1.7 → 8.4.2), `jupyter-core` (5.7.2 → 5.9.1) — resolves all known CVEs in
   the locked dependency set at the time of writing.
@@ -123,6 +161,11 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   caught automatically.
 - Added a non-blocking `pip-audit` CI step to `validation-tests.yml`.
 - Added `CITATION.cff` and resolved the README's citation placeholder.
+- Replaced inferred 3D parity claims with a verified 423-file `reference-export/v2`
+  oracle generated from clean MATLAB R2026a Update 4 and the pinned MATLAB source.
+  The manifest records resolved options, inputs, solver evidence, 2D/3D geometry,
+  alpha spectra, topology, metrics, membership, rescoring, and file hashes; independent
+  verification recomputes the scientific contracts before installation (#262, #265).
 - README: Contact section now points at this repository's own issue tracker rather than
   the MATLAB repository's; PYTHIA options section rewritten to describe the actual
   scikit-learn-backed implementation instead of MATLAB's Statistics and Machine Learning

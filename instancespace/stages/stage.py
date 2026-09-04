@@ -9,6 +9,9 @@ from typing import Any, Generic, NamedTuple, TypeVar
 
 IN = TypeVar("IN", bound=NamedTuple)
 OUT = TypeVar("OUT", bound=NamedTuple)
+PREDICT_IN = TypeVar("PREDICT_IN")
+FITTED = TypeVar("FITTED")
+PREDICT_OUT = TypeVar("PREDICT_OUT")
 
 
 class Stage(ABC, Generic[IN, OUT]):
@@ -30,6 +33,21 @@ class Stage(ABC, Generic[IN, OUT]):
     @abstractmethod
     def _run(inputs: IN) -> OUT:
         """Run the stage."""
+        raise NotImplementedError
+
+
+class PredictiveStage(ABC, Generic[PREDICT_IN, FITTED, PREDICT_OUT]):
+    """Optional contract for applying a fitted stage to unseen data.
+
+    This is separate from :class:`Stage` so build-only stages and plugins do not
+    need to implement inference, and so the build-only ``StageRunner`` contract
+    remains unchanged.
+    """
+
+    @staticmethod
+    @abstractmethod
+    def predict(inputs: PREDICT_IN, fitted: FITTED) -> PREDICT_OUT:
+        """Apply fitted state without training or mutating it."""
         raise NotImplementedError
 
 

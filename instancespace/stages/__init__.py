@@ -9,6 +9,7 @@ from .prelim import PrelimStage
 from .preprocessing import PreprocessingStage
 from .pythia import PythiaStage
 from .sifted import SiftedStage
+from .stage import PredictiveStage
 from .trace import TraceStage
 
 __all__ = [
@@ -19,6 +20,7 @@ __all__ = [
     "PythiaStage",
     "CloisterStage",
     "TraceStage",
+    "PredictiveStage",
     "stage",
     "preprocessing",
     "prelim",

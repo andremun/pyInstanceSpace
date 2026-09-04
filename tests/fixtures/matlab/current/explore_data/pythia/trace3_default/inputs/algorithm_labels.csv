@@ -1,0 +1,11 @@
+algorithm_name
+NB
+LDA
+QDA
+CART
+J48
+KNN
+L_SVM
+poly_SVM
+RBF_SVM
+RandF

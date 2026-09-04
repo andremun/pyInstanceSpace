@@ -1,0 +1,10 @@
+{
+  "schema_version": "pyinstancespace.pilot-evidence-context/v1",
+  "scope": "pilot-stage",
+  "upstream_snapshot": "build_data/pilot/default/inputs",
+  "sifted_effective_pilot_dims": 2,
+  "input_transform": "none",
+  "feature_shift": [],
+  "algorithm_shift": [],
+  "explore_projection": "InstanceSpace.explore: Z=X*A' (uncentred)"
+}

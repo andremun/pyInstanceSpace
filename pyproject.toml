@@ -17,27 +17,26 @@ authors = [
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.12"
+python = ">=3.12,<3.13"
 numpy = "^1.26.4"
 pandas = "^2.2.1"
-pandas-stubs = "^2.2.1.240316"
 click = "^8.1.7"
 scipy = "^1.13.0"
 pygad = "^3.3.1"
 shapely = "^2.0.5"
 matplotlib = "^3.9.2"
-alphashape = "^1.3.1"
 loguru = "^0.7.2"
 scikit-optimize = "^0.10.2"
 scikit-learn = "^1.5.2"
 joblib = "^1.4.2"
-black = "^26.3.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.3"
 poethepoet = "^0.25.0"
 ruff = "^0.5.1"
 mypy = "^1.9.0"
+pandas-stubs = "^2.2.1.240316"
+black = { version = "^26.3.1", extras = ["jupyter"] }
 pdoc = "^14.4.0"
 docconvert = "^2.1.0"
 ipykernel = "^6.29.5"
@@ -48,7 +47,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poe.tasks]
-format_docstrings = "docconvert -o numpy matilda/ --in-place"
+format_docstrings = "docconvert -o numpy instancespace/ --in-place"
 check_ruff = "ruff check --fix"
 check_mypy = "mypy --strict ."
 check_black = "black ."
@@ -162,6 +161,22 @@ ignore = [
 # Use google style docstrings
 convention = "numpy"
 
+[tool.ruff.lint.per-file-ignores]
+# Tests deliberately exercise private scientific/lifecycle boundaries and
+# benefit more from concise, literal expectations than from production
+# API-docstring and magic-value rules.
+"tests/**/*.py" = ["D", "PLR2004", "SLF001"]
+# These tests intentionally inspect the legacy global RNG and accept arbitrary
+# callback/mock payloads; the production rules remain enabled everywhere else.
+"tests/test_build_pilot.py" = ["NPY002"]
+"tests/test_fixture_provenance.py" = ["PLR0912"]
+"tests/test_instance_space_checkpoint.py" = ["ANN401", "ARG005"]
+"tests/test_load_file.py" = ["ANN401"]
+"tests/test_pilot_viewpoint.py" = ["ANN401"]
+"tests/test_plotting.py" = ["ANN401"]
+"tests/test_progress_reporter.py" = ["ANN401"]
+"tests/test_verbose_logging.py" = ["ANN401"]
+
 [tool.ruff.format]
 # Enable reformatting of code snippets in docstrings.
 docstring-code-format = true
@@ -197,7 +212,6 @@ module = [
     'shapely.ops' ,
     'scipy.special' ,
     'sklearn.cluster',
-    'alphashape',
     'sklearn.base',
     'sklearn.ensemble',
     'sklearn.linear_model',
@@ -210,9 +224,11 @@ ignore_missing_imports = 'True'
 
 [tool.coverage.run]
 source = ["instancespace"]
+branch = true
 
 [tool.coverage.report]
-# Measured baseline (v1.30, full suite): 79% - set a few points below so the
-# gate catches a real regression without being tripped by normal fluctuation.
-fail_under = 75
+# Branch coverage catches untested decision paths that a line-only total can
+# hide.  The threshold remains below the measured repository baseline so the
+# gate detects a substantive regression without encoding platform noise.
+fail_under = 85
 show_missing = true

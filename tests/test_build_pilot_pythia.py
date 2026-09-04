@@ -1,18 +1,18 @@
-"""
-Test the integration of the pilot stage with the Pythia stage.
+"""Integration contracts for a PILOT projection followed by PYTHIA training.
 
-The file contains the integration test for the Pilot Stage followed by the Pythia
-Stage to verify the functionality of the stages when integrated together. The test
-will check the output of the Pythia stage with the expected output from the MATLAB
+Historical CSV comparisons formerly in this module have no generator commit, options,
+or MATLAB release metadata. They remain classified as ``legacy-unknown`` rather than
+being used as numerical oracles. Current-MATLAB parity belongs to the verified fixture
+bundle; these tests cover the live cross-stage Python contract.
 """
 
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 from numpy.typing import NDArray
 from scipy.io import loadmat
-from sklearn.model_selection import StratifiedKFold
 from sklearn.svm import SVC
 
 from instancespace.data.options import (
@@ -22,48 +22,24 @@ from instancespace.data.options import (
     PythiaOptions,
 )
 from instancespace.stages.pilot import PilotStage
-from instancespace.stages.pythia import PythiaStage
+from instancespace.stages.pythia import PythiaOutput, PythiaStage
 
 parallel_opts = ParallelOptions(
-    flag=True,
-    n_cores=8,
+    flag=False,
+    n_cores=1,
 )
 
-# `PythiaOptions.n_tuning_iter` defaults to
-# `DEFAULT_PYTHIA_N_TUNING_ITER=20` real `BayesSearchCV` iterations per
-# classifier (10 classifiers x 5 CV folds each), which is what makes the 4
-# `tuning='bayes'` tests below slow if left too high. Passing a smaller
-# `n_tuning_iter` here keeps them exercising the same `tuning='bayes'` code
-# path against the same MATLAB fixtures, just with a smaller search budget.
-#
-# 40 was chosen empirically, and is *not* interchangeable with
-# test_build_pythia.py's BAYES_N_ITER_FOR_TESTS (15): giving every
-# registered classifier - including 'svm' - a proper continuous/log-scaled
-# skopt search space (see pythia.py's `_bayes_param_space`, which used to
-# special-case 'svm' onto a discrete 30-point LHS-sampled candidate list)
-# needs more iterations to converge than the old discrete list did, and
-# this file's fixtures go through PILOT's numeric projection first, which
-# empirically converges slower than the raw Z.csv fixture
-# test_build_pythia.py's tests use. Measured directly against this file's
-# MATLAB fixtures: 20 iterations gives only 24/30 metrics within
-# `compare_performance()`'s tolerance (below the 90% threshold); 30 gives
-# 26/30; 40 gives 28/30 with margin, confirmed across all four `'bayes'`
-# tests below.
-BAYES_N_ITER_FOR_TESTS = 40
+POLYNOMIAL_DEGREE = 3
+INTEGRATION_BOX_CONSTRAINT = 5.0
+INTEGRATION_KERNEL_SCALE = 2.0
 
 script_dir = Path(__file__).parent
-
-output_dir = script_dir / "test_data/pythia/output"
 
 csv_path_z_input = script_dir / "test_data/pythia/input/Z.csv"
 csv_path_y_input = script_dir / "test_data/pythia/input/y.csv"
 csv_path_algo_input = script_dir / "test_data/pythia/input/algolabels.csv"
 csv_path_y_best_input = script_dir / "test_data/pythia/input/ybest.csv"
 csv_path_y_bin_input = script_dir / "test_data/pythia/input/ybin.csv"
-
-csv_path_znorm_input = script_dir / "test_data/pythia/output/znorm.csv"
-csv_path_mu_input = script_dir / "test_data/pythia/output/mu.csv"
-csv_path_sig_input = script_dir / "test_data/pythia/output/sigma.csv"
 
 z = np.genfromtxt(csv_path_z_input, delimiter=",")
 y = np.genfromtxt(csv_path_y_input, delimiter=",")
@@ -87,7 +63,7 @@ class SampleDataNum:
         self.y_sample = data["Y_test"]
         feat_labels = data["featlabels"][0]
         self.feat_labels_sample = [str(label[0]) for label in feat_labels]
-        analytic = data["optsPilot"][0, 0]["analytic"][0, 0]
+        analytic = bool(data["optsPilot"][0, 0]["analytic"][0, 0])
         n_tries = int(data["optsPilot"][0, 0]["ntries"][0, 0])
         self.opts_sample = PilotOptions(None, None, analytic, n_tries)
 
@@ -108,341 +84,98 @@ class SampleData:
         self.feat_labels_sample = [str(label[0]) for label in feat_labels_sample]
 
 
-class MatlabResultsNum:
-    """Data class for verifying the output of the Pilot numerical method.
+def _train_pythia_from_projection(
+    projection: NDArray[np.double],
+    *,
+    polynomial: bool,
+) -> PythiaOutput:
+    """Train PYTHIA from one PILOT projection with fixed MATLAB-unit parameters."""
+    params = np.tile(
+        [INTEGRATION_BOX_CONSTRAINT, INTEGRATION_KERNEL_SCALE],
+        (len(algo), 1),
+    )
+    return PythiaStage.pythia(
+        projection,
+        y,
+        y_bin,
+        y_best,
+        algo,
+        PythiaOptions(
+            cv_folds=5,
+            is_poly_krnl=polynomial,
+            use_weights=False,
+            params=params,
+            classifier="svm",
+            tuning="none",
+        ),
+        parallel_opts,
+        GeneralOptions.default(),
+    )
 
-    This class contains the data used for verifying the output of the
-    numerical Pilot stage.
-    """
 
-    def __init__(self) -> None:
-        """Initialize the sample data for the Pilot stage."""
-        fp_outdata = script_dir / "test_data/pilot/output/matlab_results_num.mat"
-        self.data = loadmat(fp_outdata)
-
-
-class MatlabResults:
-    """Data class for verifying the output of the Pilot analytical method.
-
-    This class contains the data used for verifying the output of the
-    analytical Pilot stage.
-    """
-
-    def __init__(self) -> None:
-        """Initialize the sample data for the Pilot stage."""
-        fp_outdata = script_dir / "test_data/pilot/output/matlab_results_ana.mat"
-        self.data = loadmat(fp_outdata)
-
-
-def compare_performance(
-    python_output: tuple[
-        list[float],
-        list[float],
-        NDArray[np.double],
-        StratifiedKFold,
-        list[SVC],
-        NDArray[np.double],
-        NDArray[np.bool_],
-        NDArray[np.bool_],
-        NDArray[np.double],
-        NDArray[np.double],
-        list[float],
-        list[float],
-        list[float],
-        list[float],
-        list[float],
-        NDArray[np.int_],
-        NDArray[np.int_],
-        pd.DataFrame,
-    ],
-    matlab_accuracy: NDArray[np.double],
-    matlab_precision: NDArray[np.double],
-    matlab_recall: NDArray[np.double],
-    algo_num: int,
-    tol: float,
+def _assert_integrated_output(
+    output: PythiaOutput,
+    projection: NDArray[np.double],
+    *,
+    polynomial: bool,
 ) -> None:
-    """Test that whether the performance of model is as expected."""
-    total = 0
-    correct = 0
-    threshold = 0.90
+    """Assert stable shapes and MATLAB-unit SVM parameter boundaries."""
+    expected_shape = y_bin.shape
+    assert projection.shape == (expected_shape[0], 2)
+    assert output.y_hat.shape == expected_shape
+    assert output.y_sub.shape == expected_shape
+    assert output.pr0_hat.shape == expected_shape
+    assert output.pr0_sub.shape == expected_shape
+    assert output.selection0.shape == (expected_shape[0],)
+    assert output.pythia_summary.shape[0] == len(algo) + 2
+    assert np.all(np.isfinite(output.mu))
+    assert np.all(np.isfinite(output.sigma))
 
-    # tolerance
-    tol = 2.5
-
-    # compare the performance of the model with the expected values
-    # if the performance is greater than the expected value, it is considered correct
-    # if the performance is within the tolerance, it is considered correct
-    for i in range(algo_num):
-        total += 3
-
-        if (
-            python_output[12][i] * 100 >= matlab_accuracy[i]
-            or abs(python_output[12][i] * 100 - matlab_accuracy[i]) <= tol
-        ):
-            correct += 1
-
-        if (
-            python_output[13][i] * 100 >= matlab_precision[i]
-            or abs(python_output[13][i] * 100 - matlab_precision[i]) <= tol
-        ):
-            correct += 1
-
-        if (
-            python_output[14][i] * 100 >= matlab_recall[i]
-            or abs(python_output[14][i] * 100 - matlab_recall[i]) <= tol
-        ):
-            correct += 1
-
-    assert correct / total >= threshold
+    expected_kernel = "poly" if polynomial else "rbf"
+    for estimator, kernel_scale in zip(output.svm, output.k_scale, strict=True):
+        assert isinstance(estimator, SVC)
+        assert estimator.kernel == expected_kernel
+        assert estimator.degree == POLYNOMIAL_DEGREE
+        assert estimator.gamma == pytest.approx(1.0 / kernel_scale**2)
 
 
-def test_pilot_num_pythia_bayes_gaussian() -> None:
-    """Test the integration of the Pilot and Pythia stages.
-
-    The test will check the output of the Pythia stage with the expected output from the
-    MATLAB.
-    This test is for Pilot stage using numerical option and Pythia stage using Bayesian
-    optimization with Gaussian kernel.
-    """
+@pytest.mark.parametrize("polynomial", [False, True])
+def test_numerical_pilot_to_pythia_contract(*, polynomial: bool) -> None:
+    """Numerical PILOT output is a valid input to Gaussian and polynomial PYTHIA."""
     sample_data = SampleDataNum()
-
-    x_sample = sample_data.x_sample
-    y_sample = sample_data.y_sample
-    feat_labels_sample = sample_data.feat_labels_sample
-    opts_sample = sample_data.opts_sample
-    pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
-    pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(
-        x_sample,
-        y_sample,
-        feat_labels_sample,
-        pilot_opts,
+    pilot_output = PilotStage(
+        sample_data.x_sample,
+        sample_data.y_sample,
+        sample_data.feat_labels_sample,
+    ).pilot(
+        sample_data.x_sample,
+        sample_data.y_sample,
+        sample_data.feat_labels_sample,
+        sample_data.opts_sample,
         GeneralOptions.default(),
     )
 
-    pythia_options = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=False,
-        use_weights=False,
-        params=None,
-        tuning="bayes",  # exercise the Bayes-search path, not the sobol default
-        n_tuning_iter=BAYES_N_ITER_FOR_TESTS,
-    )
-    pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
-    pythia_result = pythia.pythia(
-        pilot_result[5],
-        y,
-        y_bin,
-        y_best,
-        algo,
-        pythia_options,
-        parallel_opts,
-        GeneralOptions.default(),
-    )
+    output = _train_pythia_from_projection(pilot_output.z, polynomial=polynomial)
 
-    # read the actual output
-    matlab_output = pd.read_csv(output_dir / "BO_gaussian/gaussian.csv")
-
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
-    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
-    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
-
-    compare_performance(
-        pythia_result,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
+    _assert_integrated_output(output, pilot_output.z, polynomial=polynomial)
 
 
-def test_pilot_num_pythia_bayes_poly() -> None:
-    """Test the integration of the Pilot and Pythia stages.
-
-    The test will check the output of the Pythia stage with the expected output from the
-    MATLAB.
-    This test is for Pilot stage using numerical option and Pythia stage using Bayesian
-    optimization with Polynomial kernel.
-    """
-    sample_data = SampleDataNum()
-
-    x_sample = sample_data.x_sample
-    y_sample = sample_data.y_sample
-    feat_labels_sample = sample_data.feat_labels_sample
-    opts_sample = sample_data.opts_sample
-    pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
-    pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(
-        x_sample,
-        y_sample,
-        feat_labels_sample,
-        pilot_opts,
-        GeneralOptions.default(),
-    )
-
-    opts = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=True,
-        use_weights=False,
-        params=None,
-        tuning="bayes",  # exercise the Bayes-search path, not the sobol default
-        n_tuning_iter=BAYES_N_ITER_FOR_TESTS,
-    )
-    pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
-    pythia_result = pythia.pythia(
-        pilot_result[5],
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-        parallel_opts,
-        GeneralOptions.default(),
-    )
-
-    # read the actual output
-    matlab_output = pd.read_csv(output_dir / "BO_poly/poly.csv")
-
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
-    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
-    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
-
-    compare_performance(
-        pythia_result,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
-
-
-def test_pilot_analytic_pythia_bo_gaussian() -> None:
-    """Test the integration of the Pilot and Pythia stages.
-
-    The test will check the output of the Pythia stage with the expected output from the
-    MATLAB.
-    This test is for Pilot stage using analytical option and Pythia stage using Bayesian
-    optimization with Gaussian kernel.
-    """
+@pytest.mark.parametrize("polynomial", [False, True])
+def test_analytic_pilot_to_pythia_contract(*, polynomial: bool) -> None:
+    """Analytic PILOT output is a valid input to Gaussian and polynomial PYTHIA."""
     sample_data = SampleData()
-
-    x_sample = sample_data.x_sample
-    y_sample = sample_data.y_sample
-    feat_labels_sample = sample_data.feat_labels_sample
-    opts_sample = PilotOptions(None, None, True, 5)
-    pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
-    pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(
-        x_sample,
-        y_sample,
-        feat_labels_sample,
-        pilot_opts,
+    pilot_output = PilotStage(
+        sample_data.x_sample,
+        sample_data.y_sample,
+        sample_data.feat_labels_sample,
+    ).pilot(
+        sample_data.x_sample,
+        sample_data.y_sample,
+        sample_data.feat_labels_sample,
+        PilotOptions.default(analytic=True, n_tries=5),
         GeneralOptions.default(),
     )
 
-    opts = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=False,
-        use_weights=False,
-        params=None,
-        tuning="bayes",  # exercise the Bayes-search path, not the sobol default
-        n_tuning_iter=BAYES_N_ITER_FOR_TESTS,
-    )
+    output = _train_pythia_from_projection(pilot_output.z, polynomial=polynomial)
 
-    pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
-    pythia_result = pythia.pythia(
-        pilot_result[5],
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-        parallel_opts,
-        GeneralOptions.default(),
-    )
-
-    output_dir = script_dir / "pilot_pythia"
-    # read the actual output
-    matlab_output = pd.read_csv(output_dir / "analytic_gaussian_BO.csv")
-
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
-    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
-    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
-
-    compare_performance(
-        pythia_result,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
-
-
-def test_pilot_analytic_pythia_bo_poly() -> None:
-    """Test the integration of the Pilot and Pythia stages.
-
-    The test will check the output of the Pythia stage with the expected output from the
-    MATLAB.
-    This test is for Pilot stage using analytical option and Pythia stage using Bayesian
-    optimization with Polynomial kernel
-    """
-    sample_data = SampleData()
-
-    x_sample = sample_data.x_sample
-    y_sample = sample_data.y_sample
-    feat_labels_sample = sample_data.feat_labels_sample
-    opts_sample = PilotOptions(None, None, True, 5)
-    pilot_opts = PilotOptions(None, None, opts_sample.analytic, opts_sample.n_tries)
-    pilot = PilotStage(x_sample, y_sample, feat_labels_sample)
-    pilot_result = pilot.pilot(
-        x_sample,
-        y_sample,
-        feat_labels_sample,
-        pilot_opts,
-        GeneralOptions.default(),
-    )
-
-    opts = PythiaOptions(
-        cv_folds=5,
-        is_poly_krnl=True,
-        use_weights=False,
-        params=None,
-        tuning="bayes",  # exercise the Bayes-search path, not the sobol default
-        n_tuning_iter=BAYES_N_ITER_FOR_TESTS,
-    )
-
-    pythia = PythiaStage(pilot_result[5], y, y_bin, y_best, algo)
-    pythia_result = pythia.pythia(
-        pilot_result[5],
-        y,
-        y_bin,
-        y_best,
-        algo,
-        opts,
-        parallel_opts,
-        GeneralOptions.default(),
-    )
-
-    output_dir = script_dir / "pilot_pythia"
-    # read the actual output
-    matlab_output = pd.read_csv(output_dir / "analytic_poly_BO.csv")
-
-    # get the accuracy, precision, recall
-    matlab_accuracy = matlab_output["CV_model_accuracy"].values.astype(np.double)
-    matlab_precision = matlab_output["CV_model_precision"].values.astype(np.double)
-    matlab_recall = matlab_output["CV_model_recall"].values.astype(np.double)
-
-    compare_performance(
-        pythia_result,
-        matlab_accuracy,
-        matlab_precision,
-        matlab_recall,
-        len(algo),
-        2.5,
-    )
+    _assert_integrated_output(output, pilot_output.z, polynomial=polynomial)

@@ -6,6 +6,18 @@ behaviour, `test_explore_<stage>.py` for its `explore()`-time inference counterp
 See the roadmap's T7 section (`docs/pyIS_docs_quality_roadmap.md`) for the full decision
 and file-by-file mapping.
 
+## Current MATLAB oracle
+
+`tests/fixtures/matlab/current/` is the canonical `matlab-verified` oracle: 423 files
+under `reference-export/v2`, generated with MATLAB R2026a Update 4 from gold source
+`98a01ac0513c0dd0f8a9bd91ed2926c871334d7b` (InstanceSpace v0.9.1) and Python
+generator `4816b8cf23ad9392e7a7f5aa85bfbc32080dfe84`. Its exporter SHA-256 is
+`d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
+Collection contains 86 provenance tests and 41 current scientific readers. The
+local CI-equivalent gate passed all 1,046 collected tests with 92.08% branch coverage
+and no uncaught warnings under `-W error`. The frozen 229-file v1 format remains readable,
+but is not the installed oracle.
+
 ## Naming Convention
 
 | Prefix | Covers | Example |
@@ -25,11 +37,11 @@ existing name.
 
 ### Validation tests
 
-Each stage is fed MATLAB's own inputs — the trained-model artifacts plus the previous
-stage's MATLAB output — and its result is compared against the MATLAB reference output
-for that stage. This isolates per-stage port fidelity from error accumulated along the
-pipeline. Reference data lives in `tests/matlab_reference/` (see its README for the
-file inventory). Run with `-s` to see the comparison statistics each test prints.
+Historical stage tests feed stored training artifacts and previous-stage outputs into
+each Python stage. Data under `tests/matlab_reference/` is `legacy-unknown`: useful for
+regression detection, but not a verified MATLAB oracle. Current parity tests use the
+manifest-verified v2 bundle under `tests/fixtures/matlab/current/`. Run with `-s` to see
+comparison diagnostics. No legacy fixture can establish MATLAB parity.
 
 ### Unit tests
 
@@ -49,9 +61,20 @@ poetry run pytest -v
 
 # One stage's explore()-time tests, with validation statistics printed
 poetry run pytest tests/test_explore_trace.py -v -s
+
+# Strict provenance and all current-gold scientific readers
+poetry run pytest tests/test_fixture_provenance.py -q
+poetry run pytest tests/test_current_matlab_*.py -q
 ```
 
-## Validation Criteria
+## Validation criteria
+
+Current-gold readers validate the manifest and use exact comparisons or narrowly scoped
+numeric tolerances documented beside each assertion. They include standard and SIMPLS
+PILOT in 2D/3D, viewpoints, TRACE/TRACE3 geometry, topology, membership, and rescoring.
+
+The table below records the older `legacy-unknown` regression thresholds. Passing these
+tests detects drift but is not a current MATLAB parity claim.
 
 Every threshold is documented, with its rationale, in the docstring of the test that
 asserts it:
@@ -61,5 +84,5 @@ asserts it:
 | PRELIM | max relative error < 1% | deterministic bounding → Box-Cox → z-score with stored parameters; expected to match to floating-point precision |
 | SIFTED | exact match | pure column indexing |
 | PILOT  | max relative error < 1% | single matrix product with the stored projection matrix |
-| PYTHIA | binary agreement ≥ 99%; mean probability Pearson \|r\| ≥ 0.99 | SVM evaluation with stored parameters; small margin for thresholded predictions near the decision boundary |
+| PYTHIA | exact binary outputs; probabilities within `1e-13` absolute error | direct replay of the stored historical SVM artifacts; correlation is not used because it accepts inverted or shifted probabilities |
 | TRACE  | per-column boolean agreement ≥ 99% | boundary-inclusive membership matching MATLAB `polyshape.isinterior`; the 1% budget covers floating-point boundary edge cases after the CSV round-trip |

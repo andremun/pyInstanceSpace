@@ -1,61 +1,48 @@
 # Pending issue backlog
 
-Reviewed against the 17 open GitHub issues on 2026-08-17. This file records local
-results only; no issue was closed or edited remotely.
+Reviewed against the branch's tracked GitHub issues on 2026-08-21. This records local
+results; no issue was closed or edited remotely in this pass.
 
 ## Ready for maintainer review
 
-| Issue | Status | Recommended action |
+| Issue | Local status | Recommended action |
 |---|---|---|
-| [#302](https://github.com/andremun/pyInstanceSpace/issues/302) | Implemented and tested | Close after review. |
-| [#314](https://github.com/andremun/pyInstanceSpace/issues/314) | Implemented and tested | Close after review. |
-| [#317](https://github.com/andremun/pyInstanceSpace/issues/317) | Implemented and tested | Close after review. |
-| [#315](https://github.com/andremun/pyInstanceSpace/issues/315) | Premise disproved | Close as invalid or stale; MATLAB membership is boundary-inclusive. |
+| [#262](https://github.com/andremun/pyInstanceSpace/issues/262) | Implemented and verified | Review 2D/3D PILOT, SIMPLS, SIFTED propagation, and viewpoints; close after approval. |
+| [#265](https://github.com/andremun/pyInstanceSpace/issues/265) | Implemented and verified | Review native 3D output, plots, and mesh schema; close after approval. |
+| [#272](https://github.com/andremun/pyInstanceSpace/issues/272) | Premise superseded | Close as stale; R2026a intentionally permits the reproduced multi-region all-points alpha. |
+| [#278](https://github.com/andremun/pyInstanceSpace/issues/278) | Implemented and verified | Review the clean R2026a 423-file v2 provenance profile; close after approval. |
+| [#310](https://github.com/andremun/pyInstanceSpace/issues/310) | Implemented and verified | Review the atomically installed v2 oracle and current-layout readers; close after approval. |
+| [#313](https://github.com/andremun/pyInstanceSpace/issues/313) | Implemented and verified | Review native 2D/3D TRACE3 and explore rescoring; keep any default switch separate. |
+| [#316](https://github.com/andremun/pyInstanceSpace/issues/316) | Implemented and verified | Review the typed stage-owned inference contract and compatibility wrappers; close after approval. |
+| [#320](https://github.com/andremun/pyInstanceSpace/issues/320) | Implemented and tested | Close after confirming the removed helper was dead code. |
+| [#321](https://github.com/andremun/pyInstanceSpace/issues/321) | Implemented and tested | Close after reviewing shared `casefold()` canonicalization and conflict tests. |
 
-## Deferred open issues
+Issues #302, #314, #315, and #317 were resolved by the stacked predecessor work and are
+already closed upstream.
+
+## Remaining substantive work
 
 | Issue | Priority | Next step |
 |---|---:|---|
-| [#313](https://github.com/andremun/pyInstanceSpace/issues/313) | High | Design and port TRACE3 with independent MATLAB fixtures. |
-| [#262](https://github.com/andremun/pyInstanceSpace/issues/262) | High | Add PILOT dimensions, viewpoints, and 3D parity as a separate feature. |
-| [#265](https://github.com/andremun/pyInstanceSpace/issues/265) | Medium | Follow #262 with 3D output and visualization support. |
-| [#316](https://github.com/andremun/pyInstanceSpace/issues/316) | Medium | Design a shared train/infer stage contract before changing orchestration. |
-| [#278](https://github.com/andremun/pyInstanceSpace/issues/278) | High, blocked | Regenerate and document fixtures in a real MATLAB environment. |
-| [#310](https://github.com/andremun/pyInstanceSpace/issues/310) | Blocked | Reorganize fixtures only after #278 establishes provenance. |
-| [#305](https://github.com/andremun/pyInstanceSpace/issues/305) | Tracker | Reassess after #278 and #310. |
-| [#273](https://github.com/andremun/pyInstanceSpace/issues/273) | Tracker | Reassess after provenance and fixture work. |
-| [#304](https://github.com/andremun/pyInstanceSpace/issues/304) | Low | Benchmark Bayesian convergence before tuning defaults. |
-| [#297](https://github.com/andremun/pyInstanceSpace/issues/297) | Tracker | Mark #302 addressed, then audit remaining linked work. |
-| [#272](https://github.com/andremun/pyInstanceSpace/issues/272) | Medium | Reproduce the alpha-boundary failure before adding retries. |
-| [#270](https://github.com/andremun/pyInstanceSpace/issues/270) | Tracker | Reassess after #272. |
-| [#260](https://github.com/andremun/pyInstanceSpace/issues/260) | Tracker | Keep open for the major parity features above. |
+| [#304](https://github.com/andremun/pyInstanceSpace/issues/304) | Low | Export equal-budget candidate sequences, objective values, fold IDs, and repeated seeds before judging MATLAB/Python Bayesian convergence. Do not tune defaults from rounded legacy metrics. |
 
-## New audit backlog
+## Parent trackers
 
-### Data validation
+| Issue | Recommended disposition |
+|---|---|
+| [#260](https://github.com/andremun/pyInstanceSpace/issues/260) | Reassess for closure after reviewing #262, #265, #313, and the implemented #316 contract. |
+| [#270](https://github.com/andremun/pyInstanceSpace/issues/270) | Reassess for closure after #272 is disposed of. |
+| [#273](https://github.com/andremun/pyInstanceSpace/issues/273) | Reassess for closure with #305 after #310 is accepted. |
+| [#305](https://github.com/andremun/pyInstanceSpace/issues/305) | Close with the completed test-data migration after #310 review. |
+| [#297](https://github.com/andremun/pyInstanceSpace/issues/297) | Keep open while #304 still needs acceptable optimizer-trace evidence. |
 
-- Require one instance column, numeric and uniquely named feature/algorithm columns,
-  and minimum viable dimensions.
-- Reject manual feature or algorithm selections that match no columns.
-- Validate the remaining active option fields before stage execution.
+## Deliberately deferred polish
 
-### Serialization and plotting
+- Keep legacy TRACE as the Python default until maintainers approve a versioned switch.
+- Repair stale examples and low-risk documentation paths independently of the parity
+  changes.
+- Never promote diagnostic or `legacy-unknown` data into the MATLAB oracle.
 
-- Stop CSV export from mutating model-owned DataFrames.
-- Preserve MultiPolygon parts and holes without false connecting edges.
-- Sanitize label-derived paths and prevent duplicate flattened ZIP members.
-- Guard plot normalization for constant or all-NaN data.
-- Replace swallowed save errors with actionable exceptions.
-
-### Quality gate
-
-- Remove NumPy matrix usage in TRACE and reduce the roughly 19,700 warnings in the
-  full suite.
-- Guard empty PYTHIA metric denominators and clean serializer warnings.
-- Resolve the inherited test-suite gate debt: about 340 Ruff findings, six
-  Black-formatted test files, and ten non-production strict-mypy findings.
-- Repair stale README paths, the invalid documentation conversion target, and the
-  `InstanceSpaceOptions.default()` example.
-
-These items are reliability work, but none blocks the corrected build path validated
-in this pass.
+These items do not block the verified 2D/3D build and explore paths. The local CI-equivalent
+gate passed all 1,046 tests with 92.08% branch coverage and no uncaught warnings
+under `-W error`.
