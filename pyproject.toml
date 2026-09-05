@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "instancespace"
-version = "0.2.1"
+version = "0.3.0"
 description = ""
 authors = [
     "Mario Andrés Muñoz <munoz.m@unimelb.edu.au>",
