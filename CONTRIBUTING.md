@@ -18,6 +18,12 @@ the project's dependencies.
   the existing commit history.
 - If your change alters existing behaviour, add an entry to `RELEASE_NOTES.md`.
 
+## Before publishing a release
+
+- Confirm `[tool.poetry].version` in `pyproject.toml` matches the release tag
+  (for example, `0.3.0` for tag `v0.3.0`).
+- Publish from a GitHub Release (`published`) or use manual `workflow_dispatch` for a retry.
+
 ## Reporting bugs or requesting features
 
 Use this repository's [issue tracker](https://github.com/andremun/pyInstanceSpace/issues).
