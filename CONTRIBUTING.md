@@ -22,7 +22,7 @@ the project's dependencies.
 
 - Confirm `[tool.poetry].version` in `pyproject.toml` matches the release tag
   (for example, `0.3.0` for tag `v0.3.0`).
-- Publish from a GitHub Release (`published`) or use manual `workflow_dispatch` for a retry.
+- Publish from a GitHub Release (`published`) or use manual `workflow_dispatch` for a retry (run it on the release tag/commit).
 
 ## Reporting bugs or requesting features
 
