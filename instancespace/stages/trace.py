@@ -186,20 +186,20 @@ class TraceStage(
     Attributes
     ----------
     z : NDArray[np.double]
-    The space of instances, represented as an array of data points (features).
+        The space of instances, represented as an array of data points (features).
     y_bin : NDArray[np.bool_]
-    Binary indicators of performance, where each column corresponds to an
-    algorithm's performance.
+        Binary indicators of performance, where each column corresponds to an
+        algorithm's performance.
     p : NDArray[np.int_]
-    Performance metrics for algorithms, represented as integers where each value
-    corresponds to the index of an algorithm.
+        Performance metrics for algorithms, represented as integers where each value
+        corresponds to the index of an algorithm.
     beta : NDArray[np.bool_]
-    Specific binary thresholds for footprint calculation.
+        Specific binary thresholds for footprint calculation.
     algo_labels : list[str]
-    List of labels for each algorithm.
+        List of labels for each algorithm.
     opts : TraceOptions
-    Configuration options for TRACE and its subroutines, controlling the behavior
-    of the analysis.
+        Configuration options for TRACE and its subroutines, controlling the behavior
+        of the analysis.
 
     Methods
     -------
@@ -526,7 +526,30 @@ class TraceStage(
     ) -> TraceOutputs:
         """Perform the TRACE footprint analysis.
 
-        The method uses the inputs and the options that the constructor stores.
+        Parameters
+        ----------
+        z : NDArray[np.double]
+            The space of instances.
+        y_bin : NDArray[np.bool_]
+            Binary indicators of performance.
+        p : NDArray[np.int_]
+            Performance metrics for algorithms.
+        beta : NDArray[np.bool_]
+            Specific beta threshold for footprint calculation.
+        algo_labels : list[str]
+            Labels for each algorithm.
+        trace_opts : TraceOptions
+            Configuration options for TRACE and its subroutines.
+        parallel_opts : ParallelOptions
+            Configuration options for parallel processing in Matilda.
+        general_opts : GeneralOptions
+            General options for all stages, for example verbosity.
+        executor : ThreadPoolExecutor | None
+            A caller-owned pool to reuse instead of creating a fresh one.
+        y_hat : NDArray[np.bool_] | None
+            Optional PYTHIA predictions used only by TRACE3.
+        pythia_skipped : bool
+            Whether PYTHIA intentionally returned placeholder predictions.
 
         Returns
         -------
@@ -552,20 +575,7 @@ class TraceStage(
     def _trace(self) -> TraceOutputs:
         """Perform the TRACE footprint analysis.
 
-        Parameters
-        ----------
-        z : NDArray[np.double]
-            The space of instances.
-        y_bin : NDArray[np.bool_]
-            Binary indicators of performance.
-        p : NDArray[np.int_]
-            Performance metrics for algorithms.
-        beta : NDArray[np.bool_]
-            Specific beta threshold for footprint calculation.
-        algo_labels : list[str]
-            Labels for each algorithm.
-        opts : TraceOptions
-            Configuration options for TRACE and its subroutines.
+        The method uses the inputs and the options that the constructor stores.
 
         Returns
         -------
