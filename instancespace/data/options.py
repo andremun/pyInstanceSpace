@@ -1184,17 +1184,17 @@ class InstanceSpaceOptions:
         the InstanceSpaceOptions with data from the file, and sets missing optional
         fields using their default values.
 
-        Args:
-        ----
+        Parameters
+        ----------
         file_contents
             Content of the dict with configuration options.
 
-        Returns:
+        Returns
         -------
         InstanceSpaceOptions
             InstanceSpaceOptions object populated with data from the file.
 
-        Raises:
+        Raises
         ------
         ValueError
             If the JSON file contains undefined sub options.
@@ -1426,8 +1426,8 @@ class InstanceSpaceOptions:
     ) -> None:
         """Validate all keys in the provided dictionary are valid fields in dataclass.
 
-        Args:
-        ----
+        Parameters
+        ----------
         data_class : type[T]
             The dataclass type to validate against.
         data : dict
@@ -1439,7 +1439,7 @@ class InstanceSpaceOptions:
             dictionary uses the key `pi`, this mapping
             would be `{"pi": "purity"}`.
 
-        Raises:
+        Raises
         ------
         ValueError
             If an undefined field is found in the dictionary or
@@ -1492,8 +1492,8 @@ class InstanceSpaceOptions:
         with available data. If a field is missing in the dictionary, the default
         value from the dataclass is used.
 
-        Args:
-        ----
+        Parameters
+        ----------
         data_class : type[T]
             The dataclass type to populate.
         data : dict
@@ -1505,12 +1505,12 @@ class InstanceSpaceOptions:
             dictionary uses the key `pi`, this mapping
             would be `{"pi": "purity"}`.
 
-        Returns:
+        Returns
         -------
         T
             An instance of the dataclass populated with data.
 
-        Raises:
+        Raises
         ------
         ValueError
             If the dictionary contains keys that are not valid fields in the dataclass.
@@ -1639,18 +1639,18 @@ class PrelimOptions:
 def from_json_file(file_path: Path | str) -> InstanceSpaceOptions | None:
     """Parse options from a JSON file and construct an InstanceSpaceOptions object.
 
-    Args:
-    ----
+    Parameters
+    ----------
     file_path : Path | str
         The path to the JSON file containing the options.
 
-    Returns:
+    Returns
     -------
     InstanceSpaceOptions or None
         An InstanceSpaceOptions object constructed from the parsed JSON data, or None
         if an error occurred during file reading or parsing.
 
-    Raises:
+    Raises
     ------
     FileNotFoundError
         If the specified file does not exist.

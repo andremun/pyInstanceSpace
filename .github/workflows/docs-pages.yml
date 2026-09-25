@@ -35,15 +35,8 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
-      # -d google, not -d numpy: this repo's ruff config declares numpy-style
-      # docstrings, but several files mix numpy-style section headers with
-      # Google-style parameter bodies, which crashes pdoc's numpy converter
-      # (see #325). google tolerates the mix without crashing, at the cost of
-      # those specific sections rendering as plain text instead of a
-      # formatted parameter table until the docstrings themselves are fixed
-      # (#326 first, then #325).
       - name: Build API docs with pdoc
-        run: poetry run pdoc instancespace -d google -o site
+        run: poetry run poe docs
 
       - name: Upload docs artifact
         uses: actions/upload-pages-artifact@v3

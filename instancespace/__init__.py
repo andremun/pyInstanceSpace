@@ -2,20 +2,32 @@
 # Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Contains modules for instance space analysis.
 
-The module consists of various algorithms to perform instance space analysis.
-- preprocessing: Prepare data to be used by stages.
-- prelim: Performing preliminary data processing.
-- sifted: Perform feature selection and optimization in data analysis.
-- pilot: Obtaining a two-dimensional projection.
-- pythia: Perform algorithm selection and performance evaluation using SVM.
-- cloister: Perform correlation analysis to estimate a boundary for the space.
-- trace: Calculating the algorithm footprints.
+The package builds an instance space from instance meta-data (features and algorithm
+performance) and uses it to predict algorithm performance and to find algorithm
+footprints. The stages run in this order:
 
-Perform instance space analysis on given dataset and configuration.
+- preprocessing: Filter the meta-data and remove instances or features with too many
+  missing values.
+- prelim: Preparation for Learning of Instance Meta-Data. Set a binary measure of
+  "good" performance, then bound and scale the meta-data.
+- sifted: Selection of Instance Features to Explain Difficulty. Select a subset of
+  features that correlate with algorithm performance and are not redundant.
+- pilot: Projecting Instances with Linearly Observable Trends. Project the instances
+  from the feature space to a 2D (or 3D) instance space with linear trends in the
+  features and in algorithm performance.
+- pythia: Train one classifier per algorithm on the instance space to predict good
+  performance, and recommend an algorithm for each instance.
+- cloister: Correlated Limits of the Instance Space's Theoretical or Experimental
+  Regions. Estimate the boundary of the instance space from the feature bounds and
+  the correlations between features.
+- trace: Triangulation with Removal of Areas with Contradicting Evidence. Find the
+  regions of the instance space (footprints) where each algorithm performs well.
 
-Construct an instance space from data and configuration files located in a specified
-directory. The instance space is represented as a Model object, which encapsulates the
-analytical results and metadata of the instance space analysis.
+`InstanceSpace.build()` trains all stages on a data set. `InstanceSpace.explore()`
+projects new instances into a trained instance space.
+
+Reference: K. Smith-Miles and M. A. Muñoz, "Instance Space Analysis for Algorithm
+Testing: Methodology and Software Tools", ACM Comput. Surv. 55(12), 2023.
 """
 
 from . import data, instance_space, progress_reporter, stages

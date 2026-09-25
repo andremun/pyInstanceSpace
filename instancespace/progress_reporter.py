@@ -48,18 +48,19 @@ def serialize_stage_output(
 ) -> dict[str, Any]:
     """Serialize stage output for inclusion in progress reports.
 
-    Args
-    ----
-        instance_space : Any
-            The InstanceSpace object after stage completion.
-        stage_name : str
-            Name of the completed stage.
-        detail_level : OutputDetail
-            How much detail to include.
+    Parameters
+    ----------
+    instance_space : Any
+        The InstanceSpace object after stage completion.
+    stage_name : str
+        Name of the completed stage.
+    detail_level : OutputDetail
+        How much detail to include.
 
     Returns
     -------
-        dict[str, Any]: Dictionary with stage output information.
+    dict[str, Any]
+        Dictionary with stage output information.
     """
     if detail_level == OutputDetail.NONE:
         return {}
@@ -142,15 +143,15 @@ class ProgressReporter(ABC):
     ) -> None:
         """Report that a stage has completed successfully.
 
-        Args
-        ----
-            stage_name : str
-                Name of the completed stage.
-            duration_seconds : float | None
-                How long the stage took.
-            instance_space : Any
-                The InstanceSpace object (for saving intermediate state
-                and including output data in the report).
+        Parameters
+        ----------
+        stage_name : str
+            Name of the completed stage.
+        duration_seconds : float | None
+            How long the stage took.
+        instance_space : Any
+            The InstanceSpace object (for saving intermediate state and including output
+            data in the report).
         """
 
     @abstractmethod
@@ -164,11 +165,11 @@ class ProgressReporter(ABC):
     ) -> None:
         """Report that the entire job has completed.
 
-        Args
-        ----
-            instance_space : Any
-                The final InstanceSpace object (for including final output
-                data in the report).
+        Parameters
+        ----------
+        instance_space : Any
+            The final InstanceSpace object (for including final output data in the
+            report).
         """
 
     @abstractmethod
@@ -198,21 +199,21 @@ class HttpProgressReporter(ProgressReporter):
     ) -> None:
         """Initialize the HTTP progress reporter.
 
-        Args
-        ----
-            callback_url : str
-                URL to POST progress updates to.
-            job_id : int
-                Job ID for the callback payload.
-            auth_token : str | None
-                Optional bearer token for authentication.
-            timeout_seconds : int
-                HTTP request timeout.
-            output_detail : OutputDetail
-                Level of detail to include for stage outputs.
-            include_pickle_on_completion : bool
-                Whether to include full pickle on job completion (overrides
-                output_detail for the final callback).
+        Parameters
+        ----------
+        callback_url : str
+            URL to POST progress updates to.
+        job_id : int
+            Job ID for the callback payload.
+        auth_token : str | None
+            Optional bearer token for authentication.
+        timeout_seconds : int
+            HTTP request timeout.
+        output_detail : OutputDetail
+            Level of detail to include for stage outputs.
+        include_pickle_on_completion : bool
+            Whether to include full pickle on job completion (overrides output_detail
+            for the final callback).
         """
         self.callback_url = callback_url
         self.job_id = job_id
@@ -225,14 +226,15 @@ class HttpProgressReporter(ProgressReporter):
     def _send_callback(self, payload: dict[str, Any]) -> bool:
         """Send a callback to the configured URL.
 
-        Args
-        ----
-            payload : dict[str, Any]
-                JSON payload to send.
+        Parameters
+        ----------
+        payload : dict[str, Any]
+            JSON payload to send.
 
         Returns
         -------
-            bool: True if callback was successful, False otherwise.
+        bool
+            True if callback was successful, False otherwise.
         """
         try:
             data = json.dumps(payload, default=str).encode("utf-8")
@@ -377,12 +379,12 @@ class FileProgressReporter(ProgressReporter):
     ) -> None:
         """Initialize the file progress reporter.
 
-        Args
-        ----
-            progress_file : Path
-                Path to the progress.json file.
-            stages_dir : Path | None
-                Optional directory to save intermediate stage pickles.
+        Parameters
+        ----------
+        progress_file : Path
+            Path to the progress.json file.
+        stages_dir : Path | None
+            Optional directory to save intermediate stage pickles.
         """
         self.progress_file = Path(progress_file)
         self.stages_dir = Path(stages_dir) if stages_dir else None

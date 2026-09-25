@@ -23,12 +23,12 @@ Dependencies:
 - sklearn
 - skopt
 
-Classes:
---------
+Classes
+-------
 - PythiaStage: The main class for the Pythia stage.
 
-Functions:
-----------
+Functions
+---------
 - pythia: The main function for the Pythia stage.
 - _fit_classifier: Train the configured classifier (see PythiaOptions.classifier).
 - _display_overall_perf: Output overall performance metrics.
@@ -173,7 +173,7 @@ class PythiaInput(NamedTuple):
         The algorithm labels.
     pythia_options : PythiaOptions
         The options for the Pythia stage.
-    parallel_options: ParallelOptions
+    parallel_options : ParallelOptions
         The parallel options, specifiy whether run in parallel and number of cores.
     general_options : GeneralOptions
         General options (e.g. the RNG seed), not specific to any one stage.

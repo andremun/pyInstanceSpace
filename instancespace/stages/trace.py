@@ -91,7 +91,7 @@ type TraceGeometry = Polygon | MultiPolygon | TetrahedralMesh
 class TraceInputs(NamedTuple):
     """A named tuple to encapsulate the inputs required for the TRACE analysis.
 
-    Attributes:
+    Attributes
     ----------
     z : NDArray[np.double]
         The space of instances, represented as an array of data points (features).
@@ -134,7 +134,7 @@ class TraceInputs(NamedTuple):
 class TraceOutputs(NamedTuple):
     """A named tuple to encapsulate the outputs of the TRACE analysis.
 
-    Attributes:
+    Attributes
     ----------
     space : Footprint
         The footprint representing the entire space of instances.
@@ -183,7 +183,7 @@ class TraceStage(
     and are evaluated for their density and purity relative to specific algorithmic
     performance metrics.
 
-    Attributes:
+    Attributes
     ----------
     z : NDArray[np.double]
     The space of instances, represented as an array of data points (features).
@@ -201,7 +201,7 @@ class TraceStage(
     Configuration options for TRACE and its subroutines, controlling the behavior
     of the analysis.
 
-    Methods:
+    Methods
     -------
     __init__(self) -> None:
     Initializes the Trace class without any parameters.
@@ -264,7 +264,7 @@ class TraceStage(
     ) -> None:
         """Initialise the Trace analysis with provided data and options.
 
-        Parameters:
+        Parameters
         ----------
         z : NDArray[np.double]
             The space of instances, represented as an array of data points (features).
@@ -318,13 +318,10 @@ class TraceStage(
     def _inputs() -> type[TraceInputs]:
         """Use the method for determining the inputs for trace.
 
-        Args
-        ----
-
         Returns
         -------
-            list[tuple[str, type]]
-                List of inputs for the stage
+        type[TraceInputs]
+            The inputs type for the stage.
         """
         return TraceInputs
 
@@ -332,13 +329,10 @@ class TraceStage(
     def _outputs() -> type[TraceOutputs]:
         """Use the method for determining the outputs for trace.
 
-        Args
-        ----
-
         Returns
         -------
-            list[tuple[str, type]]
-                List of outputs for the stage
+        type[TraceOutputs]
+            The outputs type for the stage.
         """
         return TraceOutputs
 
@@ -393,14 +387,15 @@ class TraceStage(
     def _run(inputs: TraceInputs) -> TraceOutputs:
         """Use the method for running the trace stage as well as surrounding buildIS.
 
-        Args
-        ----
-            options (TraceOptions): Configuration options for TRACE and its subroutines
+        Parameters
+        ----------
+        inputs : TraceInputs
+            The inputs for the TRACE stage, including its configuration options.
 
         Returns
         -------
-            tuple[Footprint, list[Footprint], list[Footprint], Footprint, pd.DataFrame]
-                The results of the trace stage
+        TraceOutputs
+            The results of the trace stage.
         """
         logger.info(
             "[TRACE] ========================================================"
@@ -530,7 +525,7 @@ class TraceStage(
     ) -> TraceOutputs:
         """Perform the TRACE footprint analysis.
 
-        Parameters:
+        Parameters
         ----------
         z : NDArray[np.double]
             The space of instances.
@@ -555,7 +550,7 @@ class TraceStage(
         pythia_skipped : bool
             Whether PYTHIA intentionally returned placeholder predictions.
 
-        Returns:
+        Returns
         -------
         TraceDataChanged:
             Should be Empty
@@ -581,7 +576,7 @@ class TraceStage(
     def _trace(self) -> TraceOutputs:
         """Perform the TRACE footprint analysis.
 
-        Parameters:
+        Parameters
         ----------
         z : NDArray[np.double]
             The space of instances.
@@ -596,7 +591,7 @@ class TraceStage(
         opts : TraceOptions
             Configuration options for TRACE and its subroutines.
 
-        Returns:
+        Returns
         -------
         TraceDataChanged:
             Should be Empty
@@ -1100,12 +1095,12 @@ class TraceStage(
     def build(self, y_bin: NDArray[np.bool_]) -> Footprint:
         """Construct a footprint polygon using DBSCAN clustering.
 
-        Parameters:
+        Parameters
         ----------
         y_bin : NDArray[np.bool_]
             Binary indicator vector indicating which data points are of interest.
 
-        Returns:
+        Returns
         -------
         Footprint:
             The constructed footprint with calculated area, density, and purity.
@@ -1153,7 +1148,7 @@ class TraceStage(
     ) -> tuple[Footprint, Footprint]:
         """Detect and resolve contradictions between two footprint polygons.
 
-        Parameters:
+        Parameters
         ----------
         base : Footprint
             The base footprint polygon.
@@ -1164,7 +1159,7 @@ class TraceStage(
         y_test : NDArray[np.bool_]
             Binary array indicating the points corresponding to the test footprint.
 
-        Returns:
+        Returns
         -------
         tuple:
             Updated base and test footprints after resolving contradictions.
@@ -1249,14 +1244,14 @@ class TraceStage(
     ) -> Polygon | MultiPolygon:
         """Refine an existing polygon by removing slivers and improving its shape.
 
-        Parameters:
+        Parameters
         ----------
         polygon : Polygon | MultiPolygon
             The polygon or multipolygon to be refined.
         y_bin : NDArray[np.bool_]
             Binary array indicating which data points belong to the polygon.
 
-        Returns:
+        Returns
         -------
         Polygon | MultiPolygon:
             The refined polygon, or an empty polygon if refinement fails.
@@ -1295,7 +1290,7 @@ class TraceStage(
     ) -> Polygon | MultiPolygon | None:
         """Fit a polygon to the given data points, following the purity constraints.
 
-        Parameters:
+        Parameters
         ----------
         polydata : NDArray[np.double]
             The data points to fit the polygon to.
@@ -1303,7 +1298,7 @@ class TraceStage(
             Binary array indicating which data points should be considered
             for the polygon.
 
-        Returns:
+        Returns
         -------
         Polygon | MultiPolygon | None:
             The fitted polygon, or None if the fitting fails.
@@ -1335,7 +1330,7 @@ class TraceStage(
     ) -> list[float]:
         """Summarize the footprint metrics.
 
-        Parameters:
+        Parameters
         ----------
         footprint : Footprint
             The footprint to summarize.
@@ -1344,7 +1339,7 @@ class TraceStage(
         space_density : float
             The density of the entire space.
 
-        Returns:
+        Returns
         -------
         list:
             A list containing summarized metrics such as area, normalized area,
@@ -1373,7 +1368,7 @@ class TraceStage(
     def throw(self) -> Footprint:
         """Generate a footprint with default values, indicating insufficient data.
 
-        Returns:
+        Returns
         -------
         Footprint:
             An instance of Footprint with default values.
@@ -1399,14 +1394,14 @@ class TraceStage(
     ) -> NDArray[np.int_]:
         """Perform DBSCAN clustering on the dataset.
 
-        Parameters:
+        Parameters
         ----------
         y_bin : NDArray[np.bool_]
             Binary indicator vector to filter the data points.
         data : NDArray[np.double]
             The dataset to cluster.
 
-        Returns:
+        Returns
         -------
         NDArray[np.int_]:
             Array of cluster labels for each data point.
@@ -1420,15 +1415,15 @@ class TraceStage(
     def epsilon(x: NDArray[np.double], k: int) -> float:
         """Analytical way of estimating neighborhood radius for DBSCAN.
 
-        Parameters:
+        Parameters
         ----------
-        x: NDArray[np.double]
+        x : NDArray[np.double]
             data matrix (m, n); m-objects, n-variables
-        k: int
+        k : int
             number of objects in a neighborhood of an object
             (minimal number of objects considered as a cluster)
 
-        Returns:
+        Returns
         -------
         Eps: float
             Estimated neighborhood radius
@@ -1446,14 +1441,14 @@ class TraceStage(
     ) -> NDArray[np.double]:
         """Calculate the Euclidean distances between objects.
 
-        Parameters:
+        Parameters
         ----------
-        i: NDArray[np.double]
+        i : NDArray[np.double]
             an object (1, n)
-        x: NDArray[np.double]
+        x : NDArray[np.double]
             data matrix (m, n); m-objects, n-variables
 
-        Returns:
+        Returns
         -------
         D: float
             Euclidean distance (m,)
@@ -1468,17 +1463,17 @@ class TraceStage(
     def dbscan(x: NDArray[np.double], k: int, eps: float) -> NDArray[np.int_]:
         """Density-Based Spatial Clustering of Applications with Noise (DBSCAN).
 
-        Parameters:
+        Parameters
         ----------
-        x: NDArray[np.double]
+        x : NDArray[np.double]
            data matrix (m, n); m-objects, n-variables
-        k: int
+        k : int
             minimum number of points to form a cluster
-        eps: float
+        eps : float
             neighborhood radius; if None, it will be estimated using the epsilon
             function
 
-        Returns:
+        Returns
         -------
         class_: NDArray[np.int_]
             Cluster assignments for each point (-1 for noise)
@@ -1535,12 +1530,12 @@ class TraceStage(
     def process_algorithm(self, i: int) -> tuple[int, Footprint, Footprint]:
         """Process an algorithm to calculate its good and best performance footprints.
 
-        Parameters:
+        Parameters
         ----------
         i : int
             Index of the algorithm to process.
 
-        Returns:
+        Returns
         -------
         tuple[int, Footprint, Footprint]:
             The index of the algorithm, and its good and best performance footprints.
@@ -1590,14 +1585,14 @@ class TraceStage(
     ) -> tuple[list[Footprint], list[Footprint]]:
         """Perform parallel processing to calculate footprints for multiple algorithms.
 
-        Parameters:
+        Parameters
         ----------
         n_workers : int
             Number of worker threads to use.
         n_algos : int
             Number of algorithms to process.
 
-        Returns:
+        Returns
         -------
         tuple[list[Footprint], list[Footprint]]:
             Lists of good and best performance footprints for each algorithm.

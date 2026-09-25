@@ -42,20 +42,29 @@ def filter_instance(
 ) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_]]:
     """Filter instances based on distances and binary relations.
 
-    Args
-    ----
-        x (np.ndarray): Feature instance matrix.
-        y (np.ndarray): Algorithm performance matrix.
-        y_bin (np.ndarray): Boolean performance matrix on algorithm from prelim.
-        Options including 'min_distance' and 'selvars_type'.
+    Parameters
+    ----------
+    x : np.ndarray
+        Feature instance matrix.
+    y : np.ndarray
+        Algorithm performance matrix.
+    y_bin : np.ndarray
+        Boolean performance matrix on algorithm from prelim.
+    selvars_type : str
+        Filter type: "Ftr", "Ftr&AP", "Ftr&Good" or "Ftr&AP&Good". It selects
+        which of features, algorithm performance and algorithm goodness are used
+        to decide that two instances are redundant.
+    min_distance : float
+        Feature-space distance at or below which two instances are neighbours.
 
     Returns
     -------
-        subset_index (NDArray[np.bool_]): An array indicating whether each instance
-            is excluded from the subset.
-        is_dissimilar (NDArray[np.bool_]): An array indicating whether each instance
-            is considered dissimilar.
-        is_visa (NDArray[np.bool_]): An array indicating instances VISA flags.
+    subset_index : NDArray[np.bool_]
+        An array indicating whether each instance is excluded from the subset.
+    is_dissimilar : NDArray[np.bool_]
+        An array indicating whether each instance is considered dissimilar.
+    is_visa : NDArray[np.bool_]
+        An array indicating instances VISA flags.
     """
     n_insts, n_algos = y.shape
     n_feats = x.shape[1]
@@ -145,15 +154,18 @@ def compute_uniformity(x: NDArray[np.double], subset_index: NDArray[np.bool_]) -
     (`core/FILTER.m`), returning NaN with a warning instead of a silent,
     numpy-raised `RuntimeWarning` and a meaningless value.
 
-    Args
-    ----
-        subset_index (NDArray[np.bool_]): An array indicating whether each instance
-            is excluded from the subset.
+    Parameters
+    ----------
+    x : NDArray[np.double]
+        Feature instance matrix.
+    subset_index : NDArray[np.bool_]
+        An array indicating whether each instance is excluded from the subset.
 
     Returns
     -------
-        uniformity (float): A score indicating the uniformity of the subset, or
-            NaN if undefined for the reasons above.
+    uniformity : float
+        A score indicating the uniformity of the subset, or NaN if undefined for the
+        reasons above.
     """
     x_kept = x[~subset_index, :]
     if x_kept.shape[0] < MIN_KEPT_INSTANCES_FOR_UNIFORMITY:
@@ -192,20 +204,31 @@ def do_filter(
 ) -> tuple[NDArray[np.bool_], NDArray[np.bool_], NDArray[np.bool_], float]:
     """Filter instances based on distances and binary relations.
 
-    Args
-    ----
-        x (np.ndarray): Feature instance matrix.
-        y (np.ndarray): Algorithm performance matrix.
-        y_bin (np.ndarray): Boolean performance matrix on algorithm from prelim.
-        Options including 'mindistance' and 'type'.
+    Parameters
+    ----------
+    x : np.ndarray
+        Feature instance matrix.
+    y : np.ndarray
+        Algorithm performance matrix.
+    y_bin : np.ndarray
+        Boolean performance matrix on algorithm from prelim.
+    selvars_type : str
+        Filter type: "Ftr", "Ftr&AP", "Ftr&Good" or "Ftr&AP&Good". It selects
+        which of features, algorithm performance and algorithm goodness are used
+        to decide that two instances are redundant.
+    min_distance : float
+        Feature-space distance at or below which two instances are neighbours.
 
     Returns
     -------
-        subset_index (NDArray[np.bool_]): An array indicating whether each instance
-            is excluded from the subset.
-        is_dissimilar (NDArray[np.bool_]): An array indicating whether each instance
-            is considered dissimilar.
-        is_visa (NDArray[np.bool_]): An array indicating instances VISA flags.
+    subset_index : NDArray[np.bool_]
+        An array indicating whether each instance is excluded from the subset.
+    is_dissimilar : NDArray[np.bool_]
+        An array indicating whether each instance is considered dissimilar.
+    is_visa : NDArray[np.bool_]
+        An array indicating instances VISA flags.
+    uniformity : float
+        Uniformity score of the retained subset (see `compute_uniformity`).
     """
     subset_index, is_dissimilar, is_visa = filter_instance(
         x,
