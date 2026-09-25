@@ -709,16 +709,15 @@ class PrelimStage(
 
         Returns
         -------
-        x
-            The feature matrix with extreme outliers removed.
-        med_val
-            The median value of the feature matrix.
-        iq_range
-            The interquartile range of the feature matrix.
-        hi_bound
-            The upper bound for the feature values.
-        lo_bound
-            The lower bound for the feature values.
+        _BoundOut
+            The bounded data and the bound parameters. All fields are
+            `NDArray[np.double]`:
+
+            - `x`: the feature matrix with extreme outliers removed.
+            - `med_val`: the median value of the feature matrix.
+            - `iq_range`: the interquartile range of the feature matrix.
+            - `hi_bound`: the upper bound for the feature values.
+            - `lo_bound`: the lower bound for the feature values.
         """
         self._log("-> Removing extreme outliers from the feature values.")
         med_val = np.nanmedian(self.x, axis=0)
@@ -749,26 +748,20 @@ class PrelimStage(
 
         Returns
         -------
-        x
-            The normalized feature matrix.
-        min_x
-            The minimum value of the feature matrix.
-        lambda_x
-            The lambda values for the Box-Cox transformation of the feature matrix.
-        mu_x
-            The mean of the feature matrix.
-        sigma_x
-            The standard deviation of the feature matrix.
-        y
-            The normalized performance matrix.
-        min_y
-            The minimum value of the performance matrix.
-        lambda_y
-            The lambda values for the Box-Cox transformation of the performance matrix.
-        sigma_y
-            The standard deviation of the performance matrix.
-        mu_y
-            The mean of the performance matrix.
+        _NormaliseOut
+            The normalized data and the normalization parameters. All fields are
+            `NDArray[np.double]`, except `min_y`, which is a `float`:
+
+            - `x`: the normalized feature matrix.
+            - `min_x`: the minimum value of the feature matrix.
+            - `lambda_x`: the Box-Cox lambda values for the feature matrix.
+            - `mu_x`: the mean of the feature matrix.
+            - `sigma_x`: the standard deviation of the feature matrix.
+            - `y`: the normalized performance matrix.
+            - `min_y`: the minimum value of the performance matrix.
+            - `lambda_y`: the Box-Cox lambda values for the performance matrix.
+            - `sigma_y`: the standard deviation of the performance matrix.
+            - `mu_y`: the mean of the performance matrix.
         """
         self._log("-> Auto-normalizing the data using Box-Cox and Z transformations.")
 
