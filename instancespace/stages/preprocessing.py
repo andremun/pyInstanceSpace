@@ -240,12 +240,12 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
 
     @staticmethod
     def _run(inputs: PreprocessingInput) -> PreprocessingOutput:
-        """Perform preliminary processing on the input data 'x' and 'y'.
+        """Run the preprocessing stage on the input data.
 
         Parameters
         ----------
         inputs : PreprocessingInput
-            Inputs for the cloister stage.
+            The inputs for the preprocessing stage.
 
         Returns
         -------

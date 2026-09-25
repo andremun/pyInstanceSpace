@@ -637,7 +637,7 @@ class InstanceSpace:
 
         Returns
         -------
-        list[Any]
+        OUT
             The output of the stage.
         """
         self._invalidate_model_state()

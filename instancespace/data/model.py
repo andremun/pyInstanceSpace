@@ -428,7 +428,7 @@ class Footprint:
 
         Returns
         -------
-        Footprint:
+        Footprint
             The created footprint, or an empty one if the polygon is empty.
         """
         if polygon is None or polygon.is_empty:

@@ -526,38 +526,13 @@ class TraceStage(
     ) -> TraceOutputs:
         """Perform the TRACE footprint analysis.
 
-        Parameters
-        ----------
-        z : NDArray[np.double]
-            The space of instances.
-        y_bin : NDArray[np.bool_]
-            Binary indicators of performance.
-        p : NDArray[np.int_]
-            Performance metrics for algorithms.
-        beta : NDArray[np.bool_]
-            Specific beta threshold for footprint calculation.
-        algo_labels : list[str]
-            Labels for each algorithm.
-        trace_opts : TraceOptions
-            Configuration options for TRACE and its subroutines.
-        parallel_opts : ParallelOptions
-            Configuration options for parallel processing in Matilda.
-        general_opts : GeneralOptions
-            General options (e.g. verbosity), not specific to any one stage.
-        executor : ThreadPoolExecutor | None
-            A caller-owned pool to reuse instead of creating a fresh one.
-        y_hat : NDArray[np.bool_] | None
-            Optional PYTHIA predictions used only by TRACE3.
-        pythia_skipped : bool
-            Whether PYTHIA intentionally returned placeholder predictions.
+        The method uses the inputs and the options that the constructor stores.
 
         Returns
         -------
-        TraceDataChanged:
-            Should be Empty
-        TraceOut:
-            An instance of TraceOut containing the analysis results, including
-            the calculated footprints and summary statistics.
+        TraceOutputs
+            The analysis results. These include the footprints and the summary
+            statistics.
         """
         trace = TraceStage(
             z,
@@ -594,11 +569,9 @@ class TraceStage(
 
         Returns
         -------
-        TraceDataChanged:
-            Should be Empty
-        TraceOut:
-            An instance of TraceOut containing the analysis results, including
-            the calculated footprints and summary statistics.
+        TraceOutputs
+            The analysis results. These include the footprints and the summary
+            statistics.
         """
         if self.opts.method == "trace3":
             return self._trace3()
@@ -1103,7 +1076,7 @@ class TraceStage(
 
         Returns
         -------
-        Footprint:
+        Footprint
             The constructed footprint with calculated area, density, and purity.
         """
         # Extract rows where y_bin is True
@@ -1162,7 +1135,7 @@ class TraceStage(
 
         Returns
         -------
-        tuple:
+        tuple
             Updated base and test footprints after resolving contradictions.
         """
         if base.polygon is None or test.polygon is None:
@@ -1254,7 +1227,7 @@ class TraceStage(
 
         Returns
         -------
-        Polygon | MultiPolygon:
+        Polygon | MultiPolygon
             The refined polygon, or an empty polygon if refinement fails.
         """
         splits = (
@@ -1301,7 +1274,7 @@ class TraceStage(
 
         Returns
         -------
-        Polygon | MultiPolygon | None:
+        Polygon | MultiPolygon | None
             The fitted polygon, or None if the fitting fails.
         """
         if polydata.shape[0] < POLYGON_MIN_POINT_REQUIREMENT:
@@ -1342,7 +1315,7 @@ class TraceStage(
 
         Returns
         -------
-        list:
+        list
             A list containing summarized metrics such as area, normalized area,
             density, normalized density, and purity.
         """
@@ -1371,7 +1344,7 @@ class TraceStage(
 
         Returns
         -------
-        Footprint:
+        Footprint
             An instance of Footprint with default values.
         """
         self._log_detail(
@@ -1404,7 +1377,7 @@ class TraceStage(
 
         Returns
         -------
-        NDArray[np.int_]:
+        NDArray[np.int_]
             Array of cluster labels for each data point.
         """
         nn = int(max(min(np.ceil(np.sum(y_bin) / 20), 50), 3))
@@ -1426,8 +1399,8 @@ class TraceStage(
 
         Returns
         -------
-        Eps: float
-            Estimated neighborhood radius
+        float
+            The estimated neighborhood radius.
         """
         m, n = x.shape
         ranges = np.max(x, axis=0) - np.min(x, axis=0)
@@ -1451,8 +1424,8 @@ class TraceStage(
 
         Returns
         -------
-        D: float
-            Euclidean distance (m,)
+        NDArray[np.double]
+            The Euclidean distances, with shape (m,).
         """
         _, n = x.shape
 
@@ -1476,7 +1449,7 @@ class TraceStage(
 
         Returns
         -------
-        class_: NDArray[np.int_]
+        NDArray[np.int_]
             Cluster assignments for each point (-1 for noise)
         """
         m, n = x.shape
@@ -1538,7 +1511,7 @@ class TraceStage(
 
         Returns
         -------
-        tuple[int, Footprint, Footprint]:
+        tuple[int, Footprint, Footprint]
             The index of the algorithm, and its good and best performance footprints.
         """
         if self._uses_trace3(self.z, self.opts):
@@ -1595,7 +1568,7 @@ class TraceStage(
 
         Returns
         -------
-        tuple[list[Footprint], list[Footprint]]:
+        tuple[list[Footprint], list[Footprint]]
             Lists of good and best performance footprints for each algorithm.
         """
         z = getattr(self, "z", None)
