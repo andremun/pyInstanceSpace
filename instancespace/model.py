@@ -91,15 +91,19 @@ class Model:
     ) -> T:
         """Initialise a Model object from the output of an InstanceSpace StageRunner.
 
-        Args
-        ----
-            cls (type[T]): the class
-            stage_runner_output (dict[str, Any]): output of StageRunner for an
-                InstanceSpace
+        Parameters
+        ----------
+        cls : type[T]
+            the class
+        stage_runner_output : dict[str, Any]
+            output of StageRunner for an InstanceSpace
+        options : InstanceSpaceOptions
+            The options used to build the instance space.
 
         Returns
         -------
-            Model: a Model object
+        Model
+            a Model object
         """
         data = Data.from_stage_runner_output(stage_runner_output)
 

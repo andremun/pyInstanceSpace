@@ -38,7 +38,6 @@ mypy = "^1.9.0"
 pandas-stubs = "^2.2.1.240316"
 black = { version = "^26.3.1", extras = ["jupyter"] }
 pdoc = "^14.4.0"
-docconvert = "^2.1.0"
 ipykernel = "^6.29.5"
 pytest-cov = "^7.1.0"
 
@@ -47,7 +46,9 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poe.tasks]
-format_docstrings = "docconvert -o numpy instancespace/ --in-place"
+# pdoc's numpy converter fails on docstrings that are not numpy style (#325),
+# so a clean build of the API docs also checks the docstring format.
+docs = "pdoc instancespace -d numpy -o site"
 check_ruff = "ruff check --fix"
 check_mypy = "mypy --strict ."
 check_black = "black ."
@@ -56,10 +57,10 @@ test_ruff = "ruff check --no-fix"
 test_black = "black . --check"
 test_pytest = "pytest --cov=instancespace --cov-report=term-missing --cov-report=xml"
 
-check.sequence = ["format_docstrings", "check_black", "check_ruff", "check_mypy"]
+check.sequence = ["check_black", "check_ruff", "check_mypy", "docs"]
 check.ignore_fail = "return_non_zero"
 
-test.sequence = ["test_ruff", "check_mypy", "test_black", "test_pytest"]
+test.sequence = ["test_ruff", "check_mypy", "test_black", "docs", "test_pytest"]
 test.ignore_fail = "return_non_zero"
 
 [tool.ruff]
@@ -158,7 +159,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.pydocstyle]
-# Use google style docstrings
+# Use numpy style docstrings
 convention = "numpy"
 
 [tool.ruff.lint.per-file-ignores]

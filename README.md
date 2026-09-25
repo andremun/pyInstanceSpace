@@ -48,7 +48,8 @@ Hosted API docs: <https://andremun.github.io/pyInstanceSpace/> (rebuilt automati
 push to `main`/`v0.9.0/development-branch-QSF` via `.github/workflows/docs-pages.yml` — see #324
 for the one-time GitHub Pages setup this depends on).
 
-To build them locally instead, run `pdoc instancespace`.
+To build them locally instead, run `poetry run poe docs`. The HTML goes to `site/`.
+The build uses pdoc's numpy docstring format, so write docstrings in numpy style.
 
 ## Repository layout
 
