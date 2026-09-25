@@ -321,7 +321,7 @@ class TraceStage(
         Returns
         -------
         type[TraceInputs]
-            The inputs type for the stage.
+            The input type for the stage.
         """
         return TraceInputs
 
@@ -332,7 +332,7 @@ class TraceStage(
         Returns
         -------
         type[TraceOutputs]
-            The outputs type for the stage.
+            The output type for the stage.
         """
         return TraceOutputs
 
@@ -390,7 +390,8 @@ class TraceStage(
         Parameters
         ----------
         inputs : TraceInputs
-            The inputs for the TRACE stage, including its configuration options.
+            The inputs for the TRACE stage. The inputs include the configuration
+            options.
 
         Returns
         -------

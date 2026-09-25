@@ -667,23 +667,24 @@ class PrelimStage(
         y_raw : NDArray[np.double]
             The raw performance matrix.
         s : pd.Series | None
-            Instance source labels, if any.
+            The instance source labels, or None.
         inst_labels : pd.Series
-            Instance labels.
+            The instance labels.
         prelim_opts : PrelimOptions
-            Options for the preliminary processing.
+            The options for the preliminary processing.
         selvars_opts : SelvarsOptions
-            Options for the instance and feature selection.
+            The options for the instance and feature selection.
         general_opts : GeneralOptions
-            General options, not specific to any one stage.
+            The general options for all stages.
 
         Returns
         -------
         tuple
-            The processed data (`x`, `y`, `y_bin`, `y_best`, `p`, `num_good_algos`,
-            `beta`), followed by the fitted bound and normalisation parameters
-            (`med_val`, `iq_range`, `hi_bound`, `lo_bound`, `min_x`, `lambda_x`,
-            `mu_x`, `sigma_x`, `min_y`, `lambda_y`, `sigma_y`, `mu_y`).
+            The first items are the processed data: `x`, `y`, `y_bin`, `y_best`,
+            `p`, `num_good_algos`, and `beta`. The remaining items are the fitted
+            bound and normalization parameters: `med_val`, `iq_range`, `hi_bound`,
+            `lo_bound`, `min_x`, `lambda_x`, `mu_x`, `sigma_x`, `min_y`, `lambda_y`,
+            `sigma_y`, and `mu_y`.
         """
         prelim_stage = PrelimStage(
             x,
@@ -780,14 +781,15 @@ class PrelimStage(
             Parameters
             ----------
             data : ArrayLike
-                The input data array which must contain only positive values.
+                The input data array. All values must be positive.
             lmbda_init : float
                 Initial guess for the lambda parameter.
 
             Returns
             -------
             tuple[np.ndarray, float]
-                A tuple containing the transformed data and the optimal lambda value.
+                A tuple that contains the transformed data and the optimal lambda
+                value.
 
             """
 

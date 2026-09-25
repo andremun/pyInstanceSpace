@@ -53,7 +53,7 @@ class PilotInput(NamedTuple):
     feat_labels : list[str]
         List feature names.
     pilot_options : PilotOptions
-        The options enabled for the Pilot Class
+        The options for the PILOT stage.
     parallel_options : ParallelOptions
         The parallel options, specifying whether to run in parallel and the
         number of cores - used to parallelise the numerical solver's `ntries`
@@ -144,9 +144,9 @@ class PilotStage(
         x : NDArray[np.double]
             The feature matrix (instances x features) to process.
         y : NDArray[np.double]
-            The data points for the selected feature
+            The data points for the selected feature.
         feat_labels : list[str]
-            List feature names
+            The feature names.
 
         Returns
         -------
@@ -179,14 +179,15 @@ class PilotStage(
         Parameters
         ----------
         inputs : PilotInput
-            The inputs for the Pilot stage.
+            The inputs for the PILOT stage.
 
         Returns
         -------
         PilotOutput
-            The projection matrices (`a`, `b`, `c`), the projected instances `z`,
-            the solver state (`x0`, `alpha`, `eoptim`, `perf`), the fit quality
-            (`error`, `r2`) and the summary table.
+            The stage outputs. These are the projection matrices (`a`, `b`, `c`)
+            and the projected instances (`z`). They also include the solver state
+            (`x0`, `alpha`, `eoptim`, `perf`), the fit quality (`error`, `r2`), and
+            the summary table.
         """
         output = PilotStage.pilot(
             inputs.x,
@@ -330,7 +331,7 @@ class PilotStage(
         options : PilotOptions
             The options enabled for the Pilot Class.
         general_options : GeneralOptions
-            General options (e.g. the RNG seed), not specific to any one stage.
+            General options for all stages, for example the RNG seed.
         y_bin : NDArray[np.bool_] | None
             Binary matrix (instances x algorithms) indicating good algorithm
             performance. Required only when `options.adjust_rotation` is set.
@@ -927,9 +928,9 @@ class PilotStage(
             The feature matrix (instances x features)
             to process.
         hd : NDArray[np.double]
-            Condensed pairwise distances between instances in feature space. Each
-            trial's quality is the Pearson correlation between these distances and
-            those in the projected space.
+            Condensed pairwise distances between the instances in feature space.
+            The quality of each trial is the Pearson correlation between these
+            distances and the distances in the projected space.
         x0 : NDArray[np.double]
             Initial guess for the solution.
         x_bar : NDArray[np.double]
@@ -948,7 +949,7 @@ class PilotStage(
         opts : PilotOptions
             Configuration options for PILOT.
         general_options : GeneralOptions
-            General options (e.g. verbosity), not specific to any one stage.
+            General options for all stages, for example verbosity.
         parallel_options : ParallelOptions | None
             Whether (and how much) to parallelise the `ntries` restarts
             across OS processes (matching MATLAB's `parfor`). `None` or
@@ -966,7 +967,7 @@ class PilotStage(
         Returns
         -------
         int
-            The index of the trial with the highest distance correlation.
+            The index of the trial that has the highest distance correlation.
         NDArray[np.double]
             Flattened parameter vector containing
             both A (dims*n size) and B (m*dims size) matrices.

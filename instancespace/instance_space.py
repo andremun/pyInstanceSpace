@@ -259,19 +259,18 @@ class InstanceSpace:
         Parameters
         ----------
         metadata : Metadata
-            The feature and algorithm performance data to build the instance space
-            from.
+            The feature and algorithm performance data for the instance space.
         options : InstanceSpaceOptions
-            Options to build the instance space.
+            The options for the instance space.
         stages : list[StageClass], optional
-            A list of stages to be ran.
+            The list of stages to run.
         additional_initial_inputs_type : type[NamedTuple] | None, optional
-            Extra initial inputs used by plugins.
+            More initial inputs for plugins.
         progress_reporter : ProgressReporter | None, optional
-            Reporter for tracking build()/run_stage() progress - e.g.
-            `HttpProgressReporter` for a SLURM-triggered job to call back
-            to an orchestrator after each stage. Defaults to a no-op reporter, so
-            omitting this changes nothing about existing behaviour.
+            The reporter that records the progress of build() and run_stage().
+            For example, a SLURM job can use `HttpProgressReporter` to send a
+            callback to an orchestrator after each stage. The default reporter does
+            nothing, so the behavior does not change if you omit this argument.
         """
         validate_viable_dimensions(
             metadata.features,
@@ -325,12 +324,12 @@ class InstanceSpace:
         Raises
         ------
         StageRunningError
-            If the InstanceSpace hasn't been built, will raise a StageRunningError.
+            If the InstanceSpace is not built.
 
         Returns
         -------
         Model
-            The output of building the instance space.
+            The model that build() made.
         """
         if self._model is None:
             if (
@@ -594,8 +593,8 @@ class InstanceSpace:
         Yields
         ------
         Generator[AnnotatedStageOutput, None]
-            The output of each stage, annotated with what stage was ran, as multiple
-            stages ran in the same schedule can be ran in any order.
+            The output of each stage, with the name of the stage that ran. The name
+            is necessary because the stages in one schedule can run in any order.
         """
         self._invalidate_model_state()
         inputs = _InstanceSpaceInputs.from_metadata_and_options(
@@ -630,11 +629,11 @@ class InstanceSpace:
         Parameters
         ----------
         stage : StageClass
-            The stage to be ran.
+            The stage to run.
 
         **arguments : Any
-            Any additional inputs to the stage. Outputs from previous stages will be
-            used if not provided.
+            More inputs for the stage. If an input is missing, the stage uses the
+            output of a previous stage.
 
         Returns
         -------
@@ -697,13 +696,13 @@ class InstanceSpace:
         stage : StageClass
             A stage in the last wave to execute.
         **arguments : Any
-            Per-run input overrides. Successful overrides remain available to every
-            downstream stage.
+            Input overrides for this run. After the stage runs, all downstream
+            stages can use these overrides.
 
         Returns
         -------
         dict[str, Any]
-            The raw output dict of all ran stages.
+            The raw output dict of all the stages that ran.
         """
         self._invalidate_model_state()
         inputs = _InstanceSpaceInputs.from_metadata_and_options(
@@ -748,18 +747,18 @@ class InstanceSpace:
         Parameters
         ----------
         test_metadata : Metadata
-            New instances with the same feature columns as training data. Feature
-            columns are matched by name, not position, so they may be supplied in any
-            order (this is deliberate, permanent behaviour, not a stricter order check
-            like MATLAB's `featureOrderMismatch`).
+            New instances that have the same feature columns as the training data.
+            The method matches the feature columns by name, not by position. Thus,
+            the columns can be in any order. This behavior is intentional. It is not
+            a strict order check like MATLAB's `featureOrderMismatch`.
         dataset_id : str | None, optional
-            Identifier for this test dataset. If not provided, a timestamp-based ID will
-            be generated.
+            The identifier for this test data set. If you do not supply an ID, the
+            method makes an ID from a timestamp.
 
         Returns
         -------
         ExploreResult
-            Contains projected coordinates, algorithm predictions, and footprint
+            The projected coordinates, the algorithm predictions, and the footprint
             membership for the test instances.
 
         Raises
@@ -767,8 +766,8 @@ class InstanceSpace:
         RuntimeError
             If build() has not been called before explore().
         ValueError
-            If test_metadata features do not match training features, or trained and
-            explored projection dimensions differ.
+            If the test_metadata features are not the same as the training features.
+            Also if the trained and explored projection dimensions are different.
         """
         # Run every inference stage, then assemble the result from each stage's output
         stages = {
@@ -850,7 +849,7 @@ class InstanceSpace:
         Parameters
         ----------
         test_metadata : Metadata
-            New instances with the same feature columns as training data.
+            New instances that have the same feature columns as the training data.
 
         Yields
         ------
@@ -862,10 +861,10 @@ class InstanceSpace:
         RuntimeError
             If build() has not been called before explore().
         ValueError
-            If test_metadata features do not match training features. A fitted
-            TRACE/projection dimension mismatch is deliberately checked by
-            :meth:`TraceStage.predict` only when the lazy iterator advances to TRACE,
-            after PYTHIA has been yielded.
+            If the test_metadata features are not the same as the training features.
+            :meth:`TraceStage.predict` checks for a TRACE/projection dimension
+            mismatch. This check occurs only when the lazy iterator gets to TRACE,
+            after the iterator yields PYTHIA. This order is intentional.
         """
         self._validate_for_explore(test_metadata)
 
@@ -932,7 +931,7 @@ class InstanceSpace:
         RuntimeError
             If build() has not been called.
         ValueError
-            If test metadata features don't match training features.
+            If the test metadata features are not the same as the training features.
         """
         self._require_model()
         validate_viable_dimensions(
@@ -973,12 +972,12 @@ class InstanceSpace:
         Parameters
         ----------
         metadata : Metadata
-            Metadata containing features to extract.
+            The metadata that contains the features to extract.
 
         Returns
         -------
         NDArray[np.double]
-            Feature matrix with shape (n_instances, n_features).
+            The feature matrix, with shape (n_instances, n_features).
         """
         # Get the feature order from training (pre-SIFTED, see _validate_for_explore)
         training_feature_names = self._metadata.feature_names
@@ -1000,12 +999,12 @@ class InstanceSpace:
         Parameters
         ----------
         metadata : Metadata
-            Metadata containing instance labels.
+            The metadata that contains the instance labels.
 
         Returns
         -------
         pd.Series
-            Series of instance labels.
+            The series of instance labels.
         """
         return metadata.instance_labels
 
@@ -1075,7 +1074,7 @@ class InstanceSpace:
         Parameters
         ----------
         test_metadata : Metadata
-            Test metadata, possibly carrying `algo_*` performance columns.
+            The test metadata. It can have `algo_*` performance columns.
         algo_labels : list[str]
             The trained algorithm order (`Model.data.algo_labels`).
 
@@ -1124,7 +1123,7 @@ class InstanceSpace:
         Parameters
         ----------
         test_metadata : Metadata
-            Test metadata, possibly carrying `algo_*` performance columns.
+            The test metadata. It can have `algo_*` performance columns.
         algo_labels : list[str]
             The trained algorithm order (`Model.data.algo_labels`).
         new_algo_labels : list[str]
@@ -1133,12 +1132,12 @@ class InstanceSpace:
         Returns
         -------
         tuple[NDArray[np.double], NDArray[np.bool_]]
-            - y_raw_test: (n_instances, n_trained + n_new) raw performance,
-              reindexed to `algo_labels + new_algo_labels`' order, NaN
-              where a trained algorithm is absent from the test set.
-            - has_ground_truth: (n_trained,) mask of which *trained*
-              columns have real ground truth (new algorithms always do,
-              by construction - not included in this mask).
+            - y_raw_test: (n_instances, n_trained + n_new) raw performance. The
+              columns are in the order of `algo_labels + new_algo_labels`. A column
+              is NaN if the test set does not contain that trained algorithm.
+            - has_ground_truth: (n_trained,) mask. It shows the *trained* columns
+              that have real ground truth. The mask does not include the new
+              algorithms, because they always have ground truth.
         """
         test_cols = {
             name.lower(): i for i, name in enumerate(test_metadata.algorithm_names)
@@ -1192,12 +1191,12 @@ class InstanceSpace:
         Parameters
         ----------
         test_metadata : Metadata
-            Test metadata carrying `algo_*` performance columns (the caller -
-            `explore_stage_iter` - only calls this when at least one is present).
+            Test metadata that has `algo_*` performance columns. The caller,
+            `explore_stage_iter`, calls this method only if there is at least one
+            such column.
         y_hat : NDArray[np.bool_]
-            PYTHIA's binary predictions, already computed by
-            `_explore_pythia` and already widened to include
-            `new_algo_labels`' columns (all `False`).
+            The binary predictions from PYTHIA. `_explore_pythia` calculates them
+            and adds the `new_algo_labels` columns, which are all `False`.
             Shape: (n_instances, n_trained + n_new).
         new_algo_labels : list[str]
             Test-set-only algorithm names, from `_find_new_algorithms`.
@@ -1205,8 +1204,8 @@ class InstanceSpace:
         Returns
         -------
         _EvaluationResult
-            The ground-truth-vs-prediction evaluation fields, all per-algorithm fields
-            width `n_trained + n_new`.
+            The evaluation fields that compare the ground truth with the
+            predictions. Each per-algorithm field has width `n_trained + n_new`.
         """
         model = self._require_model()
         algo_labels = model.data.algo_labels

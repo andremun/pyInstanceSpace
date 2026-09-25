@@ -170,7 +170,7 @@ class StageRunner:
         Parameters
         ----------
         additional_arguments : NamedTuple
-            Initial inputs for the first stages.
+            The initial inputs for the first stages.
 
         Yields
         ------
@@ -180,7 +180,7 @@ class StageRunner:
         Returns
         -------
         dict[str, Any]
-            All available inputs and outputs after the last stage.
+            All the available inputs and outputs after the last stage.
         """
         self._rollback_to_schedule_index(0)
 
@@ -199,16 +199,16 @@ class StageRunner:
     ) -> OUT:
         """Run a single stage.
 
-        Errors if prerequisite stages haven't been ran.
+        Raises an error if the prerequisite stages did not run.
 
         Parameters
         ----------
         stage : type[Stage[Any, OUT]]
             The stage to run.
         **additional_arguments : Any
-            Inputs for the stage. If inputs aren't provided the runner will try to
-            get them from previously ran stages. If they still aren't present the
-            stage will raise an error.
+            Inputs for the stage. If an input is missing, the runner gets it from the
+            outputs of the stages that ran before. If the input is still missing, the
+            stage raises an error.
 
         Returns
         -------
@@ -276,12 +276,12 @@ class StageRunner:
         Parameters
         ----------
         additional_arguments : NamedTuple
-            Initial inputs for the first stages.
+            The initial inputs for the first stages.
 
         Returns
         -------
         dict[str, Any]
-            All available inputs and outputs after the last stage.
+            All the available inputs and outputs after the last stage.
         """
         self._rollback_to_schedule_index(0)
 
@@ -308,16 +308,16 @@ class StageRunner:
         Parameters
         ----------
         stop_at_stage : StageClass
-            The stage whose wave is the last one to run.
+            The runner stops after the wave that contains this stage.
         initial_arguments : NamedTuple
-            Initial inputs for the first stages.
+            The initial inputs for the first stages.
         **additional_arguments : Any
-            Extra inputs added to the initial inputs.
+            More inputs. The runner adds them to the initial inputs.
 
         Returns
         -------
         dict[str, Any]
-            Available inputs and outputs after the target wave.
+            The available inputs and outputs after the target wave.
         """
         self._rollback_to_schedule_index(0)
 

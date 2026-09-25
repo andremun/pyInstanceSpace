@@ -20,11 +20,11 @@ def format_options(options: Any, prefix: str = "") -> list[str]:  # noqa: ANN401
     Parameters
     ----------
     options : Any
-        A dataclass instance (e.g. an ``InstanceSpaceOptions``, or one of its nested
-        option groups during recursion).
+        A dataclass instance, for example an ``InstanceSpaceOptions``. During
+        recursion, it is one of the nested option groups.
     prefix : str
-        Dotted-path prefix prepended to each field name; extended with the current
-        field's name on each recursive call. Callers normally omit this.
+        The dotted-path prefix for each field name. Each recursive call adds the
+        name of the current field to the prefix. Callers usually omit this.
 
     Returns
     -------

@@ -150,8 +150,8 @@ class ProgressReporter(ABC):
         duration_seconds : float | None
             How long the stage took.
         instance_space : Any
-            The InstanceSpace object (for saving intermediate state and including output
-            data in the report).
+            The InstanceSpace object. The reporter uses it to save the intermediate
+            state and to add the output data to the report.
         """
 
     @abstractmethod
@@ -168,8 +168,8 @@ class ProgressReporter(ABC):
         Parameters
         ----------
         instance_space : Any
-            The final InstanceSpace object (for including final output data in the
-            report).
+            The final InstanceSpace object. The reporter uses it to add the final
+            output data to the report.
         """
 
     @abstractmethod
@@ -212,8 +212,8 @@ class HttpProgressReporter(ProgressReporter):
         output_detail : OutputDetail
             Level of detail to include for stage outputs.
         include_pickle_on_completion : bool
-            Whether to include full pickle on job completion (overrides output_detail
-            for the final callback).
+            If True, the final callback includes the full pickle. For the final
+            callback, this setting overrides output_detail.
         """
         self.callback_url = callback_url
         self.job_id = job_id
@@ -234,7 +234,7 @@ class HttpProgressReporter(ProgressReporter):
         Returns
         -------
         bool
-            True if callback was successful, False otherwise.
+            True if the callback is successful, False if not.
         """
         try:
             data = json.dumps(payload, default=str).encode("utf-8")

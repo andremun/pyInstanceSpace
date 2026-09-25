@@ -51,11 +51,11 @@ def filter_instance(
     y_bin : np.ndarray
         Boolean performance matrix on algorithm from prelim.
     selvars_type : str
-        Filter type: "Ftr", "Ftr&AP", "Ftr&Good" or "Ftr&AP&Good". It selects
-        which of features, algorithm performance and algorithm goodness are used
-        to decide that two instances are redundant.
+        Filter type: "Ftr", "Ftr&AP", "Ftr&Good" or "Ftr&AP&Good". The type sets
+        the data that the filter uses to find redundant instances: features,
+        algorithm performance, algorithm goodness, or a combination.
     min_distance : float
-        Feature-space distance at or below which two instances are neighbours.
+        Maximum feature-space distance between two neighbor instances.
 
     Returns
     -------
@@ -213,11 +213,11 @@ def do_filter(
     y_bin : np.ndarray
         Boolean performance matrix on algorithm from prelim.
     selvars_type : str
-        Filter type: "Ftr", "Ftr&AP", "Ftr&Good" or "Ftr&AP&Good". It selects
-        which of features, algorithm performance and algorithm goodness are used
-        to decide that two instances are redundant.
+        Filter type: "Ftr", "Ftr&AP", "Ftr&Good" or "Ftr&AP&Good". The type sets
+        the data that the filter uses to find redundant instances: features,
+        algorithm performance, algorithm goodness, or a combination.
     min_distance : float
-        Feature-space distance at or below which two instances are neighbours.
+        Maximum feature-space distance between two neighbor instances.
 
     Returns
     -------
@@ -228,7 +228,8 @@ def do_filter(
     is_visa : NDArray[np.bool_]
         An array indicating instances VISA flags.
     uniformity : float
-        Uniformity score of the retained subset (see `compute_uniformity`).
+        Uniformity score of the subset that the filter keeps. See
+        `compute_uniformity`.
     """
     subset_index, is_dissimilar, is_visa = filter_instance(
         x,
