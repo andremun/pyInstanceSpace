@@ -1294,7 +1294,7 @@ class PythiaStage(
         Returns
         -------
         _ClassifierResult
-        The trained-classifier result.
+            The trained-classifier result.
         """
         spec = get_classifier_fcn(classifier_name)
         estimator = spec.build(general_options.seed, is_poly_kernel)
@@ -1677,7 +1677,7 @@ class PythiaStage(
         Returns
         -------
         NDArray[np.double] | None
-        The pre-calculated hyper-parameters or None.
+            The pre-calculated hyper-parameters or None.
         """
         if params is None:
             return None
