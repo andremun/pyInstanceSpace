@@ -86,27 +86,37 @@ class PilotOutput(NamedTuple):
     Attributes
     ----------
     X0 : NDArray[np.double] | None
-        TODO: This
+        The start points of the numerical solver, one column for each trial. None
+        if PILOT does not use the numerical solver.
     alpha : NDArray[np.double] | None
-        TODO: This
+        The solution vector of each numerical trial, one column for each trial. None
+        if PILOT does not use the numerical solver.
     eoptim : NDArray[np.double] | None
-        TODO: This
+        The final value of the error function for each numerical trial. None if PILOT
+        does not use the numerical solver.
     perf : NDArray[np.double] | None
-        TODO: This
+        For each numerical trial, the Pearson correlation between the distances in
+        feature space and the distances in the projected space. None if PILOT does
+        not use the numerical solver.
     a : NDArray[np.double]
-        TODO: This
+        The projection matrix (dims x features). `z = x @ a.T`.
     z : NDArray[np.double]
-        TODO: This
+        The projected instances (instances x dims).
     c : NDArray[np.double]
-        TODO: This
+        The matrix that estimates the algorithm performance from `z`
+        (algorithms x dims).
     b : NDArray[np.double]
-        TODO: This
+        The matrix that estimates the features from `z` (features x dims).
     error : NDArray[np.double]
-        TODO: This
+        The sum of the squared errors between the input data and its estimate.
     r2 : NDArray[np.double]
-        TODO: This
-    summary : pd.DataFrame
-        TODO: This
+        The coefficient of determination (R^2) of the estimate, one value for each
+        feature and algorithm column.
+    pilot_summary : pd.DataFrame
+        The projection matrix `a`, rounded to four decimals, with feature labels.
+    viewpoint : PilotViewpointResult | None
+        The optimized viewpoints for the algorithm groups of a 3D projection. None
+        for a 2D projection.
     """
 
     X0: NDArray[np.double] | None
@@ -186,8 +196,8 @@ class PilotStage(
         PilotOutput
             The stage outputs. These are the projection matrices (`a`, `b`, `c`)
             and the projected instances (`z`). They also include the solver state
-            (`x0`, `alpha`, `eoptim`, `perf`), the fit quality (`error`, `r2`), and
-            the summary table.
+            (`X0`, `alpha`, `eoptim`, `perf`), the fit quality (`error`, `r2`), the
+            summary table (`pilot_summary`), and the optional `viewpoint`.
         """
         output = PilotStage.pilot(
             inputs.x,

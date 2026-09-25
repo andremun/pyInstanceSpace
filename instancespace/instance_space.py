@@ -592,7 +592,7 @@ class InstanceSpace:
 
         Yields
         ------
-        Generator[AnnotatedStageOutput, None]
+        AnnotatedStageOutput
             The output of each stage, with the name of the stage that ran. The name
             is necessary because the stages in one schedule can run in any order.
         """
