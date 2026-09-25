@@ -2,28 +2,31 @@
 # Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Contains modules for instance space analysis.
 
-The package builds an instance space from instance meta-data (features and algorithm
-performance) and uses it to predict algorithm performance and to find algorithm
-footprints. The stages run in this order:
+The package builds an instance space from instance meta-data. The meta-data are the
+instance features and the algorithm performance. The instance space predicts
+algorithm performance and shows the algorithm footprints. The stages run in this
+order:
 
-- preprocessing: Filter the meta-data and remove instances or features with too many
-  missing values.
-- prelim: Preparation for Learning of Instance Meta-Data. Set a binary measure of
-  "good" performance, then bound and scale the meta-data.
-- sifted: Selection of Instance Features to Explain Difficulty. Select a subset of
-  features that correlate with algorithm performance and are not redundant.
-- pilot: Projecting Instances with Linearly Observable Trends. Project the instances
-  from the feature space to a 2D (or 3D) instance space with linear trends in the
-  features and in algorithm performance.
-- pythia: Train one classifier per algorithm on the instance space to predict good
-  performance, and recommend an algorithm for each instance.
+- preprocessing: Filters the meta-data. Removes the instances and features that have
+  too many missing values.
+- prelim: Preparation for Learning of Instance Meta-Data. Sets a binary measure of
+  "good" performance. Then it bounds and scales the meta-data.
+- sifted: Selection of Instance Features to Explain Difficulty. Selects the features
+  that correlate with algorithm performance and are not redundant.
+- pilot: Projecting Instances with Linearly Observable Trends. Projects the instances
+  from the feature space to a 2D or 3D instance space. The projection shows linear
+  trends in the features and in the algorithm performance.
+- pythia: Trains one classifier for each algorithm on the instance space. Each
+  classifier predicts good performance. PYTHIA then recommends an algorithm for
+  each instance.
 - cloister: Correlated Limits of the Instance Space's Theoretical or Experimental
-  Regions. Estimate the boundary of the instance space from the feature bounds and
-  the correlations between features.
-- trace: Triangulation with Removal of Areas with Contradicting Evidence. Find the
-  regions of the instance space (footprints) where each algorithm performs well.
+  Regions. Estimates the boundary of the instance space from the feature bounds and
+  the correlations between the features.
+- trace: Triangulation with Removal of Areas with Contradicting Evidence. Finds the
+  regions of the instance space where each algorithm performs well. These regions
+  are the footprints.
 
-`InstanceSpace.build()` trains all stages on a data set. `InstanceSpace.explore()`
+`InstanceSpace.build()` trains all the stages on a data set. `InstanceSpace.explore()`
 projects new instances into a trained instance space.
 
 Reference: K. Smith-Miles and M. A. Muñoz, "Instance Space Analysis for Algorithm

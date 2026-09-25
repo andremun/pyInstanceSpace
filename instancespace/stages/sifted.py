@@ -344,9 +344,9 @@ class SiftedStage(
         inst_labels : pd.Series
             Instance labels for the dataset.
         s : pd.Series | None
-            Instance source labels, if any.
+            The instance source labels, or None.
         opts : SiftedOptions
-            Configuration options for the Sifted stage.
+            The configuration options for the SIFTED stage.
         parallel_options : ParallelOptions
             An instance of ParallelOptions containing parallel processing parameters.
         general_opts : GeneralOptions

@@ -46,8 +46,8 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poe.tasks]
-# pdoc's numpy converter fails on docstrings that are not numpy style (#325),
-# so a clean build of the API docs also checks the docstring format.
+# The numpy converter of pdoc fails on a docstring that is not in numpy style
+# (#325). Thus, a clean build of the API docs also checks the docstring format.
 docs = "pdoc instancespace -d numpy -o site"
 check_ruff = "ruff check --fix"
 check_mypy = "mypy --strict ."
