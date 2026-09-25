@@ -200,52 +200,6 @@ class TraceStage(
     opts : TraceOptions
         Configuration options for TRACE and its subroutines, controlling the behavior
         of the analysis.
-
-    Methods
-    -------
-    __init__(self) -> None:
-    Initializes the Trace class without any parameters.
-
-    run(self, z: NDArray[np.double], y_bin: NDArray[np.bool_], p: NDArray[np.int_],
-    beta: NDArray[np.bool_], algo_labels: list[str], opts: TraceOptions)
-    -> tuple[TraceDataChanged, TraceOut]:
-    Performs the TRACE footprint analysis and returns the results, including
-    footprints and a summary.
-
-    build(self, y_bin: NDArray[np.bool_]) -> Footprint:
-    Constructs a footprint polygon using DBSCAN clustering based on the provided
-    binary indicators.
-
-    contra(self, base: Footprint, test: Footprint, y_base: NDArray[np.bool_],
-       y_test: NDArray[np.bool_]) -> tuple[Footprint, Footprint]:
-    Detects and resolves contradictions between two footprint polygons.
-
-    tight(self, polygon: Polygon | MultiPolygon, y_bin: NDArray[np.bool_])
-    -> Polygon | None:
-    Refines an existing polygon by removing slivers and improving its shape.
-
-    fit_poly(self, polydata: NDArray[np.double], y_bin: NDArray[np.bool_])
-    -> Polygon | None:
-    Fits a polygon to the given data points, ensuring it adheres to purity constraints.
-
-    summary(self, footprint: Footprint, space_area: float, space_density: float)
-    -> list[float]:
-    Summarizes the footprint metrics, returning a list of values such as area,
-    normalized area, density, normalized density, and purity.
-
-    throw(self) -> Footprint:
-    Generates an empty footprint with default values, indicating insufficient data.
-
-    run_dbscan(self, y_bin: NDArray[np.bool_], data: NDArray[np.double])
-    -> NDArray[np.int_]:
-    Performs DBSCAN clustering on the dataset and returns an array of cluster labels.
-
-    process_algorithm(self, i: int) -> tuple[int, Footprint, Footprint]:
-    Processes a single algorithm to calculate its good and best performance footprints.
-
-    parallel_processing(self, n_workers: int, n_algos: int) -> tuple[list[Footprint],
-    list[Footprint]]:
-    Performs parallel processing to calculate footprints for multiple algorithms.
     """
 
     def __init__(

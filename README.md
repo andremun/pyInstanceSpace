@@ -50,7 +50,8 @@ for the one-time GitHub Pages setup this depends on).
 
 To build the docs on your computer, run `poetry run poe docs`. The HTML files go to
 `site/`. The build uses the numpy docstring format of pdoc. Write all docstrings in
-numpy style. If a docstring is not in numpy style, the build fails.
+numpy style. If pdoc cannot parse a docstring, the build fails. A docstring can
+parse but still render incorrectly, so also look at the HTML output.
 
 ## Repository layout
 
