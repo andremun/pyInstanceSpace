@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instance Space Analysis</title>
+<meta name="description" content="Python toolkit for Instance Space Analysis: objective algorithm testing through the instance space of a problem.">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="site">
+<nav class="site-nav">
+<a class="brand" href="index.html">Instance Space Analysis</a>
+<ul>
+<li><a href="getting-started.html">Getting Started</a></li>
+<li><a href="options-reference.html">Options Reference</a></li>
+<li><a href="api/instancespace.html">API Reference</a></li>
+<li><a href="https://github.com/andremun/pyInstanceSpace">GitHub</a></li>
+</ul>
+</nav>
+</header>
+<main>
+<div class="hero">
+<h1>Instance Space Analysis</h1>
+<p class="tagline">Objective algorithm testing through the instance space of a problem.</p>
+</div>
+
+<p>Instance Space Analysis (ISA) relates the structural features of problem instances to the performance of a group of algorithms. It projects every instance into a 2D or 3D <em>instance space</em>. In that space, it builds a <em>footprint</em> for each algorithm: a region where the algorithm performs well. It also predicts the best algorithm for a new instance and shows where the space has few or no observed instances.</p>
+
+<p>This package implements the methodology of Smith-Miles &amp; Muñoz (2023) and the 3D extension of Simpson et al. (2025). It also powers the <a href="https://matilda.unimelb.edu.au">MATILDA</a> web platform.</p>
+
+<svg class="pipeline" viewBox="0 0 860 110" role="img" aria-labelledby="pipeline-title">
+<title id="pipeline-title">The InstanceSpace pipeline: preprocessing and PRELIM prepare the metadata, SIFTED selects features, PILOT projects them, then CLOISTER, PYTHIA and TRACE work in the projected space.</title>
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+<path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+</marker>
+</defs>
+<g font-family="inherit" font-size="12" text-anchor="middle">
+<g class="stage" stroke-width="1.2">
+<rect x="5" y="30" width="105" height="46" rx="6"/>
+<rect x="130" y="30" width="105" height="46" rx="6"/>
+<rect x="255" y="30" width="105" height="46" rx="6"/>
+<rect x="380" y="30" width="105" height="46" rx="6"/>
+<rect x="540" y="4" width="100" height="34" rx="6"/>
+<rect x="540" y="42" width="100" height="34" rx="6"/>
+<rect x="540" y="80" width="100" height="26" rx="6"/>
+<rect x="690" y="42" width="100" height="34" rx="6"/>
+</g>
+<g stroke="currentColor" stroke-width="1.2" fill="none">
+<path d="M110,53 H128" marker-end="url(#arrow)"/>
+<path d="M235,53 H253" marker-end="url(#arrow)"/>
+<path d="M360,53 H378" marker-end="url(#arrow)"/>
+<path d="M485,53 L538,21" marker-end="url(#arrow)"/>
+<path d="M485,53 H538" marker-end="url(#arrow)"/>
+<path d="M485,53 L538,90" marker-end="url(#arrow)"/>
+<path d="M640,59 H688" marker-end="url(#arrow)"/>
+</g>
+<g stroke="none">
+<text x="57" y="57">Preprocessing</text>
+<text x="182" y="57">PRELIM</text>
+<text x="307" y="57">SIFTED</text>
+<text x="432" y="57">PILOT</text>
+<text x="590" y="24">CLOISTER</text>
+<text x="590" y="62">PYTHIA</text>
+<text x="590" y="96" font-size="11">TRACE</text>
+<text x="740" y="62">Model</text>
+</g>
+</g>
+</svg>
+
+<h2>Get started</h2>
+<div class="tiles">
+<div class="tile">
+<h3><a href="getting-started.html">Getting Started</a></h3>
+<p>Install the package and build and explore an instance space in a few lines.</p>
+</div>
+<div class="tile">
+<h3><a href="options-reference.html">Options Reference</a></h3>
+<p>The <code>options.json</code> fields you are most likely to set, grouped by stage, with their purpose.</p>
+</div>
+<div class="tile">
+<h3><a href="api/instancespace.html">API Reference</a></h3>
+<p>The full class, function, and dataclass reference, generated from the source.</p>
+</div>
+<div class="tile">
+<h3><a href="https://github.com/andremun/pyInstanceSpace/issues">Issues</a></h3>
+<p>Report a bug, request a feature, or ask a question.</p>
+</div>
+</div>
+
+<h2>Cite this work</h2>
+<p>If you use the ISA methodology, cite:</p>
+<p>K. Smith-Miles and M.A. Muñoz. <em>Instance Space Analysis for Algorithm Testing: Methodology and Software Tools</em>. ACM Comput. Surv. 55(12:255), 1&ndash;31. <a href="https://doi.org/10.1145/3572895">DOI:10.1145/3572895</a>, 2023.</p>
+<p>If you use this package, also cite:</p>
+<p>M.A. Muñoz and K. Smith-Miles. <em>Instance Space Analysis: A Python toolkit for the assessment of algorithmic power</em>. andremun/pyInstanceSpace on GitHub. Zenodo. <a href="https://doi.org/10.5281/zenodo.15562567">DOI:10.5281/zenodo.15562567</a>, 2025.</p>
+<p>Y.B. Güzel, K. Khare, N. Harvey, K. Dsouza, D.H. Jang, J. Chen, C.Z. Lam, and M.A. Muñoz. <em>instancespace: A Python package for insightful algorithm testing through Instance Space Analysis</em>. SoftwareX, 31:102246. <a href="https://doi.org/10.1016/j.softx.2025.102246">DOI:10.1016/j.softx.2025.102246</a>, 2025.</p>
+</main>
+<footer class="site">
+<p>Instance Space Analysis Toolkit &mdash; <a href="https://github.com/andremun/pyInstanceSpace">andremun/pyInstanceSpace</a> on GitHub.</p>
+</footer>
+</body>
+</html>
