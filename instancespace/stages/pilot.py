@@ -52,8 +52,8 @@ class PilotInput(NamedTuple):
         The data points for the selected feature.
     feat_labels : list[str]
         List feature names.
-    options: PilotOptions
-        The options enabled for the Pilot Class
+    pilot_options : PilotOptions
+        The options for the PILOT stage.
     parallel_options : ParallelOptions
         The parallel options, specifying whether to run in parallel and the
         number of cores - used to parallelise the numerical solver's `ntries`
@@ -86,27 +86,37 @@ class PilotOutput(NamedTuple):
     Attributes
     ----------
     X0 : NDArray[np.double] | None
-        TODO: This
+        The start points of the numerical solver, one column for each trial. None
+        if PILOT does not use the numerical solver.
     alpha : NDArray[np.double] | None
-        TODO: This
+        The solution vector of each numerical trial, one column for each trial. None
+        if PILOT does not use the numerical solver.
     eoptim : NDArray[np.double] | None
-        TODO: This
+        The final value of the error function for each numerical trial. None if PILOT
+        does not use the numerical solver.
     perf : NDArray[np.double] | None
-        TODO: This
+        For each numerical trial, the Pearson correlation between the distances in
+        feature space and the distances in the projected space. None if PILOT does
+        not use the numerical solver.
     a : NDArray[np.double]
-        TODO: This
+        The projection matrix (dims x features). `z = x @ a.T`.
     z : NDArray[np.double]
-        TODO: This
+        The projected instances (instances x dims).
     c : NDArray[np.double]
-        TODO: This
+        The matrix that estimates the algorithm performance from `z`
+        (algorithms x dims).
     b : NDArray[np.double]
-        TODO: This
+        The matrix that estimates the features from `z` (features x dims).
     error : NDArray[np.double]
-        TODO: This
+        The sum of the squared errors between the input data and its estimate.
     r2 : NDArray[np.double]
-        TODO: This
-    summary : pd.DataFrame
-        TODO: This
+        The coefficient of determination (R^2) of the estimate, one value for each
+        feature and algorithm column.
+    pilot_summary : pd.DataFrame
+        The projection matrix `a`, rounded to four decimals, with feature labels.
+    viewpoint : PilotViewpointResult | None
+        The optimized viewpoints for the algorithm groups of a 3D projection. None
+        for a 2D projection.
     """
 
     X0: NDArray[np.double] | None
@@ -139,16 +149,18 @@ class PilotStage(
 
         The Initialize functon is used to create a Pilot class.
 
-        Args
-        ----
-            x (NDArray[np.double]): The feature matrix (instances x features) to
-                process.
-            y (NDArray[np.double]): The data points for the selected feature
-            feat_labels (list[str]): List feature names
+        Parameters
+        ----------
+        x : NDArray[np.double]
+            The feature matrix (instances x features) to process.
+        y : NDArray[np.double]
+            The data points for the selected feature.
+        feat_labels : list[str]
+            The feature names.
 
         Returns
         -------
-            None
+        None
         """
         self.x = x
         self.y = y
@@ -174,36 +186,18 @@ class PilotStage(
     def _run(inputs: PilotInput) -> PilotOutput:
         """Implement all the code in and around this class in buildIS.
 
-        Args
-        -------
-        options : PilotOptions
-            The options enabled for the Pilot Class
+        Parameters
+        ----------
+        inputs : PilotInput
+            The inputs for the PILOT stage.
 
-        Return
+        Returns
         -------
-        X0
-            NDArray[np.double] | None  # not sure about the dimensions
-        alpha
-            NDArray[np.double] | None
-        eoptim
-            NDArray[np.double] | None
-        perf
-            NDArray[np.double] | None
-        a
-            NDArray[np.double]
-        z
-            NDArray[np.double]
-        c
-            NDArray[np.double]
-        b
-            NDArray[np.double]
-        error
-            NDArray[np.double]  # or just the double
-        r2
-            NDArray[np.double]
-        summary
-            pd.DataFrame
-
+        PilotOutput
+            The stage outputs. These are the projection matrices (`a`, `b`, `c`)
+            and the projected instances (`z`). They also include the solver state
+            (`X0`, `alpha`, `eoptim`, `perf`), the fit quality (`error`, `r2`), the
+            summary table (`pilot_summary`), and the optional `viewpoint`.
         """
         output = PilotStage.pilot(
             inputs.x,
@@ -336,16 +330,18 @@ class PilotStage(
     ) -> PilotOutput:
         """Run the PILOT dimensionality reduction algorithm.
 
-        Args
-        -------
+        Parameters
+        ----------
         x : NDArray[double]
             The feature matrix (instances x features) to process.
-        y: NDArray[double]
+        y : NDArray[double]
             The data points for the selected feature.
-        feat_labels :  list[str]
+        feat_labels : list[str]
             List feature names.
         options : PilotOptions
             The options enabled for the Pilot Class.
+        general_options : GeneralOptions
+            General options for all stages, for example the RNG seed.
         y_bin : NDArray[np.bool_] | None
             Binary matrix (instances x algorithms) indicating good algorithm
             performance. Required only when `options.adjust_rotation` is set.
@@ -355,7 +351,7 @@ class PilotStage(
             that don't pass one) runs the restarts sequentially, same as
             `flag=False`.
 
-        Return
+        Returns
         -------
         PilotOutput
             Outputs from the Pilot stage.
@@ -579,8 +575,8 @@ class PilotStage(
         degrees (135 = upper-left quadrant, matching PyISpace's default), so
         that similar datasets come out consistently oriented across runs.
 
-        Args
-        ----
+        Parameters
+        ----------
         z : NDArray[np.double]
             The 2D projection (instances x 2) to rotate.
         bad_instances : NDArray[np.bool_]
@@ -626,8 +622,8 @@ class PilotStage(
     ]:
         """Solve the projection problem analytically.
 
-        Args:
-        -------
+        Parameters
+        ----------
         x : NDArray[np.double]
             The feature matrix (instances x features) to process.
         x_bar : NDArray[np.double]
@@ -644,7 +640,7 @@ class PilotStage(
         dims : int
             Output projection dimensionality, either 2 or 3.
 
-        Returns:
+        Returns
         -------
         NDArray[np.double]
             Matrix A.
@@ -757,8 +753,8 @@ class PilotStage(
         Both inputs are mean-centred but not variance-scaled, matching the
         default MATLAB call in `PILOT.m`.
 
-        Args
-        ----
+        Parameters
+        ----------
         x : NDArray[np.double]
             The feature matrix (instances x features) to process.
         y : NDArray[np.double]
@@ -936,11 +932,15 @@ class PilotStage(
     ) -> tuple[int, NDArray[np.double], NDArray[np.double], NDArray[np.double]]:
         """Solve the projection problem numerically.
 
-        Args:
-        -------
+        Parameters
+        ----------
         x : NDArray[np.double]
             The feature matrix (instances x features)
             to process.
+        hd : NDArray[np.double]
+            Condensed pairwise distances between the instances in feature space.
+            The quality of each trial is the Pearson correlation between these
+            distances and the distances in the projected space.
         x0 : NDArray[np.double]
             Initial guess for the solution.
         x_bar : NDArray[np.double]
@@ -958,6 +958,8 @@ class PilotStage(
             Optimized performance matrix.
         opts : PilotOptions
             Configuration options for PILOT.
+        general_options : GeneralOptions
+            General options for all stages, for example verbosity.
         parallel_options : ParallelOptions | None
             Whether (and how much) to parallelise the `ntries` restarts
             across OS processes (matching MATLAB's `parfor`). `None` or
@@ -972,8 +974,10 @@ class PilotStage(
             (bypassing this numerical branch entirely) - this check guards
             against that invariant ever changing silently.
 
-        Returns:
+        Returns
         -------
+        int
+            The index of the trial that has the highest distance correlation.
         NDArray[np.double]
             Flattened parameter vector containing
             both A (dims*n size) and B (m*dims size) matrices.
@@ -981,8 +985,6 @@ class PilotStage(
             Optimized error function.
         NDArray[np.double]
             Optimized performance matrix.
-        int
-            The index for the most optimal array indices
         """
         PilotStage._pilot_print(
             "-------------------------------------------------------------------------",
@@ -1109,8 +1111,8 @@ class PilotStage(
     ) -> float:
         """Error function used for numerical optimization in the PILOT algorithm.
 
-        Args:
-        -------
+        Parameters
+        ----------
         alpha : NDArray[np.float64]
             Flattened parameter vector containing
             both A (d*n size) and B (m*d size) matrices.
@@ -1127,7 +1129,7 @@ class PilotStage(
         d : int
             Output projection dimensionality, either 2 or 3.
 
-        Returns:
+        Returns
         -------
         float
             The mean squared error between x_bar and its

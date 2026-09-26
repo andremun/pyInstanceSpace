@@ -64,17 +64,19 @@ class Data:
         cls: type[T],
         stage_runner_output: dict[str, Any],
     ) -> T:
-        """Initialise a Data object from the output of an InstanceSpace StageRunner.
+        """Initialize a Data object from the output of an InstanceSpace StageRunner.
 
-        Args
-        ----
-            cls (type[T]): the class
-            stage_runner_output (dict[str, Any]): output of StageRunner for an
-                InstanceSpace
+        Parameters
+        ----------
+        cls : type[T]
+            The class.
+        stage_runner_output : dict[str, Any]
+            The output of the StageRunner for an InstanceSpace.
 
         Returns
         -------
-            Data: a Data object
+        Data
+            The Data object.
         """
         return cls(
             inst_labels=stage_runner_output["inst_labels"],
@@ -135,17 +137,19 @@ class PrelimOut:
         cls: type[T],
         stage_runner_output: dict[str, Any],
     ) -> T:
-        """Initialise a PrelimOut object from the output of InstanceSpace StageRunner.
+        """Initialize a PrelimOut object from the output of InstanceSpace StageRunner.
 
-        Args
-        ----
-            cls (type[T]): the class
-            stage_runner_output (dict[str, Any]): output of StageRunner for an
-                InstanceSpace
+        Parameters
+        ----------
+        cls : type[T]
+            The class.
+        stage_runner_output : dict[str, Any]
+            The output of the StageRunner for an InstanceSpace.
 
         Returns
         -------
-            PrelimOut: a PrelimOut object
+        PrelimOut
+            The PrelimOut object.
         """
         return cls(
             med_val=stage_runner_output["med_val"],
@@ -180,17 +184,19 @@ class SiftedOut:
         cls: type[T],
         stage_runner_output: dict[str, Any],
     ) -> T:
-        """Initialise a SiftedOut object from the output of InstanceSpace StageRunner.
+        """Initialize a SiftedOut object from the output of InstanceSpace StageRunner.
 
-        Args
-        ----
-            cls (type[T]): the class
-            stage_runner_output (dict[str, Any]): output of StageRunner for an
-                InstanceSpace
+        Parameters
+        ----------
+        cls : type[T]
+            The class.
+        stage_runner_output : dict[str, Any]
+            The output of the StageRunner for an InstanceSpace.
 
         Returns
         -------
-            SiftedOut: a SiftedOut object
+        SiftedOut
+            The SiftedOut object.
         """
         return cls(
             selvars=stage_runner_output["selvars"],
@@ -225,17 +231,19 @@ class PilotOut:
         cls: type[T],
         stage_runner_output: dict[str, Any],
     ) -> T:
-        """Initialise a PilotOut object from the output of an InstanceSpace StageRunner.
+        """Initialize a PilotOut object from the output of an InstanceSpace StageRunner.
 
-        Args
-        ----
-            cls (type[T]): the class
-            stage_runner_output (dict[str, Any]): output of StageRunner for an
-                InstanceSpace
+        Parameters
+        ----------
+        cls : type[T]
+            The class.
+        stage_runner_output : dict[str, Any]
+            The output of the StageRunner for an InstanceSpace.
 
         Returns
         -------
-            PilotOut: a PilotOut object
+        PilotOut
+            The PilotOut object.
         """
         return cls(
             X0=stage_runner_output["X0"],
@@ -271,17 +279,19 @@ class CloisterOut:
         cls: type[T],
         stage_runner_output: dict[str, Any],
     ) -> T:
-        """Initialise CloisterOut object from the output of InstanceSpace StageRunner.
+        """Initialize CloisterOut object from the output of InstanceSpace StageRunner.
 
-        Args
-        ----
-            cls (type[T]): the class
-            stage_runner_output (dict[str, Any]): output of StageRunner for an
-                InstanceSpace
+        Parameters
+        ----------
+        cls : type[T]
+            The class.
+        stage_runner_output : dict[str, Any]
+            The output of the StageRunner for an InstanceSpace.
 
         Returns
         -------
-            CloisterOut: a CloisterOut object
+        CloisterOut
+            The CloisterOut object.
         """
         return cls(
             z_edge=stage_runner_output["z_edge"],
@@ -318,17 +328,19 @@ class PythiaOut:
         cls: type[T],
         stage_runner_output: dict[str, Any],
     ) -> T:
-        """Initialise a PythiaOut object from the output of InstanceSpace StageRunner.
+        """Initialize a PythiaOut object from the output of InstanceSpace StageRunner.
 
-        Args
-        ----
-            cls (type[T]): the class
-            stage_runner_output (dict[str, Any]): output of StageRunner for an
-                InstanceSpace
+        Parameters
+        ----------
+        cls : type[T]
+            The class.
+        stage_runner_output : dict[str, Any]
+            The output of the StageRunner for an InstanceSpace.
 
         Returns
         -------
-            PythiaOut: a PythiaOut object
+        PythiaOut
+            The PythiaOut object.
         """
         return cls(
             mu=stage_runner_output["mu"],
@@ -355,7 +367,7 @@ class PythiaOut:
 class Footprint:
     """A class to represent a footprint with geometric and statistical properties.
 
-    Attributes:
+    Attributes
     ----------
     polygon : Polygon | MultiPolygon | TetrahedralMesh | None
         The geometric shape of the footprint.
@@ -403,7 +415,7 @@ class Footprint:
     ) -> "Footprint":
         """Create a Footprint object based on the given polygon.
 
-        Parameters:
+        Parameters
         ----------
         polygon : Polygon | MultiPolygon | TetrahedralMesh
             The geometry to create the footprint from.
@@ -414,9 +426,9 @@ class Footprint:
         smoothen : bool, optional
             Indicates if the polygon borders need to be smoothened, by default False.
 
-        Returns:
+        Returns
         -------
-        Footprint:
+        Footprint
             The created footprint, or an empty one if the polygon is empty.
         """
         if polygon is None or polygon.is_empty:
@@ -467,17 +479,19 @@ class TraceOut:
         cls: type[T],
         stage_runner_output: dict[str, Any],
     ) -> T:
-        """Initialise a TraceOut object from the output of an InstanceSpace StageRunner.
+        """Initialize a TraceOut object from the output of an InstanceSpace StageRunner.
 
-        Args
-        ----
-            cls (type[T]): the class
-            stage_runner_output (dict[str, Any]): output of StageRunner for an
-                InstanceSpace
+        Parameters
+        ----------
+        cls : type[T]
+            The class.
+        stage_runner_output : dict[str, Any]
+            The output of the StageRunner for an InstanceSpace.
 
         Returns
         -------
-            TraceOut: a TraceOut object
+        TraceOut
+            The TraceOut object.
         """
         return cls(
             space=stage_runner_output["space"],
@@ -619,17 +633,19 @@ class FeatSel:
         cls: type[T],
         stage_runner_output: dict[str, Any],
     ) -> T:
-        """Initialise a FeatSel object from the output of an InstanceSpace StageRunner.
+        """Initialize a FeatSel object from the output of an InstanceSpace StageRunner.
 
-        Args
-        ----
-            cls (type[T]): the class
-            stage_runner_output (dict[str, Any]): output of StageRunner for an
-                InstanceSpace
+        Parameters
+        ----------
+        cls : type[T]
+            The class.
+        stage_runner_output : dict[str, Any]
+            The output of the StageRunner for an InstanceSpace.
 
         Returns
         -------
-            FeatSel: a FeatSel object
+        FeatSel
+            The FeatSel object.
         """
         return cls(
             idx=stage_runner_output["selvars"],

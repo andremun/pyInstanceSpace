@@ -319,8 +319,8 @@ class SiftedStage(
     ) -> None:
         """Define the input variables for the stage.
 
-        Args
-        -----
+        Parameters
+        ----------
         x : NDArray[np.double]
             Feature matrix to be processed (instances x features).
         y : NDArray[np.double]
@@ -343,6 +343,10 @@ class SiftedStage(
             Correlation p-values for features.
         inst_labels : pd.Series
             Instance labels for the dataset.
+        s : pd.Series | None
+            The instance source labels, or None.
+        opts : SiftedOptions
+            The configuration options for the SIFTED stage.
         parallel_options : ParallelOptions
             An instance of ParallelOptions containing parallel processing parameters.
         general_opts : GeneralOptions
@@ -755,12 +759,8 @@ class SiftedStage(
     ]:
         """Select features based on correlation with performance.
 
-        Args
-        -----
-        None
-
-        Return
-        -----
+        Returns
+        -------
         x_aux : NDArray[np.double]
             Filtered feature matrix after selection.
         rho : NDArray[np.double]

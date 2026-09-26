@@ -478,25 +478,6 @@ files = [
 ]
 
 [[package]]
-name = "docconvert"
-version = "2.2.0"
-description = "Convert and conform package docstrings to a new style"
-optional = false
-python-versions = ">=3.6"
-groups = ["dev"]
-files = [
-    {file = "docconvert-2.2.0-py2.py3-none-any.whl", hash = "sha256:59ca5bd7e59d830d43cbe9279eb87a048041e9c17a88e12df2516ac6508eee24"},
-    {file = "docconvert-2.2.0.tar.gz", hash = "sha256:e3a32e49de2e6a43536e9d2a17d1678c83e83b15126d6f10c097fdf0dfcf6580"},
-]
-
-[package.dependencies]
-six = "*"
-
-[package.extras]
-dev = ["black", "pre-commit", "tox"]
-doc = ["sphinx", "sphinx-rtd-theme"]
-
-[[package]]
 name = "executing"
 version = "2.1.0"
 description = "Get the currently executing AST node of a frame, and other information"
@@ -2380,4 +2361,4 @@ dev = ["black (>=19.3b0) ; python_version >= \"3.6\"", "pytest (>=4.6.2)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.13"
-content-hash = "03d62f5468f1983ec34e10b25277a3d02cca7438dc8fca382a9c842bc72d65e9"
+content-hash = "361b917a73b83cc4f4c3f78244588190a464b652223a8ca45103ff0d7466463b"

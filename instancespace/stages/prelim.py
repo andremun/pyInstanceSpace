@@ -656,17 +656,35 @@ class PrelimStage(
     ]:
         """Perform preliminary processing on the input data 'x' and 'y'.
 
-        Args
-            x: The feature matrix (instances x features) to process.
-            y: The performance matrix (instances x algorithms) to
-                process.
-            prelim_opts: An object of type PrelimOptions containing options for
-                processing.
+        Parameters
+        ----------
+        x : NDArray[np.double]
+            The feature matrix (instances x features) to process.
+        y : NDArray[np.double]
+            The performance matrix (instances x algorithms) to process.
+        x_raw : NDArray[np.double]
+            The raw feature matrix.
+        y_raw : NDArray[np.double]
+            The raw performance matrix.
+        s : pd.Series | None
+            The instance source labels, or None.
+        inst_labels : pd.Series
+            The instance labels.
+        prelim_opts : PrelimOptions
+            The options for the preliminary processing.
+        selvars_opts : SelvarsOptions
+            The options for the instance and feature selection.
+        general_opts : GeneralOptions
+            The general options for all stages.
 
         Returns
         -------
-            A tuple containing the processed data (as 'Data' object) and
-            preliminary output information (as 'PrelimOut' object).
+        tuple
+            The first items are the processed data: `x`, `y`, `y_bin`, `y_best`,
+            `p`, `num_good_algos`, and `beta`. The remaining items are the fitted
+            bound and normalization parameters: `med_val`, `iq_range`, `hi_bound`,
+            `lo_bound`, `min_x`, `lambda_x`, `mu_x`, `sigma_x`, `min_y`, `lambda_y`,
+            `sigma_y`, and `mu_y`.
         """
         prelim_stage = PrelimStage(
             x,
@@ -691,11 +709,15 @@ class PrelimStage(
 
         Returns
         -------
-            x: The feature matrix with extreme outliers removed.
-            med_val: The median value of the feature matrix.
-            iq_range: The interquartile range of the feature matrix.
-            hi_bound: The upper bound for the feature values.
-            lo_bound: The lower bound for the feature values.
+        _BoundOut
+            The bounded data and the bound parameters. All fields are
+            `NDArray[np.double]`:
+
+            - `x`: the feature matrix with extreme outliers removed.
+            - `med_val`: the median value of the feature matrix.
+            - `iq_range`: the interquartile range of the feature matrix.
+            - `hi_bound`: the upper bound for the feature values.
+            - `lo_bound`: the lower bound for the feature values.
         """
         self._log("-> Removing extreme outliers from the feature values.")
         med_val = np.nanmedian(self.x, axis=0)
@@ -726,18 +748,20 @@ class PrelimStage(
 
         Returns
         -------
-            x: The normalized feature matrix.
-            min_x: The minimum value of the feature matrix.
-            lambda_x: The lambda values for the Box-Cox transformation of the
-                      feature matrix.
-            mu_x: The mean of the feature matrix.
-            sigma_x: The standard deviation of the feature matrix.
-            y: The normalized performance matrix.
-            min_y: The minimum value of the performance matrix.
-            lambda_y: The lambda values for the Box-Cox transformation of the
-                      performance matrix.
-            sigma_y: The standard deviation of the performance matrix.
-            mu_y: The mean of the performance matrix.
+        _NormaliseOut
+            The normalized data and the normalization parameters. All fields are
+            `NDArray[np.double]`, except `min_y`, which is a `float`:
+
+            - `x`: the normalized feature matrix.
+            - `min_x`: the minimum value of the feature matrix.
+            - `lambda_x`: the Box-Cox lambda values for the feature matrix.
+            - `mu_x`: the mean of the feature matrix.
+            - `sigma_x`: the standard deviation of the feature matrix.
+            - `y`: the normalized performance matrix.
+            - `min_y`: the minimum value of the performance matrix.
+            - `lambda_y`: the Box-Cox lambda values for the performance matrix.
+            - `sigma_y`: the standard deviation of the performance matrix.
+            - `mu_y`: the mean of the performance matrix.
         """
         self._log("-> Auto-normalizing the data using Box-Cox and Z transformations.")
 
@@ -747,30 +771,33 @@ class PrelimStage(
         ) -> tuple[NDArray[np.double], float]:
             """Perform Box-Cox transformation on data using fmin to optimize lambda.
 
-            Args
-            ----
-                data (ArrayLike): The input data array which must contain only
-                                 positive values.
-                lmbda_init (float): Initial guess for the lambda parameter.
+            Parameters
+            ----------
+            data : ArrayLike
+                The input data array. All values must be positive.
+            lmbda_init : float
+                Initial guess for the lambda parameter.
 
             Returns
             -------
-                tuple[np.ndarray, float]: A tuple containing the transformed data
-                                        and the optimal
-                lambda value.
+            tuple[np.ndarray, float]
+                A tuple that contains the transformed data and the optimal lambda
+                value.
 
             """
 
             def neg_log_likelihood(lmbda: NDArray[np.double]) -> float:
                 """Calculate the negative log-likelihood for the Box-Cox transformation.
 
-                Args
-                ----
-                    lmbda: The lambda value for the Box-Cox transformation.
+                Parameters
+                ----------
+                lmbda
+                    The lambda value for the Box-Cox transformation.
 
                 Returns
                 -------
-                    Any: The negative log-likelihood value.
+                Any
+                    The negative log-likelihood value.
                 """
                 result = stats.boxcox_llf(lmbda, data)
                 if isinstance(result, list | np.ndarray):

@@ -66,6 +66,9 @@ jobs:
         poetry run black --check .
         poetry run mypy --strict .
 
+    - name: Build API docs (checks numpy docstring format)
+      run: poetry run poe docs
+
     - name: Verify MATLAB gold source and fixtures
       run: |-
         poetry run python -c 'import json, subprocess; from pathlib import Path; expected = json.loads(Path("tests/fixtures/matlab/current/manifest.json").read_text())["matlab"]["repo_commit"]; actual = subprocess.check_output(["git", "-C", "../InstanceSpace", "rev-parse", "HEAD"], text=True).strip(); assert actual == expected, f"MATLAB oracle is stale: manifest={expected}, master={actual}"'

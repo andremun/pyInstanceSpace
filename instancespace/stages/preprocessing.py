@@ -240,12 +240,12 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
 
     @staticmethod
     def _run(inputs: PreprocessingInput) -> PreprocessingOutput:
-        """Perform preliminary processing on the input data 'x' and 'y'.
+        """Run the preprocessing stage on the input data.
 
-        Args
-        -------
+        Parameters
+        ----------
         inputs : PreprocessingInput
-            Inputs for the cloister stage.
+            The inputs for the preprocessing stage.
 
         Returns
         -------
@@ -304,7 +304,7 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
         Based on the user's configuration, this method filters the features
         and algorithms that should be used in subsequent stages.
 
-        Args
+        Parameters
         ----------
         x : NDArray[np.double]
             2D numpy array representing the feature matrix (instances x features).
@@ -392,7 +392,7 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             1. For any row, if that row in both X and Y are NaN, remove
             2. For X columns, if that column's 20% grids are filled with NaN, remove
 
-        Args
+        Parameters
         ----------
         x : NDArray[np.double]
             2D numpy array representing the feature matrix (instances x features).
