@@ -1,0 +1,154 @@
+name: MATLAB Oracle Verification
+
+# Regenerates the MATLAB reference fixtures directly from a real MATLAB run
+# of andremun/InstanceSpace's current master, using tests/matlab_export/
+# pyis_export_reference_data.m, then verifies the result with
+# tools/fixture_provenance.py. This checks the fixtures actually still match
+# what MATLAB produces today, not just that a pinned commit SHA is current
+# (see #344, and the "MATLAB oracle is stale" check in validation-tests.yml).
+#
+# Report-only for now (job-level continue-on-error): this is the exporter's
+# first run on a CI runner, and it has never been exercised outside a
+# human's local MATLAB (#278). It must prove reliable here before it can
+# replace or gate anything in validation-tests.yml.
+
+on:
+  push:
+    branches:
+    - main
+    - development
+    - "*-candidate"
+    - "v*/development-*"
+  pull_request: {}
+  workflow_dispatch:
+    inputs:
+      instancespace_ref:
+        description: >-
+          Git ref (branch, tag, or commit SHA) of andremun/InstanceSpace to
+          export from. Defaults to master. Set this to the gold commit
+          pinned in tests/fixtures/matlab/current/manifest.json for a
+          control run: if the fresh export still differs from the
+          committed fixtures at that exact commit, the drift is
+          platform/run noise, not a MATLAB code change (see #344).
+        required: false
+        default: master
+
+permissions:
+  contents: read
+
+jobs:
+  verify_against_real_matlab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true
+
+    steps:
+    - name: Check out pyInstanceSpace
+      uses: actions/checkout@v6
+      with:
+        path: pyInstanceSpace
+        persist-credentials: false
+
+    - name: Check out current MATLAB gold source
+      # A full clone (no --depth/--branch) so instancespace_ref can be an
+      # arbitrary commit SHA, not just a branch tip.
+      run: |-
+        git clone https://github.com/andremun/InstanceSpace.git InstanceSpace
+        git -C InstanceSpace checkout "${{ github.event.inputs.instancespace_ref || 'master' }}"
+
+    - name: Set up MATLAB R2026a
+      uses: matlab-actions/setup-matlab@v2
+      with:
+        # pyis_export_reference_data.m's 'verified' mode hard-requires
+        # R2026a -- it is the release the currently-installed oracle was
+        # generated under (see tests/matlab_export/README.md).
+        release: R2026a
+        products: >
+          Statistics_and_Machine_Learning_Toolbox
+          Optimization_Toolbox
+          Global_Optimization_Toolbox
+          Parallel_Computing_Toolbox
+          Financial_Toolbox
+
+    - name: Export a fresh reference bundle from real MATLAB
+      uses: matlab-actions/run-command@v2
+      with:
+        command: >-
+          addpath('pyInstanceSpace/tests/matlab_export');
+          pyis_export_reference_data('InstanceSpace', 'fresh-bundle',
+          'generatorRoot', 'pyInstanceSpace', 'mode', 'verified');
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+
+    - name: Install fixture_provenance's dependencies
+      run: python -m pip install --disable-pip-version-check numpy scipy
+
+    - name: Verify the freshly exported bundle
+      run: python pyInstanceSpace/tools/fixture_provenance.py verify fresh-bundle
+
+    - name: Diff the fresh export against the committed oracle
+      # fixture_provenance.py verify's 'verified v2' identity check hard-fails
+      # on any MATLAB commit other than the pinned gold SHA (see #344), which
+      # blocks the step above whenever the oracle is stale -- exactly the
+      # case this diff exists to inspect. !cancelled() keeps this step
+      # running after that failure (only a cancelled job skips it), so it
+      # answers the actual question even when verify never got there: does
+      # current MATLAB master still produce byte-identical output to the
+      # committed tests/fixtures/matlab/current bundle, for the same input
+      # dataset, regardless of whether its commit matches the pinned one?
+      if: ${{ !cancelled() }}
+      run: |-
+        python - <<'PY'
+        import json
+        import sys
+        from pathlib import Path
+
+        committed = json.loads(
+            Path("pyInstanceSpace/tests/fixtures/matlab/current/manifest.json").read_text()
+        )["files"]
+        fresh = json.loads(Path("fresh-bundle/manifest.json").read_text())["files"]
+
+        committed_by_path = {f["path"]: f["sha256"] for f in committed}
+        fresh_by_path = {f["path"]: f["sha256"] for f in fresh}
+
+        added = sorted(set(fresh_by_path) - set(committed_by_path))
+        removed = sorted(set(committed_by_path) - set(fresh_by_path))
+        changed = sorted(
+            path
+            for path in set(fresh_by_path) & set(committed_by_path)
+            if fresh_by_path[path] != committed_by_path[path]
+        )
+
+        if added:
+            print(f"Added ({len(added)}):")
+            for path in added:
+                print(f"  {path}")
+        if removed:
+            print(f"Removed ({len(removed)}):")
+            for path in removed:
+                print(f"  {path}")
+        if changed:
+            print(f"Changed content ({len(changed)}):")
+            for path in changed:
+                print(f"  {path}")
+
+        if added or removed or changed:
+            print(
+                "\nCurrent MATLAB master no longer reproduces the committed "
+                "oracle bit-for-bit. See #344 and tests/matlab_export/README.md."
+            )
+            sys.exit(1)
+
+        print("Fresh MATLAB export matches the committed oracle exactly.")
+        PY
+
+    - name: Upload the freshly exported bundle
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: fresh-matlab-reference-bundle
+        path: fresh-bundle/
+        retention-days: 14

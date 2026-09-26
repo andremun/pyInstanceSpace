@@ -1,0 +1,96 @@
+name: MATLAB Fixture Publish (manual)
+
+# One-off, human-triggered tool: exports a fresh reference bundle from real
+# MATLAB (tests/matlab_export/pyis_export_reference_data.m) and pushes it,
+# raw, to a new branch -- nothing else. It does not touch
+# tools/fixture_provenance.py's pinned identity constants, regenerate
+# tests/fixture_inventory.json, or run the test suite; that follow-up work
+# happens after pulling the branch, where the full toolchain is available.
+#
+# Exists because this session's sandbox can reach github.com (git push
+# works) but not the Actions artifact blob-storage host used by
+# actions/upload-artifact's download URLs, so getting a real-MATLAB-
+# generated bundle out of a GitHub-hosted runner and into a review-able
+# git branch has to go through a direct push, not an artifact download.
+#
+# Not for routine CI use. Run manually (workflow_dispatch) only, with an
+# explicit publish_branch, when actually intending to propose a new gold
+# fixture bundle (see #344 for the tracking issue this feeds).
+
+on:
+  workflow_dispatch:
+    inputs:
+      instancespace_ref:
+        description: >-
+          Git ref (branch, tag, or commit SHA) of andremun/InstanceSpace to
+          export from.
+        required: false
+        default: master
+      publish_branch:
+        description: >-
+          Branch name to push the raw exported bundle to (created from the
+          current default branch). Required -- there is no default, so an
+          accidental run can't silently push anywhere.
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish_fixture_bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+    - name: Check out pyInstanceSpace
+      uses: actions/checkout@v6
+      with:
+        # Always from main, regardless of which branch this workflow run was
+        # dispatched against, so publish_branch's base is always clean.
+        ref: main
+        path: pyInstanceSpace
+        persist-credentials: true
+
+    - name: Check out MATLAB source
+      run: |-
+        git clone https://github.com/andremun/InstanceSpace.git InstanceSpace
+        git -C InstanceSpace checkout "${{ github.event.inputs.instancespace_ref }}"
+
+    - name: Set up MATLAB R2026a
+      uses: matlab-actions/setup-matlab@v2
+      with:
+        release: R2026a
+        products: >
+          Statistics_and_Machine_Learning_Toolbox
+          Optimization_Toolbox
+          Global_Optimization_Toolbox
+          Parallel_Computing_Toolbox
+          Financial_Toolbox
+
+    - name: Export a fresh reference bundle from real MATLAB
+      uses: matlab-actions/run-command@v2
+      with:
+        command: >-
+          addpath('pyInstanceSpace/tests/matlab_export');
+          pyis_export_reference_data('InstanceSpace', 'fresh-bundle',
+          'generatorRoot', 'pyInstanceSpace', 'mode', 'verified');
+
+    - name: Push the raw bundle to publish_branch
+      working-directory: pyInstanceSpace
+      run: |-
+        set -e
+        git config user.name "matlab-fixture-publish[bot]"
+        git config user.email "actions@github.com"
+        git checkout -b "${{ github.event.inputs.publish_branch }}"
+        rm -rf tests/fixtures/matlab/current
+        mkdir -p tests/fixtures/matlab/current
+        cp -r ../fresh-bundle/. tests/fixtures/matlab/current/
+        git add tests/fixtures/matlab/current
+        git commit -m "chore: raw MATLAB export for fixture bundle refresh (unreviewed)
+
+        Raw output of pyis_export_reference_data.m against InstanceSpace@${{ github.event.inputs.instancespace_ref }},
+        pushed as-is by matlab-fixture-publish.yml. tools/fixture_provenance.py's
+        pinned identity constants, tests/fixture_inventory.json, and the test
+        suite have NOT been updated yet -- this commit is raw material for
+        that follow-up work, not a reviewed fixture bundle on its own."
+        git push origin "${{ github.event.inputs.publish_branch }}"

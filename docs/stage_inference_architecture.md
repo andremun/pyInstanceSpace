@@ -55,10 +55,12 @@ ground truth is present. Advancing only to a stage must not execute later work.
 - No fitted classifier, array, polygon, or tetrahedral mesh is mutated.
 - Test-only algorithms retain false/zero inference padding and NaN classifier metrics
   because no fitted classifier exists for them.
-- A trained algorithm absent from test metadata is scored against the reconciled
-  all-false truth column; its metrics are not replaced with NaN. This follows
-  MATLAB v0.9.1's `core/PYTHIA.m::PYTHIAevalMode`, which evaluates every trained
-  classifier against its reconciled truth column.
+- A trained algorithm without observed test-set ground truth for an instance is not
+  scored on that instance; its rates are `NaN` and its confusion row is zero when it
+  has no observed instances at all. This follows MATLAB's `core/PYTHIA.m::PYTHIAevalMode`
+  fix for `andremun/InstanceSpace#58`, which masks each trained classifier's confusion
+  count to its observed instances (`observed = ~isnan(Y(:,ii))`) instead of scoring a
+  reconciled placeholder as real ground truth.
 - All current R2026a `reference-export/v2` readers remain authoritative.
 
 ## Verification

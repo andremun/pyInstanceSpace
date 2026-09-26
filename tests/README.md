@@ -9,12 +9,12 @@ and file-by-file mapping.
 ## Current MATLAB oracle
 
 `tests/fixtures/matlab/current/` is the canonical `matlab-verified` oracle: 423 files
-under `reference-export/v2`, generated with MATLAB R2026a Update 4 from gold source
-`98a01ac0513c0dd0f8a9bd91ed2926c871334d7b` (InstanceSpace v0.9.1) and Python
-generator `4816b8cf23ad9392e7a7f5aa85bfbc32080dfe84`. Its exporter SHA-256 is
+under `reference-export/v2`, generated with MATLAB R2026a from gold source
+`fdad7a43a12a403c4b20e4e98bbf8a6e56538e2b` (InstanceSpace master, Linux/GLNXA64) and
+Python generator `66e65bec30bfad30ef8e8bcf805330dfbda04a83`. Its exporter SHA-256 is
 `d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
 Collection contains 86 provenance tests and 41 current scientific readers. The
-local CI-equivalent gate passed all 1,046 collected tests with 92.08% branch coverage
+local CI-equivalent gate passed all 1,049 collected tests with 92.05% branch coverage
 and no uncaught warnings under `-W error`. The frozen 229-file v1 format remains readable,
 but is not the installed oracle.
 

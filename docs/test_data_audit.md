@@ -2,15 +2,18 @@
 
 **Status:** Audit and migration complete. §7's single-layout decision is implemented.
 The canonical install is a 423-file, `matlab-verified` `reference-export/v2` bundle from
-MATLAB R2026a Update 4; provenance passed 86 tests and current readers passed 40. The
-The local CI-equivalent gate passed all 1,046 collected tests with 92.08% branch coverage.
-Frozen v1 remains readable. Steps 1–5 are
+MATLAB R2026a, generated on Linux; provenance passed 86 tests and current readers passed
+41. The local CI-equivalent gate passed all 1,049 collected tests with 92.05% branch
+coverage. Frozen v1 remains readable. Steps 1–5 are
 implemented; #310 remains tracked for maintainer review. Sections 1–6 preserve the
 audit-time findings and paths, including items later remediated by those steps.
 
-**Identity:** MATLAB v0.9.1 `98a01ac0513c0dd0f8a9bd91ed2926c871334d7b`; generator
-`4816b8cf23ad9392e7a7f5aa85bfbc32080dfe84`; exporter
-`d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
+**Identity:** MATLAB master `fdad7a43a12a403c4b20e4e98bbf8a6e56538e2b`; generator
+`66e65bec30bfad30ef8e8bcf805330dfbda04a83`; exporter
+`d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`. Refreshed from the
+prior MATLAB v0.9.1 gold commit (`98a01ac0...`) once, so the oracle is generated on the
+same platform (Linux) CI runs on -- see `tests/matlab_export/README.md`'s "Current
+execution status" for why that matters.
 
 **§7.1** extends the target layout with a cross-stage/shared-input rule.
 **Scope:** every file under `tests/` in this repository, not only
