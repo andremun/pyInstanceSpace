@@ -75,11 +75,16 @@ jobs:
       run: python pyInstanceSpace/tools/fixture_provenance.py verify fresh-bundle
 
     - name: Diff the fresh export against the committed oracle
-      # fixture_provenance.py verify only checks a bundle's own internal
-      # consistency (manifest hashes match the files on disk). This is the
-      # step that answers the actual question: does current MATLAB master
-      # still produce byte-identical output to the committed
-      # tests/fixtures/matlab/current bundle, for the same input dataset?
+      # fixture_provenance.py verify's 'verified v2' identity check hard-fails
+      # on any MATLAB commit other than the pinned gold SHA (see #344), which
+      # blocks the step above whenever the oracle is stale -- exactly the
+      # case this diff exists to inspect. !cancelled() keeps this step
+      # running after that failure (only a cancelled job skips it), so it
+      # answers the actual question even when verify never got there: does
+      # current MATLAB master still produce byte-identical output to the
+      # committed tests/fixtures/matlab/current bundle, for the same input
+      # dataset, regardless of whether its commit matches the pinned one?
+      if: ${{ !cancelled() }}
       run: |-
         python - <<'PY'
         import json
