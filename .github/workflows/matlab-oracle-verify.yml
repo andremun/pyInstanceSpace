@@ -20,7 +20,18 @@ on:
     - "*-candidate"
     - "v*/development-*"
   pull_request: {}
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      instancespace_ref:
+        description: >-
+          Git ref (branch, tag, or commit SHA) of andremun/InstanceSpace to
+          export from. Defaults to master. Set this to the gold commit
+          pinned in tests/fixtures/matlab/current/manifest.json for a
+          control run: if the fresh export still differs from the
+          committed fixtures at that exact commit, the drift is
+          platform/run noise, not a MATLAB code change (see #344).
+        required: false
+        default: master
 
 permissions:
   contents: read
@@ -39,7 +50,11 @@ jobs:
         persist-credentials: false
 
     - name: Check out current MATLAB gold source
-      run: git clone --depth 1 --branch master https://github.com/andremun/InstanceSpace.git InstanceSpace
+      # A full clone (no --depth/--branch) so instancespace_ref can be an
+      # arbitrary commit SHA, not just a branch tip.
+      run: |-
+        git clone https://github.com/andremun/InstanceSpace.git InstanceSpace
+        git -C InstanceSpace checkout "${{ github.event.inputs.instancespace_ref || 'master' }}"
 
     - name: Set up MATLAB R2026a
       uses: matlab-actions/setup-matlab@v2
