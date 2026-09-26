@@ -35,41 +35,20 @@ _CURRENT = Path(__file__).parent / "fixtures" / "matlab" / "current"
 _TRACE3_VARIANTS = ("trace3_default", "trace3_pythia_skip")
 _SCALAR_TOLERANCE = 1e-11
 _GEOMETRY_TOLERANCE = 1e-10
-_BOUNDARY_AMBIGUITIES = {
-    "trace3_default": frozenset(
-        {
-            ("zoo", "in_good_RandF"),
-            ("zoo", "in_best_RandF"),
-        },
-    ),
-    "trace3_pythia_skip": frozenset(
-        {
-            ("wpbc_no_Nas", "in_good_LDA"),
-            ("wpbc_no_Nas", "in_good_L_SVM"),
-            ("wpbc_no_Nas", "in_best_L_SVM"),
-        },
-    ),
+_BOUNDARY_AMBIGUITIES: dict[str, frozenset[tuple[str, str]]] = {
+    # Both variants had exactly one point exactly on a footprint boundary
+    # under the old MATLAB oracle (98a01ac...). The refreshed oracle
+    # (fdad7a43..., #344/#345) has none: real-world floating-point
+    # projection/footprint geometry shifted enough that no explore-set
+    # point now lands exactly on a boundary for either variant.
+    "trace3_default": frozenset(),
+    "trace3_pythia_skip": frozenset(),
 }
-_BOUNDARY_SUMMARY_VALUES = {
-    "trace3_default": {
-        ("RandF", "Density_Good"): 22.111,
-        ("RandF", "Density_Good_Normalized"): 2.046,
-        ("RandF", "Purity_Good"): 0.651,
-        ("RandF", "Density_Best"): 24.696,
-        ("RandF", "Density_Best_Normalized"): 2.286,
-        ("RandF", "Purity_Best"): 0.630,
-    },
-    "trace3_pythia_skip": {
-        ("LDA", "Density_Good"): 43.362,
-        ("LDA", "Density_Good_Normalized"): 4.013,
-        ("LDA", "Purity_Good"): 0.647,
-        ("L_SVM", "Density_Good"): 24.227,
-        ("L_SVM", "Density_Good_Normalized"): 2.242,
-        ("L_SVM", "Purity_Good"): 0.602,
-        ("L_SVM", "Density_Best"): 25.862,
-        ("L_SVM", "Density_Best_Normalized"): 2.393,
-        ("L_SVM", "Purity_Best"): 0.568,
-    },
+_BOUNDARY_SUMMARY_VALUES: dict[str, dict[tuple[str, str], float]] = {
+    # See _BOUNDARY_AMBIGUITIES: no boundary ambiguity means no summary cell
+    # differs between the rescored and exported summaries either.
+    "trace3_default": {},
+    "trace3_pythia_skip": {},
 }
 
 pytestmark = pytest.mark.usefixtures("verified_current_matlab_bundle")

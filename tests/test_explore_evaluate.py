@@ -291,14 +291,20 @@ def test_pythia_evaluate_uses_matlab_column_major_confusion_order() -> None:
 
 
 def test_pythia_evaluate_empty_trained_slot_matches_matlab_skip() -> None:
-    """An empty model slot keeps zero counts, zero accuracy, and undefined rates."""
+    """An empty model slot is not scored: zero counts, NaN accuracy and rates.
+
+    Matches MATLAB's `andremun/InstanceSpace#58
+    <https://github.com/andremun/InstanceSpace/issues/58>`_ fix: an untrained
+    slot (``clf`` empty) is skipped the same way as a trained algorithm with
+    no test-set ground truth, not scored as a fabricated zero.
+    """
     y_true = np.array([[True], [False]])
     y_pred = np.zeros((2, 1), dtype=np.bool_)
 
     result = _evaluate_pythia(y_true, y_pred, slots=[None])
 
     np.testing.assert_array_equal(result.cvcmat[0], [0, 0, 0, 0])
-    assert result.accuracy[0] == 0.0
+    assert np.isnan(result.accuracy[0])
     assert np.isnan(result.precision[0])
     assert np.isnan(result.recall[0])
 

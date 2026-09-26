@@ -470,19 +470,20 @@ class PythiaStage(
         """Evaluate predictions with MATLAB's explicit confusion-count formulas.
 
         MATLAB stores each confusion matrix as ``cm(:)'`` in column-major order,
-        hence ``[TN, FN, FP, TP]``. ``core/PYTHIA.m::PYTHIAevalMode`` loops over
-        every trained classifier and calls ``confusionmat`` against its
-        reconciled truth column, but skips that call for a trained algorithm the
-        test set has no data for (`andremun/InstanceSpace#58
-        <https://github.com/andremun/InstanceSpace/issues/58>`_) -- its truth
-        column would otherwise be an all-false reconciliation artifact, not real
-        ground truth. ``inputs.has_ground_truth`` carries that per-trained-column
-        distinction here. A trained algorithm without ground truth keeps a zero
-        confusion row and ``NaN`` accuracy/precision/recall, the same treatment
-        already given to a test-only algorithm with no trained-model slot. Empty
-        trained slots (``classifier is None``) retain their own existing
-        treatment regardless of ``has_ground_truth``: zero confusion row, zero
-        accuracy, undefined (``NaN``) precision and recall.
+        hence ``[TN, FN, FP, TP]``. ``core/PYTHIA.m::PYTHIAevalMode`` (after its
+        `andremun/InstanceSpace#58
+        <https://github.com/andremun/InstanceSpace/issues/58>`_ fix) initializes
+        every rate to ``NaN`` and only computes real confusion counts, and from
+        them real rates, for a trained slot that both has a fitted classifier
+        (``clf`` non-empty) and has real test-set ground truth for that
+        algorithm (not a reconciled all-false placeholder column). Both
+        conditions leave a slot unscored the same way: an untrained
+        (``classifier is None``) slot and a trained-but-uncovered-by-the-test-set
+        slot both get ``NaN`` accuracy/precision/recall and a zero confusion
+        row, rather than the untrained slot's former "zero accuracy, undefined
+        precision/recall" treatment. ``inputs.has_ground_truth`` carries the
+        per-trained-column ground-truth distinction; classifier presence is
+        read from ``fitted`` itself.
         """
         if (
             inputs.y_true.ndim != PYTHIA_ARRAY_DIMENSIONS
@@ -532,9 +533,10 @@ class PythiaStage(
             ]
 
         for index, classifier in enumerate(classifiers):
-            if classifier is not None and not has_ground_truth[index]:
-                # A trained algorithm with no test data: leave NaN/zero, matching
-                # a test-only algorithm's treatment (#58).
+            if classifier is None or not has_ground_truth[index]:
+                # No fitted classifier, or a trained algorithm with no test
+                # data: leave NaN/zero rather than a fabricated score,
+                # matching a test-only algorithm's treatment (#58).
                 continue
             true_negative, false_negative, false_positive, true_positive = cvcmat[index]
             accuracy[index] = _safe_ratio(

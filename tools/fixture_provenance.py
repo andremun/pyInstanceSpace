@@ -141,7 +141,7 @@ _REFERENCE_REQUIRED_TOOLBOXES: Final = {
     "Global Optimization Toolbox",
     "Financial Toolbox",
 }
-_GOLD_MATLAB_COMMIT: Final = "98a01ac0513c0dd0f8a9bd91ed2926c871334d7b"
+_GOLD_MATLAB_COMMIT: Final = "fdad7a43a12a403c4b20e4e98bbf8a6e56538e2b"
 _CANONICAL_DATASET_SHA256: Final = {
     "shared_inputs/reference/metadata.csv": (
         "961c65397b619a6e8e40df0ea6f90fbda448b8deb8a56e5a319e1be8f442bf0c"
@@ -155,7 +155,7 @@ _REFERENCE_V2_EXPORTER_SHA256: Final = (
     "d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c"
 )
 _VERIFIED_V2_CONTENT_ROOT_SHA256: Final = (
-    "f44107a6716c4f204affc006cba6219a2aedeff221a0bccb1d7bd4893de6162f"
+    "abd975cc2e1fbafdb4665af9ae320e7bf83462b641e1269fef7a4fabe593c2a7"
 )
 _BASE_STAGE_VARIANTS: Final = {
     ("build", "prelim", "default"),
