@@ -281,6 +281,7 @@ class PythiaEvaluateInput(NamedTuple):
 
     y_true: NDArray[np.bool_]
     y_pred: NDArray[np.bool_]
+    has_ground_truth: NDArray[np.bool_]
 
 
 class PythiaEvaluateOutput(NamedTuple):
@@ -469,15 +470,19 @@ class PythiaStage(
         """Evaluate predictions with MATLAB's explicit confusion-count formulas.
 
         MATLAB stores each confusion matrix as ``cm(:)'`` in column-major order,
-        hence ``[TN, FN, FP, TP]``. MATLAB v0.9.1's
-        ``core/PYTHIA.m::PYTHIAevalMode`` loops over every trained classifier and
-        calls ``confusionmat`` against its reconciled truth column. Therefore,
-        every non-empty trained-classifier slot is scored, including a training
-        algorithm absent from the test metadata (whose truth column is all
-        false). Empty trained slots retain a zero confusion row and therefore
-        zero accuracy with undefined precision and recall. Test-only algorithms
-        also retain zero confusion rows, but their rates stay ``NaN`` because no
-        trained-model slot exists for them.
+        hence ``[TN, FN, FP, TP]``. ``core/PYTHIA.m::PYTHIAevalMode`` loops over
+        every trained classifier and calls ``confusionmat`` against its
+        reconciled truth column, but skips that call for a trained algorithm the
+        test set has no data for (`andremun/InstanceSpace#58
+        <https://github.com/andremun/InstanceSpace/issues/58>`_) -- its truth
+        column would otherwise be an all-false reconciliation artifact, not real
+        ground truth. ``inputs.has_ground_truth`` carries that per-trained-column
+        distinction here. A trained algorithm without ground truth keeps a zero
+        confusion row and ``NaN`` accuracy/precision/recall, the same treatment
+        already given to a test-only algorithm with no trained-model slot. Empty
+        trained slots (``classifier is None``) retain their own existing
+        treatment regardless of ``has_ground_truth``: zero confusion row, zero
+        accuracy, undefined (``NaN``) precision and recall.
         """
         if (
             inputs.y_true.ndim != PYTHIA_ARRAY_DIMENSIONS
@@ -495,16 +500,23 @@ class PythiaStage(
         if n_trained_algorithms > n_algorithms:
             msg = "PYTHIA evaluate has more trained classifiers than algorithms."
             raise ValueError(msg)
+        if inputs.has_ground_truth.shape != (n_trained_algorithms,):
+            msg = (
+                "PYTHIA evaluate has_ground_truth must have one entry per "
+                "trained classifier."
+            )
+            raise ValueError(msg)
 
         y_true = np.asarray(inputs.y_true, dtype=np.bool_)
         y_pred = np.asarray(inputs.y_pred, dtype=np.bool_)
+        has_ground_truth = np.asarray(inputs.has_ground_truth, dtype=np.bool_)
         accuracy = np.full(n_algorithms, np.nan, dtype=np.double)
         precision = np.full(n_algorithms, np.nan, dtype=np.double)
         recall = np.full(n_algorithms, np.nan, dtype=np.double)
         cvcmat = np.zeros((n_algorithms, 4), dtype=np.double)
 
         for index, classifier in enumerate(classifiers):
-            if classifier is None:
+            if classifier is None or not has_ground_truth[index]:
                 continue
             truth = y_true[:, index]
             prediction = y_pred[:, index]
@@ -519,7 +531,11 @@ class PythiaStage(
                 true_positive,
             ]
 
-        for index in range(n_trained_algorithms):
+        for index, classifier in enumerate(classifiers):
+            if classifier is not None and not has_ground_truth[index]:
+                # A trained algorithm with no test data: leave NaN/zero, matching
+                # a test-only algorithm's treatment (#58).
+                continue
             true_negative, false_negative, false_positive, true_positive = cvcmat[index]
             accuracy[index] = _safe_ratio(
                 true_positive + true_negative,

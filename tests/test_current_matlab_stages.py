@@ -943,6 +943,7 @@ def test_current_matlab_pythia_skip_oracle() -> None:
         PythiaEvaluateInput(
             _matrix(explore_inputs / "y_bin.csv").astype(np.bool_),
             predicted.y_hat,
+            np.ones(len(labels), dtype=np.bool_),
         ),
         fitted,
     )
