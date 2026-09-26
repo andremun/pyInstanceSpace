@@ -69,16 +69,6 @@ jobs:
     - name: Build docs site (checks numpy docstring format)
       run: poetry run poe docs
 
-    - name: Check MATLAB oracle is current
-      # Tracks whether andremun/InstanceSpace's master has moved past the
-      # commit tests/fixtures/matlab/current/manifest.json pins as the gold
-      # reference. Non-blocking: bumping the pin requires a real MATLAB
-      # re-verification run (see #344), so a stale oracle is expected to
-      # linger and must not hold up the rest of this job in the meantime.
-      continue-on-error: true
-      run: |-
-        poetry run python -c 'import json, subprocess; from pathlib import Path; expected = json.loads(Path("tests/fixtures/matlab/current/manifest.json").read_text())["matlab"]["repo_commit"]; actual = subprocess.check_output(["git", "-C", "../InstanceSpace", "rev-parse", "HEAD"], text=True).strip(); assert actual == expected, f"MATLAB oracle is stale: manifest={expected}, master={actual}"'
-
     - name: Verify fixtures
       run: |-
         poetry run python tools/fixture_provenance.py verify tests/fixtures/matlab/current
@@ -106,4 +96,17 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: ./coverage.xml
         fail_ci_if_error: true
+
+    - name: Check MATLAB oracle is current
+      # Tracks whether andremun/InstanceSpace's master has moved past the
+      # commit tests/fixtures/matlab/current/manifest.json pins as the gold
+      # reference. Deliberately the last step: every other check in this job
+      # (lint, types, docs build, fixture provenance, pytest, coverage) has
+      # already run and reported by the time this can fail, so a stale
+      # oracle no longer hides whether the rest of the PR is sound. It still
+      # fails the job on purpose — bumping the pin requires a real MATLAB
+      # re-verification run (see #344), and this check is what keeps that
+      # visible instead of silently going stale.
+      run: |-
+        poetry run python -c 'import json, subprocess; from pathlib import Path; expected = json.loads(Path("tests/fixtures/matlab/current/manifest.json").read_text())["matlab"]["repo_commit"]; actual = subprocess.check_output(["git", "-C", "../InstanceSpace", "rev-parse", "HEAD"], text=True).strip(); assert actual == expected, f"MATLAB oracle is stale: manifest={expected}, master={actual}"'
 
