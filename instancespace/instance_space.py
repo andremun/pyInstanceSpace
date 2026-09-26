@@ -1107,12 +1107,16 @@ class InstanceSpace:
         `max_perf`/`abs_perf` NaN handling then treats it as never the best
         for any instance (matching MATLAB's convention for missing ground
         truth), so no separate branch is needed for that case there. The
-        returned mask records which of the *trained* columns have real ground
-        truth; `PythiaStage.evaluate` uses it to skip scoring a trained
-        classifier against that column's reconciled all-false placeholder
-        (`andremun/InstanceSpace#58
-        <https://github.com/andremun/InstanceSpace/issues/58>`_), rather than
-        reporting a fabricated score for it.
+        returned mask is ``~isnan(y_raw_test[:, :n_trained])``, per instance
+        and per trained algorithm - not just per whole column - mirroring
+        MATLAB's own ``observed = ~isnan(Y(:,ii))`` (`andremun/InstanceSpace#58
+        <https://github.com/andremun/InstanceSpace/issues/58>`_): a trained
+        algorithm absent from the test set entirely gets an all-``False``
+        column this way, but so does any individual instance the test set's
+        metadata simply has no recorded performance for, even when the rest
+        of that algorithm's column is observed. `PythiaStage.evaluate` uses
+        it to score only observed (instance, algorithm) pairs, rather than
+        reporting a fabricated score for an unobserved one.
 
         Algorithms in `new_algo_labels` (present in the test set, absent from
         training - see `_find_new_algorithms`) are appended as extra columns
@@ -1137,9 +1141,10 @@ class InstanceSpace:
             - y_raw_test: (n_instances, n_trained + n_new) raw performance. The
               columns are in the order of `algo_labels + new_algo_labels`. A column
               is NaN if the test set does not contain that trained algorithm.
-            - has_ground_truth: (n_trained,) mask. It shows the *trained* columns
-              that have real ground truth. The mask does not include the new
-              algorithms, because they always have ground truth.
+            - observed: (n_instances, n_trained) mask, True where a trained
+              algorithm has real per-instance ground truth. The mask does not
+              include the new algorithms, because they always have ground
+              truth.
         """
         test_cols = {
             name.lower(): i for i, name in enumerate(test_metadata.algorithm_names)
@@ -1148,19 +1153,18 @@ class InstanceSpace:
         n_trained = len(algo_labels)
         n_new = len(new_algo_labels)
         y_raw_test = np.full((ninst, n_trained + n_new), np.nan, dtype=np.double)
-        has_ground_truth = np.zeros(n_trained, dtype=np.bool_)
 
         for i, label in enumerate(algo_labels):
             col = test_cols.get(label.lower())
             if col is not None:
                 y_raw_test[:, i] = test_metadata.algorithms[:, col]
-                has_ground_truth[i] = True
 
         for j, label in enumerate(new_algo_labels):
             col = test_cols[label.lower()]
             y_raw_test[:, n_trained + j] = test_metadata.algorithms[:, col]
 
-        return y_raw_test, has_ground_truth
+        observed = ~np.isnan(y_raw_test[:, :n_trained])
+        return y_raw_test, observed
 
     def _explore_evaluate(
         self,
@@ -1180,11 +1184,12 @@ class InstanceSpace:
         the already-trained classifiers' predictions (`y_hat`, already
         computed by `_explore_pythia` - not recomputed here) against that
         ground truth, matching MATLAB's exact formulas (`tp/(tp+fp)`,
-        `tp/(tp+fn)`, `(tp+tn)/ninst`, `core/PYTHIA.m:379-381`).
+        `tp/(tp+fn)`, `(tp+tn)/(tp+tn+fp+fn)`, `core/PYTHIA.m:379-464`).
 
-        A trained algorithm absent from the test metadata is not scored: its
-        rates stay `NaN` and its confusion row stays zero, matching MATLAB's
-        fix for `andremun/InstanceSpace#58
+        A trained algorithm's unobserved test instances are not scored: its
+        rates come from its observed instances only, and an algorithm with no
+        observed instances at all gets `NaN` rates and a zero confusion row,
+        matching MATLAB's fix for `andremun/InstanceSpace#58
         <https://github.com/andremun/InstanceSpace/issues/58>`_ (the same
         treatment `new_algo_labels` algorithms already get, since they too
         have no trained-model slot). It still participates as a full
@@ -1212,7 +1217,7 @@ class InstanceSpace:
         """
         model = self._require_model()
         algo_labels = model.data.algo_labels
-        y_raw_test, has_ground_truth = self._build_test_algo_matrix(
+        y_raw_test, observed = self._build_test_algo_matrix(
             test_metadata,
             algo_labels,
             new_algo_labels,
@@ -1229,7 +1234,7 @@ class InstanceSpace:
             PythiaEvaluateInput(
                 perf.y_bin,
                 y_hat,
-                has_ground_truth,
+                observed,
             ),
             model.pythia,
         )

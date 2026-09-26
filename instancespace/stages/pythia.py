@@ -281,7 +281,11 @@ class PythiaEvaluateInput(NamedTuple):
 
     y_true: NDArray[np.bool_]
     y_pred: NDArray[np.bool_]
-    has_ground_truth: NDArray[np.bool_]
+    observed: NDArray[np.bool_]
+    """Per-instance, per-trained-algorithm mask: shape (n_instances,
+    n_trained_algorithms). True where the test set has real ground truth for
+    that (instance, algorithm) pair, mirroring MATLAB's
+    ``observed = ~isnan(Y(:,ii))`` (#58)."""
 
 
 class PythiaEvaluateOutput(NamedTuple):
@@ -473,17 +477,20 @@ class PythiaStage(
         hence ``[TN, FN, FP, TP]``. ``core/PYTHIA.m::PYTHIAevalMode`` (after its
         `andremun/InstanceSpace#58
         <https://github.com/andremun/InstanceSpace/issues/58>`_ fix) initializes
-        every rate to ``NaN`` and only computes real confusion counts, and from
-        them real rates, for a trained slot that both has a fitted classifier
-        (``clf`` non-empty) and has real test-set ground truth for that
-        algorithm (not a reconciled all-false placeholder column). Both
-        conditions leave a slot unscored the same way: an untrained
-        (``classifier is None``) slot and a trained-but-uncovered-by-the-test-set
-        slot both get ``NaN`` accuracy/precision/recall and a zero confusion
-        row, rather than the untrained slot's former "zero accuracy, undefined
-        precision/recall" treatment. ``inputs.has_ground_truth`` carries the
-        per-trained-column ground-truth distinction; classifier presence is
-        read from ``fitted`` itself.
+        every rate to ``NaN`` and, for each trained slot with a fitted
+        classifier, masks the confusion count to ``observed = ~isnan(Y(:,ii))``
+        before calling ``confusionmat`` -- per *instance*, not per algorithm
+        column: a trained algorithm can have real ground truth for some test
+        instances and none for others, and only the observed rows are scored.
+        ``inputs.observed`` (shape ``(n_instances, n_trained)``) carries that
+        mask here. Accuracy's denominator is the observed count for that
+        algorithm (``tp+tn+fp+fn``), matching MATLAB's
+        ``(tp+tn)/(tp+tn+fp+fn)`` -- equal to ``n_instances`` only when every
+        instance is observed. A slot with no fitted classifier
+        (``classifier is None``) or with no observed instances at all gets
+        ``NaN`` accuracy/precision/recall and a zero confusion row, the same
+        treatment a test-only algorithm with no trained-model slot already
+        gets.
         """
         if (
             inputs.y_true.ndim != PYTHIA_ARRAY_DIMENSIONS
@@ -501,26 +508,29 @@ class PythiaStage(
         if n_trained_algorithms > n_algorithms:
             msg = "PYTHIA evaluate has more trained classifiers than algorithms."
             raise ValueError(msg)
-        if inputs.has_ground_truth.shape != (n_trained_algorithms,):
+        if inputs.observed.shape != (n_instances, n_trained_algorithms):
             msg = (
-                "PYTHIA evaluate has_ground_truth must have one entry per "
-                "trained classifier."
+                "PYTHIA evaluate observed must have shape "
+                "(n_instances, n_trained_algorithms)."
             )
             raise ValueError(msg)
 
         y_true = np.asarray(inputs.y_true, dtype=np.bool_)
         y_pred = np.asarray(inputs.y_pred, dtype=np.bool_)
-        has_ground_truth = np.asarray(inputs.has_ground_truth, dtype=np.bool_)
+        observed = np.asarray(inputs.observed, dtype=np.bool_)
         accuracy = np.full(n_algorithms, np.nan, dtype=np.double)
         precision = np.full(n_algorithms, np.nan, dtype=np.double)
         recall = np.full(n_algorithms, np.nan, dtype=np.double)
         cvcmat = np.zeros((n_algorithms, 4), dtype=np.double)
 
         for index, classifier in enumerate(classifiers):
-            if classifier is None or not has_ground_truth[index]:
+            if classifier is None:
                 continue
-            truth = y_true[:, index]
-            prediction = y_pred[:, index]
+            row_mask = observed[:, index]
+            if not row_mask.any():
+                continue
+            truth = y_true[row_mask, index]
+            prediction = y_pred[row_mask, index]
             true_positive = int(np.sum(truth & prediction))
             true_negative = int(np.sum(~truth & ~prediction))
             false_positive = int(np.sum(~truth & prediction))
@@ -531,17 +541,9 @@ class PythiaStage(
                 false_positive,
                 true_positive,
             ]
-
-        for index, classifier in enumerate(classifiers):
-            if classifier is None or not has_ground_truth[index]:
-                # No fitted classifier, or a trained algorithm with no test
-                # data: leave NaN/zero rather than a fabricated score,
-                # matching a test-only algorithm's treatment (#58).
-                continue
-            true_negative, false_negative, false_positive, true_positive = cvcmat[index]
             accuracy[index] = _safe_ratio(
                 true_positive + true_negative,
-                n_instances,
+                true_positive + true_negative + false_positive + false_negative,
             )
             precision[index] = _safe_ratio(
                 true_positive,
