@@ -21,10 +21,10 @@
 <main>
 <div class="hero">
 <h1>Options Reference</h1>
-<p class="tagline">Every field of <code>options.json</code>, grouped by the stage it configures.</p>
+<p class="tagline">The <code>options.json</code> fields you are most likely to set, grouped by the stage they configure.</p>
 </div>
 
-<p><code>options.json</code> holds every setting the toolkit uses: settings for the analysis itself, for data pre-processing, and for the output. This page gives each option's Python attribute path, for example <code>options.perf.max_perf</code>. The same name, in any case, is the key that <code>options.json</code> expects. A few legacy MATLAB-style key names, such as <code>ncores</code> and <code>cvfolds</code>, still work, for compatibility with option files written for the MATLAB toolkit.</p>
+<p><code>options.json</code> holds every setting the toolkit uses: settings for the analysis itself, for data pre-processing, and for the output. This page covers the settings most users need. For every field, including advanced ones such as <code>selvars.feats</code>/<code>algos</code> and SIFTED's genetic-algorithm settings, see the <code>InstanceSpaceOptions</code> dataclasses in the <a href="api/instancespace/data/options.html">API reference</a>. This page gives each option's Python attribute path, for example <code>options.perf.max_perf</code>. The same name, in any case, is the key that <code>options.json</code> expects. A few legacy MATLAB-style key names, such as <code>ncores</code> and <code>cvfolds</code>, still work, for compatibility with option files written for the MATLAB toolkit.</p>
 
 <h2>General settings</h2>
 <table>
@@ -71,13 +71,14 @@
 </table>
 
 <h2>Algorithm selection settings (PYTHIA)</h2>
-<p>PYTHIA trains one <a href="https://scikit-learn.org/">scikit-learn</a> <code>SVC</code> for each algorithm, as the algorithm-selection model.</p>
+<p>PYTHIA trains one <a href="https://scikit-learn.org/">scikit-learn</a> classifier for each algorithm, as the algorithm-selection model. A support vector classifier (<code>SVC</code>) is the default; <code>pythia.classifier</code> selects a different one.</p>
 <table>
 <thead><tr><th>Option</th><th>Purpose</th></tr></thead>
 <tbody>
+<tr><td><code>pythia.classifier</code></td><td>Selects the classifier: <code>"svm"</code> (the default), <code>"knn"</code>, <code>"tree"</code>, <code>"nb"</code> (naive Bayes), <code>"linear"</code>, or <code>"ensemble"</code>. Every classifier tunes its own pair of hyperparameters with <code>pythia.tuning</code>; only <code>pythia.is_poly_krnl</code> is specific to <code>"svm"</code>.</td></tr>
 <tr><td><code>pythia.cv_folds</code></td><td>The number of folds in the stratified cross-validation used during hyperparameter tuning.</td></tr>
-<tr><td><code>pythia.is_poly_krnl</code></td><td>Set <code>true</code> for a polynomial kernel, or <code>false</code> (the default) for a Gaussian (RBF) kernel. The RBF kernel is usually faster and more accurate, but its regions of good performance can be discontinuous and can look overfit. A polynomial kernel is often the better choice above 1000 instances.</td></tr>
-<tr><td><code>pythia.tuning</code></td><td>Selects the tuning strategy for the SVM's box constraint and kernel scale: <code>"sobol"</code> (the default, matching MATLAB) tries <code>pythia.n_tuning_iter</code> scrambled Sobol candidates by stratified cross-validation and keeps the best; <code>"bayes"</code> uses Bayesian optimization through <a href="https://scikit-optimize.github.io/">scikit-optimize</a>'s <code>BayesSearchCV</code>; <code>"none"</code> skips tuning, and then <code>pythia.params</code> must already hold valid hyperparameters for each algorithm.</td></tr>
+<tr><td><code>pythia.is_poly_krnl</code></td><td>SVM only. Set <code>true</code> for a polynomial kernel, or <code>false</code> (the default) for a Gaussian (RBF) kernel. The RBF kernel is usually faster and more accurate, but its regions of good performance can be discontinuous and can look overfit. A polynomial kernel is often the better choice above 1000 instances.</td></tr>
+<tr><td><code>pythia.tuning</code></td><td>Selects the tuning strategy for the chosen classifier's hyperparameters (the SVM's box constraint and kernel scale, or the equivalent pair for another classifier): <code>"sobol"</code> (the default, matching MATLAB) tries <code>pythia.n_tuning_iter</code> scrambled Sobol candidates by stratified cross-validation and keeps the best; <code>"bayes"</code> uses Bayesian optimization through <a href="https://scikit-optimize.github.io/">scikit-optimize</a>'s <code>BayesSearchCV</code>; <code>"none"</code> skips tuning, and then <code>pythia.params</code> must already hold valid hyperparameters for each algorithm.</td></tr>
 <tr><td><code>pythia.n_tuning_iter</code></td><td>The number of Sobol candidates to try when <code>pythia.tuning</code> is <code>"sobol"</code>. The default is 20.</td></tr>
 <tr><td><code>pythia.use_weights</code></td><td>Set <code>true</code> for weighted classification, or <code>false</code> (the default) for unweighted classification. The weight is each instance's absolute deviation from the algorithm's mean performance.</td></tr>
 <tr><td><code>pythia.uselibsvm</code></td><td><strong>Legacy.</strong> Accepted for compatibility with MATLAB option files, and ignored: this implementation never uses LIBSVM.</td></tr>

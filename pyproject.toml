@@ -52,6 +52,7 @@ build-backend = "poetry.core.masonry.api"
 # on a docstring that is not in numpy style (#325), so this build also checks
 # the docstring format.
 docs.shell = """
+set -e
 pdoc instancespace -d numpy -o site/api -t docs_site/pdoc-template --footer-text "Instance Space Analysis Toolkit"
 mkdir -p site/assets
 cp docs_site/pages/*.html site/
