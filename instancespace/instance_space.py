@@ -1108,9 +1108,11 @@ class InstanceSpace:
         for any instance (matching MATLAB's convention for missing ground
         truth), so no separate branch is needed for that case there. The
         returned mask records which of the *trained* columns have real ground
-        truth for callers that need that metadata. MATLAB-compatible PYTHIA
-        evaluation deliberately scores every non-empty trained classifier; an
-        absent column therefore remains the reconciled all-false truth vector.
+        truth; `PythiaStage.evaluate` uses it to skip scoring a trained
+        classifier against that column's reconciled all-false placeholder
+        (`andremun/InstanceSpace#58
+        <https://github.com/andremun/InstanceSpace/issues/58>`_), rather than
+        reporting a fabricated score for it.
 
         Algorithms in `new_algo_labels` (present in the test set, absent from
         training - see `_find_new_algorithms`) are appended as extra columns
@@ -1180,13 +1182,14 @@ class InstanceSpace:
         ground truth, matching MATLAB's exact formulas (`tp/(tp+fp)`,
         `tp/(tp+fn)`, `(tp+tn)/ninst`, `core/PYTHIA.m:379-381`).
 
-        A trained algorithm absent from the test metadata retains its
-        reconciled all-false truth column and is scored when its classifier is
-        non-empty, exactly as MATLAB does. Algorithms in `new_algo_labels`
-        always have real ground truth by construction but no trained-model
-        slot, so their rates stay `NaN` while their confusion rows remain zero.
-        They still participate as full candidates in `y_best_actual`/
-        `p_actual`/`beta_actual` through the widened performance calculation.
+        A trained algorithm absent from the test metadata is not scored: its
+        rates stay `NaN` and its confusion row stays zero, matching MATLAB's
+        fix for `andremun/InstanceSpace#58
+        <https://github.com/andremun/InstanceSpace/issues/58>`_ (the same
+        treatment `new_algo_labels` algorithms already get, since they too
+        have no trained-model slot). It still participates as a full
+        candidate in `y_best_actual`/`p_actual`/`beta_actual` through the
+        widened performance calculation - only its own scoring is skipped.
 
         Parameters
         ----------
@@ -1209,7 +1212,7 @@ class InstanceSpace:
         """
         model = self._require_model()
         algo_labels = model.data.algo_labels
-        y_raw_test, _ = self._build_test_algo_matrix(
+        y_raw_test, has_ground_truth = self._build_test_algo_matrix(
             test_metadata,
             algo_labels,
             new_algo_labels,
@@ -1226,6 +1229,7 @@ class InstanceSpace:
             PythiaEvaluateInput(
                 perf.y_bin,
                 y_hat,
+                has_ground_truth,
             ),
             model.pythia,
         )

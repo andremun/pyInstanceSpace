@@ -71,15 +71,22 @@ def _evaluate_pythia(
     y_true: NDArray[np.bool_],
     y_pred: NDArray[np.bool_],
     slots: list[object | None] | None = None,
+    has_ground_truth: NDArray[np.bool_] | None = None,
 ) -> PythiaEvaluateOutput:
     """Call the stage-owned MATLAB confusion-count formulas."""
     fitted = _fitted_with_slots(
         [Mock() for _ in range(y_pred.shape[1])] if slots is None else slots,
     )
+    n_trained = len(slots) if slots is not None else y_pred.shape[1]
     return PythiaStage.evaluate(
         PythiaEvaluateInput(
             y_true=y_true,
             y_pred=y_pred,
+            has_ground_truth=(
+                np.ones(n_trained, dtype=np.bool_)
+                if has_ground_truth is None
+                else has_ground_truth
+            ),
         ),
         fitted,
     )
@@ -208,8 +215,40 @@ def test_pythia_evaluate_computes_metrics_against_ground_truth() -> None:
     np.testing.assert_allclose(result.cvcmat, [[1, 0, 0, 1], [1, 0, 0, 1]])
 
 
-def test_pythia_evaluate_scores_trained_algorithm_without_test_truth() -> None:
-    """MATLAB scores a fitted slot against its reconciled all-false truth column."""
+def test_pythia_evaluate_skips_trained_algorithm_without_test_truth() -> None:
+    """A trained algorithm the test set has no data for is not scored.
+
+    Its reconciled all-false truth column is a data-reconciliation artifact,
+    not real ground truth. Matches MATLAB's fix for `andremun/InstanceSpace#58
+    <https://github.com/andremun/InstanceSpace/issues/58>`_: rates stay
+    ``NaN`` and the confusion row stays zero, the same treatment a test-only
+    algorithm with no trained-model slot already gets.
+    """
+    y_true = np.array([[True, False], [False, False]])
+    y_hat = np.array([[True, True], [False, True]])
+
+    result = _evaluate_pythia(
+        y_true,
+        y_hat,
+        has_ground_truth=np.array([True, False]),
+    )
+
+    assert not np.isnan(result.accuracy[0])
+    assert np.isnan(result.accuracy[1])
+    assert np.isnan(result.precision[1])
+    assert np.isnan(result.recall[1])
+    np.testing.assert_array_equal(result.cvcmat[1], [0, 0, 0, 0])
+
+
+def test_pythia_evaluate_scores_a_genuinely_all_bad_algorithm() -> None:
+    """An algorithm observed to be bad on every test instance is still scored.
+
+    Distinguishes "no test data" (skipped, see the test above) from
+    "observed and bad everywhere" (a real measurement): both produce an
+    all-false truth column, but only the former should be treated as
+    missing data. ``has_ground_truth`` is what tells them apart, not the
+    column's content.
+    """
     y_true = np.array([[True, False], [False, False]])
     y_hat = np.array([[True, True], [False, True]])
 
