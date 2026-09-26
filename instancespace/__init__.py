@@ -2,20 +2,35 @@
 # Copyright (c) 2024-2026 Mario Andrés Muñoz
 """Contains modules for instance space analysis.
 
-The module consists of various algorithms to perform instance space analysis.
-- preprocessing: Prepare data to be used by stages.
-- prelim: Performing preliminary data processing.
-- sifted: Perform feature selection and optimization in data analysis.
-- pilot: Obtaining a two-dimensional projection.
-- pythia: Perform algorithm selection and performance evaluation using SVM.
-- cloister: Perform correlation analysis to estimate a boundary for the space.
-- trace: Calculating the algorithm footprints.
+The package builds an instance space from instance meta-data. The meta-data are the
+instance features and the algorithm performance. The instance space predicts
+algorithm performance and shows the algorithm footprints. The stages run in this
+order:
 
-Perform instance space analysis on given dataset and configuration.
+- preprocessing: Filters the meta-data. Removes the instances and features that have
+  too many missing values.
+- prelim: Preparation for Learning of Instance Meta-Data. Sets a binary measure of
+  "good" performance. Then it bounds and scales the meta-data.
+- sifted: Selection of Instance Features to Explain Difficulty. Selects the features
+  that correlate with algorithm performance and are not redundant.
+- pilot: Projecting Instances with Linearly Observable Trends. Projects the instances
+  from the feature space to a 2D or 3D instance space. The projection shows linear
+  trends in the features and in the algorithm performance.
+- pythia: Trains one classifier for each algorithm on the instance space. Each
+  classifier predicts good performance. PYTHIA then recommends an algorithm for
+  each instance.
+- cloister: Correlated Limits of the Instance Space's Theoretical or Experimental
+  Regions. Estimates the boundary of the instance space from the feature bounds and
+  the correlations between the features.
+- trace: Triangulation with Removal of Areas with Contradicting Evidence. Finds the
+  regions of the instance space where each algorithm performs well. These regions
+  are the footprints.
 
-Construct an instance space from data and configuration files located in a specified
-directory. The instance space is represented as a Model object, which encapsulates the
-analytical results and metadata of the instance space analysis.
+`InstanceSpace.build()` trains all the stages on a data set. `InstanceSpace.explore()`
+projects new instances into a trained instance space.
+
+Reference: K. Smith-Miles and M. A. Muñoz, "Instance Space Analysis for Algorithm
+Testing: Methodology and Software Tools", ACM Comput. Surv. 55(12), 2023.
 """
 
 from . import data, instance_space, progress_reporter, stages

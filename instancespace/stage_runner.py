@@ -167,9 +167,20 @@ class StageRunner:
     ) -> Generator[AnnotatedStageOutput, None, dict[str, Any]]:
         """Run all stages, yielding after every run.
 
+        Parameters
+        ----------
+        additional_arguments : NamedTuple
+            The initial inputs for the first stages.
+
         Yields
         ------
-            Generator[AnnotatedStageOutput, None, dict[str, Any]]: _description_
+        AnnotatedStageOutput
+            The stage that just ran and its output.
+
+        Returns
+        -------
+        dict[str, Any]
+            All the available inputs and outputs after the last stage.
         """
         self._rollback_to_schedule_index(0)
 
@@ -188,14 +199,21 @@ class StageRunner:
     ) -> OUT:
         """Run a single stage.
 
-        Errors if prerequisite stages haven't been ran.
+        Raises an error if the prerequisite stages did not run.
 
-        Args
-        ----
-            stages list[StageClass]: A list of stages to run.
-            **arguments dict[str, Any]: Inputs for the stage. If inputs aren't provided
-                the runner will try to get them from previously ran stages. If they
-                still aren't present the stage will raise an error.
+        Parameters
+        ----------
+        stage : type[Stage[Any, OUT]]
+            The stage to run.
+        **additional_arguments : Any
+            Inputs for the stage. If an input is missing, the runner gets it from the
+            outputs of the stages that ran before. If the input is still missing, the
+            stage raises an error.
+
+        Returns
+        -------
+        OUT
+            The output of the stage.
         """
         StageRunner._debug_print("running " + stage.__name__, True)
         # Make sure stage can be ran
@@ -255,9 +273,15 @@ class StageRunner:
 
         Return the entire outputs data object when finished.
 
+        Parameters
+        ----------
+        additional_arguments : NamedTuple
+            The initial inputs for the first stages.
+
         Returns
         -------
-            dict[str, Any]: Available inputs and outputs after the target wave.
+        dict[str, Any]
+            All the available inputs and outputs after the last stage.
         """
         self._rollback_to_schedule_index(0)
 
@@ -281,9 +305,19 @@ class StageRunner:
         sibling would leave the runner in an ambiguous half-wave state, so
         the complete target wave is always executed.
 
+        Parameters
+        ----------
+        stop_at_stage : StageClass
+            The runner stops after the wave that contains this stage.
+        initial_arguments : NamedTuple
+            The initial inputs for the first stages.
+        **additional_arguments : Any
+            More inputs. The runner adds them to the initial inputs.
+
         Returns
         -------
-            tuple[Any]: _description_
+        dict[str, Any]
+            The available inputs and outputs after the target wave.
         """
         self._rollback_to_schedule_index(0)
 

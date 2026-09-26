@@ -70,7 +70,7 @@ class Metadata:
     def from_data_frame(data: DataFrame) -> Metadata:
         """Parse metadata from a file, and construct a Metadata object.
 
-        Args
+        Parameters
         ----------
         data
             The content of a csv file containing the metadata.
@@ -220,7 +220,7 @@ def _data_frame_to_matrix(kind: str, data: DataFrame) -> NDArray[np.double]:
 def from_csv_file(file_path: Path | str) -> Metadata | None:
     """Parse metadata from a CSV file and construct a Metadata object.
 
-    Args
+    Parameters
     ----------
     file_path : Path | str
         The path to the CSV file containing the metadata.
