@@ -54,7 +54,7 @@ instance_space.build()
 
 instance_space.model.save_to_csv("output/")
 instance_space.model.save_graphs("output/")</code></pre>
-<p>See <a href="options-reference.html">Options Reference</a> for every field of <code>options.json</code>. <code>integration_demo.py</code>, in the repository root, is a complete, runnable version of this example, with the full stage list spelled out.</p>
+<p>See <a href="options-reference.html">Options Reference</a> for the <code>options.json</code> fields you are most likely to set. <code>integration_demo.py</code>, in the repository root, is a complete, runnable version of this example, with the full stage list spelled out.</p>
 
 <h2>Apply a trained model to new data</h2>
 <p><code>explore()</code> applies a trained model to instances it has not seen. It bounds and scales the new metadata with PRELIM's stored parameters, reduces it to SIFTED's selected features, projects it with PILOT's trained matrix, and evaluates it with the trained PYTHIA selectors and TRACE footprints. No stage trains again.</p>
@@ -67,7 +67,7 @@ result = space.explore(test_metadata)</code></pre>
 <div class="tiles">
 <div class="tile">
 <h3><a href="options-reference.html">Options Reference</a></h3>
-<p>Every field of <code>options.json</code>, grouped by stage.</p>
+<p>The <code>options.json</code> fields you are most likely to set, grouped by stage.</p>
 </div>
 <div class="tile">
 <h3><a href="api/instancespace.html">API Reference</a></h3>
