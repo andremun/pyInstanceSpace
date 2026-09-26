@@ -18,6 +18,11 @@ name: MATLAB Fixture Publish (manual)
 # fixture bundle (see #344 for the tracking issue this feeds).
 
 on:
+  push:
+    branches:
+    - claude/pyinstancespace-docs-issues-whzkg4
+    paths:
+    - .github/workflows/matlab-fixture-publish.yml
   workflow_dispatch:
     inputs:
       instancespace_ref:
@@ -38,6 +43,12 @@ permissions:
 
 jobs:
   publish_fixture_bundle:
+    # The push trigger above exists only so GitHub registers this
+    # workflow_dispatch-only tool without needing it merged to main first
+    # (a brand-new workflow_dispatch workflow isn't dispatchable via the API
+    # until GitHub has seen it fire at least once). A push-triggered run has
+    # no publish_branch input, so it must no-op, not actually run.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
