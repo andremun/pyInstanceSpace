@@ -52,6 +52,7 @@ jobs:
           Statistics_and_Machine_Learning_Toolbox
           Optimization_Toolbox
           Global_Optimization_Toolbox
+          Parallel_Computing_Toolbox
           Financial_Toolbox
 
     - name: Export a fresh reference bundle from real MATLAB
