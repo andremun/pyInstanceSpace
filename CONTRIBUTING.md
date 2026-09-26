@@ -18,6 +18,15 @@ the project's dependencies.
   the existing commit history.
 - If your change alters existing behaviour, add an entry to `RELEASE_NOTES.md`.
 
+## Editing the documentation site
+
+`docs_site/pages/*.html` holds the site's landing page, Getting Started guide, and Options
+Reference — read and edit them directly, no build step needed. `docs_site/assets/style.css`
+is their shared stylesheet. `docs_site/pdoc-template/` is a small pdoc template override that
+adds a "Docs Home" link back to these pages from the generated API reference; edit it only if
+you need to change that link or add another one like it. Run `poe docs` to build the whole
+site into `site/`, including the API reference pdoc generates from the docstrings.
+
 ## Before publishing a release
 
 - Confirm `[tool.poetry].version` in `pyproject.toml` matches the release tag

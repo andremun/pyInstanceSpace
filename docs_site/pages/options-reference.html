@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Options Reference &ndash; Instance Space Analysis</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="site">
+<nav class="site-nav">
+<a class="brand" href="index.html">Instance Space Analysis</a>
+<ul>
+<li><a href="getting-started.html">Getting Started</a></li>
+<li><a href="options-reference.html">Options Reference</a></li>
+<li><a href="api/instancespace.html">API Reference</a></li>
+<li><a href="https://github.com/andremun/pyInstanceSpace">GitHub</a></li>
+</ul>
+</nav>
+</header>
+<main>
+<div class="hero">
+<h1>Options Reference</h1>
+<p class="tagline">Every field of <code>options.json</code>, grouped by the stage it configures.</p>
+</div>
+
+<p><code>options.json</code> holds every setting the toolkit uses: settings for the analysis itself, for data pre-processing, and for the output. This page gives each option's Python attribute path, for example <code>options.perf.max_perf</code>. The same name, in any case, is the key that <code>options.json</code> expects. A few legacy MATLAB-style key names, such as <code>ncores</code> and <code>cvfolds</code>, still work, for compatibility with option files written for the MATLAB toolkit.</p>
+
+<h2>General settings</h2>
+<table>
+<thead><tr><th>Option</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>perf.max_perf</code></td><td>Set <code>true</code> if the performance values are an efficiency measure to maximize. Set <code>false</code> if they are a cost measure to minimize.</td></tr>
+<tr><td><code>perf.abs_perf</code></td><td>Set <code>true</code> to define good performance by an absolute threshold, for example an error below 20%. Set <code>false</code> to define it relative to the best algorithm, for example within 5% of the best.</td></tr>
+<tr><td><code>perf.epsilon</code></td><td>The threshold used to calculate good performance.</td></tr>
+<tr><td><code>perf.beta_threshold</code></td><td>The fraction of the algorithm portfolio, between 0 and 1, that must perform well on an instance for the instance to count as easy.</td></tr>
+<tr><td><code>parallel.flag</code></td><td>Set <code>true</code> to run parallel processing. The toolkit uses Python's <code>multiprocessing</code> in TRACE, and scikit-learn's <code>n_jobs</code> in PYTHIA.</td></tr>
+<tr><td><code>parallel.n_cores</code></td><td>The number of cores to use for parallel processing.</td></tr>
+<tr><td><code>selvars.small_scale_flag</code></td><td>Set <code>true</code> to run the analysis on a random fraction of the data. Useful to explore the model's parameters on a large dataset before a full run.</td></tr>
+<tr><td><code>selvars.small_scale</code></td><td>The fraction of the data to take for a small-scale experiment.</td></tr>
+<tr><td><code>selvars.file_idx_flag</code></td><td>Set <code>true</code> to run a small-scale experiment on a chosen set of instances, instead of a random fraction.</td></tr>
+<tr><td><code>selvars.file_idx</code></td><td>The name of the CSV file that lists the chosen instances' indices, one per row.</td></tr>
+</tbody>
+</table>
+
+<h2>Dimensionality reduction settings (PILOT)</h2>
+<p>PILOT projects the features into two or three dimensions. <code>method="standard"</code> uses the analytic solution or a multi-start <a href="https://en.wikipedia.org/wiki/Broyden-Fletcher-Goldfarb-Shanno_algorithm">BFGS</a> solve. <code>method="pls"</code> uses the SIMPLS algorithm, matching MATLAB's <code>plsregress</code>.</p>
+<table>
+<thead><tr><th>Option</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>pilot.method</code></td><td>Selects <code>"standard"</code> (the default) or <code>"pls"</code>. SIMPLS ignores <code>pilot.analytic</code>, matching MATLAB.</td></tr>
+<tr><td><code>pilot.dims</code></td><td>Selects a 2D (the default) or 3D projection. SIFTED also uses this value for its candidate projections.</td></tr>
+<tr><td><code>pilot.analytic</code></td><td>Set <code>true</code> for the analytic standard solver, or <code>false</code> for the numerical solver. The numerical solver is safer for poorly conditioned inputs.</td></tr>
+<tr><td><code>pilot.n_tries</code></td><td>The number of restarts for the numerical solver.</td></tr>
+<tr><td><code>pilot.x0</code></td><td>Starting columns for the numerical solver's restarts.</td></tr>
+<tr><td><code>pilot.precalc_alpha</code></td><td>Replays a previously solved, compatible column, instead of solving again.</td></tr>
+<tr><td><code>pilot.cost_weight</code></td><td>The weight of the performance reconstruction, relative to the feature reconstruction, in the standard solver.</td></tr>
+<tr><td><code>pilot.view_groups</code></td><td>Zero-based algorithm-index groups for 3D camera optimization. Leave it empty for one global viewpoint. The trained model stores each group's 2-by-3 view and its azimuth and elevation, for plotting.</td></tr>
+<tr><td><code>pilot.adjust_rotation</code></td><td>Set <code>true</code> to rotate a 2D projection so that instances every algorithm solves poorly face 135&deg; (the default is <code>false</code>). This preserves the pairwise distances, the reconstruction metrics, and the footprint areas. This option has no effect on a 3D projection.</td></tr>
+</tbody>
+</table>
+
+<h2>Empirical bound estimation settings (CLOISTER)</h2>
+<p>CLOISTER is a correlation-based algorithm that estimates the empirical bounds of the instance space.</p>
+<table>
+<thead><tr><th>Option</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>cloister.c_thres</code></td><td>The largest <a href="https://en.wikipedia.org/wiki/Pearson_correlation_coefficient">Pearson correlation coefficient</a> that counts as no correlation. A lower value makes the algorithm more strict, and less likely to find a bound.</td></tr>
+<tr><td><code>cloister.p_val</code></td><td>The p-value of the Pearson correlation coefficient that indicates no correlation.</td></tr>
+</tbody>
+</table>
+
+<h2>Algorithm selection settings (PYTHIA)</h2>
+<p>PYTHIA trains one <a href="https://scikit-learn.org/">scikit-learn</a> <code>SVC</code> for each algorithm, as the algorithm-selection model.</p>
+<table>
+<thead><tr><th>Option</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>pythia.cv_folds</code></td><td>The number of folds in the stratified cross-validation used during hyperparameter tuning.</td></tr>
+<tr><td><code>pythia.is_poly_krnl</code></td><td>Set <code>true</code> for a polynomial kernel, or <code>false</code> (the default) for a Gaussian (RBF) kernel. The RBF kernel is usually faster and more accurate, but its regions of good performance can be discontinuous and can look overfit. A polynomial kernel is often the better choice above 1000 instances.</td></tr>
+<tr><td><code>pythia.tuning</code></td><td>Selects the tuning strategy for the SVM's box constraint and kernel scale: <code>"sobol"</code> (the default, matching MATLAB) tries <code>pythia.n_tuning_iter</code> scrambled Sobol candidates by stratified cross-validation and keeps the best; <code>"bayes"</code> uses Bayesian optimization through <a href="https://scikit-optimize.github.io/">scikit-optimize</a>'s <code>BayesSearchCV</code>; <code>"none"</code> skips tuning, and then <code>pythia.params</code> must already hold valid hyperparameters for each algorithm.</td></tr>
+<tr><td><code>pythia.n_tuning_iter</code></td><td>The number of Sobol candidates to try when <code>pythia.tuning</code> is <code>"sobol"</code>. The default is 20.</td></tr>
+<tr><td><code>pythia.use_weights</code></td><td>Set <code>true</code> for weighted classification, or <code>false</code> (the default) for unweighted classification. The weight is each instance's absolute deviation from the algorithm's mean performance.</td></tr>
+<tr><td><code>pythia.uselibsvm</code></td><td><strong>Legacy.</strong> Accepted for compatibility with MATLAB option files, and ignored: this implementation never uses LIBSVM.</td></tr>
+</tbody>
+</table>
+
+<h2>Footprint construction settings (TRACE)</h2>
+<p>TRACE builds the good, best, hard, and full-space footprints. <code>method="legacy"</code> is the historical 2D DBSCAN and Shapely path, and Python's default. <code>method="trace3"</code> is MATLAB's current alpha-shape algorithm, with 2D polygons or native 3D tetrahedral meshes. A 3D projection always uses TRACE3, because legacy TRACE only works in 2D.</p>
+<table>
+<thead><tr><th>Option</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>trace.method</code></td><td>Selects <code>"legacy"</code> (the default) or <code>"trace3"</code>.</td></tr>
+<tr><td><code>trace.use_sim</code></td><td>Set <code>true</code> to use PYTHIA's predictions, or <code>false</code> to use the observed good-performance labels. TRACE3 falls back to the observed labels when PYTHIA is skipped.</td></tr>
+<tr><td><code>trace.purity</code></td><td>The minimum footprint purity. The default depends on the method: 0.55 for legacy, 0.60 for TRACE3.</td></tr>
+<tr><td><code>trace.contra</code></td><td>Controls legacy TRACE's contradiction removal.</td></tr>
+<tr><td><code>trace.min_instances</code></td><td>TRACE3's minimum number of instances to support a footprint.</td></tr>
+<tr><td><code>trace.min_area_frac</code></td><td>TRACE3's minimum retained area (2D) or volume (3D) fraction.</td></tr>
+</tbody>
+</table>
+
+<h2>Automatic data bounding and scaling</h2>
+<p>The toolkit can bound outliers and scale the data automatically. These routines are simple, so pre-process the data independently if you prefer. In general, data close to a normal distribution suits PILOT's linear projection best.</p>
+<table>
+<thead><tr><th>Option</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>auto.preproc</code></td><td>Set <code>true</code> to turn on the automatic pre-processing below.</td></tr>
+<tr><td><code>bound.flag</code></td><td>Set <code>true</code> to bound the data. This computes each feature's and performance measure's median and <a href="https://en.wikipedia.org/wiki/Interquartile_range">interquartile range (IQR)</a>, and bounds the data to the median plus or minus five IQRs.</td></tr>
+<tr><td><code>norm.flag</code></td><td>Set <code>true</code> to scale the data. This scales each feature and performance measure into a positive range, applies a <a href="https://en.wikipedia.org/wiki/Power_transform#Box%E2%80%93Cox_transformation">Box-Cox transform</a> to stabilize the variance, and a <a href="https://en.wikipedia.org/wiki/Standard_score">Z-transform</a> to standardize the result, so the data becomes close to normally distributed.</td></tr>
+</tbody>
+</table>
+
+<h2>Automatic feature selection (SIFTED)</h2>
+<p>SIFTED selects features by their cross-correlation and their correlation with performance, aiming for the fewest orthogonal, predictive features. This routine is simple, so pre-process the data independently if you prefer. We recommend no more than 10 features into PILOT, because its projection is a numerical solution and does not find meaningful linear trends easily beyond that.</p>
+<table>
+<thead><tr><th>Option</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>sifted.flag</code></td><td>Set <code>true</code> to turn on the automatic feature selection described below.</td></tr>
+<tr><td><code>sifted.rho</code></td><td>The lowest absolute <a href="https://en.wikipedia.org/wiki/Pearson_correlation_coefficient">Pearson correlation</a> between a feature and performance for the feature to pass the first filter. A value between 0 and 1.</td></tr>
+<tr><td><code>sifted.k</code></td><td>The number of clusters, and so the final number of selected features. The routine uses at least 3 clusters, and no more than the number of features; keep it at 10 or below.</td></tr>
+<tr><td><code>sifted.n_trees</code></td><td>The number of trees in the Random Forest models. This rarely needs adjustment.</td></tr>
+<tr><td><code>sifted.max_iter</code></td><td>The number of iterations for the k-means algorithm to converge. This rarely needs adjustment.</td></tr>
+<tr><td><code>sifted.replicates</code></td><td>The number of times to repeat the k-means algorithm. This rarely needs adjustment.</td></tr>
+</tbody>
+</table>
+<p>SIFTED first ranks features by the absolute Pearson correlation between each feature and performance, keeps those above <code>sifted.rho</code>, and keeps at least 3. It then clusters the survivors by their pairwise correlation with k-means, and picks one feature per cluster: it projects the candidates to 2D with PCA, trains Random Forests to predict whether an instance is easy for each algorithm, and keeps the subset that predicts best. This last step is expensive. It tries every combination when there are fewer than 1000, and a genetic algorithm with a lookup table otherwise.</p>
+
+<h2>Output settings</h2>
+<p>These settings control how much the toolkit writes to files or prints to the console. A 2D instance space keeps the existing polygon CSV and plot formats. A 3D instance space also writes <code>z_1</code>, <code>z_2</code>, and <code>z_3</code> coordinates, plus a <code>footprint_meshes.json</code> file and one-based vertex, tetrahedron, and boundary-face CSV files, under the <code>pyinstancespace.trace-mesh/v1</code> schema. Its plots use native matplotlib 3D axes, mesh surfaces, and the stored viewpoint.</p>
+<table>
+<thead><tr><th>Option</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>outputs.csv</code></td><td>Set <code>true</code> (recommended) to write the output CSV files, for further analysis.</td></tr>
+<tr><td><code>outputs.png</code></td><td>Set <code>true</code> (recommended) to write the output figure files.</td></tr>
+<tr><td><code>outputs.web</code></td><td>Set <code>true</code> to write the files that MATILDA's web tools use to draw their figures. The recommended, and default, setting is <code>false</code>.</td></tr>
+</tbody>
+</table>
+</main>
+<footer class="site">
+<p>Instance Space Analysis Toolkit &mdash; <a href="https://github.com/andremun/pyInstanceSpace">andremun/pyInstanceSpace</a> on GitHub.</p>
+</footer>
+</body>
+</html>

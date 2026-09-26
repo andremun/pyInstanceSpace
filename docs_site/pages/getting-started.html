@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting Started &ndash; Instance Space Analysis</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="site">
+<nav class="site-nav">
+<a class="brand" href="index.html">Instance Space Analysis</a>
+<ul>
+<li><a href="getting-started.html">Getting Started</a></li>
+<li><a href="options-reference.html">Options Reference</a></li>
+<li><a href="api/instancespace.html">API Reference</a></li>
+<li><a href="https://github.com/andremun/pyInstanceSpace">GitHub</a></li>
+</ul>
+</nav>
+</header>
+<main>
+<div class="hero">
+<h1>Getting Started</h1>
+<p class="tagline">Install the package, prepare your data, and build your first instance space.</p>
+</div>
+
+<h2>Install</h2>
+<pre><code>pip install instancespace</code></pre>
+<p>The package needs Python 3.12 or later.</p>
+
+<h2>Prepare the metadata file</h2>
+<p><code>metadata.csv</code> holds one row per problem instance. Its columns follow this naming convention:</p>
+<table>
+<thead><tr><th>Column</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>instances</code></td><td>The instance identifier, as a string. This column is required.</td></tr>
+<tr><td><code>source</code></td><td>The instance's source. This column is optional.</td></tr>
+<tr><td><code>feature_&lt;name&gt;</code></td><td>A feature value, as a number. For example, a feature named "density" becomes the column <code>feature_density</code>. You need at least two feature columns.</td></tr>
+<tr><td><code>algo_&lt;name&gt;</code></td><td>An algorithm's performance value, as a number. For example, an algorithm named "Greedy" becomes the column <code>algo_greedy</code>. Add one such column for each algorithm in the comparison.</td></tr>
+</tbody>
+</table>
+<p>Use an underscore, not a space, to join the words of a multi-word name. Avoid empty, NaN, or null values where you can. Fill in or remove them before the analysis, because the toolkit's own handling of them is limited.</p>
+
+<h2>Build an instance space</h2>
+<p>Construct an <code>InstanceSpace</code> from a metadata file and an options file, then build it:</p>
+<pre><code>from instancespace import InstanceSpace
+from instancespace.data import metadata, options
+
+metadata_object = metadata.from_csv_file("metadata.csv")
+options_object = options.from_json_file("options.json")
+
+instance_space = InstanceSpace(metadata_object, options_object)
+instance_space.build()
+
+instance_space.model.save_to_csv("output/")
+instance_space.model.save_graphs("output/")</code></pre>
+<p>See <a href="options-reference.html">Options Reference</a> for every field of <code>options.json</code>. <code>integration_demo.py</code>, in the repository root, is a complete, runnable version of this example, with the full stage list spelled out.</p>
+
+<h2>Apply a trained model to new data</h2>
+<p><code>explore()</code> applies a trained model to instances it has not seen. It bounds and scales the new metadata with PRELIM's stored parameters, reduces it to SIFTED's selected features, projects it with PILOT's trained matrix, and evaluates it with the trained PYTHIA selectors and TRACE footprints. No stage trains again.</p>
+<pre><code>space = InstanceSpace(train_metadata, options)
+space.build()
+result = space.explore(test_metadata)</code></pre>
+<p><code>explore()</code> returns the full result in one call. <code>explore_stage_iter()</code> runs the same stages but yields each stage's output in turn, for inspecting the pipeline one stage at a time.</p>
+
+<h2>Next steps</h2>
+<div class="tiles">
+<div class="tile">
+<h3><a href="options-reference.html">Options Reference</a></h3>
+<p>Every field of <code>options.json</code>, grouped by stage.</p>
+</div>
+<div class="tile">
+<h3><a href="api/instancespace.html">API Reference</a></h3>
+<p>The <code>InstanceSpace</code> class, each stage, and the data model.</p>
+</div>
+<div class="tile">
+<h3><a href="https://github.com/andremun/pyInstanceSpace/blob/main/liveDemoIS.ipynb">liveDemoIS.ipynb</a></h3>
+<p>A stage-by-stage walkthrough of <code>build()</code> and <code>explore()</code>, meant to be read as a usage guide.</p>
+</div>
+<div class="tile">
+<h3><a href="https://github.com/andremun/pyInstanceSpace/blob/main/example_plugin.py">example_plugin.py</a></h3>
+<p>How to write a custom stage and add it to the pipeline.</p>
+</div>
+</div>
+</main>
+<footer class="site">
+<p>Instance Space Analysis Toolkit &mdash; <a href="https://github.com/andremun/pyInstanceSpace">andremun/pyInstanceSpace</a> on GitHub.</p>
+</footer>
+</body>
+</html>
