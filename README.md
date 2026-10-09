@@ -44,13 +44,17 @@ An example of a plugin can be found in example_plugin.py
 
 ## Documentation Instructions
 
-Hosted API docs: <https://andremun.github.io/pyInstanceSpace/> (rebuilt automatically on every
+Hosted docs: <https://andremun.github.io/pyInstanceSpace/> (rebuilt automatically on every
 push to `main`/`v0.9.0/development-branch-QSF` via `.github/workflows/docs-pages.yml` — see #324
-for the one-time GitHub Pages setup this depends on).
+for the one-time GitHub Pages setup this depends on). The site has a
+[Getting Started guide](https://andremun.github.io/pyInstanceSpace/getting-started.html) and an
+[Options Reference](https://andremun.github.io/pyInstanceSpace/options-reference.html), plus the
+full [API reference](https://andremun.github.io/pyInstanceSpace/api/instancespace.html).
 
-To build the docs on your computer, run `poetry run poe docs`. The HTML files go to
-`site/`. The build uses the numpy docstring format of pdoc. Write all docstrings in
-numpy style. If pdoc cannot parse a docstring, the build fails. A docstring can
+To build the docs on your computer, run `poetry run poe docs`. The HTML files go to `site/`:
+`site/api/` is pdoc's generated API reference, and the rest of `site/` is the hand-written pages
+under `docs_site/`. The API reference build uses the numpy docstring format of pdoc. Write all
+docstrings in numpy style. If pdoc cannot parse a docstring, the build fails. A docstring can
 parse but still render incorrectly, so also look at the HTML output.
 
 ## Repository layout

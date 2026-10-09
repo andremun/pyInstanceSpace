@@ -18,6 +18,7 @@ from numpy.typing import NDArray
 from shapely.geometry import MultiPoint, MultiPolygon, Polygon
 
 from instancespace.utils.alpha_shape import TetrahedralMesh
+from instancespace.utils.boundary import boundary_faces
 
 if TYPE_CHECKING:
     from instancespace.stages.pilot_viewpoint import PilotViewpointResult
@@ -267,6 +268,16 @@ class CloisterOut:
 
     z_edge: NDArray[np.double]
     z_ecorr: NDArray[np.double]
+
+    @property
+    def z_edge_faces(self) -> NDArray[np.int_]:
+        """Zero-based triangles, reconstructed from persisted boundary vertices."""
+        return boundary_faces(self.z_edge)
+
+    @property
+    def z_ecorr_faces(self) -> NDArray[np.int_]:
+        """Zero-based triangles for the persisted correlation-constrained boundary."""
+        return boundary_faces(self.z_ecorr)
 
     def __iter__(self) -> Iterator[NDArray[np.double]]:
         """Allow unpacking directly."""

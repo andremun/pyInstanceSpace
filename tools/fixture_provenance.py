@@ -283,6 +283,24 @@ class BundleReport:
 
 
 @dataclass(frozen=True)
+class CandidateIdentity:
+    """Source identities requested independently of a candidate manifest."""
+
+    matlab_commit: str
+    generator_commit: str
+    exporter_sha256: str
+
+
+@dataclass(frozen=True)
+class CandidateReport:
+    """Integrity-checked candidate; not an approved numerical oracle."""
+
+    bundle: BundleReport
+    identity: CandidateIdentity
+    content_root: str
+
+
+@dataclass(frozen=True)
 class InventoryReport:
     """Summarize the trust classes assigned to historical fixtures."""
 
@@ -337,12 +355,120 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def validate_bundle(  # noqa: PLR0912
+def validate_bundle(
     root: Path,
     *,
     allow_diagnostic: bool = False,
 ) -> BundleReport:
-    """Validate a generated MATLAB fixture bundle against its manifest."""
+    """Verify an approved bundle, or explicitly requested diagnostics."""
+    return _validate_bundle(root, allow_diagnostic=allow_diagnostic)
+
+
+def validate_candidate(root: Path, identity: CandidateIdentity) -> CandidateReport:
+    """Check a fresh v2 export without approving its numerical results.
+
+    Identities must come from the requested export job and exporter checkout,
+    not be copied from the untrusted manifest merely to make validation pass.
+    Canonical inputs, clean sources, environment, options, geometry, lineage,
+    and every artifact hash retain the approved verifier's checks.
+    """
+    _validate_commit(identity.matlab_commit, "expected MATLAB commit")
+    _validate_commit(identity.generator_commit, "expected generator commit")
+    _validate_sha256(identity.exporter_sha256, "expected exporter hash")
+    report = _validate_bundle(root, candidate=identity)
+    manifest = _load_object(report.root / "manifest.json", "fixture manifest")
+    entries = {entry["path"]: entry for entry in manifest["files"]}
+    return CandidateReport(report, identity, _manifest_content_root(entries))
+
+
+def _candidate_result(report: CandidateReport) -> dict[str, Any]:
+    return {
+        "trust": report.bundle.trust,
+        "approved": False,
+        "root": str(report.bundle.root),
+        "file_count": report.bundle.file_count,
+        "total_bytes": report.bundle.total_bytes,
+        "matlab_release": report.bundle.matlab_release,
+        "matlab_commit": report.identity.matlab_commit,
+        "generator_commit": report.identity.generator_commit,
+        "exporter_sha256": report.identity.exporter_sha256,
+        "content_root": report.content_root,
+    }
+
+
+def prepare_promotion(
+    source: Path,
+    destination: Path,
+    identity: CandidateIdentity,
+) -> Path:
+    """Atomically prepare a review package without changing approved fixtures.
+
+    Promotion itself is one reviewed Git commit containing the bundle, pins,
+    and any inventory/reference-test changes. Passing integrity checks alone
+    never authorizes a candidate as a numerical oracle.
+    """
+    report = validate_candidate(source, identity)
+    source_root = report.bundle.root
+    manifest_hash = sha256_file(source_root / "manifest.json")
+    destination_root = destination.resolve()
+    if destination_root.exists():
+        raise ProvenanceError(
+            f"Promotion destination already exists: {destination_root}",
+        )
+    if destination_root.is_relative_to(source_root):
+        raise ProvenanceError(
+            "Promotion destination cannot be inside the source bundle",
+        )
+    destination_root.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".promotion-", dir=destination_root.parent))
+    try:
+        shutil.copytree(source_root, staging / "bundle")
+        staged = validate_candidate(staging / "bundle", identity)
+        if (
+            staged.content_root != report.content_root
+            or sha256_file(staging / "bundle/manifest.json") != manifest_hash
+        ):
+            raise ProvenanceError("Candidate changed while preparing promotion")
+        record = _candidate_result(report)
+        record["root"] = "bundle"
+        record["manifest_sha256"] = manifest_hash
+        record["previous_approval"] = {
+            "matlab_commit": _GOLD_MATLAB_COMMIT,
+            "exporter_sha256": _REFERENCE_V2_EXPORTER_SHA256,
+            "content_root": _VERIFIED_V2_CONTENT_ROOT_SHA256,
+        }
+        (staging / "promotion.json").write_text(
+            json.dumps(record, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        (staging / "README.md").write_text(
+            "# Candidate promotion review\n\n"
+            "This package is not approved. Review numerical and semantic differences "
+            "against the existing oracle before promotion.\n\n"
+            "After review, replace tests/fixtures/matlab/current with bundle and "
+            "update _GOLD_MATLAB_COMMIT, _REFERENCE_V2_EXPORTER_SHA256 and "
+            "_VERIFIED_V2_CONTENT_ROOT_SHA256 in tools/fixture_provenance.py "
+            "from promotion.json. Include the matching exporter revision if it "
+            "changed. Update fixture_inventory.json if the path set changed and "
+            "review affected reference assertions. Run verify, inventory and the "
+            "parity tests. Commit the bundle, pins, exporter and related changes "
+            "together; do not merge a pin-only or manifest-only change.\n",
+            encoding="utf-8",
+        )
+        staging.rename(destination_root)
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    return destination_root
+
+
+def _validate_bundle(  # noqa: PLR0912
+    root: Path,
+    *,
+    allow_diagnostic: bool = False,
+    candidate: CandidateIdentity | None = None,
+) -> BundleReport:
+    """Apply shared structural checks and the requested source identity policy."""
     bundle_root = root.resolve()
     if not bundle_root.is_dir():
         raise ProvenanceError(f"Fixture bundle is not a directory: {bundle_root}")
@@ -361,6 +487,11 @@ def validate_bundle(  # noqa: PLR0912
             "Diagnostic MATLAB fixtures are not accepted as parity oracles. "
             "Pass allow_diagnostic=True only for exporter diagnostics.",
         )
+
+    if candidate is not None and (
+        trust != VERIFIED_TRUST or profile != REFERENCE_PROFILE
+    ):
+        raise ProvenanceError("Candidates require a clean verified-mode v2 export")
 
     _validate_timestamp(_expect_text(manifest, "generated_at"))
     _expect_text(manifest, "bundle_id")
@@ -523,6 +654,7 @@ def validate_bundle(  # noqa: PLR0912
             matlab,
             generator,
             entries_by_path,
+            candidate=candidate,
         )
 
     _validate_reference_profile(
@@ -536,7 +668,7 @@ def validate_bundle(  # noqa: PLR0912
 
     return BundleReport(
         root=bundle_root,
-        trust=trust,
+        trust="matlab-candidate" if candidate is not None else trust,
         matlab_release=matlab_release,
         file_count=len(entries),
         total_bytes=total_bytes,
@@ -686,14 +818,23 @@ def _validate_verified_v2_identity(
     matlab: dict[str, Any],
     generator: dict[str, Any],
     entries_by_path: dict[str, dict[str, Any]],
+    *,
+    candidate: CandidateIdentity | None = None,
 ) -> list[str]:
-    """Pin a verified v2 oracle to the audited source, data, and exporter."""
+    """Check requested candidate identity or the audited approved identity."""
     matlab_commit = _expect_text(matlab, "repo_commit")
-    if matlab_commit != _GOLD_MATLAB_COMMIT:
+    expected_commit = (
+        _GOLD_MATLAB_COMMIT if candidate is None else candidate.matlab_commit
+    )
+    if matlab_commit != expected_commit:
+        identity_label = "gold" if candidate is None else "requested"
         raise ProvenanceError(
-            "Verified v2 fixtures must use the gold MATLAB commit "
-            f"{_GOLD_MATLAB_COMMIT}",
+            f"Verified v2 fixtures must use the {identity_label} MATLAB commit "
+            f"{expected_commit}",
         )
+
+    if candidate is not None:
+        _expect_equal(generator, "repo_commit", candidate.generator_commit)
 
     for relative, expected_hash in _CANONICAL_DATASET_SHA256.items():
         target = bundle_root / relative
@@ -709,13 +850,18 @@ def _validate_verified_v2_identity(
             )
 
     _expect_equal(generator, "script", _EXPORTER_SCRIPT)
-    if _expect_text(generator, "script_sha256") != _REFERENCE_V2_EXPORTER_SHA256:
+    expected_exporter = (
+        _REFERENCE_V2_EXPORTER_SHA256
+        if candidate is None
+        else candidate.exporter_sha256
+    )
+    if _expect_text(generator, "script_sha256") != expected_exporter:
         raise ProvenanceError(
             "Verified v2 fixtures do not match the pinned exporter script hash",
         )
 
     content_root = _manifest_content_root(entries_by_path)
-    if content_root != _VERIFIED_V2_CONTENT_ROOT_SHA256:
+    if candidate is None and content_root != _VERIFIED_V2_CONTENT_ROOT_SHA256:
         raise ProvenanceError(
             "Verified v2 fixture content root does not match the audited oracle",
         )
@@ -3293,6 +3439,18 @@ def _build_parser() -> argparse.ArgumentParser:
     verify.add_argument("root", type=Path)
     verify.add_argument("--allow-diagnostic", action="store_true")
 
+    for command in ("candidate", "prepare-promotion"):
+        candidate = subparsers.add_parser(
+            command,
+            help="validate a candidate or prepare its unapproved review package",
+        )
+        candidate.add_argument("root", type=Path)
+        candidate.add_argument("--matlab-commit", required=True)
+        candidate.add_argument("--generator-commit", required=True)
+        candidate.add_argument("--exporter-script", required=True, type=Path)
+        if command == "prepare-promotion":
+            candidate.add_argument("destination", type=Path)
+
     inventory = subparsers.add_parser(
         "inventory",
         help="validate historical classification",
@@ -3324,6 +3482,21 @@ def main() -> int:
             "total_bytes": report.total_bytes,
             "trust": report.trust,
         }
+    elif arguments.command in {"candidate", "prepare-promotion"}:
+        identity = CandidateIdentity(
+            arguments.matlab_commit,
+            arguments.generator_commit,
+            sha256_file(arguments.exporter_script),
+        )
+        if arguments.command == "candidate":
+            result = _candidate_result(validate_candidate(arguments.root, identity))
+        else:
+            prepared = prepare_promotion(
+                arguments.root,
+                arguments.destination,
+                identity,
+            )
+            result = {"review_package": str(prepared), "approved": False}
     elif arguments.command == "inventory":
         report_inventory = validate_inventory(arguments.repo_root, arguments.inventory)
         result = {

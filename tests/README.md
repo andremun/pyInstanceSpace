@@ -86,3 +86,11 @@ asserts it:
 | PILOT  | max relative error < 1% | single matrix product with the stored projection matrix |
 | PYTHIA | exact binary outputs; probabilities within `1e-13` absolute error | direct replay of the stored historical SVM artifacts; correlation is not used because it accepts inverted or shifted probabilities |
 | TRACE  | per-column boolean agreement ≥ 99% | boundary-inclusive membership matching MATLAB `polyshape.isinterior`; the 1% budget covers floating-point boundary edge cases after the CSV round-trip |
+
+## Controlled geometry references
+
+`fixtures/matlab/geometry/` contains six stage-level cases from current MATLAB
+master `929acfd`, generated locally with R2026a Update 5 on Linux. They verify
+CLOISTER 3D boundaries and TRACE holes/components, including export round trips.
+Their separate hashed manifest does not promote or replace the approved full
+bundle above; see `fixtures/matlab/geometry/README.md` for reproduction details.

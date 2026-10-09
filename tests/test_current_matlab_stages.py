@@ -943,23 +943,14 @@ def test_current_matlab_pythia_skip_oracle() -> None:
         PythiaEvaluateInput(
             _matrix(explore_inputs / "y_bin.csv").astype(np.bool_),
             predicted.y_hat,
+            ~np.isnan(_matrix(explore_inputs / "y_raw.csv")),
         ),
         fitted,
     )
-    summary = pd.read_csv(
-        explore_outputs / "eval_summary.csv",
-        float_precision="round_trip",
-    ).iloc[: len(labels)]
-    for actual, column in (
-        (evaluated.accuracy, "CV_model_accuracy"),
-        (evaluated.precision, "CV_model_precision"),
-        (evaluated.recall, "CV_model_recall"),
-    ):
-        np.testing.assert_allclose(
-            actual,
-            summary[column].to_numpy(dtype=np.double),
-            rtol=0,
-            atol=0,
-            equal_nan=True,
-        )
-    np.testing.assert_array_equal(evaluated.cvcmat, 0)
+    # The pinned v0.9.1 fixture predates observed-only evaluation. Its skip-mode
+    # summary reports zero accuracy for missing classifiers. Current MATLAB
+    # master leaves these slots unscored; retain the historical fixture intact.
+    assert np.isnan(evaluated.accuracy).all()
+    assert np.isnan(evaluated.precision).all()
+    assert np.isnan(evaluated.recall).all()
+    assert np.isnan(evaluated.cvcmat).all()

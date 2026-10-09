@@ -11,6 +11,7 @@ and PYTHIA predictions. Orchestration is covered by `test_explore_stage_iter.py`
 """
 
 import warnings
+from dataclasses import replace
 from typing import cast
 from unittest.mock import Mock
 
@@ -21,7 +22,7 @@ from numpy.typing import NDArray
 
 from instancespace.data.metadata import Metadata
 from instancespace.data.model import PythiaOut
-from instancespace.data.options import InstanceSpaceOptions
+from instancespace.data.options import InstanceSpaceOptions, PerformanceOptions
 from instancespace.instance_space import InstanceSpace
 from instancespace.stages.pythia import (
     PythiaEvaluateInput,
@@ -71,15 +72,22 @@ def _evaluate_pythia(
     y_true: NDArray[np.bool_],
     y_pred: NDArray[np.bool_],
     slots: list[object | None] | None = None,
+    observed: NDArray[np.bool_] | None = None,
 ) -> PythiaEvaluateOutput:
     """Call the stage-owned MATLAB confusion-count formulas."""
     fitted = _fitted_with_slots(
         [Mock() for _ in range(y_pred.shape[1])] if slots is None else slots,
     )
+    n_trained = len(slots) if slots is not None else y_pred.shape[1]
     return PythiaStage.evaluate(
         PythiaEvaluateInput(
             y_true=y_true,
             y_pred=y_pred,
+            observed=(
+                np.ones((y_true.shape[0], n_trained), dtype=np.bool_)
+                if observed is None
+                else observed
+            ),
         ),
         fitted,
     )
@@ -124,7 +132,8 @@ def test_build_test_algo_matrix_nans_algorithm_absent_from_test_set() -> None:
 
     np.testing.assert_allclose(y_raw[:, 0], [10.0, 30.0])
     assert np.all(np.isnan(y_raw[:, 1]))
-    assert has_gt.tolist() == [True, False]
+    assert np.all(has_gt[:, 0])
+    assert not np.any(has_gt[:, 1])
 
 
 def test_build_test_algo_matrix_excludes_new_algorithm_when_not_requested() -> None:
@@ -145,7 +154,8 @@ def test_build_test_algo_matrix_excludes_new_algorithm_when_not_requested() -> N
 
     assert y_raw.shape == (2, 1)
     np.testing.assert_allclose(y_raw[:, 0], [10.0, 30.0])
-    assert has_gt.tolist() == [True]
+    assert has_gt.shape == (2, 1)
+    assert np.all(has_gt)
 
 
 def test_build_test_algo_matrix_appends_new_algorithm_columns() -> None:
@@ -170,7 +180,8 @@ def test_build_test_algo_matrix_appends_new_algorithm_columns() -> None:
     assert y_raw.shape == (2, 2)
     np.testing.assert_allclose(y_raw[:, 0], [10.0, 30.0])
     np.testing.assert_allclose(y_raw[:, 1], [99.0, 88.0])
-    assert has_gt.tolist() == [True]  # only covers the *trained* column
+    assert has_gt.shape == (2, 1)  # only covers the *trained* column
+    assert np.all(has_gt)
 
 
 def test_find_new_algorithms_case_insensitive_and_deduplicated() -> None:
@@ -208,8 +219,63 @@ def test_pythia_evaluate_computes_metrics_against_ground_truth() -> None:
     np.testing.assert_allclose(result.cvcmat, [[1, 0, 0, 1], [1, 0, 0, 1]])
 
 
-def test_pythia_evaluate_scores_trained_algorithm_without_test_truth() -> None:
-    """MATLAB scores a fitted slot against its reconciled all-false truth column."""
+def test_pythia_evaluate_skips_trained_algorithm_without_test_truth() -> None:
+    """A trained algorithm the test set has no data for is not scored.
+
+    Its reconciled all-false truth column is a data-reconciliation artifact,
+    not real ground truth. Matches MATLAB's fix for `andremun/InstanceSpace#58
+    <https://github.com/andremun/InstanceSpace/issues/58>`_: rates stay
+    ``NaN`` and the confusion row stays NaN, the same treatment a test-only
+    algorithm with no trained-model slot already gets.
+    """
+    y_true = np.array([[True, False], [False, False]])
+    y_hat = np.array([[True, True], [False, True]])
+
+    result = _evaluate_pythia(
+        y_true,
+        y_hat,
+        observed=np.array([[True, False], [True, False]]),
+    )
+
+    assert not np.isnan(result.accuracy[0])
+    assert np.isnan(result.accuracy[1])
+    assert np.isnan(result.precision[1])
+    assert np.isnan(result.recall[1])
+    assert np.isnan(result.cvcmat[1]).all()
+
+
+def test_pythia_evaluate_masks_per_instance_missing_observations() -> None:
+    """Only observed instances count; accuracy's denominator is the observed
+    count, not the total instance count.
+
+    MATLAB masks per instance (``observed = ~isnan(Y(:,ii))``), not per whole
+    algorithm column: a trained algorithm can have ground truth for some test
+    instances and not others. Instance 2's prediction is deliberately wrong
+    (``True``) against an unobserved ``False`` truth, so a masking regression
+    that scores it anyway changes both the confusion counts and the accuracy
+    value, not just the denominator silently.
+    """
+    y_true = np.array([[True], [False], [False]])
+    y_pred = np.array([[True], [False], [True]])
+    observed = np.array([[True], [True], [False]])
+
+    result = _evaluate_pythia(y_true, y_pred, observed=observed)
+
+    np.testing.assert_array_equal(result.cvcmat[0], [1, 0, 0, 1])
+    assert result.accuracy[0] == 1.0
+    assert result.precision[0] == 1.0
+    assert result.recall[0] == 1.0
+
+
+def test_pythia_evaluate_scores_a_genuinely_all_bad_algorithm() -> None:
+    """An algorithm observed to be bad on every test instance is still scored.
+
+    Distinguishes "no test data" (skipped, see the test above) from
+    "observed and bad everywhere" (a real measurement): both produce an
+    all-false truth column, but only the former should be treated as
+    missing data. ``observed`` is what tells them apart, not the
+    column's content.
+    """
     y_true = np.array([[True, False], [False, False]])
     y_hat = np.array([[True, True], [False, True]])
 
@@ -252,14 +318,20 @@ def test_pythia_evaluate_uses_matlab_column_major_confusion_order() -> None:
 
 
 def test_pythia_evaluate_empty_trained_slot_matches_matlab_skip() -> None:
-    """An empty model slot keeps zero counts, zero accuracy, and undefined rates."""
+    """An empty model slot is not scored: NaN counts and rates.
+
+    Matches MATLAB's `andremun/InstanceSpace#58
+    <https://github.com/andremun/InstanceSpace/issues/58>`_ fix: an untrained
+    slot (``clf`` empty) is skipped the same way as a trained algorithm with
+    no test-set ground truth, not scored as a fabricated zero.
+    """
     y_true = np.array([[True], [False]])
     y_pred = np.zeros((2, 1), dtype=np.bool_)
 
     result = _evaluate_pythia(y_true, y_pred, slots=[None])
 
-    np.testing.assert_array_equal(result.cvcmat[0], [0, 0, 0, 0])
-    assert result.accuracy[0] == 0.0
+    assert np.isnan(result.cvcmat[0]).all()
+    assert np.isnan(result.accuracy[0])
     assert np.isnan(result.precision[0])
     assert np.isnan(result.recall[0])
 
@@ -285,11 +357,63 @@ def test_pythia_evaluate_preserves_inputs() -> None:
     y_pred = np.array([[False], [False]])
     truth_before = y_true.copy()
     prediction_before = y_pred.copy()
+    observed = np.array([[True], [False]])
+    observed_before = observed.copy()
 
-    _evaluate_pythia(y_true, y_pred)
+    _evaluate_pythia(y_true, y_pred, observed=observed)
 
     np.testing.assert_array_equal(y_true, truth_before)
     np.testing.assert_array_equal(y_pred, prediction_before)
+    np.testing.assert_array_equal(observed, observed_before)
+
+
+@pytest.mark.parametrize("shape", [(3,), (3, 0), (3, 2), (2, 1)])
+def test_pythia_evaluate_rejects_invalid_observation_mask(
+    shape: tuple[int, ...],
+) -> None:
+    """The mask must cover rows and trained slots, without broadcasting."""
+    with pytest.raises(ValueError, match="observed must have shape"):
+        _evaluate_pythia(
+            np.zeros((3, 1), dtype=np.bool_),
+            np.zeros((3, 1), dtype=np.bool_),
+            observed=np.ones(shape, dtype=np.bool_),
+        )
+
+
+@pytest.mark.parametrize("n_instances", [0, 3])
+def test_pythia_evaluate_without_observations(n_instances: int) -> None:
+    """Empty and wholly unobserved batches have no counts or defined rates."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = _evaluate_pythia(
+            np.zeros((n_instances, 2), dtype=np.bool_),
+            np.ones((n_instances, 2), dtype=np.bool_),
+            observed=np.zeros((n_instances, 2), dtype=np.bool_),
+        )
+    assert all(np.isnan(values).all() for values in result)
+
+
+def test_explore_evaluate_masks_partial_and_wholly_missing_rows() -> None:
+    """Raw availability follows reordered columns all the way into counts."""
+    space = _make_space(["Alg1", "Alg2"])
+    space._options = replace(
+        space._options,
+        perf=PerformanceOptions.default(max_perf=False, abs_perf=True, epsilon=1.0),
+    )
+    metadata = _make_metadata(
+        ["alg2", "alg1"],
+        np.array([[np.nan, 0.1], [0.1, 5.0], [5.0, np.nan], [np.nan, np.nan]]),
+    )
+    predictions = np.array([[True, True], [False, True], [True, False], [True, True]])
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = space._explore_evaluate(metadata, predictions, [])
+
+    np.testing.assert_array_equal(result.cvcmat_actual, [[1, 0, 0, 1], [1, 0, 0, 1]])
+    np.testing.assert_array_equal(result.accuracy_actual, [1.0, 1.0])
+    np.testing.assert_array_equal(result.precision_actual, [1.0, 1.0])
+    np.testing.assert_array_equal(result.recall_actual, [1.0, 1.0])
 
 
 def test_instance_space_evaluate_wrapper_remains_compatible() -> None:
@@ -308,6 +432,31 @@ def test_instance_space_evaluate_wrapper_remains_compatible() -> None:
     np.testing.assert_array_equal(wrapped.precision_actual, stage.precision)
     np.testing.assert_array_equal(wrapped.recall_actual, stage.recall)
     np.testing.assert_array_equal(wrapped.cvcmat_actual, stage.cvcmat)
+
+
+def test_explore_evaluate_trained_algorithm_missing_from_test_set() -> None:
+    """A trained algorithm absent from the test set's metadata is not scored.
+
+    End-to-end through ``_explore_evaluate``/``_build_test_algo_matrix``, not
+    ``PythiaStage.evaluate`` directly -- this is what actually plumbs the
+    ``observed`` mask from the test metadata through to scoring. A future
+    regression that drops the mask (e.g. passing an all-``True`` array
+    instead) would still pass every ``PythiaStage.evaluate``-level test above
+    while silently fabricating scores again here.
+    """
+    space = _make_space(["Alg1", "Alg2"])
+    # Alg2 is trained but the test set's metadata only records Alg1.
+    test_metadata = _make_metadata(["Alg1"], np.array([[0.1], [5.0]]))
+    y_hat = np.array([[True, False], [False, True]])
+
+    result = space._explore_evaluate(test_metadata, y_hat, [])
+
+    assert result.algo_labels == ["Alg1", "Alg2"]
+    assert not np.isnan(result.accuracy_actual[0])  # Alg1: real ground truth
+    assert np.isnan(result.accuracy_actual[1])  # Alg2: no test-set coverage
+    assert np.isnan(result.precision_actual[1])
+    assert np.isnan(result.recall_actual[1])
+    assert np.isnan(result.cvcmat_actual[1]).all()
 
 
 @pytest.mark.parametrize(
@@ -342,8 +491,7 @@ def test_pythia_evaluate_rejects_inconsistent_shapes(
 def test_explore_evaluate_new_algorithm_full_parity() -> None:
     """Full MATLAB parity (F9): a new algorithm participates in y_best/p/beta.
 
-    It reports NaN rates because no trained classifier exists, while MATLAB's
-    preallocated confusion row remains zero.
+    It reports NaN rates and counts because no trained classifier exists.
     """
     space = _make_space(["Alg1"])
     # Instance 0: BrandNew (0.05) beats Alg1 (5.0) outright -> best algorithm
@@ -371,7 +519,7 @@ def test_explore_evaluate_new_algorithm_full_parity() -> None:
     assert np.isnan(result.accuracy_actual[1])  # BrandNew: no classifier
     assert np.isnan(result.precision_actual[1])
     assert np.isnan(result.recall_actual[1])
-    np.testing.assert_array_equal(result.cvcmat_actual[1], [0, 0, 0, 0])
+    assert np.isnan(result.cvcmat_actual[1]).all()
     np.testing.assert_array_equal(result.accuracy_actual, stage_result.accuracy)
     np.testing.assert_array_equal(result.precision_actual, stage_result.precision)
     np.testing.assert_array_equal(result.recall_actual, stage_result.recall)

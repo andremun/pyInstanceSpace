@@ -35,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
-      - name: Build API docs with pdoc
+      - name: Build docs site
         run: poetry run poe docs
 
       - name: Upload docs artifact
