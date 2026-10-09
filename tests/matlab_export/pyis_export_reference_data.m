@@ -457,7 +457,7 @@ end
 
 function exportPythiaInputs(model, destDir)
 mkdirIfMissing(destDir);
-writeMatrixCSV(model.pilot.Z, coordinateLabels(size(model.pilot.Z, 2)), ...
+writeMatrixCSVFullPrecision(model.pilot.Z, coordinateLabels(size(model.pilot.Z, 2)), ...
     model.data.instlabels(:), ...
     [destDir 'z.csv']);
 writeMatrixCSV(model.data.Yraw, model.data.algolabels, model.data.instlabels(:), ...
@@ -471,7 +471,7 @@ end
 
 function exportTraceInputs(model, destDir)
 mkdirIfMissing(destDir);
-writeMatrixCSV(model.pilot.Z, coordinateLabels(size(model.pilot.Z, 2)), ...
+writeMatrixCSVFullPrecision(model.pilot.Z, coordinateLabels(size(model.pilot.Z, 2)), ...
     model.data.instlabels(:), ...
     [destDir 'z.csv']);
 writeMatrixCSV(double(model.data.Ybin), model.data.algolabels, model.data.instlabels(:), ...
@@ -909,13 +909,14 @@ end
 
 membershipCols = [strcat('in_good_', testOut.data.algolabels(:)'), ...
     strcat('in_best_', testOut.data.algolabels(:)')];
-membership = [footprintMembership(testOut.trace.good, testOut.pilot.Z), ...
-    footprintMembership(testOut.trace.best, testOut.pilot.Z)];
+tolerance = numericField(testOut.trace, 'boundaryTolerance', 0);
+membership = [footprintMembership(testOut.trace.good, testOut.pilot.Z, tolerance), ...
+    footprintMembership(testOut.trace.best, testOut.pilot.Z, tolerance)];
 writeMatrixCSV(double(membership), membershipCols, testOut.data.instlabels(:), ...
     [destDir 'membership.csv']);
 end
 
-function membership = footprintMembership(footprints, Z)
+function membership = footprintMembership(footprints, Z, tolerance)
 % polyshape is two-dimensional; alphaShape accepts the complete point
 % matrix, which is dimension-generic and is required for native 3D TRACE3.
 membership = false(size(Z, 1), numel(footprints));
@@ -924,7 +925,9 @@ for i = 1:numel(footprints)
         continue;
     end
     poly = footprints{i}.polygon;
-    if isa(poly, 'polyshape')
+    if exist('ISAfootprintContains','file') == 2
+        membership(:, i) = ISAfootprintContains(poly, Z, tolerance);
+    elseif isa(poly, 'polyshape')
         membership(:, i) = isinterior(poly, Z(:, 1), Z(:, 2));
     elseif isa(poly, 'alphaShape')
         membership(:, i) = inShape(poly, Z);
@@ -1063,10 +1066,16 @@ for i = 1:numel(cycles)
     z1 = [z1; coordinates(:, 1)]; %#ok<AGROW>
     z2 = [z2; coordinates(:, 2)]; %#ok<AGROW>
 end
-boundaryTable = table(partColumn, ringColumn, vertexColumn, holeColumn, z1, z2, ...
-    'VariableNames', {'part', 'ring', 'vertex', 'is_hole', 'z_1', 'z_2'});
 mkdirIfMissing(fileparts(filename));
-writetable(boundaryTable, filename);
+fid = fopen(filename, 'w');
+if fid == -1, error('pyis_export:csvWriteFailed', 'Cannot write %s.', filename); end
+cleanupObj = onCleanup(@() fclose(fid));
+fprintf(fid, 'part,ring,vertex,is_hole,z_1,z_2\n');
+for row = 1:numel(z1)
+    fprintf(fid, '%d,%s,%d,%d,%.17g,%.17g\n', partColumn(row), ...
+        escapeCsvText(ringColumn(row)), vertexColumn(row), holeColumn(row), z1(row), z2(row));
+end
+clear cleanupObj;
 end
 
 function cycles = splitBoundaryCoordinates(x, y)

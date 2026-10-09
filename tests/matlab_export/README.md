@@ -208,3 +208,14 @@ local CI-equivalent gate passed all 1,046 collected tests with 92.08% branch cov
 and no uncaught warnings under `-W error`. Frozen v1 bundles remain verifiable, but they
 are not the installed current oracle. Diagnostic and `legacy-unknown` snapshots remain
 non-oracles.
+
+### Explicit TRACE boundary tolerance
+
+Current MATLAB exports use `trace.boundaryTolerance` (default zero) for both
+TRACE metrics and exported membership. Python's corresponding option is
+`trace.boundary_tolerance`; both specify an absolute Euclidean distance in
+projection units. The fitted value controls inference. The fixture validator
+uses the declared tolerance when independently reconstructing 3D memberships.
+Historical bundles without the option retain exact semantics. New 2D TRACE
+coordinates and ring vertices are written at full double precision. This does
+not change the approved bundle or its source/hash pins.
