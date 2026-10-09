@@ -1405,7 +1405,10 @@ def _validate_pilot_evidence_profile(  # noqa: PLR0912
             build_root / "inputs" / "stage_context.json",
             "PILOT stage context",
         )
-        if set(context) != {
+        context_v2 = context.get("schema_version") == (
+            "pyinstancespace.pilot-evidence-context/v2"
+        )
+        context_keys = {
             "schema_version",
             "scope",
             "upstream_snapshot",
@@ -1414,12 +1417,19 @@ def _validate_pilot_evidence_profile(  # noqa: PLR0912
             "feature_shift",
             "algorithm_shift",
             "explore_projection",
-        }:
+        }
+        if context_v2:
+            context_keys.update({"sifted_rebuilt", "x_mean"})
+        if set(context) != context_keys:
             raise ProvenanceError(f"PILOT stage context mismatch for {variant!r}")
         _expect_equal(
             context,
             "schema_version",
-            "pyinstancespace.pilot-evidence-context/v1",
+            (
+                "pyinstancespace.pilot-evidence-context/v2"
+                if context_v2
+                else "pyinstancespace.pilot-evidence-context/v1"
+            ),
         )
         _expect_equal(context, "scope", "pilot-stage")
         _expect_equal(
@@ -1427,13 +1437,19 @@ def _validate_pilot_evidence_profile(  # noqa: PLR0912
             "upstream_snapshot",
             "build_data/pilot/default/inputs",
         )
-        if context.get("sifted_effective_pilot_dims") != 2:  # noqa: PLR2004
+        if context.get("sifted_effective_pilot_dims") != (dims if context_v2 else 2):
             raise ProvenanceError(f"PILOT upstream dimensions mismatch for {variant!r}")
         _expect_equal(
             context,
             "explore_projection",
-            "InstanceSpace.explore: Z=X*A' (uncentred)",
+            (
+                "InstanceSpace.explore: Z=(X-Xmean)*A' (fitted mean)"
+                if context_v2
+                else "InstanceSpace.explore: Z=X*A' (uncentred)"
+            ),
         )
+        if context_v2 and context.get("sifted_rebuilt") is not True:
+            raise ProvenanceError(f"PILOT requires rebuilt SIFTED for {variant!r}")
         is_pls = variant.startswith("pilot_pls_")
         expected_feature_shift = (
             [0.25 * index for index in range(1, n_features + 1)] if is_pls else []
@@ -1462,6 +1478,18 @@ def _validate_pilot_evidence_profile(  # noqa: PLR0912
         )
         if not x or len(x) != len(y):
             raise ProvenanceError(f"PILOT build inputs mismatch for {variant!r}")
+        fitted_mean = _column_means(x) if is_pls else [0.0] * n_features
+        if context_v2:
+            recorded_mean = context.get("x_mean")
+            if (
+                not isinstance(recorded_mean, list)
+                or len(recorded_mean) != n_features
+                or any(type(value) not in (int, float) for value in recorded_mean)
+                or not _matrices_close([recorded_mean], [fitted_mean], tolerance=1e-12)
+            ):
+                raise ProvenanceError(f"PILOT fitted mean mismatch for {variant!r}")
+        else:
+            fitted_mean = [0.0] * n_features
         x_by_variant[variant] = x
         y_by_variant[variant] = y
 
@@ -1712,7 +1740,7 @@ def _validate_pilot_evidence_profile(  # noqa: PLR0912
         projected = [
             [
                 sum(
-                    value * projection[dimension][index]
+                    (value - fitted_mean[index]) * projection[dimension][index]
                     for index, value in enumerate(row)
                 )
                 for dimension in range(dims)

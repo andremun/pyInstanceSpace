@@ -300,7 +300,7 @@ end
 
 % =========================================================================
 % PILOT dimensionality/method/viewpoint evidence.  Each variant is built
-% from the same post-SIFTED snapshot.  A complete downstream build is still
+% from the same PRELIM snapshot, rebuilding SIFTED for its PILOT dimensions.  A complete downstream build is still
 % required because InstanceSpace.explore intentionally rejects partial
 % models; PYTHIA skip avoids unrelated classifier fitting while retaining a
 % genuine public explore-path projection.
@@ -330,6 +330,14 @@ for v = 1:numel(pilotEvidenceVariants)
     obj.opts.trace.contra = false;
     obj.opts = ISAdefaults(ISAvalidateOpts(obj.opts));
 
+    % Current MATLAB rejects retained SIFTED state when PILOT dimensions
+    % change. Rebuild from model.preSiftedData using the public stage API.
+    obj = obj.build('stages', {'sifted'});
+    if strcmp(variant.solverInput, 'x0')
+        rows = obj.opts.pilot.dims * (2 * size(obj.model.data.X, 2) + ...
+            size(obj.model.data.Y, 2));
+        obj.opts.pilot.X0 = deterministicStarts(rows, pilotX0Trials);
+    end
     isPLS = strcmpi(obj.opts.pilot.method, 'pls');
     if isPLS
         % PRELIM intentionally centres the reference study almost exactly.
@@ -363,7 +371,10 @@ for v = 1:numel(pilotEvidenceVariants)
     exportPilotInputs(pilotData, [buildRoot 'inputs/']);
     exportPilotSolverInputs(resolvedOptions.pilot, variant.solverInput, ...
         [buildRoot 'inputs/']);
-    exportPilotStageContext(isPLS, nPilotFeatures, nPilotAlgorithms, ...
+    xmean = zeros(1, size(pilotData.X, 2));
+    if isfield(pilotOut, 'Xmean'), xmean = pilotOut.Xmean; end
+    exportPilotStageContext(isPLS, size(pilotData.X, 2), nPilotAlgorithms, ...
+        resolvedOptions.pilot.dims, xmean, ...
         [buildRoot 'inputs/stage_context.json']);
     exportPilotArtifacts(pilotOut, [buildRoot 'outputs/'], ...
         pilotData.algolabels);
@@ -608,7 +619,7 @@ elseif ~strcmp(solverInput, 'none')
 end
 end
 
-function exportPilotStageContext(isPLS, nfeatures, nalgorithms, filename)
+function exportPilotStageContext(isPLS, nfeatures, nalgorithms, dims, xmean, filename)
 if isPLS
     transform = 'deterministic-column-shift';
     featureShift = 0.25 * (1:nfeatures);
@@ -619,14 +630,16 @@ else
     algorithmShift = [];
 end
 context = struct( ...
-    'schema_version', 'pyinstancespace.pilot-evidence-context/v1', ...
+    'schema_version', 'pyinstancespace.pilot-evidence-context/v2', ...
     'scope', 'pilot-stage', ...
     'upstream_snapshot', 'build_data/pilot/default/inputs', ...
-    'sifted_effective_pilot_dims', 2, ...
+    'sifted_effective_pilot_dims', dims, ...
+    'sifted_rebuilt', true, ...
+    'x_mean', xmean, ...
     'input_transform', transform, ...
     'feature_shift', featureShift, ...
     'algorithm_shift', algorithmShift, ...
-    'explore_projection', 'InstanceSpace.explore: Z=X*A'' (uncentred)');
+    'explore_projection', 'InstanceSpace.explore: Z=(X-Xmean)*A'' (fitted mean)');
 writeJson(context, filename);
 end
 
