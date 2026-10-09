@@ -186,3 +186,47 @@ The MATLAB source-invariant test now follows the current master's
 `FunctionTolerance` value. Its original inline-option assertion remains for older
 source checkouts. This updates source-location knowledge rather than changing
 the expected numerical contract.
+
+
+## Step 6 audit in progress (9 October 2026)
+
+Current source identities remain MATLAB master `929acfd` and Python main
+`66e65be`; work continues on PR #348 with unchanged dependency versions.
+
+Confirmed and corrected after failing regression tests:
+
+- PLS training centred features but discarded the fitted mean, while exploration
+  always used uncentred `X @ A.T`. `PilotOutput.pilot_x_mean` now reaches persisted
+  `PilotOut.x_mean`, exploration and CLOISTER boundary generation. Legacy models
+  without the field retain their prior projection. Four regressions cover 2D/3D
+  train/query consistency, single-row inference, persistence and CLOISTER's regular
+  and feature-cap paths. All four failed before the fix. The focused PILOT and
+  CLOISTER run passed 88 tests. Local MATLAB R2026a Update 5 at clean `929acfd`
+  independently verified stored-mean reconstruction and matched Python train/query
+  pairwise distances in both dimensions, using deterministic trigonometric inputs.
+- PYTHIA constant projection columns produced NaNs from zscore. Training now stores
+  unit scale for constant columns, and inference guards zero scales in older models.
+- PYTHIA selector summary rows used fitted training predictions despite reporting
+  CV metrics. The summary now derives recommendations from held-out `y_sub`, while
+  exposed fitted selections remain unchanged. A controlled classifier with perfect
+  fitted predictions and 50% held-out precision reproduced the optimism before the
+  fix; the summary now reports the held-out result. Both new PYTHIA tests failed
+  before the changes and passed afterward.
+
+Source inspection also confirms that Python already selects the algorithm
+portfolio before missing-value row filtering, and its prediction path has no test
+performance input. Existing SIFTED tests cover replay order; checkpoint tests cover
+partial persistence and resumption. These are evidence to examine, not new fixes.
+Stage-option provenance remains under review: runner overrides are persisted but
+model construction and exploration still consult the original aggregate options.
+The wider audit and complete-export reproducibility/promotion step are not yet
+complete. No full fixture bundle or dependency version has been changed.
+
+Issue housekeeping: the original audit parent #297 was closed after verifying its
+six closed sub-issues and merged fix history. PR #348 now closes #344 and #345 on
+merge. #347 stays open for reproducibility and promotion; #304 and #341 are not
+claimed resolved.
+
+Validation of this first step-6 patch: the full suite passed all 1,097 tests,
+strict mypy passed 90 files, Ruff passed, and whitespace checks passed. This is
+additional tested work on the draft, not completion of steps 6–7.

@@ -224,6 +224,7 @@ class PilotOut:
     r2: NDArray[np.double]
     summary: pd.DataFrame
     viewpoint: "PilotViewpointResult | None" = None
+    x_mean: NDArray[np.double] | None = None
 
     T = TypeVar("T", bound="PilotOut")
 
@@ -259,6 +260,7 @@ class PilotOut:
             r2=stage_runner_output["r2"],
             summary=stage_runner_output["pilot_summary"],
             viewpoint=stage_runner_output.get("viewpoint"),
+            x_mean=stage_runner_output.get("pilot_x_mean"),
         )
 
 

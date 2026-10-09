@@ -110,7 +110,7 @@ See `integration_demo.py` for a complete, runnable version of this (including th
 
 ### Applying a trained model to new data: `explore()`
 
-`InstanceSpace.explore()` applies a previously trained model to unseen instances, mirroring the MATLAB toolkit's `exploreIS.m`: the test metadata is bounded and scaled with the stored PRELIM parameters, reduced to the selected SIFTED features, projected with the trained PILOT matrix, and evaluated by the trained PYTHIA selectors and TRACE footprints. No stage is re-fitted.
+`InstanceSpace.explore()` applies a previously trained model to unseen instances, mirroring the MATLAB toolkit's `exploreIS.m`: the test metadata is bounded and scaled with the stored PRELIM parameters, reduced to the selected SIFTED features, projected with the trained PILOT matrix, and evaluated by the trained PYTHIA selectors and TRACE footprints. PLS subtracts the stored training feature mean before projection; older saved models without that field retain their original uncentred behavior. No stage is re-fitted.
 
 `explore()` works directly on the model `build()` produced: the trained PYTHIA classifiers are fitted scikit-learn estimators (`SVC` by default), and `explore()` calls each one's own prediction methods — there is no intermediate flattened representation or conversion step. PRELIM, SIFTED, PILOT and TRACE pass their stored parameters through unchanged. The normal flow is therefore direct:
 
