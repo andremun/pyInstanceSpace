@@ -402,11 +402,11 @@ def test_current_bundle_is_verified_r2026a_source() -> None:
 
     assert manifest["schema_version"] == "pyinstancespace.matlab-fixtures/v1"
     assert manifest["trust"] == "matlab-verified"
-    assert matlab["repo_commit"] == "98a01ac0513c0dd0f8a9bd91ed2926c871334d7b"
+    assert matlab["repo_commit"] == "2e2cf7565aee8e60190e788c959405d44c4317f3"
     assert matlab["repo_dirty"] is False
     assert matlab["release"] == "R2026a"
-    assert matlab["platform"] == "MACA64"
-    assert generator["repo_commit"] == "4816b8cf23ad9392e7a7f5aa85bfbc32080dfe84"
+    assert matlab["platform"] == "GLNXA64"
+    assert generator["repo_commit"] == "ab72f6bc5c602e0cb03a65041a4677037282e92c"
     assert generator["repo_dirty"] is False
     assert _RESOLVED_DOCUMENT["schema_version"] == (
         "pyinstancespace.resolved-options/v1"
@@ -640,7 +640,9 @@ def test_current_matlab_pilot_precalculated_solution_oracle() -> None:
     )
     assert float(output.error) == pytest.approx(
         _vector(outputs / "pilot_error.csv")[0],
-        abs=3e-12,
+        # writetable emits 15 significant digits: at this magnitude the
+        # serialization half-unit is 5e-12, in addition to arithmetic error.
+        abs=3e-12 + 5e-12,
     )
     np.testing.assert_allclose(
         output.r2,

@@ -135,8 +135,9 @@ Current MATLAB `master` defines the behavior being audited. The approved full
 fixture bundle is a reproducible snapshot, not a claim to match the latest master:
 
 - `tests/fixtures/matlab/current/`: 423 files in `reference-export/v2`, generated
-  with MATLAB R2026a Update 4 at `98a01ac`. Its approved identity and hashes remain
-  unchanged by this consolidation.
+  on Linux with MATLAB R2026a Update 5 at `2e2cf75`, using generator `ab72f6b`.
+  Two independent runs produced identical artifact hashes. See the
+  [promotion review](docs/fixture-promotion-2026-10-09.md).
 - `tests/fixtures/matlab/geometry/`: six controlled cases generated locally on
   Linux with MATLAB R2026a Update 5 at master revision `929acfd`. They cover
   CLOISTER 3D boundaries and TRACE holes/components, with a separate hashed manifest.

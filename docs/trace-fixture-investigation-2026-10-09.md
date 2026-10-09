@@ -1,5 +1,9 @@
 # TRACE fixture investigation — 9 October 2026
 
+Subsequent status: [the approved fixture promotion](fixture-promotion-2026-10-09.md)
+records the completed review and replaces the earlier deferred-promotion status below.
+PRs #343 and #346 are closed as superseded by #348; MATLAB boundary work is in #66.
+
 The 487 changed membership cells split into two mechanisms: 466 numerical
 boundary classifications and 21 substantive legacy footprint changes caused by
 contradiction removal amplifying small projection differences. All 21 substantive

@@ -142,10 +142,9 @@ the same selected inputs across variants, checked by the validator, so the PLS
 2D/3D component comparison remains meaningful. Coordinate columns are emitted as
 `z_1` through `z_d`.
 
-The approved bundle retains its historical stage-context v1 (retained 2D SIFTED,
-uncentred exploration). Its source/hash pins are unchanged. The validator accepts
-both explicit context versions; new exports remain candidates until numerical
-review and promotion.
+The approved bundle uses stage-context v2 and fitted-mean exploration. The
+validator also accepts historical stage-context v1 (retained 2D SIFTED, uncentred
+exploration). Future exports remain candidates until numerical review and promotion.
 
 The already-built `pilot_standard_analytic_3d` model also supplies the TRACE3 build
 and explore evidence. It does not add a duplicate resolved-options variant. Every
@@ -198,16 +197,15 @@ python -m tools.fixture_provenance install \
 
 The canonical oracle at `tests/fixtures/matlab/current/` is a reviewed, installed
 `reference-export/v2` bundle with 423 files and `matlab-verified` trust. It was generated
-under MATLAB R2026a Update 4 from clean MATLAB
-`98a01ac0513c0dd0f8a9bd91ed2926c871334d7b` (InstanceSpace v0.9.1) and clean
-Python generator `4816b8cf23ad9392e7a7f5aa85bfbc32080dfe84`. The exporter identity is pinned to
-`d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
+under MATLAB R2026a Update 5 from clean MATLAB
+`2e2cf7565aee8e60190e788c959405d44c4317f3` and clean
+Python generator `ab72f6bc5c602e0cb03a65041a4677037282e92c`. The exporter identity is pinned to
+`ebd7917169ca110fd26856ac8cbad43e3c3477b1ce96473e4f5bc9445ff869d6`.
 
-Collection contains 86 provenance tests and 41 current-gold scientific readers. The
-local CI-equivalent gate passed all 1,046 collected tests with 92.08% branch coverage
-and no uncaught warnings under `-W error`. Frozen v1 bundles remain verifiable, but they
-are not the installed current oracle. Diagnostic and `legacy-unknown` snapshots remain
-non-oracles.
+The approved Linux export uses the explicit TRACE boundary policy with tolerance
+zero. Two independent MATLAB processes produced identical hashes for all 423
+artifacts. See [the promotion review](../../docs/fixture-promotion-2026-10-09.md) for validation and remaining limits.
+Frozen v1 bundles remain readable; diagnostic snapshots are not oracles.
 
 ### Explicit TRACE boundary tolerance
 

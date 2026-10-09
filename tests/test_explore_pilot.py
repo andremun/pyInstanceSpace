@@ -7,6 +7,7 @@ projection for older models without stored centering. New PLS models reuse their
 fitted training mean (covered in test_pilot_fitted_centering.py).
 """
 
+import json
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import Mock
@@ -166,7 +167,7 @@ def test_pilot_predict_matches_current_matlab_oracle(
     variant: str,
     verified_current_matlab_bundle: Path,
 ) -> None:
-    """Replay R2026a's uncentred 2D/3D explore projection directly."""
+    """Replay R2026a's fitted-mean 2D/3D explore projection directly."""
     root = verified_current_matlab_bundle / "explore_data" / "pilot" / variant
     x = pd.read_csv(
         root / "inputs" / "x.csv",
@@ -181,9 +182,21 @@ def test_pilot_predict_matches_current_matlab_oracle(
         float_precision="round_trip",
     ).iloc[:, 1:]
 
+    context = json.loads(
+        (
+            verified_current_matlab_bundle
+            / "build_data"
+            / "pilot"
+            / variant
+            / "inputs"
+            / "stage_context.json"
+        ).read_text(encoding="utf-8"),
+    )
+    fitted_mean = context.get("x_mean")
+    x_mean = np.asarray(fitted_mean, dtype=np.double) if fitted_mean else None
     actual = PilotStage.predict(
         PilotPredictInput(x.to_numpy(dtype=np.double)),
-        cast(PilotOut, Mock(a=a.to_numpy(dtype=np.double), x_mean=None)),
+        cast(PilotOut, Mock(a=a.to_numpy(dtype=np.double), x_mean=x_mean)),
     )
 
     np.testing.assert_allclose(
