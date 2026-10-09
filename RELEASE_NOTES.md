@@ -44,6 +44,17 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
 
 ## Unreleased
 
+### Current-master parity audit
+
+- PLS saves its fitted feature mean and reuses it during exploration and CLOISTER
+  boundary construction. Earlier models without that field retain uncentred
+  inference. `PilotOutput` gains an optional trailing `pilot_x_mean` field;
+  `PilotOut.x_mean` is preserved by model persistence.
+- PYTHIA assigns unit scale to constant projection coordinates and handles zero
+  scales in earlier fitted models. Selector summaries now use held-out predictions;
+  the public fitted-model predictions and recommendations remain unchanged.
+
+
 ### New functionality
 
 - PR #343’s curated documentation site and build are integrated, with weighting

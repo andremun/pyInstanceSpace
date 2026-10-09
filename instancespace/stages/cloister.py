@@ -70,6 +70,7 @@ class CloisterInput(NamedTuple):
     x: NDArray[np.double]
     a: NDArray[np.double]
     cloister_options: CloisterOptions
+    pilot_x_mean: NDArray[np.double] | None = None
 
 
 class CloisterOutput(NamedTuple):
@@ -172,13 +173,19 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
         CloisterOutput
             Output of the Cloister stage.
         """
-        return CloisterStage.cloister(inputs.x, inputs.a, inputs.cloister_options)
+        return CloisterStage.cloister(
+            inputs.x,
+            inputs.a,
+            inputs.cloister_options,
+            inputs.pilot_x_mean,
+        )
 
     @staticmethod
     def cloister(
         x: NDArray[np.double],
         a: NDArray[np.double],
         options: CloisterOptions,
+        x_mean: NDArray[np.double] | None = None,
     ) -> CloisterOutput:
         """Estimate a boundary for the space using correlation.
 
@@ -190,6 +197,8 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
             Projection matrix computed from Pilot.
         options : CloisterOptions
             Configuration options for CLOISTER.
+        x_mean : NDArray[np.double] | None
+            Fitted PILOT feature mean; None retains the uncentred boundary.
 
         Returns
         -------
@@ -199,6 +208,11 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
             "[CLOISTER]   -> CLOISTER is using correlation to estimate a boundary"
             " for the space.",
         )
+
+        if x_mean is not None:
+            if x_mean.shape != (x.shape[1],):
+                raise ValueError("CLOISTER fitted mean must match the feature columns.")
+            x = x - x_mean
 
         hull_dims = None if options.hull_dims == "all" else options.hull_dims
 

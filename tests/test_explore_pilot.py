@@ -3,8 +3,8 @@
 
 Unit tests exercise ``PilotStage.predict()`` with mocked/stubbed dependencies,
 independent of MATLAB reference data. PILOT inference is the dimension-generic linear
-projection ``z = x @ A.T`` used by MATLAB explore, including its deliberate lack of
-the centering used by the PLS build projection.
+projection for older models without stored centering. New PLS models reuse their
+fitted training mean (covered in test_pilot_fitted_centering.py).
 """
 
 from pathlib import Path
@@ -46,6 +46,7 @@ def _predict_pilot(
 def make_instance_space(a: NDArray[np.double]) -> InstanceSpace:
     pilot = Mock(spec=PilotOut)
     pilot.a = a
+    pilot.x_mean = None
     model = Mock()
     model.pilot = pilot
     instance_space = Mock(spec=InstanceSpace)
@@ -70,8 +71,8 @@ def test_pilot_correct_projection() -> None:
     np.testing.assert_array_almost_equal(result, expected)
 
 
-def test_pilot_3d_projection_preserves_matlab_explore_centering_asymmetry() -> None:
-    """Explore uses exact uncentred X @ A.T even when a PLS build was centred."""
+def test_pilot_3d_legacy_model_preserves_uncentred_projection() -> None:
+    """Older models without a fitted mean retain their uncentred projection."""
     a = np.array(
         [
             [1.0, 0.0, 0.0, 0.5],
@@ -182,7 +183,7 @@ def test_pilot_predict_matches_current_matlab_oracle(
 
     actual = PilotStage.predict(
         PilotPredictInput(x.to_numpy(dtype=np.double)),
-        cast(PilotOut, Mock(a=a.to_numpy(dtype=np.double))),
+        cast(PilotOut, Mock(a=a.to_numpy(dtype=np.double), x_mean=None)),
     )
 
     np.testing.assert_allclose(
@@ -199,6 +200,7 @@ def load_pilot_matrix() -> Mock:
 
     pilot = Mock(spec=PilotOut)
     pilot.a = a
+    pilot.x_mean = None
     model = Mock()
     model.pilot = pilot
     return model

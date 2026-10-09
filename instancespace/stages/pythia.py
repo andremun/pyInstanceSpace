@@ -427,6 +427,7 @@ class PythiaStage(
             msg = "PYTHIA predict precision must have one value per classifier."
             raise ValueError(msg)
 
+        sigma = np.where(sigma == 0, 1.0, sigma)
         z_norm = (inputs.z - mu) / sigma
         n_instances = z_norm.shape[0]
         n_algorithms = n_trained + inputs.n_new_algos
@@ -915,16 +916,23 @@ class PythiaStage(
             "------------------",
         )
 
+        # Report held-out behavior; public selections still use fitted predictions.
+        cv_selection0, cv_selection1 = PythiaStage._determine_selections(
+            nalgos,
+            precision_record,
+            y_sub,
+            y_bin,
+        )
         # Section4: Generate summary of the results
         summary = PythiaStage._generate_summary(
             nalgos=nalgos,
             algo_labels=algo_labels,
             y=y,
-            y_hat=y_hat,
+            y_hat=y_sub,
             y_bin=y_bin,
             y_best=y_best,
-            selection0=selection0,
-            selection1=selection1,
+            selection0=cv_selection0,
+            selection1=cv_selection1,
             accuracy=accuracy_record,
             precision=precision_record,
             recall=recall_record,
@@ -1656,7 +1664,8 @@ class PythiaStage(
         # ~= 1 regardless of the original feature scale.
         mu = np.mean(z, axis=0)
         sigma = np.std(z, ddof=1, axis=0)
-        z = stats.zscore(z, ddof=1)
+        sigma = np.where(sigma == 0, 1.0, sigma)
+        z = (z - mu) / sigma
         return (mu, sigma, z)
 
     @staticmethod
