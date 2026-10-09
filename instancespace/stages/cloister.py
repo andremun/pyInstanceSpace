@@ -47,6 +47,11 @@ from scipy.stats import pearsonr
 
 from instancespace.data.options import CloisterOptions
 from instancespace.stages.stage import Stage
+from instancespace.utils.boundary import (
+    PLANE_DIMENSIONS,
+    SPACE_DIMENSIONS,
+    boundary_faces,
+)
 
 
 class CloisterInput(NamedTuple):
@@ -80,6 +85,16 @@ class CloisterOutput(NamedTuple):
 
     z_edge: NDArray[np.double]
     z_ecorr: NDArray[np.double]
+
+    @property
+    def z_edge_faces(self) -> NDArray[np.int_]:
+        """Zero-based triangles derived from the returned 3D boundary vertices."""
+        return boundary_faces(self.z_edge)
+
+    @property
+    def z_ecorr_faces(self) -> NDArray[np.int_]:
+        """Zero-based triangles derived from the correlated boundary vertices."""
+        return boundary_faces(self.z_ecorr)
 
 
 class CloisterStage(Stage[CloisterInput, CloisterOutput]):
@@ -198,6 +213,10 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
                 f"limit of {options.max_features}. Using convex hull as boundary.",
             )
             z_all = CloisterStage._compute_convex_hull(np.dot(x, a.T), hull_dims)
+            if a.shape[0] == SPACE_DIMENSIONS and z_all.size == 0:
+                raise ValueError(
+                    "CLOISTER cannot form a 3D boundary from degenerate points",
+                )
             logger.info("[CLOISTER] " + "-" * 65)
             logger.info("[CLOISTER]   -> CLOISTER has completed.")
             return CloisterOutput(z_all, z_all)
@@ -207,6 +226,10 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
         z_edge = CloisterStage._compute_convex_hull(np.dot(x_edge, a.T), hull_dims)
 
         if z_edge.size == 0:
+            if a.shape[0] == SPACE_DIMENSIONS:
+                raise ValueError(
+                    "CLOISTER cannot form a 3D boundary from degenerate points",
+                )
             # Unlike a too-strict correlation threshold (below), an empty
             # z_edge means the boundary polygon itself couldn't be built at
             # all (degenerate points, NaN propagation, etc.) - MATLAB lets
@@ -327,8 +350,7 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
             A 2D array of points (instances x features).
         hull_dims : int | None
             Restrict the hull geometry to the first `hull_dims` columns of
-            `points` (matching MATLAB's `core/CLOISTER.m`, which always
-            builds a 2D hull on the first two projected columns). `None`
+            `points` (an explicit compatibility option for older 2D hulls). `None`
             (this port's own default) uses every column, letting
             `scipy.spatial.ConvexHull` build the hull in its native
             dimensionality. #299 audit finding, issue 5. Either way, the
@@ -342,6 +364,11 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
         """
         hull_points = points if hull_dims is None else points[:, :hull_dims]
         try:
+            if hull_points.shape[1] == SPACE_DIMENSIONS:
+                centered = hull_points - hull_points.mean(axis=0)
+                if np.linalg.matrix_rank(centered) == PLANE_DIMENSIONS:
+                    _, _, basis = np.linalg.svd(centered, full_matrices=False)
+                    hull_points = centered @ basis[:2].T
             hull = ConvexHull(hull_points)
             return points[hull.vertices, :]
         except QhullError as qe:

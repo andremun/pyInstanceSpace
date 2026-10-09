@@ -26,6 +26,7 @@ from tools.fixture_provenance import (
     RESOLVED_OPTIONS_INDEX_SCHEMA,
     RESOLVED_OPTIONS_SCHEMA,
     VERIFIED_TRUST,
+    CandidateIdentity,
     ProvenanceError,
     _fixed_reference_paths,
     _fixed_reference_paths_v1,
@@ -33,8 +34,11 @@ from tools.fixture_provenance import (
     _pilot_numerical_trial_metrics,
     _trace3d_mesh_paths,
     install_verified_bundle,
+    main,
+    prepare_promotion,
     sha256_file,
     validate_bundle,
+    validate_candidate,
     validate_inventory,
 )
 
@@ -976,6 +980,182 @@ def test_verified_v2_requires_the_gold_matlab_commit(tmp_path: Path) -> None:
 
     with pytest.raises(ProvenanceError, match="gold MATLAB commit"):
         validate_bundle(tmp_path)
+
+
+def _new_candidate(root: Path) -> tuple[dict[str, Any], CandidateIdentity]:
+    manifest = _copy_verified_bundle(root)
+    manifest["matlab"]["repo_commit"] = "f" * 40
+    manifest["generator"]["repo_commit"] = "e" * 40
+    # A fresh output can differ numerically while remaining structurally valid.
+    relative = "build_data/pythia/legacy_svm/outputs/raw_metrics.csv"
+    target = root / relative
+    contents = target.read_text()
+    target.write_text(contents.replace("0.886792452830189", "0.886792452830190", 1))
+    _refresh_entry(root, _entry_for(manifest, relative))
+    _rewrite_manifest(root, manifest)
+    return manifest, CandidateIdentity(
+        "f" * 40,
+        "e" * 40,
+        _REFERENCE_V2_EXPORTER_SHA256,
+    )
+
+
+def test_candidate_accepts_new_identity_without_approving_it(tmp_path: Path) -> None:
+    """A new source/output can pass candidate review but cannot verify/install."""
+    source = tmp_path / "candidate"
+    _, identity = _new_candidate(source)
+    report = validate_candidate(source, identity)
+    assert report.bundle.trust == "matlab-candidate"
+    assert report.content_root != _VERIFIED_V2_CONTENT_ROOT_SHA256
+    with pytest.raises(ProvenanceError, match="gold MATLAB commit"):
+        validate_bundle(source)
+    with pytest.raises(ProvenanceError, match="gold MATLAB commit"):
+        install_verified_bundle(source, tmp_path / "installed")
+    assert not (tmp_path / "installed").exists()
+
+
+@pytest.mark.parametrize(
+    ("section", "field", "value", "error"),
+    [
+        ("matlab", "repo_commit", "a" * 40, "MATLAB commit"),
+        ("generator", "repo_commit", "a" * 40, "repo_commit"),
+        ("generator", "script_sha256", "a" * 64, "exporter script hash"),
+        ("matlab", "repo_dirty", True, "clean"),
+        ("generator", "repo_dirty", True, "clean"),
+        ("matlab", "release", "R2025a", "R2026a"),
+    ],
+)
+def test_candidate_requires_requested_identity_and_environment(
+    tmp_path: Path,
+    section: str,
+    field: str,
+    value: str | bool,
+    error: str,
+) -> None:
+    manifest, identity = _new_candidate(tmp_path)
+    manifest[section][field] = value
+    _rewrite_manifest(tmp_path, manifest)
+    with pytest.raises(ProvenanceError, match=error):
+        validate_candidate(tmp_path, identity)
+
+
+@pytest.mark.parametrize("rehash", [False, True])
+def test_candidate_still_rejects_tampered_inputs(tmp_path: Path, rehash: bool) -> None:
+    manifest, identity = _new_candidate(tmp_path)
+    relative = "shared_inputs/reference/metadata.csv"
+    target = tmp_path / relative
+    target.write_text(target.read_text().replace("abalone,", "changed,", 1))
+    if rehash:
+        _refresh_entry(tmp_path, _entry_for(manifest, relative))
+    _rewrite_manifest(tmp_path, manifest)
+    with pytest.raises(ProvenanceError, match="mismatch|canonical dataset"):
+        validate_candidate(tmp_path, identity)
+
+
+def test_candidate_retains_option_validation(tmp_path: Path) -> None:
+    manifest, identity = _new_candidate(tmp_path)
+    relative = "resolved_options/trace3_default.json"
+    target = tmp_path / relative
+    options = json.loads(target.read_text())
+    del options["options"]["pythia"]
+    target.write_text(json.dumps(options))
+    _refresh_entry(tmp_path, _entry_for(manifest, relative))
+    _rewrite_manifest(tmp_path, manifest)
+    with pytest.raises(ProvenanceError, match="pythia|option"):
+        validate_candidate(tmp_path, identity)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("trust", DIAGNOSTIC_TRUST), ("profile", REFERENCE_PROFILE_V1)],
+)
+def test_candidate_cannot_use_weaker_modes(
+    tmp_path: Path,
+    field: str,
+    value: str,
+) -> None:
+    manifest, identity = _new_candidate(tmp_path)
+    manifest[field] = value
+    _rewrite_manifest(tmp_path, manifest)
+    with pytest.raises(ProvenanceError, match="Diagnostic|v2 export"):
+        validate_candidate(tmp_path, identity)
+
+
+def test_prepare_promotion_preserves_source_and_approved_pins(tmp_path: Path) -> None:
+    source = tmp_path / "candidate"
+    manifest, identity = _new_candidate(source)
+    original_manifest = (source / "manifest.json").read_bytes()
+    destination = tmp_path / "review"
+    assert prepare_promotion(source, destination, identity) == destination
+    record = json.loads((destination / "promotion.json").read_text())
+    assert record["approved"] is False
+    assert record["root"] == "bundle"
+    assert record["previous_approval"]["matlab_commit"] == _GOLD_MATLAB_COMMIT
+    assert record["matlab_commit"] == manifest["matlab"]["repo_commit"]
+    assert record["manifest_sha256"] == sha256_file(
+        destination / "bundle/manifest.json",
+    )
+    assert (source / "manifest.json").read_bytes() == original_manifest
+    assert validate_bundle(_CURRENT_FIXTURES).trust == VERIFIED_TRUST
+    with pytest.raises(ProvenanceError, match="already exists"):
+        prepare_promotion(source, destination, identity)
+    with pytest.raises(ProvenanceError, match="inside the source"):
+        prepare_promotion(source, source / "nested", identity)
+    assert not list(tmp_path.glob(".promotion-*"))
+
+
+def test_failed_promotion_does_not_publish_partial_package(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "candidate"
+    _, identity = _new_candidate(source)
+
+    def fail_copy(_source: Path, destination: Path) -> None:
+        destination.mkdir()
+        (destination / "partial").write_text("incomplete")
+        raise OSError("Simulated copy failure")
+
+    monkeypatch.setattr(shutil, "copytree", fail_copy)
+    destination = tmp_path / "review"
+    with pytest.raises(OSError, match="Simulated copy failure"):
+        prepare_promotion(source, destination, identity)
+    assert not destination.exists()
+    assert not list(tmp_path.glob(".promotion-*"))
+    assert (source / "manifest.json").is_file()
+
+
+@pytest.mark.parametrize("command", ["candidate", "prepare-promotion"])
+def test_candidate_commands_never_report_approval(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    command: str,
+) -> None:
+    source = tmp_path / "candidate"
+    _, identity = _new_candidate(source)
+    argv = ["fixture_provenance.py", command, str(source)]
+    if command == "prepare-promotion":
+        argv.append(str(tmp_path / "review"))
+    argv.extend(
+        [
+            "--matlab-commit",
+            identity.matlab_commit,
+            "--generator-commit",
+            identity.generator_commit,
+            "--exporter-script",
+            str(Path(__file__).parents[1] / _EXPORTER_SCRIPT),
+        ],
+    )
+    monkeypatch.setattr("sys.argv", argv)
+    assert main() == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["approved"] is False
+    if command == "candidate":
+        assert result["trust"] == "matlab-candidate"
+        assert result["matlab_commit"] == identity.matlab_commit
+    else:
+        assert (Path(result["review_package"]) / "promotion.json").is_file()
 
 
 def test_verified_v2_requires_the_canonical_dataset_after_rehash(

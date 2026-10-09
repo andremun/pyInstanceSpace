@@ -37,6 +37,65 @@ algorithm headers, and a versioned exporter-script hash. A gold-source, dataset,
 exporter change requires an explicit verifier-profile update and fixture regeneration.
 Diagnostic exports remain flexible and v1 remains frozen.
 
+## Candidate validation and promotion
+
+MATLAB `master` is the current implementation target. The committed oracle is an
+approved snapshot of a particular commit; release validation checks that immutable
+revision. A separate, non-blocking CI job reports when master has advanced.
+
+New exports must pass candidate validation before numerical review. Use the full
+MATLAB and Python generator commits requested for the export, and the exporter
+script from that generator checkout. Do not simply copy claimed identities from
+the candidate manifest:
+
+```bash
+python tools/fixture_provenance.py candidate /path/to/new-export \
+  --matlab-commit "$MATLAB_COMMIT" \
+  --generator-commit "$GENERATOR_COMMIT" \
+  --exporter-script /path/to/generator/tests/matlab_export/pyis_export_reference_data.m
+```
+
+The candidate must be a clean verified-mode R2026a v2 export. Validation retains
+the canonical dataset hashes, complete file set, per-file hashes, effective-option
+checks, geometry checks and PILOT lineage checks. It compares source identities
+with the requested run, rather than the old approval, and computes a new content
+root without requiring byte equality with the old bundle. Its report explicitly
+says `matlab-candidate` and `approved: false`; this does not change the export's
+manifest. Hash consistency is not a claim of scientific equivalence or independent
+authentication of the export job.
+
+Prepare an immutable review package at a **new** destination with:
+
+```bash
+python tools/fixture_provenance.py prepare-promotion /path/to/new-export \
+  /path/to/promotion-review \
+  --matlab-commit "$MATLAB_COMMIT" \
+  --generator-commit "$GENERATOR_COMMIT" \
+  --exporter-script /path/to/generator/tests/matlab_export/pyis_export_reference_data.m
+```
+
+This copies and revalidates the candidate, then publishes a directory containing
+`bundle/`, `promotion.json` (previous/proposed identities and manifest hash), and
+review instructions. It never edits approved fixtures or verifier pins. An existing
+destination is rejected. Failed preparation cleans up its staging directory.
+
+Promotion is a reviewed Git commit, not an automatic consequence of validation:
+
+1. Review numerical and semantic differences, including the stage-local tests.
+2. Replace `tests/fixtures/matlab/current` with the reviewed bundle and update
+   `_GOLD_MATLAB_COMMIT`, `_REFERENCE_V2_EXPORTER_SHA256`, and
+   `_VERIFIED_V2_CONTENT_ROOT_SHA256` in `tools/fixture_provenance.py` from the
+   review record. Include the matching exporter if it changed.
+3. Update `tests/fixture_inventory.json` if paths changed, and review affected
+   reference assertions. Schema or option-contract changes require an explicit
+   verifier-profile update, not a bypass flag.
+4. Run `verify`, `inventory`, and the parity suite; commit all changes together.
+   Do not publish a pin-only or manifest-only update.
+
+The existing `verify` and `install` commands retain their approved-identity checks.
+An unapproved new candidate remains ineligible for installation. The diagnostic
+mode is not a substitute for candidate validation.
+
 For numerical PILOT evidence, verification decodes every MATLAB-order solution column,
 recomputes its weighted reconstruction objective and topology score, and selects the
 precalculated replay from those recomputed scores rather than trusting the exported
