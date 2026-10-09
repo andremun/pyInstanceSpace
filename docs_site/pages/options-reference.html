@@ -95,6 +95,7 @@
 <tr><td><code>trace.purity</code></td><td>The minimum footprint purity. The default depends on the method: 0.55 for legacy, 0.60 for TRACE3.</td></tr>
 <tr><td><code>trace.contra</code></td><td>Controls legacy TRACE's contradiction removal.</td></tr>
 <tr><td><code>trace.min_instances</code></td><td>TRACE3's minimum number of instances to support a footprint.</td></tr>
+<tr><td><code>trace.boundary_tolerance</code></td><td>Finite nonnegative Euclidean distance in projection units; default 0 keeps exact closed-boundary membership. Positive values include a narrow band around edges/faces (including hole boundaries), without expanding geometry or its area/volume. The fitted value is persisted and reused for membership, metric counts and legacy trimming. MATLAB uses <code>trace.boundaryTolerance</code>; the JSON reader accepts that spelling too. Choose it from an explicit uncertainty budget, not an implicit epsilon multiplier.</td></tr>
 <tr><td><code>trace.min_area_frac</code></td><td>TRACE3's minimum retained area (2D) or volume (3D) fraction.</td></tr>
 </tbody>
 </table>

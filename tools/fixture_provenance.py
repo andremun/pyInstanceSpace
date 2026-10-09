@@ -1008,7 +1008,10 @@ def _validate_profile_entry(  # noqa: PLR0912
         raise ProvenanceError(f"Manifest role does not match {relative}")
 
 
-def _validate_effective_options(options: dict[str, Any], variant: str) -> None:
+def _validate_effective_options(  # noqa: PLR0912
+    options: dict[str, Any],
+    variant: str,
+) -> None:
     if set(options) != set(_OPTION_FIELDS):
         raise ProvenanceError(
             f"Resolved options for {variant!r} do not contain the exact option groups",
@@ -1016,6 +1019,8 @@ def _validate_effective_options(options: dict[str, Any], variant: str) -> None:
     for group, expected_fields in _OPTION_FIELDS.items():
         values = _expect_object(options, group)
         variant_fields = set(expected_fields)
+        if group == "trace" and "boundaryTolerance" in values:
+            variant_fields.add("boundaryTolerance")
         if group == "sifted" and "diagnostics" in values:
             variant_fields.add("diagnostics")
         if group == "pilot":
@@ -1040,6 +1045,8 @@ def _validate_effective_options(options: dict[str, Any], variant: str) -> None:
                     and not isinstance(value, bool)
                     and math.isfinite(value)
                 )
+            if group == "trace" and field == "boundaryTolerance":
+                valid = valid and value >= 0
             if not valid:
                 raise ProvenanceError(
                     f"Resolved option {variant!r}.{group}.{field} has an invalid type",
@@ -2436,7 +2443,72 @@ def _trace3d_exact_contains(
     return True
 
 
-def _trace3d_covers(mesh: _Trace3DMesh, point: list[float]) -> bool:
+def _trace3d_boundary_distance(
+    mesh: _Trace3DMesh,
+    point: list[float],
+) -> float:
+    """Independent Euclidean facet distance for explicit TRACE tolerance checks."""
+
+    def subtract(
+        a: tuple[float, float, float],
+        b: tuple[float, float, float],
+    ) -> tuple[float, float, float]:
+        return a[0] - b[0], a[1] - b[1], a[2] - b[2]
+
+    def dot(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:
+        return sum(x * y for x, y in zip(a, b, strict=True))
+
+    q = (point[0], point[1], point[2])
+    closest = math.inf
+    for face in mesh.boundary_faces:
+        a, b, c = (mesh.vertices[index] for index in face)
+        for first, second in ((a, b), (b, c), (c, a)):
+            edge = subtract(second, first)
+            denominator = dot(edge, edge)
+            fraction = (
+                max(0.0, min(1.0, dot(subtract(q, first), edge) / denominator))
+                if denominator
+                else 0.0
+            )
+            closest = min(
+                closest,
+                math.dist(
+                    q,
+                    [
+                        value + fraction * step
+                        for value, step in zip(first, edge, strict=True)
+                    ],
+                ),
+            )
+        u, v = subtract(b, a), subtract(c, a)
+        normal = _cross(u, v)
+        magnitude = math.sqrt(dot(normal, normal))
+        if not magnitude:
+            continue
+        unit = (normal[0] / magnitude, normal[1] / magnitude, normal[2] / magnitude)
+        w = subtract(q, a)
+        signed = dot(w, unit)
+        projected = (
+            w[0] - signed * unit[0],
+            w[1] - signed * unit[1],
+            w[2] - signed * unit[2],
+        )
+        first_weight = dot(_cross(projected, v), unit) / magnitude
+        second_weight = dot(_cross(u, projected), unit) / magnitude
+        if (
+            first_weight >= 0
+            and second_weight >= 0
+            and first_weight + second_weight <= 1
+        ):
+            closest = min(closest, abs(signed))
+    return closest
+
+
+def _trace3d_covers(
+    mesh: _Trace3DMesh,
+    point: list[float],
+    boundary_tolerance: float = 0.0,
+) -> bool:
     for simplex in mesh.tetrahedra:
         vertices = [mesh.vertices[index] for index in simplex]
         denominator = _tetrahedron_determinant(vertices)
@@ -2453,7 +2525,10 @@ def _trace3d_covers(mesh: _Trace3DMesh, point: list[float]) -> bool:
             point,
         ):
             return True
-    return False
+    return (
+        boundary_tolerance > 0
+        and _trace3d_boundary_distance(mesh, point) <= boundary_tolerance
+    )
 
 
 def _read_trace3d_inputs(
@@ -2624,6 +2699,7 @@ def _validate_trace3d_profile(  # noqa: PLR0912
 ) -> None:
     variant = _TRACE3_3D_VARIANT
     options = options_by_variant[variant]
+    boundary_tolerance = float(options["trace"].get("boundaryTolerance", 0.0))
     if (
         options["pilot"]["dims"] != _TRACE3_DIMENSIONS
         or options["trace"]["method"] != "trace3"
@@ -2780,7 +2856,9 @@ def _validate_trace3d_profile(  # noqa: PLR0912
             raise ProvenanceError("TRACE3 boundary-face count mismatch")
         if int(_metric_float(metric, "alpha_spectrum_count")) != len(mesh.spectrum):
             raise ProvenanceError("TRACE3 alpha-spectrum count mismatch")
-        membership = [_trace3d_covers(mesh, point) for point in build_z]
+        membership = [
+            _trace3d_covers(mesh, point, boundary_tolerance) for point in build_z
+        ]
         elements = sum(membership)
         good_elements = sum(
             inside and good for inside, good in zip(membership, truth, strict=True)
@@ -2901,7 +2979,9 @@ def _validate_trace3d_profile(  # noqa: PLR0912
             ),
         ):
             mesh = meshes[(kind, label)]
-            expected_membership = [_trace3d_covers(mesh, point) for point in explore_z]
+            expected_membership = [
+                _trace3d_covers(mesh, point, boundary_tolerance) for point in explore_z
+            ]
             try:
                 actual_membership = [float(row[column + 1]) for row in membership_rows]
             except ValueError as error:

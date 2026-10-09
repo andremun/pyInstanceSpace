@@ -107,3 +107,38 @@ Local evidence lives under `.cache/matlab-review-2026-10-09/trace-investigation/
 `compare.py`, `changed-memberships.csv`, `geometry-comparison.csv`, `summary.json`,
 the MATLAB replay/instrumentation scripts, saved native footprints and replay
 membership CSVs. The investigation logs are copied alongside these files.
+
+## Agreed boundary policy implementation
+
+Following review, the user selected an **explicit Euclidean distance tolerance,
+with default zero**. The provisional epsilon-multiplier approach was discarded;
+there is no automatic `64 * eps` policy in either implementation.
+
+MATLAB PR #66 adds `opts.trace.boundaryTolerance`; Python PR #348 adds
+`TraceOptions.boundary_tolerance` and accepts MATLAB's camel-case JSON spelling.
+Both use the distance in projection-coordinate units, keep exact closed-boundary
+semantics at zero, and include near-edge/near-face points only when the caller
+supplies a positive distance. Hole interiors outside that distance stay excluded.
+Geometry and area/volume are not buffered. The fitted value is persisted and
+reused by prediction/rescoring, construction metrics and legacy trimming counts.
+Older models without the field use zero. Query batches cannot scale the tolerance.
+
+The implementations share an identical hand-labelled JSON contract covering holes,
+faces, edges, corners, explicit distances, scaling/translation and singleton/batch
+queries. Additional tests cover empty/disconnected geometry, invalid options,
+persistence and the independent fixture validator. Python's full suite passed
+1,119 tests; the final expanded boundary-focused suite passed 13 tests. Strict
+mypy passed 92 files. MATLAB boundary/state/options/stage/compatibility regressions
+passed, and an Octave 2D/3D compatibility smoke test passed. Both documentation
+builds passed. A complete diagnostic export against the updated INIT branch
+completed, with the approved fixture bundle untouched.
+
+The exporter uses the fitted tolerance for membership, and writes 2D TRACE
+coordinates/rings at full double precision. The validator honours a declared
+3D tolerance independently; historical option records without it retain zero.
+
+The legacy replay at zero preserves the previously observed area differences.
+An explicitly supplied diagnostic tolerance of `1e-12` also leaves those larger
+area differences in this case. This option establishes consistent semantics;
+it is not a universal cure for discontinuous legacy trimming, and no positive
+default or automatic fixture promotion is implied.
