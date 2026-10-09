@@ -134,11 +134,18 @@ V2 adds five stage-level PILOT variants:
 - shifted-input MATLAB SIMPLS in 2D; and
 - the same shifted-input SIMPLS in 3D with uneven grouped viewpoints.
 
-The PLS shift makes MATLAB's internal centring observable. Each PILOT variant records
-that it reuses the default 2D SIFTED snapshot; it proves the PILOT/viewpoint and public
-explore projection paths on fixed inputs, not a separate end-to-end SIFTED-3D run.
-Coordinate columns are emitted as `z_1` through `z_d`. Explore keeps MATLAB's public
-uncentred `Z=X*A'` inference behavior, including for PLS.
+The PLS shift makes MATLAB's internal centring observable. The current exporter
+rebuilds SIFTED for each variant's PILOT dimensions using the public stage API.
+Stage-context v2 records that rebuild, the dimensions and the fitted feature mean;
+exploration reconstructs `Z=(X-Xmean)*A'`. The canonical dataset must still yield
+the same selected inputs across variants, checked by the validator, so the PLS
+2D/3D component comparison remains meaningful. Coordinate columns are emitted as
+`z_1` through `z_d`.
+
+The approved bundle retains its historical stage-context v1 (retained 2D SIFTED,
+uncentred exploration). Its source/hash pins are unchanged. The validator accepts
+both explicit context versions; new exports remain candidates until numerical
+review and promotion.
 
 The already-built `pilot_standard_analytic_3d` model also supplies the TRACE3 build
 and explore evidence. It does not add a duplicate resolved-options variant. Every

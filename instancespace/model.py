@@ -6,7 +6,8 @@ import hashlib
 import hmac
 import re
 import zipfile
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field, fields, replace
 from pathlib import Path, PurePosixPath
 from typing import Any, TypeVar
 
@@ -66,6 +67,45 @@ def _validate_archive_name(zip_filename: str) -> None:
         raise ValueError("zip_filename must be one safe filename without a path.")
 
 
+def _effective_options(
+    output: dict[str, Any],
+    defaults: InstanceSpaceOptions,
+) -> InstanceSpaceOptions:
+    """Recover actual stage settings; old payloads keep constructor defaults."""
+    history = output.get("_stage_options", {})
+    used: dict[str, Any] = {}
+    for stage in history.values():
+        used.update(stage)
+    overrides = {
+        item.name: used[item.name + "_options"]
+        for item in fields(defaults)
+        if item.name != "prelim" and item.name + "_options" in used
+    }
+    prelim = history.get("PrelimStage", {}).get("prelim_options")
+    if prelim is not None:
+        overrides.update(
+            perf=replace(
+                defaults.perf,
+                max_perf=prelim.max_perf,
+                abs_perf=prelim.abs_perf,
+                epsilon=prelim.epsilon,
+                beta_threshold=prelim.beta_threshold,
+            ),
+            auto=replace(defaults.auto, preproc=prelim.preproc),
+            bound=replace(defaults.bound, flag=prelim.bound),
+            norm=replace(defaults.norm, flag=prelim.norm),
+            prelim=replace(
+                defaults.prelim,
+                iqr_multiplier=prelim.iqr_multiplier,
+                nan_threshold=prelim.nan_threshold,
+            ),
+        )
+        # Evaluation tie handling follows the training PRELIM seed.
+        if "general_options" in history["PrelimStage"]:
+            overrides["general"] = history["PrelimStage"]["general_options"]
+    return replace(defaults, **overrides)
+
+
 @dataclass(frozen=True)
 class Model:
     """The output of running InstanceSpace."""
@@ -80,6 +120,7 @@ class Model:
     pythia: PythiaOut
     trace: TraceOut
     opts: InstanceSpaceOptions
+    stage_options: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     T = TypeVar("T", bound="Model")
 
@@ -117,7 +158,8 @@ class Model:
             cloister=CloisterOut.from_stage_runner_output(stage_runner_output),
             pythia=PythiaOut.from_stage_runner_output(stage_runner_output),
             trace=TraceOut.from_stage_runner_output(stage_runner_output),
-            opts=options,
+            opts=_effective_options(stage_runner_output, options),
+            stage_options=deepcopy(stage_runner_output.get("_stage_options", {})),
         )
 
     def save(self, path: Path | str, secret_key: bytes | None = None) -> None:

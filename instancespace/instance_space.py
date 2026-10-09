@@ -1010,14 +1010,16 @@ class InstanceSpace:
 
     def _explore_prelim(self, x: NDArray[np.double]) -> NDArray[np.double]:
         """Compatibility wrapper for :meth:`PrelimStage.predict`."""
+        model = self._require_model()
+        options = model.opts
         return PrelimStage.predict(
             PrelimPredictInput(
                 x,
-                self._options.auto.preproc,
-                self._options.bound.flag,
-                self._options.norm.flag,
+                options.auto.preproc,
+                options.bound.flag,
+                options.norm.flag,
             ),
-            self._require_model().prelim,
+            model.prelim,
         )
 
     def _explore_sifted(self, x: NDArray[np.double]) -> NDArray[np.double]:
@@ -1224,8 +1226,8 @@ class InstanceSpace:
 
         perf = compute_binary_performance(
             y_raw_test,
-            self._options.perf,
-            self._options.general,
+            model.opts.perf,
+            model.opts.general,
             log_prefix="EXPLORE",
         )
 

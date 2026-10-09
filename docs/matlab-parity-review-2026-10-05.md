@@ -217,8 +217,12 @@ Source inspection also confirms that Python already selects the algorithm
 portfolio before missing-value row filtering, and its prediction path has no test
 performance input. Existing SIFTED tests cover replay order; checkpoint tests cover
 partial persistence and resumption. These are evidence to examine, not new fixes.
-Stage-option provenance remains under review: runner overrides are persisted but
-model construction and exploration still consult the original aggregate options.
+Stage-option provenance now records the option inputs consumed by each completed
+stage. Model construction reconstructs effective options, including the aggregate
+PRELIM flags and performance settings; preprocessing and evaluation during
+exploration use these fitted settings. Records survive model/checkpoint persistence
+and roll back when their stages are invalidated. Legacy payloads without stage
+records retain their constructor defaults.
 The wider audit and complete-export reproducibility/promotion step are not yet
 complete. No full fixture bundle or dependency version has been changed.
 

@@ -923,11 +923,10 @@ def test_verified_bundle_passes_full_integrity_check(tmp_path: Path) -> None:
     assert report.total_bytes > 0
 
 
-def test_reference_v2_exporter_identity_matches_checked_in_script() -> None:
-    """Force exporter changes to update the pinned v2 identity explicitly."""
-    exporter = Path(__file__).parents[1] / _EXPORTER_SCRIPT
-
-    assert sha256_file(exporter) == _REFERENCE_V2_EXPORTER_SHA256
+def test_reference_v2_exporter_identity_matches_approved_manifest() -> None:
+    """Candidate exporter development must not move the approved source pin."""
+    manifest = json.loads((_CURRENT_FIXTURES / "manifest.json").read_text())
+    assert manifest["generator"]["script_sha256"] == _REFERENCE_V2_EXPORTER_SHA256
 
 
 def test_verified_v2_content_root_matches_installed_oracle() -> None:
@@ -986,6 +985,8 @@ def _new_candidate(root: Path) -> tuple[dict[str, Any], CandidateIdentity]:
     manifest = _copy_verified_bundle(root)
     manifest["matlab"]["repo_commit"] = "f" * 40
     manifest["generator"]["repo_commit"] = "e" * 40
+    exporter_hash = sha256_file(Path(__file__).parents[1] / _EXPORTER_SCRIPT)
+    manifest["generator"]["script_sha256"] = exporter_hash
     # A fresh output can differ numerically while remaining structurally valid.
     relative = "build_data/pythia/legacy_svm/outputs/raw_metrics.csv"
     target = root / relative
@@ -996,7 +997,7 @@ def _new_candidate(root: Path) -> tuple[dict[str, Any], CandidateIdentity]:
     return manifest, CandidateIdentity(
         "f" * 40,
         "e" * 40,
-        _REFERENCE_V2_EXPORTER_SHA256,
+        exporter_hash,
     )
 
 
@@ -1945,3 +1946,59 @@ def test_inventory_rejects_an_unclassified_file(tmp_path: Path) -> None:
 
     with pytest.raises(ProvenanceError, match="at least one"):
         validate_inventory(tmp_path, inventory_path)
+
+
+@pytest.mark.parametrize(
+    "mutation", [None, "mean", "projection", "dimensions", "rebuild"],
+)
+def test_current_pilot_context_requires_fitted_centering_and_rebuilt_sifted(
+    tmp_path: Path,
+    mutation: str | None,
+) -> None:
+    """Validate current-stage lineage and reject internally rehashed false claims."""
+    manifest = _write_bundle(tmp_path)
+    for variant in _VARIANTS[3:]:
+        inputs = tmp_path / "build_data" / "pilot" / variant / "inputs"
+        context_path = inputs / "stage_context.json"
+        context = json.loads(context_path.read_text())
+        _, rows = _read_csv_for_mutation(inputs / "x.csv")
+        x = np.array([row[1:] for row in rows], dtype=float)
+        is_pls = variant.startswith("pilot_pls_")
+        mean = x.mean(axis=0) if is_pls else np.zeros(x.shape[1])
+        context.update(
+            schema_version="pyinstancespace.pilot-evidence-context/v2",
+            sifted_effective_pilot_dims=2 if variant == "pilot_pls_2d" else 3,
+            sifted_rebuilt=True,
+            x_mean=mean.tolist(),
+            explore_projection="InstanceSpace.explore: Z=(X-Xmean)*A' (fitted mean)",
+        )
+        explore = tmp_path / "explore_data" / "pilot" / variant
+        _, query_rows = _read_csv_for_mutation(explore / "inputs/x.csv")
+        _, a_rows = _read_csv_for_mutation(explore / "inputs/projection_a.csv")
+        query = np.array([row[1:] for row in query_rows], dtype=float)
+        a = np.array([row[1:] for row in a_rows], dtype=float)
+        z = (query - mean) @ a.T
+        target = explore / "outputs/pilot_z.csv"
+        header, old_rows = _read_csv_for_mutation(target)
+        if variant == "pilot_pls_2d":
+            if mutation == "mean":
+                context["x_mean"][0] += 1
+            elif mutation == "projection":
+                z = query @ a.T
+            elif mutation == "dimensions":
+                context["sifted_effective_pilot_dims"] = 3
+            elif mutation == "rebuild":
+                context["sifted_rebuilt"] = False
+        _write_csv(target, header, [[old[0], *row] for old, row in zip(old_rows, z)])
+        context_path.write_text(json.dumps(context))
+        for changed in (context_path, target):
+            _refresh_entry(
+                tmp_path,
+                _entry_for(manifest, changed.relative_to(tmp_path).as_posix()),
+            )
+    _rewrite_manifest(tmp_path, manifest)
+    if mutation is None:
+        validate_bundle(tmp_path, allow_diagnostic=True)
+    else:
+        with pytest.raises(ProvenanceError, match="PILOT"):
+            validate_bundle(tmp_path, allow_diagnostic=True)

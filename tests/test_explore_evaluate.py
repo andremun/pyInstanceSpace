@@ -64,6 +64,7 @@ def _make_space(algo_labels: list[str]) -> InstanceSpace:
     model.pythia = _fitted_with_slots([Mock() for _ in algo_labels])
     space._model = model
     space._options = InstanceSpaceOptions.default(*([None] * 12))
+    model.opts = space._options
     space._require_model = Mock(return_value=model)  # type: ignore[method-assign]
     return space
 
@@ -399,6 +400,12 @@ def test_explore_evaluate_masks_partial_and_wholly_missing_rows() -> None:
     space._options = replace(
         space._options,
         perf=PerformanceOptions.default(max_perf=False, abs_perf=True, epsilon=1.0),
+    )
+    cast(Mock, space._require_model()).opts = space._options
+    # Constructor settings may differ from the options used to fit the model.
+    space._options = replace(
+        space._options,
+        perf=PerformanceOptions.default(max_perf=False, abs_perf=True, epsilon=100.0),
     )
     metadata = _make_metadata(
         ["alg2", "alg1"],
