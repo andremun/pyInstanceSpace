@@ -234,3 +234,59 @@ claimed resolved.
 Validation of this first step-6 patch: the full suite passed all 1,097 tests,
 strict mypy passed 90 files, Ruff passed, and whitespace checks passed. This is
 additional tested work on the draft, not completion of steps 6–7.
+
+## Stage provenance and repeated full exports (9 October 2026)
+
+The fitted-option regression is fixed: preprocessing and evaluation during explore
+now use `Model.opts`, reconstructed from the option inputs consumed by completed
+stages. `Model.stage_options` retains those records through persistence. Checkpoint
+rollback removes invalidated records. Tests exercise different constructor/fitted
+settings, persistence and rollback. The full suite passed 1,104 tests after this
+change and the exporter/context changes below. Three additional tests cover the
+new MATLAB `sifted.diagnostics` Boolean option (including invalid-type rejection).
+
+The unchanged exporter initially failed against current MATLAB because its 3D
+PILOT cases retained SIFTED fitted under 2D options. The exporter now rebuilds SIFTED
+through the public API for each variant. The canonical dataset still selects the
+same inputs, which the validator checks. Stage-context v2 records the rebuild,
+actual dimensions and fitted feature mean, and checks centred PLS exploration.
+Historical context v1 remains supported for the existing approved bundle. The
+approved exporter hash is tied to that bundle's manifest, rather than requiring
+future candidate generators to keep the old source bytes.
+
+Two preliminary diagnostic runs were followed by two clean verified-mode exports:
+
+- MATLAB master: `929acfd889e7a17c7ee40c4004ad1bc18639b0e6`.
+- Published generator: `9bdc37aabfafa31041256813b1045e282007d799`.
+- Exporter SHA-256: `e9b5887538aa1eec7757918474e6a1641995315e290bd3a8fe8a04c7161e5e8b`.
+- MATLAB: `26.1.0.3346908 (R2026a) Update 5`, GLNXA64, one computation
+  thread, parallel execution disabled, seed 42.
+- Both exports pass candidate validation. All 423 artifact files are byte-identical
+  between runs. Manifest differences are the timestamp and MATLAB adding the
+  now-loaded Instance Space Analysis Toolkit to its `ver` listing on the second
+  pass in the same process. No artifact divergence was found.
+- Shared artifact content root:
+  `c18c467c55ce46b19785503c4d88ce8acf64e94542de02e8da5fa8c177acd27d`.
+
+The local review package is `.cache/matlab-review-2026-10-09/promotion/`, with the
+repeat export, driver, runtime log, reproducibility record and changed-path report
+beside it. These are local candidate evidence, excluded from Git; source changes
+and this report are in PR #348. No approved fixture, inventory or numerical
+tolerance has been changed.
+
+Compared with the approved bundle, 218 of 423 artifact hashes differ, with no
+added or missing paths. The earliest observed numerical differences are PRELIM
+`y_best` values (14 cells, maximum absolute difference `2.22e-16`), followed by
+SIFTED correlation outputs (maximum `1.03e-15`). Downstream differences include
+changed legacy SVM training selections (two cells each in `selection0/1`) and
+TRACE explore membership changes: 73 legacy SVM cells, 172 standard-analytic 3D
+cells, 44 default TRACE3 cells and 198 skip-PYTHIA TRACE3 cells. These are
+cross-revision/environment comparisons, not evidence of repeat-run instability
+or proof of a particular causal chain.
+
+Step 7's controlled repeatability experiment is complete for this pinned local
+runtime. Numerical/semantic review against Python and the previous oracle remains
+before fixture promotion and closing #347. The wider audit is not claimed
+exhaustive; Bayesian-search comparison (#304), cross-platform legacy tolerance
+(#341), dependency upgrades and repository-history changes remain outside these
+completed checks.

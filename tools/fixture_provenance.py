@@ -221,6 +221,7 @@ _BOOL_OPTION_FIELDS: Final = {
     ("selvars", "fileidxflag"),
     ("selvars", "densityflag"),
     ("sifted", "flag"),
+    ("sifted", "diagnostics"),
     ("pilot", "analytic"),
     ("pilot", "verbose"),
     ("pythia", "flag"),
@@ -1015,6 +1016,8 @@ def _validate_effective_options(options: dict[str, Any], variant: str) -> None:
     for group, expected_fields in _OPTION_FIELDS.items():
         values = _expect_object(options, group)
         variant_fields = set(expected_fields)
+        if group == "sifted" and "diagnostics" in values:
+            variant_fields.add("diagnostics")
         if group == "pilot":
             variant_fields.update(_PILOT_OPTIONAL_FIELDS.get(variant, set()))
         if set(values) != variant_fields:
