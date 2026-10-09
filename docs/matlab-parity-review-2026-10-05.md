@@ -290,3 +290,10 @@ before fixture promotion and closing #347. The wider audit is not claimed
 exhaustive; Bayesian-search comparison (#304), cross-platform legacy tolerance
 (#341), dependency upgrades and repository-history changes remain outside these
 completed checks.
+
+The subsequent [TRACE investigation](trace-fixture-investigation-2026-10-09.md)
+classifies 466 of 487 membership changes as numerical boundary cases. The other
+21 legacy changes are reproduced by changing only the frozen projection under
+one runtime: contradiction-removal decisions amplify the small coordinate
+changes. This narrows the remaining review to explicit boundary semantics and
+legacy trimming stability; it does not promote the candidate.
