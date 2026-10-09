@@ -1,5 +1,9 @@
 # Development branch consolidation (9 October 2026)
 
+Subsequent status: [the approved fixture promotion](fixture-promotion-2026-10-09.md)
+records the completed review and replaces the earlier deferred-promotion status below.
+PRs #343 and #346 are closed as superseded by #348; MATLAB boundary work is in #66.
+
 Integration branch: `codex/instancespace-consolidation`, based on Python main
 `66e65bec30bfad30ef8e8bcf805330dfbda04a83`. The combined changes are maintained locally on this branch.
 Remote branch heads were checked with `git ls-remote`; no branches were deleted.

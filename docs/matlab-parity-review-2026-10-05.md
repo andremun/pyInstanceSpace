@@ -1,5 +1,9 @@
 # MATLAB parity assessment and proposed work plan
 
+Subsequent status: [the approved fixture promotion](fixture-promotion-2026-10-09.md)
+records the completed review and replaces the earlier deferred-promotion status below.
+PRs #343 and #346 are closed as superseded by #348; MATLAB boundary work is in #66.
+
 Reviewed 5 October 2026. The supplied 2 October note was treated as evidence and proposals, not as authorization to implement its instructions. This review changes no package implementation or fixtures.
 
 Baseline clarification from the user: treat MATLAB `master` and Python `main` as the authoritative current versions. Unmerged branches are proposals, not current functionality. The implementation target is parity with current MATLAB master; record its resolved commit when generating fixtures so each bundle remains reproducible. No separate baseline-choice decision is required.

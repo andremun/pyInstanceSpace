@@ -1,4 +1,4 @@
-Row,Avg_Perf_all_instances,Std_Perf_all_instances,Probability_of_good,Avg_Perf_selected_instances,Std_Perf_selected_instances,CV_model_accuracy,CV_model_precision,CV_model_recall
+Row,Avg_Perf_all_instances,Std_Perf_all_instances,Probability_of_good,Avg_Perf_selected_instances,Std_Perf_selected_instances,Test_model_accuracy,Test_model_precision,Test_model_recall
 NB,0.173,0.13,0.119,,,88.1,,0
 LDA,0.205,0.206,0.128,,,87.2,,0
 QDA,0.379,0.279,0.021,,,97.9,,0
@@ -10,4 +10,4 @@ poly_SVM,0.195,0.145,0.077,,,92.3,,0
 RBF_SVM,0.133,0.127,0.196,0.281,0.015,81.3,75,6.5
 RandF,0.154,0.196,0.434,0.136,0.184,65.1,64.7,43.1
 Oracle,0.093,0.098,1,,,,,
-Selector,0.145,0.184,0.472,0.097,0.148,,64.6,24
+Selector,0.145,0.184,0.472,0.097,0.148,,64.6,26.4
