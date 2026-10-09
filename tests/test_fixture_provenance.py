@@ -1949,7 +1949,8 @@ def test_inventory_rejects_an_unclassified_file(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "mutation", [None, "mean", "projection", "dimensions", "rebuild"],
+    "mutation",
+    [None, "mean", "projection", "dimensions", "rebuild"],
 )
 def test_current_pilot_context_requires_fitted_centering_and_rebuilt_sifted(
     tmp_path: Path,
@@ -2001,4 +2002,26 @@ def test_current_pilot_context_requires_fitted_centering_and_rebuilt_sifted(
         validate_bundle(tmp_path, allow_diagnostic=True)
     else:
         with pytest.raises(ProvenanceError, match="PILOT"):
+            validate_bundle(tmp_path, allow_diagnostic=True)
+
+
+@pytest.mark.parametrize("diagnostics", [True, False, "true"])
+def test_sifted_diagnostics_option_requires_boolean(
+    tmp_path: Path,
+    diagnostics: bool | str,
+) -> None:
+    """Support the additive current MATLAB option without accepting loose types."""
+    manifest = _write_bundle(tmp_path)
+    for variant in _VARIANTS:
+        relative = f"resolved_options/{variant}.json"
+        target = tmp_path / relative
+        record = json.loads(target.read_text())
+        record["options"]["sifted"]["diagnostics"] = diagnostics
+        target.write_text(json.dumps(record))
+        _refresh_entry(tmp_path, _entry_for(manifest, relative))
+    _rewrite_manifest(tmp_path, manifest)
+    if isinstance(diagnostics, bool):
+        validate_bundle(tmp_path, allow_diagnostic=True)
+    else:
+        with pytest.raises(ProvenanceError, match="sifted.diagnostics.*invalid type"):
             validate_bundle(tmp_path, allow_diagnostic=True)
