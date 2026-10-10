@@ -1645,20 +1645,24 @@ files = [
 
 [[package]]
 name = "pygad"
-version = "3.3.1"
+version = "3.7.0"
 description = "PyGAD: A Python Library for Building the Genetic Algorithm and Training Machine Learning Algoithms (Keras & PyTorch)."
 optional = false
-python-versions = "*"
+python-versions = ">=3"
 groups = ["main"]
 files = [
-    {file = "pygad-3.3.1-py3-none-any.whl", hash = "sha256:b95ac726fa87ebd32399ee25c754e8aa85c3b3b5bf015265b5619f619bebb1f1"},
-    {file = "pygad-3.3.1.tar.gz", hash = "sha256:4291c4e23912684653ed38331f86bd4611715d6068cfaa3363d9039f2fb79259"},
+    {file = "pygad-3.7.0-py3-none-any.whl", hash = "sha256:e881dbdfd9110a20ba26b4a83de94207993ea253f1b41013719a4394e74a9084"},
+    {file = "pygad-3.7.0.tar.gz", hash = "sha256:9858226f1b1482ab845b3129152fe9ca4457a7bcae5804717647beacd00b734c"},
 ]
 
 [package.dependencies]
 cloudpickle = "*"
-matplotlib = "*"
 numpy = "*"
+
+[package.extras]
+deep-learning = ["keras", "tensorflow", "torch"]
+report = ["matplotlib", "reportlab"]
+visualize = ["matplotlib"]
 
 [[package]]
 name = "pygments"
@@ -2384,4 +2388,4 @@ dev = ["black (>=19.3b0) ; python_version >= \"3.6\"", "pytest (>=4.6.2)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.13"
-content-hash = "521edaa90d779cb7567d125919853d7aae64ec0a9ffd879c38c987ae45bad927"
+content-hash = "3c06905e2e00a4ca19bbf99f32d983913919ec9f5716a48d1bf8a44446aebaf1"
