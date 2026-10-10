@@ -3,10 +3,11 @@
 
 Unit tests exercise ``PilotStage.predict()`` with mocked/stubbed dependencies,
 independent of MATLAB reference data. PILOT inference is the dimension-generic linear
-projection ``z = x @ A.T`` used by MATLAB explore, including its deliberate lack of
-the centering used by the PLS build projection.
+projection for older models without stored centering. New PLS models reuse their
+fitted training mean (covered in test_pilot_fitted_centering.py).
 """
 
+import json
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import Mock
@@ -46,6 +47,7 @@ def _predict_pilot(
 def make_instance_space(a: NDArray[np.double]) -> InstanceSpace:
     pilot = Mock(spec=PilotOut)
     pilot.a = a
+    pilot.x_mean = None
     model = Mock()
     model.pilot = pilot
     instance_space = Mock(spec=InstanceSpace)
@@ -70,8 +72,8 @@ def test_pilot_correct_projection() -> None:
     np.testing.assert_array_almost_equal(result, expected)
 
 
-def test_pilot_3d_projection_preserves_matlab_explore_centering_asymmetry() -> None:
-    """Explore uses exact uncentred X @ A.T even when a PLS build was centred."""
+def test_pilot_3d_legacy_model_preserves_uncentred_projection() -> None:
+    """Older models without a fitted mean retain their uncentred projection."""
     a = np.array(
         [
             [1.0, 0.0, 0.0, 0.5],
@@ -165,7 +167,7 @@ def test_pilot_predict_matches_current_matlab_oracle(
     variant: str,
     verified_current_matlab_bundle: Path,
 ) -> None:
-    """Replay R2026a's uncentred 2D/3D explore projection directly."""
+    """Replay R2026a's fitted-mean 2D/3D explore projection directly."""
     root = verified_current_matlab_bundle / "explore_data" / "pilot" / variant
     x = pd.read_csv(
         root / "inputs" / "x.csv",
@@ -180,9 +182,21 @@ def test_pilot_predict_matches_current_matlab_oracle(
         float_precision="round_trip",
     ).iloc[:, 1:]
 
+    context = json.loads(
+        (
+            verified_current_matlab_bundle
+            / "build_data"
+            / "pilot"
+            / variant
+            / "inputs"
+            / "stage_context.json"
+        ).read_text(encoding="utf-8"),
+    )
+    fitted_mean = context.get("x_mean")
+    x_mean = np.asarray(fitted_mean, dtype=np.double) if fitted_mean else None
     actual = PilotStage.predict(
         PilotPredictInput(x.to_numpy(dtype=np.double)),
-        cast(PilotOut, Mock(a=a.to_numpy(dtype=np.double))),
+        cast(PilotOut, Mock(a=a.to_numpy(dtype=np.double), x_mean=x_mean)),
     )
 
     np.testing.assert_allclose(
@@ -199,6 +213,7 @@ def load_pilot_matrix() -> Mock:
 
     pilot = Mock(spec=PilotOut)
     pilot.a = a
+    pilot.x_mean = None
     model = Mock()
     model.pilot = pilot
     return model

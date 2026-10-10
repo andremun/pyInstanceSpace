@@ -477,3 +477,24 @@ def test_getstate_strips_executor_from_aliased_final_output() -> None:
     finally:
         executor.shutdown(wait=True)
         space.close()
+
+
+def test_checkpoint_records_effective_options_and_rollback(
+    two_stage_instance_space: InstanceSpace,
+    tmp_path: Path,
+) -> None:
+    """Stage histories survive resume and lose invalidated downstream entries."""
+    from instancespace.data.options import PrelimOptions
+
+    space = two_stage_instance_space
+    override = PrelimOptions.default(preproc=False, norm=False, bound=False)
+    space.run_stage(PrelimStage, prelim_options=override)
+    history = space._runner._available_arguments["_stage_options"]
+    assert history["PrelimStage"]["prelim_options"] == override
+    path = tmp_path / "stage-options.joblib"
+    space.save(path)
+    restored = InstanceSpace.load(path)
+    assert restored._runner._available_arguments["_stage_options"] == history
+    restored.run_stage(PreprocessingStage)
+    assert "PrelimStage" not in restored._runner._available_arguments["_stage_options"]
+    assert "PrelimStage" in history
