@@ -1,8 +1,20 @@
 {
-  "schema_version": "pyinstancespace.pilot-evidence-context/v1",
+  "schema_version": "pyinstancespace.pilot-evidence-context/v2",
   "scope": "pilot-stage",
   "upstream_snapshot": "build_data/pilot/default/inputs",
   "sifted_effective_pilot_dims": 2,
+  "sifted_rebuilt": true,
+  "x_mean": [
+    0.24999999999999969,
+    0.50000000000000022,
+    0.74999999999999978,
+    1.0000000000000002,
+    1.25,
+    1.5000000000000004,
+    1.7499999999999998,
+    2,
+    2.2499999999999996
+  ],
   "input_transform": "deterministic-column-shift",
   "feature_shift": [
     0.25,
@@ -27,5 +39,5 @@
     3.6,
     4
   ],
-  "explore_projection": "InstanceSpace.explore: Z=X*A' (uncentred)"
+  "explore_projection": "InstanceSpace.explore: Z=(X-Xmean)*A' (fitted mean)"
 }
