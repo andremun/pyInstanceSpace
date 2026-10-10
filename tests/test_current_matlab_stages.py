@@ -402,11 +402,11 @@ def test_current_bundle_is_verified_r2026a_source() -> None:
 
     assert manifest["schema_version"] == "pyinstancespace.matlab-fixtures/v1"
     assert manifest["trust"] == "matlab-verified"
-    assert matlab["repo_commit"] == "98a01ac0513c0dd0f8a9bd91ed2926c871334d7b"
+    assert matlab["repo_commit"] == "2e2cf7565aee8e60190e788c959405d44c4317f3"
     assert matlab["repo_dirty"] is False
     assert matlab["release"] == "R2026a"
-    assert matlab["platform"] == "MACA64"
-    assert generator["repo_commit"] == "4816b8cf23ad9392e7a7f5aa85bfbc32080dfe84"
+    assert matlab["platform"] == "GLNXA64"
+    assert generator["repo_commit"] == "ab72f6bc5c602e0cb03a65041a4677037282e92c"
     assert generator["repo_dirty"] is False
     assert _RESOLVED_DOCUMENT["schema_version"] == (
         "pyinstancespace.resolved-options/v1"
@@ -640,7 +640,9 @@ def test_current_matlab_pilot_precalculated_solution_oracle() -> None:
     )
     assert float(output.error) == pytest.approx(
         _vector(outputs / "pilot_error.csv")[0],
-        abs=3e-12,
+        # writetable emits 15 significant digits: at this magnitude the
+        # serialization half-unit is 5e-12, in addition to arithmetic error.
+        abs=3e-12 + 5e-12,
     )
     np.testing.assert_allclose(
         output.r2,
@@ -943,23 +945,14 @@ def test_current_matlab_pythia_skip_oracle() -> None:
         PythiaEvaluateInput(
             _matrix(explore_inputs / "y_bin.csv").astype(np.bool_),
             predicted.y_hat,
+            ~np.isnan(_matrix(explore_inputs / "y_raw.csv")),
         ),
         fitted,
     )
-    summary = pd.read_csv(
-        explore_outputs / "eval_summary.csv",
-        float_precision="round_trip",
-    ).iloc[: len(labels)]
-    for actual, column in (
-        (evaluated.accuracy, "CV_model_accuracy"),
-        (evaluated.precision, "CV_model_precision"),
-        (evaluated.recall, "CV_model_recall"),
-    ):
-        np.testing.assert_allclose(
-            actual,
-            summary[column].to_numpy(dtype=np.double),
-            rtol=0,
-            atol=0,
-            equal_nan=True,
-        )
-    np.testing.assert_array_equal(evaluated.cvcmat, 0)
+    # The pinned v0.9.1 fixture predates observed-only evaluation. Its skip-mode
+    # summary reports zero accuracy for missing classifiers. Current MATLAB
+    # master leaves these slots unscored; retain the historical fixture intact.
+    assert np.isnan(evaluated.accuracy).all()
+    assert np.isnan(evaluated.precision).all()
+    assert np.isnan(evaluated.recall).all()
+    assert np.isnan(evaluated.cvcmat).all()

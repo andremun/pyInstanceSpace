@@ -768,7 +768,16 @@ drift" benefit for much less architectural risk, and the fuller redesign remains
 if the lighter version proves insufficient in practice.
 
 ### F9 — Expand `explore()` to full evaluation scope
-**Implemented and verified (v1.66) — see roadmap's F9 row for the full summary.** All 7
+**Implemented and verified (v1.66) — see roadmap's F9 row for the full summary.**
+**Correction (v1.76/v1.77, #345):** step 3's original "not evaluated" framing (and the
+data-level NaN-padding it describes) turned out to only cover a whole algorithm column
+absent from the test set; the first implementation still scored a trained algorithm
+against a reconciled all-false truth column when the *raw* reconciliation left NaN in
+`Y` (mirroring a real MATLAB defect at the time, `andremun/InstanceSpace#58`). Both
+sides are now fixed: `_build_test_algo_matrix` returns a per-instance `observed` mask
+(`~isnan(y_raw_test[:, :n_trained])`), and `PythiaStage.evaluate` scores only observed
+(instance, algorithm) pairs, matching MATLAB's own `observed = ~isnan(Y(:,ii))` fix.
+All 7
 pathway steps below landed as scoped: `compute_binary_performance` extracted to `prelim.py`
 (step 2, also serving F8's PYTHIA-adjacent de-duplication goal as intended), case-insensitive
 algorithm reconciliation via `InstanceSpace._build_test_algo_matrix` (step 3, NaN-padding a
@@ -832,7 +841,9 @@ computation, not just label prediction)
    goal, not just F9's.
 3. **Algorithm reconciliation:** match `test_metadata.algorithm_names` against the trained
    model's algorithm names, case-insensitively (mirrors MATLAB's `strcmpi`). Algorithms in
-   training but absent from the test set: simply not evaluated. Algorithms in the test set
+   training but absent from the test set: simply not evaluated (per-instance, not just
+   per whole column - see this section's v1.76/v1.77 correction note above; #345).
+   Algorithms in the test set
    absent from training ("new" algorithms, per MATLAB's `autoNormalize` handling): see decision
    below. MATLAB pads these with `Yhat=false`, `Pr0hat=0`, `precision`/`recall`/`accuracy=NaN`
    (`PYTHIAevalMode`, "no CV model" convention) rather than dropping them - worth matching that
