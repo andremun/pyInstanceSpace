@@ -941,10 +941,7 @@ class InstanceSpace:
             context="Explore metadata",
         )
 
-        # Training feature names, pre-SIFTED: build() overwrites the model's own
-        # feat_labels with the post-SIFTED subset, so the original metadata is the
-        # source of truth for what explore()'s feature extraction needs to select.
-        training_features = set(self._metadata.feature_names)
+        training_features = set(self._fitted_preprocessing_features())
         test_features = set(metadata.feature_names)
 
         # Check that test data has all required features
@@ -963,6 +960,14 @@ class InstanceSpace:
                 f"{sorted(extra_features)}",
             )
 
+    def _fitted_preprocessing_features(self) -> list[str]:
+        """Recover PRELIM's fitted column order, with legacy metadata fallback."""
+        model = getattr(self, "_model", None)
+        names = getattr(model, "preprocessing_features", None)
+        if isinstance(names, tuple):
+            return list(names)
+        return self._metadata.feature_names
+
     def _extract_features(self, metadata: Metadata) -> NDArray[np.double]:
         """Extract feature matrix from metadata, matching training format.
 
@@ -980,7 +985,7 @@ class InstanceSpace:
             The feature matrix, with shape (n_instances, n_features).
         """
         # Get the feature order from training (pre-SIFTED, see _validate_for_explore)
-        training_feature_names = self._metadata.feature_names
+        training_feature_names = self._fitted_preprocessing_features()
 
         # Build feature matrix in training order
         test_feature_dict = dict(
@@ -1010,14 +1015,16 @@ class InstanceSpace:
 
     def _explore_prelim(self, x: NDArray[np.double]) -> NDArray[np.double]:
         """Compatibility wrapper for :meth:`PrelimStage.predict`."""
+        model = self._require_model()
+        options = model.opts
         return PrelimStage.predict(
             PrelimPredictInput(
                 x,
-                self._options.auto.preproc,
-                self._options.bound.flag,
-                self._options.norm.flag,
+                options.auto.preproc,
+                options.bound.flag,
+                options.norm.flag,
             ),
-            self._require_model().prelim,
+            model.prelim,
         )
 
     def _explore_sifted(self, x: NDArray[np.double]) -> NDArray[np.double]:
@@ -1107,10 +1114,16 @@ class InstanceSpace:
         `max_perf`/`abs_perf` NaN handling then treats it as never the best
         for any instance (matching MATLAB's convention for missing ground
         truth), so no separate branch is needed for that case there. The
-        returned mask records which of the *trained* columns have real ground
-        truth for callers that need that metadata. MATLAB-compatible PYTHIA
-        evaluation deliberately scores every non-empty trained classifier; an
-        absent column therefore remains the reconciled all-false truth vector.
+        returned mask is ``~isnan(y_raw_test[:, :n_trained])``, per instance
+        and per trained algorithm - not just per whole column - mirroring
+        MATLAB's own ``observed = ~isnan(Y(:,ii))`` (`andremun/InstanceSpace#58
+        <https://github.com/andremun/InstanceSpace/issues/58>`_): a trained
+        algorithm absent from the test set entirely gets an all-``False``
+        column this way, but so does any individual instance the test set's
+        metadata simply has no recorded performance for, even when the rest
+        of that algorithm's column is observed. `PythiaStage.evaluate` uses
+        it to score only observed (instance, algorithm) pairs, rather than
+        reporting a fabricated score for an unobserved one.
 
         Algorithms in `new_algo_labels` (present in the test set, absent from
         training - see `_find_new_algorithms`) are appended as extra columns
@@ -1135,9 +1148,9 @@ class InstanceSpace:
             - y_raw_test: (n_instances, n_trained + n_new) raw performance. The
               columns are in the order of `algo_labels + new_algo_labels`. A column
               is NaN if the test set does not contain that trained algorithm.
-            - has_ground_truth: (n_trained,) mask. It shows the *trained* columns
-              that have real ground truth. The mask does not include the new
-              algorithms, because they always have ground truth.
+            - observed: (n_instances, n_trained) mask, True where a trained
+              algorithm has real per-instance ground truth. New algorithms
+              are excluded because they have no trained classifier to evaluate.
         """
         test_cols = {
             name.lower(): i for i, name in enumerate(test_metadata.algorithm_names)
@@ -1146,19 +1159,18 @@ class InstanceSpace:
         n_trained = len(algo_labels)
         n_new = len(new_algo_labels)
         y_raw_test = np.full((ninst, n_trained + n_new), np.nan, dtype=np.double)
-        has_ground_truth = np.zeros(n_trained, dtype=np.bool_)
 
         for i, label in enumerate(algo_labels):
             col = test_cols.get(label.lower())
             if col is not None:
                 y_raw_test[:, i] = test_metadata.algorithms[:, col]
-                has_ground_truth[i] = True
 
         for j, label in enumerate(new_algo_labels):
             col = test_cols[label.lower()]
             y_raw_test[:, n_trained + j] = test_metadata.algorithms[:, col]
 
-        return y_raw_test, has_ground_truth
+        observed = ~np.isnan(y_raw_test[:, :n_trained])
+        return y_raw_test, observed
 
     def _explore_evaluate(
         self,
@@ -1178,15 +1190,17 @@ class InstanceSpace:
         the already-trained classifiers' predictions (`y_hat`, already
         computed by `_explore_pythia` - not recomputed here) against that
         ground truth, matching MATLAB's exact formulas (`tp/(tp+fp)`,
-        `tp/(tp+fn)`, `(tp+tn)/ninst`, `core/PYTHIA.m:379-381`).
+        `tp/(tp+fn)`, `(tp+tn)/(tp+tn+fp+fn)`, `core/PYTHIA.m:379-464`).
 
-        A trained algorithm absent from the test metadata retains its
-        reconciled all-false truth column and is scored when its classifier is
-        non-empty, exactly as MATLAB does. Algorithms in `new_algo_labels`
-        always have real ground truth by construction but no trained-model
-        slot, so their rates stay `NaN` while their confusion rows remain zero.
-        They still participate as full candidates in `y_best_actual`/
-        `p_actual`/`beta_actual` through the widened performance calculation.
+        A trained algorithm's unobserved test instances are not scored: its
+        rates come from its observed instances only, and an algorithm with no
+        observed instances at all gets `NaN` rates and a `NaN` confusion row,
+        matching MATLAB's fix for `andremun/InstanceSpace#58
+        <https://github.com/andremun/InstanceSpace/issues/58>`_ (the same
+        treatment `new_algo_labels` algorithms already get, since they too
+        have no trained-model slot). It still participates as a full
+        candidate in `y_best_actual`/`p_actual`/`beta_actual` through the
+        widened performance calculation - only its own scoring is skipped.
 
         Parameters
         ----------
@@ -1209,7 +1223,7 @@ class InstanceSpace:
         """
         model = self._require_model()
         algo_labels = model.data.algo_labels
-        y_raw_test, _ = self._build_test_algo_matrix(
+        y_raw_test, observed = self._build_test_algo_matrix(
             test_metadata,
             algo_labels,
             new_algo_labels,
@@ -1217,8 +1231,8 @@ class InstanceSpace:
 
         perf = compute_binary_performance(
             y_raw_test,
-            self._options.perf,
-            self._options.general,
+            model.opts.perf,
+            model.opts.general,
             log_prefix="EXPLORE",
         )
 
@@ -1226,6 +1240,7 @@ class InstanceSpace:
             PythiaEvaluateInput(
                 perf.y_bin,
                 y_hat,
+                observed,
             ),
             model.pythia,
         )

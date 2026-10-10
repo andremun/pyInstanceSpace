@@ -1,0 +1,733 @@
+{
+  "schema_version": "pyinstancespace.geometry-reference/v1",
+  "matlab_commit": "929acfd889e7a17c7ee40c4004ad1bc18639b0e6",
+  "matlab_release": "2026a",
+  "matlab_version": "26.1.0.3346908 (R2026a) Update 5",
+  "platform": "GLNXA64",
+  "toolboxes": [
+    {
+      "Name": "5G Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "AUTOSAR Blockset",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Aerospace Blockset",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Aerospace Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Antenna Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "28-Jan-2026"
+    },
+    {
+      "Name": "Audio Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Automated Driving Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Bioinformatics Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Bluetooth Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "C2000 Microcontroller Blockset",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Communications Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Computer Vision Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Control System Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Curve Fitting Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "DDS Blockset",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "DSP HDL Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "DSP System Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Data Acquisition Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Database Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Datafeed Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Deep Learning HDL Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Deep Learning Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Econometrics Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Embedded Coder",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Financial Instruments Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Financial Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Fixed-Point Designer",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Fuzzy Logic Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "GPU Coder",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Global Optimization Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "HDL Coder",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "HDL Verifier",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Image Acquisition Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Image Processing Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Industrial Communication Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Instance Space Analysis Toolkit",
+      "Version": "0.9.1",
+      "Release": "(R2025a)",
+      "Date": "20-Aug-2026"
+    },
+    {
+      "Name": "Instrument Control Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "LTE Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Lidar Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "MATLAB",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "19-Nov-2025"
+    },
+    {
+      "Name": "MATLAB Coder",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "MATLAB Compiler",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "MATLAB Compiler SDK",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "MATLAB Report Generator",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "MATLAB Test",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Mapping Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Medical Imaging Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Mixed-Signal Blockset",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Model Predictive Control Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Model-Based Calibration Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Motor Control Blockset",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Navigation Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Optimization Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Parallel Computing Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Partial Differential Equation Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Phased Array System Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "19-Dec-2025"
+    },
+    {
+      "Name": "Powertrain Blockset",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Predictive Maintenance Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "08-Sep-2025"
+    },
+    {
+      "Name": "RF Blockset",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "RF PCB Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "RF Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "ROS Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Radar Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Raspberry Pi Blockset",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Reinforcement Learning Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Requirements Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Risk Management Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Robotics System Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Robust Control Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "STM32 Microcontroller Blockset",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Satellite Communications Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Sensor Fusion and Tracking Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "SerDes Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Signal Integrity Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Signal Processing Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "SimBiology",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "SimEvents",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "01-May-2025"
+    },
+    {
+      "Name": "Simscape",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simscape Battery",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simscape Driveline",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simscape Electrical",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simscape Fluids",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simscape Multibody",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink 3D Animation",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink Check",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink Code Inspector",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink Coder",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink Compiler",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink Control Design",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink Coverage",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink Design Optimization",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink Design Verifier",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink Desktop Real-Time",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink FMU Builder",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink Fault Analyzer",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink PLC Coder",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink Real-Time",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink Report Generator",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Simulink Test",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "SoC Blockset",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Stateflow",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Statistics and Machine Learning Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "12-Jan-2026"
+    },
+    {
+      "Name": "Symbolic Math Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "System Composer",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "System Identification Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Text Analytics Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "UAV Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Vehicle Dynamics Blockset",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Vehicle Network Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Vision HDL Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "WLAN Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Wavelet Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Wireless HDL Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Wireless Network Toolbox",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    },
+    {
+      "Name": "Wireless Testbench",
+      "Version": "26.1",
+      "Release": "(R2026a)",
+      "Date": "20-Nov-2025"
+    }
+  ],
+  "generator": "tests/matlab_export/pyis_export_geometry_cases.m",
+  "generator_sha256": "91ed0bde90c86f5dafb1b2d0c349662b88a97d352d6e4912bfaac8729d234871",
+  "files": [
+    {
+      "path": "cloister_collinear.json",
+      "sha256": "8a602a3adb45633c323f64c6a0fe6a2256e23461ad7c39f304b21d1c4f0bc99d"
+    },
+    {
+      "path": "cloister_coplanar.json",
+      "sha256": "d1c824a122a7eb64833746bcab73b02223e4c956013824819c4cff927d5d9c39"
+    },
+    {
+      "path": "cloister_fallback.json",
+      "sha256": "7d17fdc612caa579d1b11b2f5c9c8da6c7b7e3c48f74e9b3b7134f86c073abe6"
+    },
+    {
+      "path": "cloister_solid.json",
+      "sha256": "9748a490b265d307c5bd7ec85e3a3940bfe80ad64e340b1b1f303e07c1336c15"
+    },
+    {
+      "path": "trace_components.json",
+      "sha256": "3342055d850c5cdd5bf66aeb82facf309e3807606c43d97c36cdef69e315d672"
+    },
+    {
+      "path": "trace_hole.json",
+      "sha256": "c2d6c30b8a3dc4aec2d15825e72dbc8ccf4ac34107589570125ebce552a20246"
+    }
+  ]
+}
