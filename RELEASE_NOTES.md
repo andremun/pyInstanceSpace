@@ -44,7 +44,25 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
 
 ## Unreleased
 
+### Current-master parity audit
+
+- PLS saves its fitted feature mean and reuses it during exploration and CLOISTER
+  boundary construction. Earlier models without that field retain uncentred
+  inference. `PilotOutput` gains an optional trailing `pilot_x_mean` field;
+  `PilotOut.x_mean` is preserved by model persistence.
+- PYTHIA assigns unit scale to constant projection coordinates and handles zero
+  scales in earlier fitted models. Selector summaries now use held-out predictions;
+  the public fitted-model predictions and recommendations remain unchanged.
+
+
 ### New functionality
+
+- PR #343’s curated documentation site and build are integrated, with weighting
+  documentation aligned to per-instance regret.
+- 3D CLOISTER boundaries expose derived triangle faces and CSV mesh metadata
+  without changing the existing two-array result API. Planar 3D boundaries now
+  triangulate correctly; collinear 3D boundaries report a clear error. Controlled
+  local MATLAB references cover CLOISTER and TRACE topology/export behavior.
 
 - `explore()` now logs a warning when more than 5% of test instances have a feature
   outside the training PRELIM bounds and get clipped to them, matching MATLAB's
@@ -102,6 +120,28 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
 
 ### Bug fixes
 
+- **[Behavior-changing] PYTHIA evaluation excludes missing outcomes.** Each
+  algorithm is scored only on its observed test outcomes, including partially
+  observed columns. Accuracy uses that observed count. Algorithms with no
+  observations or no fitted classifier (including test-only algorithms) return
+  `NaN` confusion counts and rates, matching current MATLAB master. Direct
+  callers of `PythiaEvaluateInput` must now supply an `observed` boolean mask
+  with shape `(n_instances, n_trained_algorithms)` derived from raw outcomes;
+  `explore()` supplies it automatically. Historical MATLAB fixtures are unchanged.
+
+- **[Behavior-changing] PYTHIA summaries use observed outcomes.** Algorithm
+  probabilities exclude missing values, Oracle probability is the fraction of
+  observed rows with any good algorithm, and selector probability uses rows with
+  an observed fallback-selected outcome. Undefined rates remain `NaN`. Selector
+  recall counts successful choices and missed opportunities on disjoint rows,
+  so selecting a good algorithm is not also a miss when another algorithm is good.
+- **[Behavior-changing] Cost-sensitive PYTHIA uses per-instance regret.** Weights
+  are `abs(y - y_best[:, None])`, rather than distance from a global performance
+  mean. Zero weights use the smallest positive regret, and wholly zero or missing
+  regrets use uniform weights, matching current MATLAB master. Weighted models
+  must be retrained to obtain the corrected behavior.
+
+
 - PRELIM now reproduces MATLAB's seeded random selection among exactly tied best
   algorithms, including zero-valued ties, instead of always selecting the first tied
   algorithm. The refreshed v0.9.1 oracle checks the choices exactly.
@@ -149,6 +189,13 @@ PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
   exterior instances and change purity or selection results (#313).
 
 ### Better engineering
+
+- **MATLAB fixture candidates are separate from approved oracles.** The provenance
+  tool now validates fresh exports against requested source/exporter identities
+  and prepares atomic review packages without changing approved pins. Existing
+  verification and installation retain their approval checks. Release CI checks
+  the approved MATLAB SHA; a separate non-blocking job reports changes on master.
+
 
 - Removed the unused `_validate_explore_trace_dimensions()` compatibility hook. TRACE
   dimension validation remains stage-owned in `TraceStage.predict()` and runs exactly
