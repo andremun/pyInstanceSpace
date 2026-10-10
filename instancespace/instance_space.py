@@ -941,10 +941,7 @@ class InstanceSpace:
             context="Explore metadata",
         )
 
-        # Training feature names, pre-SIFTED: build() overwrites the model's own
-        # feat_labels with the post-SIFTED subset, so the original metadata is the
-        # source of truth for what explore()'s feature extraction needs to select.
-        training_features = set(self._metadata.feature_names)
+        training_features = set(self._fitted_preprocessing_features())
         test_features = set(metadata.feature_names)
 
         # Check that test data has all required features
@@ -963,6 +960,14 @@ class InstanceSpace:
                 f"{sorted(extra_features)}",
             )
 
+    def _fitted_preprocessing_features(self) -> list[str]:
+        """Recover PRELIM's fitted column order, with legacy metadata fallback."""
+        model = getattr(self, "_model", None)
+        names = getattr(model, "preprocessing_features", None)
+        if isinstance(names, tuple):
+            return list(names)
+        return self._metadata.feature_names
+
     def _extract_features(self, metadata: Metadata) -> NDArray[np.double]:
         """Extract feature matrix from metadata, matching training format.
 
@@ -980,7 +985,7 @@ class InstanceSpace:
             The feature matrix, with shape (n_instances, n_features).
         """
         # Get the feature order from training (pre-SIFTED, see _validate_for_explore)
-        training_feature_names = self._metadata.feature_names
+        training_feature_names = self._fitted_preprocessing_features()
 
         # Build feature matrix in training order
         test_feature_dict = dict(
