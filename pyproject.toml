@@ -46,9 +46,18 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poe.tasks]
-# The numpy converter of pdoc fails on a docstring that is not in numpy style
-# (#325). Thus, a clean build of the API docs also checks the docstring format.
-docs = "pdoc instancespace -d numpy -o site"
+# The site has two parts: docs_site/pages/ is a handful of hand-written pages
+# (landing page, Getting Started, Options Reference); site/api/ is pdoc's
+# generated reference, one page per module. The numpy converter of pdoc fails
+# on a docstring that is not in numpy style (#325), so this build also checks
+# the docstring format.
+docs.shell = """
+set -e
+pdoc instancespace -d numpy -o site/api -t docs_site/pdoc-template --footer-text "Instance Space Analysis Toolkit"
+mkdir -p site/assets
+cp docs_site/pages/*.html site/
+cp docs_site/assets/*.css site/assets/
+"""
 check_ruff = "ruff check --fix"
 check_mypy = "mypy --strict ."
 check_black = "black ."

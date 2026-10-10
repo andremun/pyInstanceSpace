@@ -464,6 +464,7 @@ def save_instance_space_to_csv(
             _make_bind_labels(cloister_out.z_ecorr),
             output_directory / "bounds_prunned.csv",
         )
+        _write_cloister_faces(cloister_out, output_directory)
 
     _write_array_to_csv(
         data.x_raw[:, sifted_out.selvars],
@@ -749,6 +750,42 @@ def save_instance_space_graphs(
         np.array(data.algo_labels),
         output_directory / "footprint_portfolio.png",
         global_view,
+    )
+
+
+def _write_cloister_faces(cloister: CloisterOut, output_directory: Path) -> None:
+    """Export zero-based 3D face indices alongside the existing vertex CSVs."""
+    names = ("bounds_faces.csv", "bounds_prunned_faces.csv")
+    manifest_path = output_directory / "bounds_mesh_manifest.json"
+    if (
+        cloister.z_edge.ndim != _PROJECTION_ARRAY_DIMENSIONS
+        or cloister.z_edge.shape[1] != _THREE_DIMENSIONS
+    ):
+        for name in (*names, manifest_path.name):
+            (output_directory / name).unlink(missing_ok=True)
+        return
+    for name, faces in zip(
+        names,
+        (cloister.z_edge_faces, cloister.z_ecorr_faces),
+        strict=True,
+    ):
+        _write_dataframe_to_csv(
+            pd.DataFrame(faces, columns=["v_1", "v_2", "v_3"]),
+            output_directory / name,
+        )
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "pyinstancespace.cloister-mesh/v1",
+                "index_base": 0,
+                "vertex_index": "zero-based data row in the corresponding bounds CSV",
+                "bounds": {"vertices": "bounds.csv", "faces": names[0]},
+                "bounds_prunned": {"vertices": "bounds_prunned.csv", "faces": names[1]},
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
     )
 
 

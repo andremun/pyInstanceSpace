@@ -300,7 +300,7 @@ end
 
 % =========================================================================
 % PILOT dimensionality/method/viewpoint evidence.  Each variant is built
-% from the same post-SIFTED snapshot.  A complete downstream build is still
+% from the same PRELIM snapshot, rebuilding SIFTED for its PILOT dimensions.  A complete downstream build is still
 % required because InstanceSpace.explore intentionally rejects partial
 % models; PYTHIA skip avoids unrelated classifier fitting while retaining a
 % genuine public explore-path projection.
@@ -330,6 +330,14 @@ for v = 1:numel(pilotEvidenceVariants)
     obj.opts.trace.contra = false;
     obj.opts = ISAdefaults(ISAvalidateOpts(obj.opts));
 
+    % Current MATLAB rejects retained SIFTED state when PILOT dimensions
+    % change. Rebuild from model.preSiftedData using the public stage API.
+    obj = obj.build('stages', {'sifted'});
+    if strcmp(variant.solverInput, 'x0')
+        rows = obj.opts.pilot.dims * (2 * size(obj.model.data.X, 2) + ...
+            size(obj.model.data.Y, 2));
+        obj.opts.pilot.X0 = deterministicStarts(rows, pilotX0Trials);
+    end
     isPLS = strcmpi(obj.opts.pilot.method, 'pls');
     if isPLS
         % PRELIM intentionally centres the reference study almost exactly.
@@ -363,7 +371,10 @@ for v = 1:numel(pilotEvidenceVariants)
     exportPilotInputs(pilotData, [buildRoot 'inputs/']);
     exportPilotSolverInputs(resolvedOptions.pilot, variant.solverInput, ...
         [buildRoot 'inputs/']);
-    exportPilotStageContext(isPLS, nPilotFeatures, nPilotAlgorithms, ...
+    xmean = zeros(1, size(pilotData.X, 2));
+    if isfield(pilotOut, 'Xmean'), xmean = pilotOut.Xmean; end
+    exportPilotStageContext(isPLS, size(pilotData.X, 2), nPilotAlgorithms, ...
+        resolvedOptions.pilot.dims, xmean, ...
         [buildRoot 'inputs/stage_context.json']);
     exportPilotArtifacts(pilotOut, [buildRoot 'outputs/'], ...
         pilotData.algolabels);
@@ -446,7 +457,7 @@ end
 
 function exportPythiaInputs(model, destDir)
 mkdirIfMissing(destDir);
-writeMatrixCSV(model.pilot.Z, coordinateLabels(size(model.pilot.Z, 2)), ...
+writeMatrixCSVFullPrecision(model.pilot.Z, coordinateLabels(size(model.pilot.Z, 2)), ...
     model.data.instlabels(:), ...
     [destDir 'z.csv']);
 writeMatrixCSV(model.data.Yraw, model.data.algolabels, model.data.instlabels(:), ...
@@ -460,7 +471,7 @@ end
 
 function exportTraceInputs(model, destDir)
 mkdirIfMissing(destDir);
-writeMatrixCSV(model.pilot.Z, coordinateLabels(size(model.pilot.Z, 2)), ...
+writeMatrixCSVFullPrecision(model.pilot.Z, coordinateLabels(size(model.pilot.Z, 2)), ...
     model.data.instlabels(:), ...
     [destDir 'z.csv']);
 writeMatrixCSV(double(model.data.Ybin), model.data.algolabels, model.data.instlabels(:), ...
@@ -608,7 +619,7 @@ elseif ~strcmp(solverInput, 'none')
 end
 end
 
-function exportPilotStageContext(isPLS, nfeatures, nalgorithms, filename)
+function exportPilotStageContext(isPLS, nfeatures, nalgorithms, dims, xmean, filename)
 if isPLS
     transform = 'deterministic-column-shift';
     featureShift = 0.25 * (1:nfeatures);
@@ -619,14 +630,16 @@ else
     algorithmShift = [];
 end
 context = struct( ...
-    'schema_version', 'pyinstancespace.pilot-evidence-context/v1', ...
+    'schema_version', 'pyinstancespace.pilot-evidence-context/v2', ...
     'scope', 'pilot-stage', ...
     'upstream_snapshot', 'build_data/pilot/default/inputs', ...
-    'sifted_effective_pilot_dims', 2, ...
+    'sifted_effective_pilot_dims', dims, ...
+    'sifted_rebuilt', true, ...
+    'x_mean', xmean, ...
     'input_transform', transform, ...
     'feature_shift', featureShift, ...
     'algorithm_shift', algorithmShift, ...
-    'explore_projection', 'InstanceSpace.explore: Z=X*A'' (uncentred)');
+    'explore_projection', 'InstanceSpace.explore: Z=(X-Xmean)*A'' (fitted mean)');
 writeJson(context, filename);
 end
 
@@ -896,13 +909,14 @@ end
 
 membershipCols = [strcat('in_good_', testOut.data.algolabels(:)'), ...
     strcat('in_best_', testOut.data.algolabels(:)')];
-membership = [footprintMembership(testOut.trace.good, testOut.pilot.Z), ...
-    footprintMembership(testOut.trace.best, testOut.pilot.Z)];
+tolerance = numericField(testOut.trace, 'boundaryTolerance', 0);
+membership = [footprintMembership(testOut.trace.good, testOut.pilot.Z, tolerance), ...
+    footprintMembership(testOut.trace.best, testOut.pilot.Z, tolerance)];
 writeMatrixCSV(double(membership), membershipCols, testOut.data.instlabels(:), ...
     [destDir 'membership.csv']);
 end
 
-function membership = footprintMembership(footprints, Z)
+function membership = footprintMembership(footprints, Z, tolerance)
 % polyshape is two-dimensional; alphaShape accepts the complete point
 % matrix, which is dimension-generic and is required for native 3D TRACE3.
 membership = false(size(Z, 1), numel(footprints));
@@ -911,7 +925,9 @@ for i = 1:numel(footprints)
         continue;
     end
     poly = footprints{i}.polygon;
-    if isa(poly, 'polyshape')
+    if exist('ISAfootprintContains','file') == 2
+        membership(:, i) = ISAfootprintContains(poly, Z, tolerance);
+    elseif isa(poly, 'polyshape')
         membership(:, i) = isinterior(poly, Z(:, 1), Z(:, 2));
     elseif isa(poly, 'alphaShape')
         membership(:, i) = inShape(poly, Z);
@@ -1050,10 +1066,16 @@ for i = 1:numel(cycles)
     z1 = [z1; coordinates(:, 1)]; %#ok<AGROW>
     z2 = [z2; coordinates(:, 2)]; %#ok<AGROW>
 end
-boundaryTable = table(partColumn, ringColumn, vertexColumn, holeColumn, z1, z2, ...
-    'VariableNames', {'part', 'ring', 'vertex', 'is_hole', 'z_1', 'z_2'});
 mkdirIfMissing(fileparts(filename));
-writetable(boundaryTable, filename);
+fid = fopen(filename, 'w');
+if fid == -1, error('pyis_export:csvWriteFailed', 'Cannot write %s.', filename); end
+cleanupObj = onCleanup(@() fclose(fid));
+fprintf(fid, 'part,ring,vertex,is_hole,z_1,z_2\n');
+for row = 1:numel(z1)
+    fprintf(fid, '%d,%s,%d,%d,%.17g,%.17g\n', partColumn(row), ...
+        escapeCsvText(ringColumn(row)), vertexColumn(row), holeColumn(row), z1(row), z2(row));
+end
+clear cleanupObj;
 end
 
 function cycles = splitBoundaryCoordinates(x, y)

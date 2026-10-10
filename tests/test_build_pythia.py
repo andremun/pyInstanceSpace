@@ -780,7 +780,7 @@ def test_pythia_use_weights_degenerate_falls_back_to_uniform(
     """
     from loguru import logger
 
-    z_small, _y_small, y_bin_small, y_best_small, algo_small = _small_pythia_dataset()
+    z_small, _y_small, y_bin_small, _y_best_small, algo_small = _small_pythia_dataset()
     constant_y = np.full((20, 2), 3.0)
     opts = PythiaOptions(
         cv_folds=2,
@@ -796,7 +796,7 @@ def test_pythia_use_weights_degenerate_falls_back_to_uniform(
             z_small,
             constant_y,
             y_bin_small,
-            y_best_small,
+            np.full(20, 3.0),
             algo_small,
             opts,
             ParallelOptions.default(),
