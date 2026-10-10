@@ -23,6 +23,10 @@ toolkit rather than a single change.
 
 ### Better engineering
 
+- The legacy PYTHIA probability regression allows `1e-12` absolute roundoff
+  across CPU/BLAS implementations (#341), while retaining zero relative tolerance
+  and exact binary predictions. Runtime code and reference fixtures are unchanged.
+
 - Frozen dataclasses for options and metadata give real immutability MATLAB structs
   don't have.
 - `stage_runner.py` executes a hardcoded, explicit 7-stage order (see the *Better
