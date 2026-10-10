@@ -9,14 +9,14 @@ and file-by-file mapping.
 ## Current MATLAB oracle
 
 `tests/fixtures/matlab/current/` is the canonical `matlab-verified` oracle: 423 files
-under `reference-export/v2`, generated with MATLAB R2026a Update 4 from gold source
-`98a01ac0513c0dd0f8a9bd91ed2926c871334d7b` (InstanceSpace v0.9.1) and Python
-generator `4816b8cf23ad9392e7a7f5aa85bfbc32080dfe84`. Its exporter SHA-256 is
-`d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
-Collection contains 86 provenance tests and 41 current scientific readers. The
-local CI-equivalent gate passed all 1,046 collected tests with 92.08% branch coverage
-and no uncaught warnings under `-W error`. The frozen 229-file v1 format remains readable,
-but is not the installed oracle.
+under `reference-export/v2`, generated with MATLAB R2026a Update 5 from gold source
+`2e2cf7565aee8e60190e788c959405d44c4317f3` and Python
+generator `ab72f6bc5c602e0cb03a65041a4677037282e92c`. Its exporter SHA-256 is
+`ebd7917169ca110fd26856ac8cbad43e3c3477b1ce96473e4f5bc9445ff869d6`.
+The approved Linux export uses the explicit TRACE boundary policy with tolerance
+zero. Two independent MATLAB processes produced identical hashes for all 423
+artifacts. See [the promotion review](../docs/fixture-promotion-2026-10-09.md) for validation and remaining limits.
+Frozen v1 bundles remain readable; diagnostic snapshots are not oracles.
 
 ## Naming Convention
 
@@ -86,3 +86,11 @@ asserts it:
 | PILOT  | max relative error < 1% | single matrix product with the stored projection matrix |
 | PYTHIA | exact binary outputs; probabilities within `1e-13` absolute error | direct replay of the stored historical SVM artifacts; correlation is not used because it accepts inverted or shifted probabilities |
 | TRACE  | per-column boolean agreement ≥ 99% | boundary-inclusive membership matching MATLAB `polyshape.isinterior`; the 1% budget covers floating-point boundary edge cases after the CSV round-trip |
+
+## Controlled geometry references
+
+`fixtures/matlab/geometry/` contains six stage-level cases from current MATLAB
+master `929acfd`, generated locally with R2026a Update 5 on Linux. They verify
+CLOISTER 3D boundaries and TRACE holes/components, including export round trips.
+Their separate hashed manifest does not promote or replace the approved full
+bundle above; see `fixtures/matlab/geometry/README.md` for reproduction details.
