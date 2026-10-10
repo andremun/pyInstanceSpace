@@ -342,17 +342,24 @@ def test_current_matlab_pilot_3d_x0_solver_quality() -> None:
 def test_current_matlab_pilot_explore_projection_is_dimension_generic(
     variant: str,
 ) -> None:
-    """Replay MATLAB's public uncentred explore projection for 2D and 3D."""
+    """Replay MATLAB's fitted-mean explore projection for 2D and 3D."""
     root = _BUNDLE / "explore_data" / "pilot" / variant
     x_frame = _frame(root / "inputs" / "x.csv")
     expected_frame = _frame(root / "outputs" / "pilot_z.csv")
     x = np.asarray(x_frame.iloc[:, 1:].to_numpy(dtype=np.double), dtype=np.double)
     a = _matrix(root / "inputs" / "projection_a.csv")
 
+    context = json.loads(
+        (
+            _BUNDLE / "build_data" / "pilot" / variant / "inputs" / "stage_context.json"
+        ).read_text(encoding="utf-8"),
+    )
+    fitted_mean = context.get("x_mean")
+    x_mean = np.asarray(fitted_mean, dtype=np.double) if fitted_mean else None
     space = InstanceSpace.__new__(InstanceSpace)
     space._model = cast(
         Model,
-        SimpleNamespace(pilot=SimpleNamespace(a=a)),
+        SimpleNamespace(pilot=SimpleNamespace(a=a, x_mean=x_mean)),
     )
     actual = space._explore_pilot(x)
 

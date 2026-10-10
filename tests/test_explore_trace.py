@@ -71,6 +71,7 @@ def make_instance_space(
     trained_dimensions: int = 2,
 ) -> InstanceSpace:
     trace = Mock(spec=TraceOut)
+    trace.boundary_tolerance = 0.0
     trace.space = make_footprint(None, trained_dimensions)
     trace.good = [make_footprint(p, trained_dimensions) for p in good_polys]
     trace.best = [make_footprint(p, trained_dimensions) for p in best_polys]
@@ -388,6 +389,7 @@ def build_trace_from_artifacts() -> TraceOut:
     good_polys = [load_polygon(ARTIFACTS_DIR / f"good_{a}.csv") for a in ALGO_ORDER]
     best_polys = [load_polygon(ARTIFACTS_DIR / f"best_{a}.csv") for a in ALGO_ORDER]
     trace = Mock(spec=TraceOut)
+    trace.boundary_tolerance = 0.0
     trace.space = make_footprint(None)
     trace.good = [make_footprint(p) for p in good_polys]
     trace.best = [make_footprint(p) for p in best_polys]

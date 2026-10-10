@@ -184,6 +184,8 @@ class PreprocessingOutput(NamedTuple):
         Original feature matrix before any modifications.
     y_raw : NDArray[np.double]
         Original algorithm matrix before any modifications.
+    preprocessing_features : tuple[str, ...] | None
+        Retained feature names in the order consumed by PRELIM, before SIFTED.
 
     """
 
@@ -195,6 +197,7 @@ class PreprocessingOutput(NamedTuple):
     s: pd.Series | None  # type: ignore[type-arg]
     x_raw: NDArray[np.double]
     y_raw: NDArray[np.double]
+    preprocessing_features: tuple[str, ...] | None = None
 
 
 class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
@@ -289,6 +292,7 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
             updated_s,
             updated_x,
             updated_y,
+            tuple(updated_feat_labels),
         )
 
     @staticmethod
