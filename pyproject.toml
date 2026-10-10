@@ -28,7 +28,7 @@ matplotlib = "^3.9.2"
 loguru = "^0.7.2"
 scikit-optimize = "^0.10.2"
 scikit-learn = "^1.5.2"
-joblib = "^1.4.2"
+joblib = "^1.6.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.3"
