@@ -50,7 +50,8 @@
       "K": 10,
       "MaxIter": 1000,
       "Replicates": 100,
-      "seed": 42
+      "seed": 42,
+      "diagnostics": true
     },
     "pilot": {
       "analytic": false,
@@ -84,6 +85,7 @@
     },
     "trace": {
       "method": "legacy",
+      "boundaryTolerance": 0,
       "PI": 0.55,
       "minInstances": 4,
       "minAreaFrac": 0.01,

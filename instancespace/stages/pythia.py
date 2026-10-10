@@ -281,6 +281,11 @@ class PythiaEvaluateInput(NamedTuple):
 
     y_true: NDArray[np.bool_]
     y_pred: NDArray[np.bool_]
+    observed: NDArray[np.bool_]
+    """Per-instance, per-trained-algorithm mask: shape (n_instances,
+    n_trained_algorithms). True where the test set has real ground truth for
+    that (instance, algorithm) pair, mirroring MATLAB's
+    ``observed = ~isnan(Y(:,ii))`` (#58)."""
 
 
 class PythiaEvaluateOutput(NamedTuple):
@@ -422,6 +427,7 @@ class PythiaStage(
             msg = "PYTHIA predict precision must have one value per classifier."
             raise ValueError(msg)
 
+        sigma = np.where(sigma == 0, 1.0, sigma)
         z_norm = (inputs.z - mu) / sigma
         n_instances = z_norm.shape[0]
         n_algorithms = n_trained + inputs.n_new_algos
@@ -468,16 +474,12 @@ class PythiaStage(
     ) -> PythiaEvaluateOutput:
         """Evaluate predictions with MATLAB's explicit confusion-count formulas.
 
-        MATLAB stores each confusion matrix as ``cm(:)'`` in column-major order,
-        hence ``[TN, FN, FP, TP]``. MATLAB v0.9.1's
-        ``core/PYTHIA.m::PYTHIAevalMode`` loops over every trained classifier and
-        calls ``confusionmat`` against its reconciled truth column. Therefore,
-        every non-empty trained-classifier slot is scored, including a training
-        algorithm absent from the test metadata (whose truth column is all
-        false). Empty trained slots retain a zero confusion row and therefore
-        zero accuracy with undefined precision and recall. Test-only algorithms
-        also retain zero confusion rows, but their rates stay ``NaN`` because no
-        trained-model slot exists for them.
+        MATLAB stores confusion counts in column-major order: ``[TN, FN, FP, TP]``.
+        Only observed instance/algorithm pairs contribute. ``inputs.observed``
+        has shape ``(n_instances, n_trained_algorithms)`` and must come from raw
+        outcome availability, not binary labels. Accuracy uses the observed
+        count for each algorithm. Missing classifiers, wholly unobserved
+        algorithms and test-only algorithms retain NaN counts and rates.
         """
         if (
             inputs.y_true.ndim != PYTHIA_ARRAY_DIMENSIONS
@@ -495,19 +497,29 @@ class PythiaStage(
         if n_trained_algorithms > n_algorithms:
             msg = "PYTHIA evaluate has more trained classifiers than algorithms."
             raise ValueError(msg)
+        if inputs.observed.shape != (n_instances, n_trained_algorithms):
+            msg = (
+                "PYTHIA evaluate observed must have shape "
+                "(n_instances, n_trained_algorithms)."
+            )
+            raise ValueError(msg)
 
         y_true = np.asarray(inputs.y_true, dtype=np.bool_)
         y_pred = np.asarray(inputs.y_pred, dtype=np.bool_)
+        observed = np.asarray(inputs.observed, dtype=np.bool_)
         accuracy = np.full(n_algorithms, np.nan, dtype=np.double)
         precision = np.full(n_algorithms, np.nan, dtype=np.double)
         recall = np.full(n_algorithms, np.nan, dtype=np.double)
-        cvcmat = np.zeros((n_algorithms, 4), dtype=np.double)
+        cvcmat = np.full((n_algorithms, 4), np.nan, dtype=np.double)
 
         for index, classifier in enumerate(classifiers):
             if classifier is None:
                 continue
-            truth = y_true[:, index]
-            prediction = y_pred[:, index]
+            row_mask = observed[:, index]
+            if not row_mask.any():
+                continue
+            truth = y_true[row_mask, index]
+            prediction = y_pred[row_mask, index]
             true_positive = int(np.sum(truth & prediction))
             true_negative = int(np.sum(~truth & ~prediction))
             false_positive = int(np.sum(~truth & prediction))
@@ -518,12 +530,9 @@ class PythiaStage(
                 false_positive,
                 true_positive,
             ]
-
-        for index in range(n_trained_algorithms):
-            true_negative, false_negative, false_positive, true_positive = cvcmat[index]
             accuracy[index] = _safe_ratio(
                 true_positive + true_negative,
-                n_instances,
+                true_positive + true_negative + false_positive + false_negative,
             )
             precision[index] = _safe_ratio(
                 true_positive,
@@ -743,8 +752,7 @@ class PythiaStage(
         # Cost-sensitive classification
         if opts.use_weights:
             logger.info("[PYTHIA]  -> PYTHIA is using cost-sensitive classification.")
-            performance_mean = float(_nanmean(y))
-            w = np.abs(y - performance_mean)
+            w = np.abs(y - y_best[:, np.newaxis])
             finite_nonzero = w[(w != 0) & np.isfinite(w)]
             if finite_nonzero.size == 0:
                 # Degenerate case: y is constant or entirely NaN, so every
@@ -908,16 +916,23 @@ class PythiaStage(
             "------------------",
         )
 
+        # Report held-out behavior; public selections still use fitted predictions.
+        cv_selection0, cv_selection1 = PythiaStage._determine_selections(
+            nalgos,
+            precision_record,
+            y_sub,
+            y_bin,
+        )
         # Section4: Generate summary of the results
         summary = PythiaStage._generate_summary(
             nalgos=nalgos,
             algo_labels=algo_labels,
             y=y,
-            y_hat=y_hat,
+            y_hat=y_sub,
             y_bin=y_bin,
             y_best=y_best,
-            selection0=selection0,
-            selection1=selection1,
+            selection0=cv_selection0,
+            selection1=cv_selection1,
             accuracy=accuracy_record,
             precision=precision_record,
             recall=recall_record,
@@ -1649,7 +1664,8 @@ class PythiaStage(
         # ~= 1 regardless of the original feature scale.
         mu = np.mean(z, axis=0)
         sigma = np.std(z, ddof=1, axis=0)
-        z = stats.zscore(z, ddof=1)
+        sigma = np.where(sigma == 0, 1.0, sigma)
+        z = (z - mu) / sigma
         return (mu, sigma, z)
 
     @staticmethod
@@ -1981,6 +1997,22 @@ class PythiaStage(
         sel0 = selection0[:, np.newaxis] == np.arange(nalgos)
         sel1 = selection1[:, np.newaxis] == np.arange(nalgos)
 
+        # Capture availability before selection masks replace outcomes with NaN.
+        y_bin = np.asarray(y_bin, dtype=np.bool_)
+        observed = ~np.isnan(y)
+        observed_good = y_bin & observed
+        pgood_algo = np.array(
+            [
+                _safe_ratio(int(good), int(count))
+                for good, count in zip(
+                    observed_good.sum(axis=0),
+                    observed.sum(axis=0),
+                    strict=True,
+                )
+            ],
+            dtype=np.double,
+        )
+
         # Compute the average performance of the selected algorithms
         avgperf = np.round(_nanmean(y, axis=0), 3)
         stdperf = np.round(_matlab_nanstd(y, axis=0), 3)
@@ -2000,19 +2032,23 @@ class PythiaStage(
         y_full[~sel1] = np.nan
         y_svms[~y_hat] = np.nan
 
-        # Compute the probability of "good"
-        pgood = np.mean(np.any(np.logical_and(y_bin, sel1), axis=1))
+        selected_observed = np.any(observed & sel1, axis=1)
+        pgood = _safe_ratio(
+            int(np.sum(np.any(observed_good & sel1, axis=1))),
+            int(np.sum(selected_observed)),
+        )
+        any_good = np.any(observed_good, axis=1)
+        oracle_pgood = _safe_ratio(
+            int(np.sum(any_good)),
+            int(np.sum(np.any(observed, axis=1))),
+        )
 
-        # Selector precision/recall, matching MATLAB's per-instance `any(...)`
-        # definition (core/PYTHIA.m) rather than sklearn's flattened
-        # (instance x algorithm)-pair precision_score/recall_score, which
-        # answers a different question (agreement per pair, not "was the
-        # selected algorithm good for this instance").
-        not_y_bin = np.logical_not(y_bin)
-        not_sel0 = np.logical_not(sel0)
-        tg = np.sum(np.any(np.logical_and(y_bin, sel0), axis=1))  # selected, good
-        fg = np.sum(np.any(np.logical_and(not_y_bin, sel0), axis=1))  # selected, bad
-        fb = np.sum(np.any(np.logical_and(y_bin, not_sel0), axis=1))  # good, unselected
+        # Successful selections and missed opportunities are disjoint, even
+        # when another unselected algorithm is also good on a successful row.
+        success = np.any(observed_good & sel0, axis=1)
+        tg = int(np.sum(success))
+        fg = int(np.sum(np.any(~y_bin & sel0 & observed, axis=1)))
+        fb = int(np.sum(any_good & ~success))
         precisionsel = _safe_ratio(tg, tg + fg)
         recallsel = _safe_ratio(tg, tg + fb)
 
@@ -2031,7 +2067,7 @@ class PythiaStage(
                 3,
             ),
             "Probability_of_good": np.round(
-                np.append(_nanmean(y_bin, axis=0), [1, pgood]),
+                np.append(pgood_algo, [oracle_pgood, pgood]),
                 3,
             ),
             "Avg_Perf_selected_instances": np.round(

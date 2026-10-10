@@ -36,27 +36,51 @@ Also, if you specifically use this code, please cite as follows:
 
 ## Installation Instructions
 
-Run `pip install instancespace`
+The package currently requires **Python 3.12** (`>=3.12,<3.13`). Install the published release with:
 
-An example of running can be found in integration_demo.py
+```bash
+python -m pip install instancespace
+```
 
-An example of a plugin can be found in example_plugin.py
+For development changes that have not been released to PyPI, use the source setup
+below. See [integration_demo.py](integration_demo.py) for a runnable example and
+[example_plugin.py](example_plugin.py) for a custom pipeline stage.
+
+## Development status
+
+[PR #348](https://github.com/andremun/pyInstanceSpace/pull/348) consolidates the
+documentation and scoring fixes from the now-closed PRs #343 and #346. It includes
+observed-only PYTHIA evaluation and summaries, per-instance regret weights,
+candidate-fixture validation, and controlled MATLAB geometry references. These
+changes remain under review; they are not yet a release on `main` or PyPI.
+
+The next work is a wider current-master audit of training/exploration behavior,
+followed by repeated full MATLAB exports and numerical review before fixture
+promotion. The three raw export branches remain separate comparison evidence.
+See the [parity review and seven-step plan](docs/matlab-parity-review-2026-10-05.md)
+and [branch consolidation record](docs/branch-consolidation-2026-10-09.md).
 
 ## Documentation Instructions
 
-Hosted API docs: <https://andremun.github.io/pyInstanceSpace/> (rebuilt automatically on every
-push to `main`/`v0.9.0/development-branch-QSF` via `.github/workflows/docs-pages.yml` — see #324
-for the one-time GitHub Pages setup this depends on).
+[Hosted documentation](https://andremun.github.io/pyInstanceSpace/) is deployed by
+[docs-pages.yml](.github/workflows/docs-pages.yml) on pushes to `main` or
+`v0.9.0/development-branch-QSF`, or by a manual workflow run. A PR branch does not
+automatically update the hosted site; build locally to preview its documentation.
+The documentation in this branch provides a
+[Getting Started guide](https://andremun.github.io/pyInstanceSpace/getting-started.html) and an
+[Options Reference](https://andremun.github.io/pyInstanceSpace/options-reference.html), plus the
+full [API reference](https://andremun.github.io/pyInstanceSpace/api/instancespace.html).
 
-To build the docs on your computer, run `poetry run poe docs`. The HTML files go to
-`site/`. The build uses the numpy docstring format of pdoc. Write all docstrings in
-numpy style. If pdoc cannot parse a docstring, the build fails. A docstring can
+To build the docs on your computer, run `poetry run poe docs`. The HTML files go to `site/`:
+`site/api/` is pdoc's generated API reference, and the rest of `site/` is the hand-written pages
+under `docs_site/`. The API reference build uses the numpy docstring format of pdoc. Write all
+docstrings in numpy style. If pdoc cannot parse a docstring, the build fails. A docstring can
 parse but still render incorrectly, so also look at the HTML output.
 
 ## Repository layout
 
 - `instancespace/` — the package itself: `instance_space.py` (the `InstanceSpace` class — `build()`/`explore()`/`explore_stage_iter()` — hardcodes the built-in 7-stage execution order), `stage_runner.py` (`StageRunner`, the execution/rollback engine, plus `build_stage_runner()` for attaching extra/plugin stages to that order via `RunBefore`/`RunAfter`), `stages/` (one module per pipeline stage — `preprocessing`, `prelim`, `sifted`, `pilot`, `pythia`, `cloister`, `trace`), `data/` (option and metadata dataclasses), `_serialisers.py` (2D/3D CSV, mesh, plot, and MAT helpers), and `model.py` (the trained `Model` and its save methods).
-- `tests/` — the flat test suite. `tests/fixtures/matlab/current/` is reserved for manifest-verified current MATLAB data; `tests/matlab_reference/` contains unverified historical regression snapshots. `test_build_<stage>.py` covers training and `test_explore_<stage>.py` covers inference. See `tests/README.md`.
+- `tests/` — the flat test suite. `tests/fixtures/matlab/current/` holds the manifest-verified approved MATLAB snapshot; `tests/fixtures/matlab/geometry/` holds separately verified controlled geometry cases; `tests/matlab_reference/` contains unverified historical regression snapshots. `test_build_<stage>.py` covers training and `test_explore_<stage>.py` covers inference. See `tests/README.md`.
 - `examples/data/` — real, multi-dataset example data (BBO, JSS, KP, MFP, and more) used by `integration_demo.py`/`example_plugin.py` - not a test fixture.
 - `integration_demo.py` — the minimal runnable example: load metadata + options from `examples/data/`, construct an `InstanceSpace` with the full stage list, and `build()` it.
 - `example_plugin.py` — demonstrates writing a custom `Stage` and slotting it into the pipeline alongside the built-in stages.
@@ -86,9 +110,9 @@ See `integration_demo.py` for a complete, runnable version of this (including th
 
 ### Applying a trained model to new data: `explore()`
 
-`InstanceSpace.explore()` applies a previously trained model to unseen instances, mirroring the MATLAB toolkit's `exploreIS.m`: the test metadata is bounded and scaled with the stored PRELIM parameters, reduced to the selected SIFTED features, projected with the trained PILOT matrix, and evaluated by the trained PYTHIA selectors and TRACE footprints. No stage is re-fitted.
+`InstanceSpace.explore()` applies a previously trained model to unseen instances, mirroring the MATLAB toolkit's `exploreIS.m`: the test metadata is bounded and scaled with the stored PRELIM parameters, reduced to the selected SIFTED features, projected with the trained PILOT matrix, and evaluated by the trained PYTHIA selectors and TRACE footprints. PLS subtracts the stored training feature mean before projection; older saved models without that field retain their original uncentred behavior. No stage is re-fitted.
 
-`explore()` works directly on the model `build()` produced: the trained PYTHIA SVMs are fitted scikit-learn `SVC` objects, and `explore()` calls each one's own `predict`/`predict_proba` — there is no intermediate flattened representation or conversion step. PRELIM, SIFTED, PILOT and TRACE pass their stored parameters through unchanged. The normal flow is therefore direct:
+`explore()` works directly on the model `build()` produced: the trained PYTHIA classifiers are fitted scikit-learn estimators (`SVC` by default), and `explore()` calls each one's own prediction methods — there is no intermediate flattened representation or conversion step. PRELIM, SIFTED, PILOT and TRACE pass their stored parameters through unchanged. The normal flow is therefore direct:
 
 ```python
 space = InstanceSpace(train_metadata, options)
@@ -98,34 +122,54 @@ result = space.explore(test_metadata)
 
 `explore()` returns the full result in one call; `explore_stage_iter()` runs the same stages but yields each one's output in turn (`prelim`, `sifted`, `pilot`, `pythia`, `trace`), for inspecting the pipeline one stage at a time. The operation manual `liveDemoIS.ipynb` — the Python counterpart of the MATLAB live demo (`liveDemoIS.m`) — walks through both `build()` and `explore()`/`explore_stage_iter()` stage by stage and is meant to be read as a usage guide; run it from the repository root.
 
-Stage tests combine synthetic contracts, historical regression snapshots, and a
-423-file `reference-export/v2` oracle generated from a clean MATLAB R2026a Update 4
-run. `tests/matlab_reference/` is explicitly unverified; the manifest-verified oracle
-lives under `tests/fixtures/matlab/current/`. The current MATLAB source and verified
-execution are the behavioral authority when an issue, review, or older document
-disagrees. `tests/README.md` documents the naming and trust conventions.
+PYTHIA evaluation scores only observed `(instance, algorithm)` outcomes. Missing
+algorithm columns and individual missing outcomes do not count as failures.
+Algorithms with no observed outcomes or no fitted classifier have `NaN` evaluation
+rates and confusion counts. Direct `PythiaStage.evaluate()` callers must supply
+`PythiaEvaluateInput.observed`, a Boolean mask with shape
+`(n_instances, n_trained_algorithms)`; `explore()` supplies it automatically.
 
-## Development Environment Setup Guide
+### MATLAB references and validation
 
-REQUIREMENTS:
-- Python 3.12 installed
-- Be inside the repository directory
+Current MATLAB `master` defines the behavior being audited. The approved full
+fixture bundle is a reproducible snapshot, not a claim to match the latest master:
 
-### Step 1: Install poetry
+- `tests/fixtures/matlab/current/`: 423 files in `reference-export/v2`, generated
+  on Linux with MATLAB R2026a Update 5 at `2e2cf75`, using generator `ab72f6b`.
+  Two independent runs produced identical artifact hashes. See the
+  [promotion review](docs/fixture-promotion-2026-10-09.md).
+- `tests/fixtures/matlab/geometry/`: six controlled cases generated locally on
+  Linux with MATLAB R2026a Update 5 at master revision `929acfd`. They cover
+  CLOISTER 3D boundaries and TRACE holes/components, with a separate hashed manifest.
+- `tests/matlab_reference/`: historical regression snapshots with unverified provenance.
 
-*Linux, Mac, WSL*
+Release validation checks the approved source revision. A separate CI job reports
+whether MATLAB master has advanced. Candidate validation and promotion preparation
+do not automatically approve or install a new bundle. See the
+[fixture workflow](tests/matlab_export/README.md),
+[geometry reproduction notes](tests/fixtures/matlab/geometry/README.md), and
+[test conventions](tests/README.md).
 
-`curl -sSL https://install.python-poetry.org | python3 -`
+## Development environment
 
-*Windows*
+From the repository root, with Python 3.12 available, install the Poetry version
+used by the release-validation workflow and the locked dependencies:
 
-`(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -`
+```bash
+python3.12 -m pip install poetry==2.3.3
+poetry env use python3.12
+poetry install
+```
 
-### Step 2: Setup virtual environment
-`poetry shell`
+Run commands through Poetry; a separate `poetry shell` plugin is not required:
 
-### Step 3: Install Python dependencies into a virtual environment
-`poetry install`
+```bash
+poetry run pytest
+poetry run ruff check --no-fix
+poetry run mypy --strict .
+poetry run black . --check
+poetry run poe docs
+```
 
 ## The metadata file
 
@@ -154,7 +198,7 @@ compatibility with option files written for the MATLAB toolkit.
 -	```opts.perf.epsilon``` corresponds to the threshold used to calculate good performance. It must be of the type "Double".
 -	```opts.perf.beta_threshold``` corresponds to the fraction of algorithms in the portfolio that must have good performance in the instance, for it to be considered an **easy** instance. It must be a value between 0 and 1.
 - ```opts.parallel.flag``` determines whether parallel processing will be available (set as ```TRUE```), or not (set as ```FALSE```). The toolkit uses Python's ```multiprocessing``` (in TRACE) and scikit-learn's ```n_jobs``` (in PYTHIA) to distribute work across local cores.
-- ```opts.parallel.n_cores``` number of available cores for parallel procesing.
+- ```opts.parallel.n_cores``` number of available cores for parallel processing.
 -	```opts.selvars.small_scale_flag```: By setting this flag as ```TRUE```, you can carry out a small-scale experiment using a randomly selected fraction of the original data. This is useful if you have a large dataset with more than 1000 instances and want to explore the model's parameters.
 -	```opts.selvars.small_scale``` fraction taken from the original data on the small-scale experiment.
 -	```opts.selvars.file_idx_flag``` by setting this flag as ```TRUE```, you can carry out a small scale experiment. This time, you must provide a ```.csv``` file that contains, in a single column, the indices of the instances to be taken. This may be useful if you want to make a more controlled experiment than just randomly selecting instances.
@@ -193,13 +237,16 @@ The toolkit uses CLOISTER, a correlation-based algorithm, to detect the empirica
 
 ###  Algorithm selection settings
 
-The toolkit trains one [scikit-learn](https://scikit-learn.org/) `SVC` per algorithm as the algorithm selection model.
+PYTHIA trains one classifier per algorithm and uses its predictions and precision
+to recommend algorithms. `opts.pythia.classifier` selects `"svm"` (the default),
+`"knn"`, `"tree"`, `"nb"`, `"linear"`, or `"ensemble"`. Set `opts.pythia.skip=True`
+to bypass classifier training. Kernel settings below apply to SVMs.
 
 - ```opts.pythia.cv_folds``` number of folds of the stratified cross-validation (CV) experiment used during hyperparameter tuning.
 - ```opts.pythia.is_poly_krnl``` determines whether to use a polynomial (set as ```TRUE```) or Gaussian/RBF (set as ```FALSE```, the default) kernel. The RBF kernel is usually significantly faster to compute and more accurate; however, it also has the disadvantage of producing discontinuous regions of good performance that may appear overfit. We tend to recommend a polynomial kernel if the dataset is higher than 1000 instances.
-- ```opts.pythia.tuning``` selects the hyperparameter tuning strategy for the SVM's box constraint and kernel scale: ```'sobol'``` (the default, matching the MATLAB toolkit) evaluates ```opts.pythia.n_tuning_iter``` scrambled Sobol quasi-random candidates via stratified CV and keeps the best; ```'bayes'``` uses Bayesian optimisation via [scikit-optimize](https://scikit-optimize.github.io/)'s `BayesSearchCV` instead; ```'none'``` skips tuning entirely and requires ```opts.pythia.params``` to already hold valid per-algorithm hyperparameters.
+- ```opts.pythia.tuning``` selects the hyperparameter tuning strategy for the selected classifier (box constraint and kernel scale for SVMs): ```'sobol'``` (the default, matching the MATLAB toolkit) evaluates ```opts.pythia.n_tuning_iter``` scrambled Sobol quasi-random candidates via stratified CV and keeps the best; ```'bayes'``` uses Bayesian optimisation via [scikit-optimize](https://scikit-optimize.github.io/)'s `BayesSearchCV` instead; ```'none'``` skips tuning entirely and requires ```opts.pythia.params``` to already hold valid per-algorithm hyperparameters.
 - ```opts.pythia.n_tuning_iter``` number of Sobol candidates evaluated when ```opts.pythia.tuning``` is ```'sobol'``` (default 20).
-- ```opts.pythia.use_weights``` determines whether weighted (set as ```TRUE```) or unweighted (set as ```FALSE```, the default) classification is performed. The weights are calculated as <img src="https://render.githubusercontent.com/render/math?math=\left|y-\bar{y}\right|">, i.e. each instance's absolute deviation from the algorithm's mean performance.
+- ```opts.pythia.use_weights``` determines whether weighted (set as ```TRUE```) or unweighted (set as ```FALSE```, the default) classification is performed. Weights use per-instance regret, `abs(y[i, j] - y_best[i])`, in the training performance scale. Zero weights are replaced by the smallest positive finite weight; if none exists, training uses uniform weights. Classifiers that do not support sample weights emit a warning and train without them.
 - ```opts.pythia.uselibsvm``` **(legacy)** accepted for backward compatibility with option files from the MATLAB toolkit, and genuinely ignored - does not select LIBSVM, which this implementation does not use.
 
 ### Footprint construction settings
@@ -208,8 +255,7 @@ TRACE builds good, best, hard, and full-space footprints. `method="legacy"` reta
 the historical 2D DBSCAN/Shapely path and remains Python's compatibility default.
 `method="trace3"` implements MATLAB's current alpha-shape algorithm with 2D polygons
 or native 3D tetrahedral meshes. A 3D projection always dispatches to TRACE3 because
-legacy TRACE is 2D-only. Build metrics and `explore()` rescoring use the same exact,
-boundary-inclusive membership rule as MATLAB.
+legacy TRACE is 2D-only. Build metrics and `explore()` rescoring use boundary-inclusive membership; controlled MATLAB references test boundary points, holes, and disconnected components.
 
 - `opts.trace.method` selects `"legacy"` (default) or `"trace3"`.
 - `opts.trace.use_sim` uses PYTHIA predictions (`TRUE`) or observed good-performance
@@ -226,28 +272,44 @@ The toolkit implements simple routines to bound outliers and scale the data. **T
 
 - ```opts.auto.preproc``` turns on (set as ```TRUE```) the automatic pre-processing.
 - ```opts.bound.flag``` turns on (set as ```TRUE```) data bounding. This sub-routine calculates the median and the interquartile range ([IQR](https://en.wikipedia.org/wiki/Interquartile_range)) of each feature and performance measure, and bounds the data to the median plus or minus five times the IQR.
-- ```opts.norm.flag``` turns on (set as ```TRUE```) scalling. This sub-routine scales each feature and performance measure into a positive range. Then it calculates a [box-cox transformation](https://en.wikipedia.org/wiki/Power_transform#Box%E2%80%93Cox_transformation) to stabilise the variance, and a [Z-transformation](https://en.wikipedia.org/wiki/Standard_score) to standardise the data. The results are features and performance measures that are close to normally distributed.
+- ```opts.norm.flag``` turns on (set as ```TRUE```) scaling. This sub-routine scales each feature and performance measure into a positive range. Then it calculates a [box-cox transformation](https://en.wikipedia.org/wiki/Power_transform#Box%E2%80%93Cox_transformation) to stabilise the variance, and a [Z-transformation](https://en.wikipedia.org/wiki/Standard_score) to standardise the data. The results are features and performance measures that are close to normally distributed.
 
 ### Automatic feature selection
 
 The toolkit implements SIFTED, a routine to select features, given their cross-correlation and correlation to performance. Ideally, we want the fewest orthogonal and predictive features. **This routine is by no means perfect, and users should pre-process their data independently if preferred**.  In general, we recommend **using no more than 10 features** as input to PILOT's optimal projection algorithm, given the numerical nature of its solution and the difficulty of identifying meaningful linear trends.
 
-- ```opts.sifted.flag``` turns on (set as ```TRUE```) the automatic feature selection. SIFTED is composed of two sub-processes. For the first one, SIFTED calculates the [Pearson correlation coefficient](https://en.wikipedia.org/wiki/Pearson_correlation_coefficient) between the features and the performance metric. Then it takes its absolute value and sorts them from largest to smallest. Then it selects all features with a correlation above the threshold. It automatically bounds itself to a minimum of 3 features. Then, SIFTED uses the [Pearson correlation coefficient](https://en.wikipedia.org/wiki/Pearson_correlation_coefficient) as a dissimilarity metric between features. Then, [k-means clustering](https://en.wikipedia.org/wiki/K-means_clustering) is used to identify groups of similar features. To select one feature per group, the algorithm first projects the selected features into two dimensions using Principal Component Analysis ([PCA](https://en.wikipedia.org/wiki/Principal_component_analysis)) and then uses [Random Forests](https://en.wikipedia.org/wiki/Random_forest) to predict whether an instance is easy for a given algorithm. Then, the subset of features that gives the most accurate models is selected. This section of the routine is potentially computationally very expensive due to the multilayer training process. However, our current recommended approach is to select the most relevant features. This routine tests all possible combinations if they are less than 1000, or uses the combination of a [Genetic Algorithm](https://en.wikipedia.org/wiki/Genetic_algorithm) and a Look-up table otherwise.
+- `opts.sifted.flag` enables feature selection. SIFTED filters features by their
+  absolute correlation with algorithm performance and clusters correlated features.
+  Its genetic search chooses representatives, projects candidates through PILOT
+  using the selected dimensionality, and evaluates k-nearest-neighbor classifiers
+  by cross-validation. Fitness maximizes the worst per-algorithm accuracy; a cache
+  avoids recomputing candidate subsets within the search.
 - ```opts.sifted.rho``` correlation threshold indicating the lowest acceptable absolute correlation between a feature and performance. It should be a value between 0 and 1.
 - ```opts.sifted.k``` number of clusters which corresponds to the final number of features returned. The routine assumes at least 3 clusters and no more than the number of features. Ideally, it **should not** exceed 10.
-- ```opts.sifted.n_trees``` number of trees used by the Random Forest models. Typically, this setting does not require adjustment.
+- `opts.sifted.n_trees` is retained for compatibility; the current candidate fitness uses k-nearest-neighbor classifiers rather than random forests.
 - ```opts.sifted.max_iter``` number of iterations used to converge the k-means algorithm. Typically, this setting does not require adjustment.
 - ```opts.sifted.replicates``` number of repeats carried out of the k-means algorithm. Typically, this setting does not require adjustment.
 
 ### Output settings
 
-These settings result in more information being stored in files or presented in the console output.
+Use `model.save_to_csv()`, `model.save_graphs()`, `model.save_for_web()` or
+`model.save_to_mat()` to write results. The output flags below describe the desired
+outputs; calling `build()` alone does not write these files.
 
 Two-dimensional saves retain the existing polygon CSV and plot formats. Three-dimensional
 saves write `z_1`/`z_2`/`z_3` coordinates plus `footprint_meshes.json` and one-based
 vertex, tetrahedron, and outward-boundary-face CSV files under the
 `pyinstancespace.trace-mesh/v1` schema. Plots use native matplotlib 3D axes, mesh
 surfaces, and the stored global or per-algorithm PILOT viewpoint.
+
+CLOISTER retains its two vertex arrays and adds derived `z_edge_faces` and
+`z_ecorr_faces` for 3D boundaries, including planar boundaries embedded in 3D.
+Collinear 3D input raises an error. CSV output includes `bounds_faces.csv`,
+`bounds_prunned_faces.csv`, and `bounds_mesh_manifest.json` under
+`pyinstancespace.cloister-mesh/v1`. These face indices are **zero-based** rows into
+the corresponding bounds CSV, unlike the one-based TRACE mesh indices above.
+Two-dimensional exports remove stale CLOISTER mesh files. This change does not
+add a new CLOISTER plot view.
 
 - ```opts.outputs.csv``` This flag produces the output CSV files for post-processing and analysis. It is recommended to leave this setting as ```TRUE```.
 - ```opts.outputs.png``` This flag produces the output figure files for post-processing and analysis. It is recommended to leave this setting as ```TRUE```.

@@ -99,7 +99,8 @@ class PilotOutput(NamedTuple):
         feature space and the distances in the projected space. None if PILOT does
         not use the numerical solver.
     a : NDArray[np.double]
-        The projection matrix (dims x features). `z = x @ a.T`.
+        The projection matrix (dims x features). PLS subtracts `pilot_x_mean`
+        before projection.
     z : NDArray[np.double]
         The projected instances (instances x dims).
     c : NDArray[np.double]
@@ -114,6 +115,8 @@ class PilotOutput(NamedTuple):
         feature and algorithm column.
     pilot_summary : pd.DataFrame
         The projection matrix `a`, rounded to four decimals, with feature labels.
+    pilot_x_mean : NDArray[np.double] | None
+        Fitted feature mean for PLS; None for an uncentred standard projection.
     viewpoint : PilotViewpointResult | None
         The optimized viewpoints for the algorithm groups of a 3D projection. None
         for a 2D projection.
@@ -131,6 +134,7 @@ class PilotOutput(NamedTuple):
     r2: NDArray[np.double]
     pilot_summary: pd.DataFrame
     viewpoint: PilotViewpointResult | None = None
+    pilot_x_mean: NDArray[np.double] | None = None
 
 
 class PilotStage(
@@ -179,8 +183,13 @@ class PilotStage(
         inputs: PilotPredictInput,
         fitted: PilotOut,
     ) -> NDArray[np.double]:
-        """Apply MATLAB's public uncentred explore projection."""
-        return inputs.x @ fitted.a.T
+        """Project with the fitted PLS mean; older models retain linear inference."""
+        mean = getattr(fitted, "x_mean", None)
+        if mean is None:
+            return inputs.x @ fitted.a.T
+        if mean.shape != (inputs.x.shape[1],):
+            raise ValueError("PILOT fitted mean must match the input feature columns.")
+        return np.asarray((inputs.x - mean) @ fitted.a.T, dtype=np.double)
 
     @staticmethod
     def _run(inputs: PilotInput) -> PilotOutput:
@@ -500,6 +509,7 @@ class PilotStage(
             error,
             r2,
             summary,
+            pilot_x_mean=x.mean(axis=0) if options.method == "pls" else None,
         )
 
         PilotStage._pilot_print(
