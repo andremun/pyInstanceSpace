@@ -18,7 +18,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13"
-numpy = "^1.26.4"
+numpy = "^2.2.6"
 pandas = "^2.2.1"
 click = "^8.1.7"
 scipy = "^1.13.0"
