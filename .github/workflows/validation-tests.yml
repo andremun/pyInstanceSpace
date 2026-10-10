@@ -41,7 +41,7 @@ jobs:
         persist-credentials: false
 
     - name: Set up Python 3.12
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: "3.12"
 
@@ -93,7 +93,7 @@ jobs:
         poetry run python tools/fixture_provenance.py inventory . tests/fixture_inventory.json
 
     - name: Test with pytest
-      run: poetry run pytest --strict-config --strict-markers -ra -W error --cov=instancespace --cov-report=term-missing
+      run: poetry run pytest --strict-config --strict-markers -ra -W error --cov=instancespace --cov-report=term-missing --cov-report=xml
 
     - name: Audit dependencies for known vulnerabilities
       # Non-blocking for now: a regression here should be visible without
@@ -104,14 +104,12 @@ jobs:
         poetry run python -m pip install --upgrade pip pip-audit
         poetry run pip-audit
 
-    - name: Test with pytest
-      run: poetry run pytest --cov=instancespace --cov-report=term-missing --cov-report=xml
-
     - name: Upload coverage to Codecov
       if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+        working-directory: pyInstanceSpace
         files: ./coverage.xml
         fail_ci_if_error: true
 
@@ -124,7 +122,7 @@ jobs:
     - uses: actions/checkout@v6
       with:
         persist-credentials: false
-    - uses: actions/setup-python@v6
+    - uses: actions/setup-python@v7
       with:
         python-version: "3.12"
     - name: Report changes on MATLAB master
