@@ -122,6 +122,9 @@ class Model:
     opts: InstanceSpaceOptions
     stage_options: dict[str, dict[str, Any]] = field(default_factory=dict)
 
+    # Feature order consumed by PRELIM, before SIFTED overwrites feat_labels.
+    preprocessing_features: tuple[str, ...] | None = None
+
     T = TypeVar("T", bound="Model")
 
     @classmethod
@@ -160,6 +163,7 @@ class Model:
             trace=TraceOut.from_stage_runner_output(stage_runner_output),
             opts=_effective_options(stage_runner_output, options),
             stage_options=deepcopy(stage_runner_output.get("_stage_options", {})),
+            preprocessing_features=stage_runner_output.get("preprocessing_features"),
         )
 
     def save(self, path: Path | str, secret_key: bytes | None = None) -> None:
