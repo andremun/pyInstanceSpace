@@ -1,0 +1,13 @@
+{# Adds a "Docs Home" link back to the curated site (../index.html relative
+   to the api/ output root) above pdoc's own module/parent-package link, so
+   the two halves of the site (docs_site/pages/ and the generated API
+   reference) stay reachable from each other. #}
+{% extends "default/module.html.jinja2" %}
+{% block module_list_link %}
+    <a class="pdoc-button module-list-button" href="{{ '../' * (module.modulename.count('.') + 1) }}index.html">
+        {% include "resources/box-arrow-in-left.svg" %}
+        &nbsp;
+        Docs Home
+    </a>
+    {{ super() }}
+{% endblock %}

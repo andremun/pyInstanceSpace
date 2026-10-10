@@ -15,9 +15,11 @@ from typing import TYPE_CHECKING, Any, TypeVar
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from shapely.geometry import MultiPoint, MultiPolygon, Polygon
+from shapely.geometry import MultiPolygon, Polygon
 
 from instancespace.utils.alpha_shape import TetrahedralMesh
+from instancespace.utils.boundary import boundary_faces
+from instancespace.utils.footprint_membership import footprint_covers
 
 if TYPE_CHECKING:
     from instancespace.stages.pilot_viewpoint import PilotViewpointResult
@@ -26,16 +28,10 @@ if TYPE_CHECKING:
 def pointwise_covers(
     polygon: Polygon | MultiPolygon | TetrahedralMesh,
     points: NDArray[np.double],
+    tolerance: float = 0.0,
 ) -> NDArray[np.bool_]:
-    """Return MATLAB-compatible interior-or-boundary membership per point."""
-    if isinstance(polygon, TetrahedralMesh):
-        return polygon.covers(points)
-    multi_point = MultiPoint(points)
-    return np.fromiter(
-        (polygon.covers(point) for point in multi_point.geoms),
-        dtype=np.bool_,
-        count=len(multi_point.geoms),
-    )
+    """Apply the shared MATLAB/Python closed-boundary TRACE membership policy."""
+    return footprint_covers(polygon, points, tolerance)
 
 
 @dataclass(frozen=True)
@@ -223,6 +219,7 @@ class PilotOut:
     r2: NDArray[np.double]
     summary: pd.DataFrame
     viewpoint: "PilotViewpointResult | None" = None
+    x_mean: NDArray[np.double] | None = None
 
     T = TypeVar("T", bound="PilotOut")
 
@@ -258,6 +255,7 @@ class PilotOut:
             r2=stage_runner_output["r2"],
             summary=stage_runner_output["pilot_summary"],
             viewpoint=stage_runner_output.get("viewpoint"),
+            x_mean=stage_runner_output.get("pilot_x_mean"),
         )
 
 
@@ -267,6 +265,16 @@ class CloisterOut:
 
     z_edge: NDArray[np.double]
     z_ecorr: NDArray[np.double]
+
+    @property
+    def z_edge_faces(self) -> NDArray[np.int_]:
+        """Zero-based triangles, reconstructed from persisted boundary vertices."""
+        return boundary_faces(self.z_edge)
+
+    @property
+    def z_ecorr_faces(self) -> NDArray[np.int_]:
+        """Zero-based triangles for the persisted correlation-constrained boundary."""
+        return boundary_faces(self.z_ecorr)
 
     def __iter__(self) -> Iterator[NDArray[np.double]]:
         """Allow unpacking directly."""
@@ -303,8 +311,9 @@ class CloisterOut:
 class PythiaOut:
     """Results of the Pythia process in the data analysis pipeline."""
 
-    mu: list[float]
-    sigma: list[float]
+    # Training produces arrays; legacy callers and saved models may use lists.
+    mu: NDArray[np.double] | list[float]
+    sigma: NDArray[np.double] | list[float]
     cp: Any  # Change it to proper type
     svm: Any  # Change it to proper type
     cvcmat: NDArray[np.double]
@@ -412,6 +421,7 @@ class Footprint:
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         smoothen: bool = False,
+        boundary_tolerance: float = 0.0,
     ) -> "Footprint":
         """Create a Footprint object based on the given polygon.
 
@@ -425,6 +435,8 @@ class Footprint:
             Binary array indicating the points corresponding to the footprint.
         smoothen : bool, optional
             Indicates if the polygon borders need to be smoothened, by default False.
+        boundary_tolerance : float, optional
+            Inclusive Euclidean boundary distance in projection units; default zero.
 
         Returns
         -------
@@ -446,8 +458,9 @@ class Footprint:
         measure = (
             polygon.volume if isinstance(polygon, TetrahedralMesh) else polygon.area
         )
-        elements = int(np.sum(pointwise_covers(polygon, z)))
-        good_elements = int(np.sum(pointwise_covers(polygon, z[y_bin])))
+        inside = pointwise_covers(polygon, z, boundary_tolerance)
+        elements = int(np.sum(inside))
+        good_elements = int(np.sum(inside & y_bin))
         density = float(elements / measure) if measure != 0 else 0.0
         purity = float(good_elements / elements) if elements != 0 else 0.0
 
@@ -471,6 +484,7 @@ class TraceOut:
     best: list[Footprint]
     hard: Footprint
     summary: pd.DataFrame
+    boundary_tolerance: float = 0.0
 
     T = TypeVar("T", bound="TraceOut")
 
@@ -499,6 +513,7 @@ class TraceOut:
             best=stage_runner_output["best"],
             hard=stage_runner_output["hard"],
             summary=stage_runner_output["trace_summary"],
+            boundary_tolerance=stage_runner_output.get("trace_boundary_tolerance", 0.0),
         )
 
 

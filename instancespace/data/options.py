@@ -545,6 +545,7 @@ class TraceOptions:
     contra: bool = DEFAULT_TRACE_CONTRA
     min_instances: int = DEFAULT_TRACE_MIN_INSTANCES
     min_area_frac: float = DEFAULT_TRACE_MIN_AREA_FRAC
+    boundary_tolerance: float = 0.0
 
     def __init__(
         self,
@@ -554,6 +555,7 @@ class TraceOptions:
         contra: bool = DEFAULT_TRACE_CONTRA,
         min_instances: int = DEFAULT_TRACE_MIN_INSTANCES,
         min_area_frac: float = DEFAULT_TRACE_MIN_AREA_FRAC,
+        boundary_tolerance: float = 0.0,
     ) -> None:
         """Resolve the method-aware purity default."""
         resolved_method = _normalize_member(
@@ -572,6 +574,7 @@ class TraceOptions:
         object.__setattr__(self, "contra", contra)
         object.__setattr__(self, "min_instances", min_instances)
         object.__setattr__(self, "min_area_frac", min_area_frac)
+        object.__setattr__(self, "boundary_tolerance", boundary_tolerance)
         _validate_trace_options(self)
 
     @staticmethod
@@ -582,6 +585,7 @@ class TraceOptions:
         contra: bool = DEFAULT_TRACE_CONTRA,
         min_instances: int = DEFAULT_TRACE_MIN_INSTANCES,
         min_area_frac: float = DEFAULT_TRACE_MIN_AREA_FRAC,
+        boundary_tolerance: float = 0.0,
     ) -> TraceOptions:
         """Instantiate with default values."""
         return TraceOptions(
@@ -591,6 +595,7 @@ class TraceOptions:
             contra=contra,
             min_instances=min_instances,
             min_area_frac=min_area_frac,
+            boundary_tolerance=boundary_tolerance,
         )
 
 
@@ -1106,6 +1111,11 @@ def _validate_trace_options(options: TraceOptions) -> None:
     _check_logical("trace.contra", options.contra)
     _check_pos_int("trace.minInstances", options.min_instances)
     _check_unit_range("trace.minAreaFrac", options.min_area_frac)
+    _check_positive(
+        "trace.boundaryTolerance",
+        options.boundary_tolerance,
+        zero_allowed=True,
+    )
 
 
 @dataclass(frozen=True)
@@ -1353,6 +1363,7 @@ class InstanceSpaceOptions:
                     "usesim": "use_sim",
                     "mininstances": "min_instances",
                     "minareafrac": "min_area_frac",
+                    "boundarytolerance": "boundary_tolerance",
                 },  # mapping the 'pi' in JSON to the 'purity' in TraceOptions
             ),
             outputs=InstanceSpaceOptions._load_dataclass(
