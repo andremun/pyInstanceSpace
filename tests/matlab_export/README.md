@@ -37,6 +37,65 @@ algorithm headers, and a versioned exporter-script hash. A gold-source, dataset,
 exporter change requires an explicit verifier-profile update and fixture regeneration.
 Diagnostic exports remain flexible and v1 remains frozen.
 
+## Candidate validation and promotion
+
+MATLAB `master` is the current implementation target. The committed oracle is an
+approved snapshot of a particular commit; release validation checks that immutable
+revision. A separate, non-blocking CI job reports when master has advanced.
+
+New exports must pass candidate validation before numerical review. Use the full
+MATLAB and Python generator commits requested for the export, and the exporter
+script from that generator checkout. Do not simply copy claimed identities from
+the candidate manifest:
+
+```bash
+python tools/fixture_provenance.py candidate /path/to/new-export \
+  --matlab-commit "$MATLAB_COMMIT" \
+  --generator-commit "$GENERATOR_COMMIT" \
+  --exporter-script /path/to/generator/tests/matlab_export/pyis_export_reference_data.m
+```
+
+The candidate must be a clean verified-mode R2026a v2 export. Validation retains
+the canonical dataset hashes, complete file set, per-file hashes, effective-option
+checks, geometry checks and PILOT lineage checks. It compares source identities
+with the requested run, rather than the old approval, and computes a new content
+root without requiring byte equality with the old bundle. Its report explicitly
+says `matlab-candidate` and `approved: false`; this does not change the export's
+manifest. Hash consistency is not a claim of scientific equivalence or independent
+authentication of the export job.
+
+Prepare an immutable review package at a **new** destination with:
+
+```bash
+python tools/fixture_provenance.py prepare-promotion /path/to/new-export \
+  /path/to/promotion-review \
+  --matlab-commit "$MATLAB_COMMIT" \
+  --generator-commit "$GENERATOR_COMMIT" \
+  --exporter-script /path/to/generator/tests/matlab_export/pyis_export_reference_data.m
+```
+
+This copies and revalidates the candidate, then publishes a directory containing
+`bundle/`, `promotion.json` (previous/proposed identities and manifest hash), and
+review instructions. It never edits approved fixtures or verifier pins. An existing
+destination is rejected. Failed preparation cleans up its staging directory.
+
+Promotion is a reviewed Git commit, not an automatic consequence of validation:
+
+1. Review numerical and semantic differences, including the stage-local tests.
+2. Replace `tests/fixtures/matlab/current` with the reviewed bundle and update
+   `_GOLD_MATLAB_COMMIT`, `_REFERENCE_V2_EXPORTER_SHA256`, and
+   `_VERIFIED_V2_CONTENT_ROOT_SHA256` in `tools/fixture_provenance.py` from the
+   review record. Include the matching exporter if it changed.
+3. Update `tests/fixture_inventory.json` if paths changed, and review affected
+   reference assertions. Schema or option-contract changes require an explicit
+   verifier-profile update, not a bypass flag.
+4. Run `verify`, `inventory`, and the parity suite; commit all changes together.
+   Do not publish a pin-only or manifest-only update.
+
+The existing `verify` and `install` commands retain their approved-identity checks.
+An unapproved new candidate remains ineligible for installation. The diagnostic
+mode is not a substitute for candidate validation.
+
 For numerical PILOT evidence, verification decodes every MATLAB-order solution column,
 recomputes its weighted reconstruction objective and topology score, and selects the
 precalculated replay from those recomputed scores rather than trusting the exported
@@ -75,11 +134,17 @@ V2 adds five stage-level PILOT variants:
 - shifted-input MATLAB SIMPLS in 2D; and
 - the same shifted-input SIMPLS in 3D with uneven grouped viewpoints.
 
-The PLS shift makes MATLAB's internal centring observable. Each PILOT variant records
-that it reuses the default 2D SIFTED snapshot; it proves the PILOT/viewpoint and public
-explore projection paths on fixed inputs, not a separate end-to-end SIFTED-3D run.
-Coordinate columns are emitted as `z_1` through `z_d`. Explore keeps MATLAB's public
-uncentred `Z=X*A'` inference behavior, including for PLS.
+The PLS shift makes MATLAB's internal centring observable. The current exporter
+rebuilds SIFTED for each variant's PILOT dimensions using the public stage API.
+Stage-context v2 records that rebuild, the dimensions and the fitted feature mean;
+exploration reconstructs `Z=(X-Xmean)*A'`. The canonical dataset must still yield
+the same selected inputs across variants, checked by the validator, so the PLS
+2D/3D component comparison remains meaningful. Coordinate columns are emitted as
+`z_1` through `z_d`.
+
+The approved bundle uses stage-context v2 and fitted-mean exploration. The
+validator also accepts historical stage-context v1 (retained 2D SIFTED, uncentred
+exploration). Future exports remain candidates until numerical review and promotion.
 
 The already-built `pilot_standard_analytic_3d` model also supplies the TRACE3 build
 and explore evidence. It does not add a duplicate resolved-options variant. Every
@@ -132,13 +197,23 @@ python -m tools.fixture_provenance install \
 
 The canonical oracle at `tests/fixtures/matlab/current/` is a reviewed, installed
 `reference-export/v2` bundle with 423 files and `matlab-verified` trust. It was generated
-under MATLAB R2026a Update 4 from clean MATLAB
-`98a01ac0513c0dd0f8a9bd91ed2926c871334d7b` (InstanceSpace v0.9.1) and clean
-Python generator `4816b8cf23ad9392e7a7f5aa85bfbc32080dfe84`. The exporter identity is pinned to
-`d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c`.
+under MATLAB R2026a Update 5 from clean MATLAB
+`2e2cf7565aee8e60190e788c959405d44c4317f3` and clean
+Python generator `ab72f6bc5c602e0cb03a65041a4677037282e92c`. The exporter identity is pinned to
+`ebd7917169ca110fd26856ac8cbad43e3c3477b1ce96473e4f5bc9445ff869d6`.
 
-Collection contains 86 provenance tests and 41 current-gold scientific readers. The
-local CI-equivalent gate passed all 1,046 collected tests with 92.08% branch coverage
-and no uncaught warnings under `-W error`. Frozen v1 bundles remain verifiable, but they
-are not the installed current oracle. Diagnostic and `legacy-unknown` snapshots remain
-non-oracles.
+The approved Linux export uses the explicit TRACE boundary policy with tolerance
+zero. Two independent MATLAB processes produced identical hashes for all 423
+artifacts. See [the promotion review](../../docs/fixture-promotion-2026-10-09.md) for validation and remaining limits.
+Frozen v1 bundles remain readable; diagnostic snapshots are not oracles.
+
+### Explicit TRACE boundary tolerance
+
+Current MATLAB exports use `trace.boundaryTolerance` (default zero) for both
+TRACE metrics and exported membership. Python's corresponding option is
+`trace.boundary_tolerance`; both specify an absolute Euclidean distance in
+projection units. The fitted value controls inference. The fixture validator
+uses the declared tolerance when independently reconstructing 3D memberships.
+Historical bundles without the option retain exact semantics. New 2D TRACE
+coordinates and ring vertices are written at full double precision. This does
+not change the approved bundle or its source/hash pins.

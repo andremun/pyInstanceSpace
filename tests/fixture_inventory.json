@@ -4,7 +4,8 @@
     "tests/fixtures/matlab/current",
     "tests/matlab_reference",
     "tests/pilot_pythia",
-    "tests/test_data"
+    "tests/test_data",
+    "tests/fixtures/matlab/geometry"
   ],
   "ignore": [
     "**/.gitignore",
@@ -15,6 +16,11 @@
       "pattern": "tests/fixtures/matlab/current/**",
       "trust": "matlab-verified",
       "reason": "The strict manifest records clean source commits, R2026a, resolved options, toolboxes, schemas, and SHA-256 hashes."
+    },
+    {
+      "pattern": "tests/fixtures/matlab/geometry/**",
+      "trust": "matlab-verified",
+      "reason": "Controlled local MATLAB stage cases: pinned clean current-master source, runtime and exporter hashes; integrity and geometry checked by test_matlab_geometry_cases.py."
     },
     {
       "pattern": "tests/matlab_reference/**",

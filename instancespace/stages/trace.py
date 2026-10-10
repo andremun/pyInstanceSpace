@@ -155,6 +155,7 @@ class TraceOutputs(NamedTuple):
     best: list[Footprint]
     hard: Footprint
     trace_summary: pd.DataFrame
+    trace_boundary_tolerance: float = 0.0
 
 
 class TracePredictInput(NamedTuple):
@@ -332,9 +333,17 @@ class TraceStage(
             good_geometry = fitted.good[index].polygon
             best_geometry = fitted.best[index].polygon
             if good_geometry is not None:
-                in_good[:, index] = pointwise_covers(good_geometry, inputs.z)
+                in_good[:, index] = pointwise_covers(
+                    good_geometry,
+                    inputs.z,
+                    fitted.boundary_tolerance,
+                )
             if best_geometry is not None:
-                in_best[:, index] = pointwise_covers(best_geometry, inputs.z)
+                in_best[:, index] = pointwise_covers(
+                    best_geometry,
+                    inputs.z,
+                    fitted.boundary_tolerance,
+                )
         return TracePredictOutput(in_good, in_best)
 
     @staticmethod
@@ -618,6 +627,7 @@ class TraceStage(
             best=best,
             hard=hard,
             trace_summary=final_df,
+            trace_boundary_tolerance=self.opts.boundary_tolerance,
         )
 
     def _trace3(self) -> TraceOutputs:
@@ -647,7 +657,14 @@ class TraceStage(
             self.algo_labels,
             space,
         )
-        return TraceOutputs(space, good, best, hard, summary)
+        return TraceOutputs(
+            space,
+            good,
+            best,
+            hard,
+            summary,
+            self.opts.boundary_tolerance,
+        )
 
     def _validate_trace3_inputs(self) -> None:
         """Reject array shapes that cannot satisfy TRACE3's 2D/3D contract."""
@@ -775,7 +792,12 @@ class TraceStage(
         """Calculate TRACE3 metrics and report whether the geometry is usable."""
         if polygon is None or polygon.is_empty or not np.isfinite(alpha_radius):
             return Footprint(None, 0, 0, 0, 0, 0, self.z.shape[1]), False
-        footprint = Footprint.from_polygon(polygon, self.z, y_bin)
+        footprint = Footprint.from_polygon(
+            polygon,
+            self.z,
+            y_bin,
+            boundary_tolerance=self.opts.boundary_tolerance,
+        )
         valid = (
             footprint.polygon is not None
             and np.isfinite(footprint.area)
@@ -890,7 +912,12 @@ class TraceStage(
 
         good = [
             (
-                TraceStage._rescore_footprint(trained.good[i], z, y_bin[:, i])
+                TraceStage._rescore_footprint(
+                    trained.good[i],
+                    z,
+                    y_bin[:, i],
+                    trained.boundary_tolerance,
+                )
                 if i < len(trained.good)
                 else Footprint(None, 0, 0, 0, 0, 0, trained_dimension)
             )
@@ -898,26 +925,44 @@ class TraceStage(
         ]
         best = [
             (
-                TraceStage._rescore_footprint(trained.best[i], z, portfolio == i)
+                TraceStage._rescore_footprint(
+                    trained.best[i],
+                    z,
+                    portfolio == i,
+                    trained.boundary_tolerance,
+                )
                 if i < len(trained.best)
                 else Footprint(None, 0, 0, 0, 0, 0, trained_dimension)
             )
             for i in range(n_algorithms)
         ]
-        hard = TraceStage._rescore_footprint(trained.hard, z, ~beta)
+        hard = TraceStage._rescore_footprint(
+            trained.hard,
+            z,
+            ~beta,
+            trained.boundary_tolerance,
+        )
         summary = TraceStage._summary_table(
             good,
             best,
             algo_labels,
             trained.space,
         )
-        return TraceOut(trained.space, good, best, hard, summary)
+        return TraceOut(
+            trained.space,
+            good,
+            best,
+            hard,
+            summary,
+            trained.boundary_tolerance,
+        )
 
     @staticmethod
     def _rescore_footprint(
         trained: Footprint,
         z: NDArray[np.double],
         y_bin: NDArray[np.bool_],
+        boundary_tolerance: float = 0.0,
     ) -> Footprint:
         """Update only evidence metrics for one trained footprint."""
         polygon = trained.polygon
@@ -931,7 +976,7 @@ class TraceStage(
                 0,
                 TraceStage._footprint_dimension(trained),
             )
-        inside = pointwise_covers(polygon, z)
+        inside = pointwise_covers(polygon, z, boundary_tolerance)
         elements = int(np.sum(inside))
         good_elements = int(np.sum(np.logical_and(inside, y_bin)))
         if elements == 0 or trained.area == 0:
@@ -1075,6 +1120,7 @@ class TraceStage(
             z=self.z,
             y_bin=y_bin,
             smoothen=True,
+            boundary_tolerance=self.opts.boundary_tolerance,
         )
 
     def contra(
@@ -1119,7 +1165,9 @@ class TraceStage(
         contradiction = base_polygon.intersection(test_polygon)
 
         while not contradiction.is_empty and num_tries <= max_tries:
-            num_elements = np.sum(pointwise_covers(contradiction, self.z))
+            num_elements = np.sum(
+                pointwise_covers(contradiction, self.z, self.opts.boundary_tolerance),
+            )
             if num_elements == 0:
                 self._log_detail(
                     "        -> The contradicting area contains no instances; "
@@ -1128,10 +1176,18 @@ class TraceStage(
                 break
 
             num_good_elements_base = np.sum(
-                pointwise_covers(contradiction, self.z[y_base]),
+                pointwise_covers(
+                    contradiction,
+                    self.z[y_base],
+                    self.opts.boundary_tolerance,
+                ),
             )
             num_good_elements_test = np.sum(
-                pointwise_covers(contradiction, self.z[y_test]),
+                pointwise_covers(
+                    contradiction,
+                    self.z[y_test],
+                    self.opts.boundary_tolerance,
+                ),
             )
 
             purity_base = num_good_elements_base / num_elements
@@ -1170,8 +1226,18 @@ class TraceStage(
 
             num_tries += 1
 
-        base = Footprint.from_polygon(polygon=base_polygon, z=self.z, y_bin=y_base)
-        test = Footprint.from_polygon(polygon=test_polygon, z=self.z, y_bin=y_test)
+        base = Footprint.from_polygon(
+            polygon=base_polygon,
+            z=self.z,
+            y_bin=y_base,
+            boundary_tolerance=self.opts.boundary_tolerance,
+        )
+        test = Footprint.from_polygon(
+            polygon=test_polygon,
+            z=self.z,
+            y_bin=y_test,
+            boundary_tolerance=self.opts.boundary_tolerance,
+        )
 
         return base, test
 
@@ -1204,7 +1270,7 @@ class TraceStage(
 
         for i in range(n_polygons):
             criteria = np.logical_and(
-                pointwise_covers(splits[i], self.z),
+                pointwise_covers(splits[i], self.z, self.opts.boundary_tolerance),
                 y_bin,
             )
             polydata = self.z[criteria]
@@ -1251,9 +1317,19 @@ class TraceStage(
                 return None
             tri = triangulate(polygon)
             for piece in tri:
-                elements = np.sum(pointwise_covers(piece.convex_hull, self.z))
+                elements = np.sum(
+                    pointwise_covers(
+                        piece.convex_hull,
+                        self.z,
+                        self.opts.boundary_tolerance,
+                    ),
+                )
                 good_elements = np.sum(
-                    pointwise_covers(piece.convex_hull, self.z[y_bin]),
+                    pointwise_covers(
+                        piece.convex_hull,
+                        self.z[y_bin],
+                        self.opts.boundary_tolerance,
+                    ),
                 )
                 if elements == 0 or (good_elements / elements) < self.opts.purity:
                     polygon = polygon.difference(piece)

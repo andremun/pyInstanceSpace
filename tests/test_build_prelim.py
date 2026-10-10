@@ -340,6 +340,7 @@ def test_prelim_run() -> None:
         prelim_options=prelim_opts,
         selvars_options=selvars_opts,
         general_options=GeneralOptions.default(),
+        algo_labels=[f"a{i}" for i in range(y_input_run.shape[1])],
     )
 
     (
@@ -367,6 +368,7 @@ def test_prelim_run() -> None:
         inst_labels,
         data_dense,
         s,
+        _algo_labels,
     ) = PrelimStage._run(
         inputs,
     )

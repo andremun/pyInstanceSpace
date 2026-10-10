@@ -500,3 +500,32 @@ def test_resaving_unsigned_removes_a_stale_signature(tmp_path: Path) -> None:
     assert not path.with_name(path.name + ".sig").exists()
     loaded = Model.load(path)  # must not raise the downgrade-attack guard
     _assert_models_equal(model, loaded)
+
+
+def test_stage_options_survive_model_persistence_and_control_explore(
+    tmp_path: Path,
+) -> None:
+    """Overrides used in training must replace constructor defaults at inference."""
+    from instancespace.data.options import PrelimOptions
+    from instancespace.instance_space import InstanceSpace
+
+    source = _build_minimal_model()
+    effective = PrelimOptions.default(preproc=False, bound=False, norm=False)
+    payload = _stage_output_for_model(source, source.data_dense)
+    payload["_stage_options"] = {
+        "PrelimStage": {
+            "prelim_options": effective,
+            "general_options": source.opts.general,
+        },
+    }
+    built = Model.from_stage_runner_output(payload, source.opts)
+    assert built.opts.auto.preproc is False
+    path = tmp_path / "effective-options.joblib"
+    built.save(path)
+    loaded = Model.load(path)
+    space = InstanceSpace.__new__(InstanceSpace)
+    space._options = source.opts
+    space._model = loaded
+    x = np.array([[100.0, -100.0]])
+    np.testing.assert_array_equal(space._explore_prelim(x), x)
+    assert loaded.stage_options["PrelimStage"]["prelim_options"] == effective

@@ -141,7 +141,7 @@ _REFERENCE_REQUIRED_TOOLBOXES: Final = {
     "Global Optimization Toolbox",
     "Financial Toolbox",
 }
-_GOLD_MATLAB_COMMIT: Final = "98a01ac0513c0dd0f8a9bd91ed2926c871334d7b"
+_GOLD_MATLAB_COMMIT: Final = "2e2cf7565aee8e60190e788c959405d44c4317f3"
 _CANONICAL_DATASET_SHA256: Final = {
     "shared_inputs/reference/metadata.csv": (
         "961c65397b619a6e8e40df0ea6f90fbda448b8deb8a56e5a319e1be8f442bf0c"
@@ -152,10 +152,10 @@ _CANONICAL_DATASET_SHA256: Final = {
 }
 _EXPORTER_SCRIPT: Final = "tests/matlab_export/pyis_export_reference_data.m"
 _REFERENCE_V2_EXPORTER_SHA256: Final = (
-    "d11293556b12beb63e3320094a2340ba3f7f8b7a58677ff404f20c0ba3b7350c"
+    "ebd7917169ca110fd26856ac8cbad43e3c3477b1ce96473e4f5bc9445ff869d6"
 )
 _VERIFIED_V2_CONTENT_ROOT_SHA256: Final = (
-    "f44107a6716c4f204affc006cba6219a2aedeff221a0bccb1d7bd4893de6162f"
+    "4c4279651bf9f13b20a5e539cd5b5a123beaeb9ebea4a6699b6d0c1a05bc036a"
 )
 _BASE_STAGE_VARIANTS: Final = {
     ("build", "prelim", "default"),
@@ -221,6 +221,7 @@ _BOOL_OPTION_FIELDS: Final = {
     ("selvars", "fileidxflag"),
     ("selvars", "densityflag"),
     ("sifted", "flag"),
+    ("sifted", "diagnostics"),
     ("pilot", "analytic"),
     ("pilot", "verbose"),
     ("pythia", "flag"),
@@ -283,6 +284,24 @@ class BundleReport:
 
 
 @dataclass(frozen=True)
+class CandidateIdentity:
+    """Source identities requested independently of a candidate manifest."""
+
+    matlab_commit: str
+    generator_commit: str
+    exporter_sha256: str
+
+
+@dataclass(frozen=True)
+class CandidateReport:
+    """Integrity-checked candidate; not an approved numerical oracle."""
+
+    bundle: BundleReport
+    identity: CandidateIdentity
+    content_root: str
+
+
+@dataclass(frozen=True)
 class InventoryReport:
     """Summarize the trust classes assigned to historical fixtures."""
 
@@ -337,12 +356,120 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def validate_bundle(  # noqa: PLR0912
+def validate_bundle(
     root: Path,
     *,
     allow_diagnostic: bool = False,
 ) -> BundleReport:
-    """Validate a generated MATLAB fixture bundle against its manifest."""
+    """Verify an approved bundle, or explicitly requested diagnostics."""
+    return _validate_bundle(root, allow_diagnostic=allow_diagnostic)
+
+
+def validate_candidate(root: Path, identity: CandidateIdentity) -> CandidateReport:
+    """Check a fresh v2 export without approving its numerical results.
+
+    Identities must come from the requested export job and exporter checkout,
+    not be copied from the untrusted manifest merely to make validation pass.
+    Canonical inputs, clean sources, environment, options, geometry, lineage,
+    and every artifact hash retain the approved verifier's checks.
+    """
+    _validate_commit(identity.matlab_commit, "expected MATLAB commit")
+    _validate_commit(identity.generator_commit, "expected generator commit")
+    _validate_sha256(identity.exporter_sha256, "expected exporter hash")
+    report = _validate_bundle(root, candidate=identity)
+    manifest = _load_object(report.root / "manifest.json", "fixture manifest")
+    entries = {entry["path"]: entry for entry in manifest["files"]}
+    return CandidateReport(report, identity, _manifest_content_root(entries))
+
+
+def _candidate_result(report: CandidateReport) -> dict[str, Any]:
+    return {
+        "trust": report.bundle.trust,
+        "approved": False,
+        "root": str(report.bundle.root),
+        "file_count": report.bundle.file_count,
+        "total_bytes": report.bundle.total_bytes,
+        "matlab_release": report.bundle.matlab_release,
+        "matlab_commit": report.identity.matlab_commit,
+        "generator_commit": report.identity.generator_commit,
+        "exporter_sha256": report.identity.exporter_sha256,
+        "content_root": report.content_root,
+    }
+
+
+def prepare_promotion(
+    source: Path,
+    destination: Path,
+    identity: CandidateIdentity,
+) -> Path:
+    """Atomically prepare a review package without changing approved fixtures.
+
+    Promotion itself is one reviewed Git commit containing the bundle, pins,
+    and any inventory/reference-test changes. Passing integrity checks alone
+    never authorizes a candidate as a numerical oracle.
+    """
+    report = validate_candidate(source, identity)
+    source_root = report.bundle.root
+    manifest_hash = sha256_file(source_root / "manifest.json")
+    destination_root = destination.resolve()
+    if destination_root.exists():
+        raise ProvenanceError(
+            f"Promotion destination already exists: {destination_root}",
+        )
+    if destination_root.is_relative_to(source_root):
+        raise ProvenanceError(
+            "Promotion destination cannot be inside the source bundle",
+        )
+    destination_root.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".promotion-", dir=destination_root.parent))
+    try:
+        shutil.copytree(source_root, staging / "bundle")
+        staged = validate_candidate(staging / "bundle", identity)
+        if (
+            staged.content_root != report.content_root
+            or sha256_file(staging / "bundle/manifest.json") != manifest_hash
+        ):
+            raise ProvenanceError("Candidate changed while preparing promotion")
+        record = _candidate_result(report)
+        record["root"] = "bundle"
+        record["manifest_sha256"] = manifest_hash
+        record["previous_approval"] = {
+            "matlab_commit": _GOLD_MATLAB_COMMIT,
+            "exporter_sha256": _REFERENCE_V2_EXPORTER_SHA256,
+            "content_root": _VERIFIED_V2_CONTENT_ROOT_SHA256,
+        }
+        (staging / "promotion.json").write_text(
+            json.dumps(record, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        (staging / "README.md").write_text(
+            "# Candidate promotion review\n\n"
+            "This package is not approved. Review numerical and semantic differences "
+            "against the existing oracle before promotion.\n\n"
+            "After review, replace tests/fixtures/matlab/current with bundle and "
+            "update _GOLD_MATLAB_COMMIT, _REFERENCE_V2_EXPORTER_SHA256 and "
+            "_VERIFIED_V2_CONTENT_ROOT_SHA256 in tools/fixture_provenance.py "
+            "from promotion.json. Include the matching exporter revision if it "
+            "changed. Update fixture_inventory.json if the path set changed and "
+            "review affected reference assertions. Run verify, inventory and the "
+            "parity tests. Commit the bundle, pins, exporter and related changes "
+            "together; do not merge a pin-only or manifest-only change.\n",
+            encoding="utf-8",
+        )
+        staging.rename(destination_root)
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    return destination_root
+
+
+def _validate_bundle(  # noqa: PLR0912
+    root: Path,
+    *,
+    allow_diagnostic: bool = False,
+    candidate: CandidateIdentity | None = None,
+) -> BundleReport:
+    """Apply shared structural checks and the requested source identity policy."""
     bundle_root = root.resolve()
     if not bundle_root.is_dir():
         raise ProvenanceError(f"Fixture bundle is not a directory: {bundle_root}")
@@ -361,6 +488,11 @@ def validate_bundle(  # noqa: PLR0912
             "Diagnostic MATLAB fixtures are not accepted as parity oracles. "
             "Pass allow_diagnostic=True only for exporter diagnostics.",
         )
+
+    if candidate is not None and (
+        trust != VERIFIED_TRUST or profile != REFERENCE_PROFILE
+    ):
+        raise ProvenanceError("Candidates require a clean verified-mode v2 export")
 
     _validate_timestamp(_expect_text(manifest, "generated_at"))
     _expect_text(manifest, "bundle_id")
@@ -523,6 +655,7 @@ def validate_bundle(  # noqa: PLR0912
             matlab,
             generator,
             entries_by_path,
+            candidate=candidate,
         )
 
     _validate_reference_profile(
@@ -536,7 +669,7 @@ def validate_bundle(  # noqa: PLR0912
 
     return BundleReport(
         root=bundle_root,
-        trust=trust,
+        trust="matlab-candidate" if candidate is not None else trust,
         matlab_release=matlab_release,
         file_count=len(entries),
         total_bytes=total_bytes,
@@ -686,14 +819,23 @@ def _validate_verified_v2_identity(
     matlab: dict[str, Any],
     generator: dict[str, Any],
     entries_by_path: dict[str, dict[str, Any]],
+    *,
+    candidate: CandidateIdentity | None = None,
 ) -> list[str]:
-    """Pin a verified v2 oracle to the audited source, data, and exporter."""
+    """Check requested candidate identity or the audited approved identity."""
     matlab_commit = _expect_text(matlab, "repo_commit")
-    if matlab_commit != _GOLD_MATLAB_COMMIT:
+    expected_commit = (
+        _GOLD_MATLAB_COMMIT if candidate is None else candidate.matlab_commit
+    )
+    if matlab_commit != expected_commit:
+        identity_label = "gold" if candidate is None else "requested"
         raise ProvenanceError(
-            "Verified v2 fixtures must use the gold MATLAB commit "
-            f"{_GOLD_MATLAB_COMMIT}",
+            f"Verified v2 fixtures must use the {identity_label} MATLAB commit "
+            f"{expected_commit}",
         )
+
+    if candidate is not None:
+        _expect_equal(generator, "repo_commit", candidate.generator_commit)
 
     for relative, expected_hash in _CANONICAL_DATASET_SHA256.items():
         target = bundle_root / relative
@@ -709,13 +851,18 @@ def _validate_verified_v2_identity(
             )
 
     _expect_equal(generator, "script", _EXPORTER_SCRIPT)
-    if _expect_text(generator, "script_sha256") != _REFERENCE_V2_EXPORTER_SHA256:
+    expected_exporter = (
+        _REFERENCE_V2_EXPORTER_SHA256
+        if candidate is None
+        else candidate.exporter_sha256
+    )
+    if _expect_text(generator, "script_sha256") != expected_exporter:
         raise ProvenanceError(
             "Verified v2 fixtures do not match the pinned exporter script hash",
         )
 
     content_root = _manifest_content_root(entries_by_path)
-    if content_root != _VERIFIED_V2_CONTENT_ROOT_SHA256:
+    if candidate is None and content_root != _VERIFIED_V2_CONTENT_ROOT_SHA256:
         raise ProvenanceError(
             "Verified v2 fixture content root does not match the audited oracle",
         )
@@ -861,7 +1008,10 @@ def _validate_profile_entry(  # noqa: PLR0912
         raise ProvenanceError(f"Manifest role does not match {relative}")
 
 
-def _validate_effective_options(options: dict[str, Any], variant: str) -> None:
+def _validate_effective_options(  # noqa: PLR0912
+    options: dict[str, Any],
+    variant: str,
+) -> None:
     if set(options) != set(_OPTION_FIELDS):
         raise ProvenanceError(
             f"Resolved options for {variant!r} do not contain the exact option groups",
@@ -869,6 +1019,10 @@ def _validate_effective_options(options: dict[str, Any], variant: str) -> None:
     for group, expected_fields in _OPTION_FIELDS.items():
         values = _expect_object(options, group)
         variant_fields = set(expected_fields)
+        if group == "trace" and "boundaryTolerance" in values:
+            variant_fields.add("boundaryTolerance")
+        if group == "sifted" and "diagnostics" in values:
+            variant_fields.add("diagnostics")
         if group == "pilot":
             variant_fields.update(_PILOT_OPTIONAL_FIELDS.get(variant, set()))
         if set(values) != variant_fields:
@@ -891,6 +1045,8 @@ def _validate_effective_options(options: dict[str, Any], variant: str) -> None:
                     and not isinstance(value, bool)
                     and math.isfinite(value)
                 )
+            if group == "trace" and field == "boundaryTolerance":
+                valid = valid and value >= 0
             if not valid:
                 raise ProvenanceError(
                     f"Resolved option {variant!r}.{group}.{field} has an invalid type",
@@ -1259,7 +1415,10 @@ def _validate_pilot_evidence_profile(  # noqa: PLR0912
             build_root / "inputs" / "stage_context.json",
             "PILOT stage context",
         )
-        if set(context) != {
+        context_v2 = context.get("schema_version") == (
+            "pyinstancespace.pilot-evidence-context/v2"
+        )
+        context_keys = {
             "schema_version",
             "scope",
             "upstream_snapshot",
@@ -1268,12 +1427,19 @@ def _validate_pilot_evidence_profile(  # noqa: PLR0912
             "feature_shift",
             "algorithm_shift",
             "explore_projection",
-        }:
+        }
+        if context_v2:
+            context_keys.update({"sifted_rebuilt", "x_mean"})
+        if set(context) != context_keys:
             raise ProvenanceError(f"PILOT stage context mismatch for {variant!r}")
         _expect_equal(
             context,
             "schema_version",
-            "pyinstancespace.pilot-evidence-context/v1",
+            (
+                "pyinstancespace.pilot-evidence-context/v2"
+                if context_v2
+                else "pyinstancespace.pilot-evidence-context/v1"
+            ),
         )
         _expect_equal(context, "scope", "pilot-stage")
         _expect_equal(
@@ -1281,13 +1447,19 @@ def _validate_pilot_evidence_profile(  # noqa: PLR0912
             "upstream_snapshot",
             "build_data/pilot/default/inputs",
         )
-        if context.get("sifted_effective_pilot_dims") != 2:  # noqa: PLR2004
+        if context.get("sifted_effective_pilot_dims") != (dims if context_v2 else 2):
             raise ProvenanceError(f"PILOT upstream dimensions mismatch for {variant!r}")
         _expect_equal(
             context,
             "explore_projection",
-            "InstanceSpace.explore: Z=X*A' (uncentred)",
+            (
+                "InstanceSpace.explore: Z=(X-Xmean)*A' (fitted mean)"
+                if context_v2
+                else "InstanceSpace.explore: Z=X*A' (uncentred)"
+            ),
         )
+        if context_v2 and context.get("sifted_rebuilt") is not True:
+            raise ProvenanceError(f"PILOT requires rebuilt SIFTED for {variant!r}")
         is_pls = variant.startswith("pilot_pls_")
         expected_feature_shift = (
             [0.25 * index for index in range(1, n_features + 1)] if is_pls else []
@@ -1316,6 +1488,18 @@ def _validate_pilot_evidence_profile(  # noqa: PLR0912
         )
         if not x or len(x) != len(y):
             raise ProvenanceError(f"PILOT build inputs mismatch for {variant!r}")
+        fitted_mean = _column_means(x) if is_pls else [0.0] * n_features
+        if context_v2:
+            recorded_mean = context.get("x_mean")
+            if (
+                not isinstance(recorded_mean, list)
+                or len(recorded_mean) != n_features
+                or any(type(value) not in (int, float) for value in recorded_mean)
+                or not _matrices_close([recorded_mean], [fitted_mean], tolerance=1e-12)
+            ):
+                raise ProvenanceError(f"PILOT fitted mean mismatch for {variant!r}")
+        else:
+            fitted_mean = [0.0] * n_features
         x_by_variant[variant] = x
         y_by_variant[variant] = y
 
@@ -1566,7 +1750,7 @@ def _validate_pilot_evidence_profile(  # noqa: PLR0912
         projected = [
             [
                 sum(
-                    value * projection[dimension][index]
+                    (value - fitted_mean[index]) * projection[dimension][index]
                     for index, value in enumerate(row)
                 )
                 for dimension in range(dims)
@@ -2259,7 +2443,72 @@ def _trace3d_exact_contains(
     return True
 
 
-def _trace3d_covers(mesh: _Trace3DMesh, point: list[float]) -> bool:
+def _trace3d_boundary_distance(
+    mesh: _Trace3DMesh,
+    point: list[float],
+) -> float:
+    """Independent Euclidean facet distance for explicit TRACE tolerance checks."""
+
+    def subtract(
+        a: tuple[float, float, float],
+        b: tuple[float, float, float],
+    ) -> tuple[float, float, float]:
+        return a[0] - b[0], a[1] - b[1], a[2] - b[2]
+
+    def dot(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:
+        return sum(x * y for x, y in zip(a, b, strict=True))
+
+    q = (point[0], point[1], point[2])
+    closest = math.inf
+    for face in mesh.boundary_faces:
+        a, b, c = (mesh.vertices[index] for index in face)
+        for first, second in ((a, b), (b, c), (c, a)):
+            edge = subtract(second, first)
+            denominator = dot(edge, edge)
+            fraction = (
+                max(0.0, min(1.0, dot(subtract(q, first), edge) / denominator))
+                if denominator
+                else 0.0
+            )
+            closest = min(
+                closest,
+                math.dist(
+                    q,
+                    [
+                        value + fraction * step
+                        for value, step in zip(first, edge, strict=True)
+                    ],
+                ),
+            )
+        u, v = subtract(b, a), subtract(c, a)
+        normal = _cross(u, v)
+        magnitude = math.sqrt(dot(normal, normal))
+        if not magnitude:
+            continue
+        unit = (normal[0] / magnitude, normal[1] / magnitude, normal[2] / magnitude)
+        w = subtract(q, a)
+        signed = dot(w, unit)
+        projected = (
+            w[0] - signed * unit[0],
+            w[1] - signed * unit[1],
+            w[2] - signed * unit[2],
+        )
+        first_weight = dot(_cross(projected, v), unit) / magnitude
+        second_weight = dot(_cross(u, projected), unit) / magnitude
+        if (
+            first_weight >= 0
+            and second_weight >= 0
+            and first_weight + second_weight <= 1
+        ):
+            closest = min(closest, abs(signed))
+    return closest
+
+
+def _trace3d_covers(
+    mesh: _Trace3DMesh,
+    point: list[float],
+    boundary_tolerance: float = 0.0,
+) -> bool:
     for simplex in mesh.tetrahedra:
         vertices = [mesh.vertices[index] for index in simplex]
         denominator = _tetrahedron_determinant(vertices)
@@ -2276,7 +2525,10 @@ def _trace3d_covers(mesh: _Trace3DMesh, point: list[float]) -> bool:
             point,
         ):
             return True
-    return False
+    return (
+        boundary_tolerance > 0
+        and _trace3d_boundary_distance(mesh, point) <= boundary_tolerance
+    )
 
 
 def _read_trace3d_inputs(
@@ -2447,6 +2699,7 @@ def _validate_trace3d_profile(  # noqa: PLR0912
 ) -> None:
     variant = _TRACE3_3D_VARIANT
     options = options_by_variant[variant]
+    boundary_tolerance = float(options["trace"].get("boundaryTolerance", 0.0))
     if (
         options["pilot"]["dims"] != _TRACE3_DIMENSIONS
         or options["trace"]["method"] != "trace3"
@@ -2603,7 +2856,9 @@ def _validate_trace3d_profile(  # noqa: PLR0912
             raise ProvenanceError("TRACE3 boundary-face count mismatch")
         if int(_metric_float(metric, "alpha_spectrum_count")) != len(mesh.spectrum):
             raise ProvenanceError("TRACE3 alpha-spectrum count mismatch")
-        membership = [_trace3d_covers(mesh, point) for point in build_z]
+        membership = [
+            _trace3d_covers(mesh, point, boundary_tolerance) for point in build_z
+        ]
         elements = sum(membership)
         good_elements = sum(
             inside and good for inside, good in zip(membership, truth, strict=True)
@@ -2724,7 +2979,9 @@ def _validate_trace3d_profile(  # noqa: PLR0912
             ),
         ):
             mesh = meshes[(kind, label)]
-            expected_membership = [_trace3d_covers(mesh, point) for point in explore_z]
+            expected_membership = [
+                _trace3d_covers(mesh, point, boundary_tolerance) for point in explore_z
+            ]
             try:
                 actual_membership = [float(row[column + 1]) for row in membership_rows]
             except ValueError as error:
@@ -3293,6 +3550,18 @@ def _build_parser() -> argparse.ArgumentParser:
     verify.add_argument("root", type=Path)
     verify.add_argument("--allow-diagnostic", action="store_true")
 
+    for command in ("candidate", "prepare-promotion"):
+        candidate = subparsers.add_parser(
+            command,
+            help="validate a candidate or prepare its unapproved review package",
+        )
+        candidate.add_argument("root", type=Path)
+        candidate.add_argument("--matlab-commit", required=True)
+        candidate.add_argument("--generator-commit", required=True)
+        candidate.add_argument("--exporter-script", required=True, type=Path)
+        if command == "prepare-promotion":
+            candidate.add_argument("destination", type=Path)
+
     inventory = subparsers.add_parser(
         "inventory",
         help="validate historical classification",
@@ -3324,6 +3593,21 @@ def main() -> int:
             "total_bytes": report.total_bytes,
             "trust": report.trust,
         }
+    elif arguments.command in {"candidate", "prepare-promotion"}:
+        identity = CandidateIdentity(
+            arguments.matlab_commit,
+            arguments.generator_commit,
+            sha256_file(arguments.exporter_script),
+        )
+        if arguments.command == "candidate":
+            result = _candidate_result(validate_candidate(arguments.root, identity))
+        else:
+            prepared = prepare_promotion(
+                arguments.root,
+                arguments.destination,
+                identity,
+            )
+            result = {"review_package": str(prepared), "approved": False}
     elif arguments.command == "inventory":
         report_inventory = validate_inventory(arguments.repo_root, arguments.inventory)
         result = {

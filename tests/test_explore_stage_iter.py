@@ -109,6 +109,7 @@ def test_explore_stage_iter_delegates_science_to_predictive_stages(
         bound=SimpleNamespace(flag=True),
         norm=SimpleNamespace(flag=True),
     )
+    model.opts = stubbed._options
     calls: list[tuple[str, object, object]] = []
 
     def record(
