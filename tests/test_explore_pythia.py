@@ -11,7 +11,7 @@ selection logic.
 The historical regression test loads MATLAB-trained SVM artifacts
 (pythia/zscore.csv, pythia/precision.csv, pythia/svm_<algo>.csv) together with
 the matching projected coordinates. These fixtures predate the authenticated R2026a
-bundle, so exact replay protects compatibility but does not establish current-MATLAB
+bundle, so numerical replay protects compatibility but does not establish current-MATLAB
 parity.
 The stage only knows how to call .predict()/.predict_proba() on
 whatever is in model.pythia.svm - there's no live scikit-learn SVC trained on
@@ -525,7 +525,7 @@ def build_pythia_from_artifacts() -> tuple[PythiaOut, NDArray[np.double]]:
 
 
 def test_pythia_matches_legacy_matlab_snapshot() -> None:
-    """Replay the historical MATLAB binary and probability outputs exactly."""
+    """Replay historical labels exactly and probabilities within roundoff."""
     pythia, pilot_z = build_pythia_from_artifacts()
     algo_order = pythia._algo_order  # type: ignore[attr-defined]
 
@@ -546,4 +546,7 @@ def test_pythia_matches_legacy_matlab_snapshot() -> None:
     ref_prob = ref_prob[algo_order].to_numpy(dtype=np.double)
 
     np.testing.assert_array_equal(y_hat, ref_pred)
-    np.testing.assert_allclose(pr0_hat, ref_prob, rtol=0, atol=1e-13)
+    # #341 reports a 1.02251541e-13 difference in one of 2,350 probabilities
+    # with identical labels. Allow 1e-12 absolute roundoff across CPU/BLAS
+    # implementations; retain rtol=0 and exact binary predictions above.
+    np.testing.assert_allclose(pr0_hat, ref_prob, rtol=0, atol=1e-12)
