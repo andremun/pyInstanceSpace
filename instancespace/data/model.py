@@ -311,8 +311,9 @@ class CloisterOut:
 class PythiaOut:
     """Results of the Pythia process in the data analysis pipeline."""
 
-    mu: list[float]
-    sigma: list[float]
+    # Training produces arrays; legacy callers and saved models may use lists.
+    mu: NDArray[np.double] | list[float]
+    sigma: NDArray[np.double] | list[float]
     cp: Any  # Change it to proper type
     svm: Any  # Change it to proper type
     cvcmat: NDArray[np.double]
