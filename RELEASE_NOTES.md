@@ -4,6 +4,30 @@ Mirrors MATLAB `InstanceSpace`'s release-notes convention: entries are grouped i
 *New functionality*, *Better engineering*, *Bug fixes*, and *Licence*. Every PR that
 changes behaviour gets an entry here before merge.
 
+## Unreleased — wider parity audit
+
+### Bug fixes
+
+- Exploration replays the feature order actually retained by PREPROCESSING, before
+  SIFTED selection. Manually excluded or data-washed columns are no longer required
+  at inference. This order is persisted as `Model.preprocessing_features`; older
+  models without the record retain their metadata-based fallback and should be
+  rebuilt to benefit from the fix if training removed columns.
+- Pipeline PRELIM now removes algorithms with no good training instances, matching
+  current MATLAB. Winners, ties, beta and normalization are recomputed from the
+  retained raw portfolio. An empty retained portfolio raises a clear error. A
+  discarded algorithm appearing during exploration is treated as test-only and is
+  never recommended by the fitted model.
+
+### Compatibility
+
+- Direct `PrelimInput` construction now requires `algo_labels`, and `PrelimOutput`
+  includes the retained `algo_labels` as its final field. Pipeline callers supply
+  these automatically. The lower-level `PrelimStage.prelim()` numerical API keeps
+  its existing return contract and does not prune, like MATLAB's core `PRELIM`.
+- Fixed PYTHIA parameter rows must match the retained algorithm portfolio and its
+  order, as required by the existing stage-level parameter contract.
+
 ## 0.2.1 (baseline)
 
 Seeded as the starting point for this convention — describes the current state of the
