@@ -254,6 +254,16 @@ class StageRunner:
         # temporary input to this stage. Downstream stages must see it after
         # this call, including after a checkpoint round trip.
         self._available_arguments.update(additional_arguments)
+        used_options = {
+            name: deepcopy(value)
+            for name, value in raw_inputs.items()
+            if name.endswith("_options")
+        }
+        if used_options:
+            # Replace the mapping so rollback snapshots retain their own history.
+            history = dict(self._available_arguments.get("_stage_options", {}))
+            history[stage.__name__] = used_options
+            self._available_arguments["_stage_options"] = history
 
         for output_name, output_value in outputs._asdict().items():
             self._available_arguments[output_name] = output_value

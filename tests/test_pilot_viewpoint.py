@@ -606,6 +606,14 @@ def test_matlab_source_invariants_when_reference_repo_is_available() -> None:
     assert "LAMBDA = 0.2" in source
     assert "size(opts.X0,1)==2*n+2*n2" in source
     assert "rng(opts.seed, 'twister')" in source
-    assert "'FunctionTolerance',1e-20" in source
+    if "isacompat.minimize(errorfcn,X0(:,i),true)" in source:
+        # Current MATLAB master moved optimizer options into its runtime adapter.
+        optimizer_source = (
+            matlab_source.parents[1] / "utils" / "+isacompat" / "minimize.m"
+        ).read_text(encoding="utf-8")
+        assert "if viewpoint" in optimizer_source
+        assert "'FunctionTolerance',1e-20" in optimizer_source
+    else:
+        assert "'FunctionTolerance',1e-20" in source
     assert "perf(i) = corr(Hd, pdist(Z*A')')" in source
     assert "viewdir = cross(A(1,:), A(2,:))" in source

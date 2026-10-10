@@ -272,6 +272,8 @@ class PrelimInput(NamedTuple):
         and file indices.
     general_options : GeneralOptions
         General options (e.g. the RNG seed), not specific to any one stage.
+    algo_labels : list[str]
+        Algorithm names aligned with performance columns; propagated after pruning.
     """
 
     x: NDArray[np.double]
@@ -283,6 +285,7 @@ class PrelimInput(NamedTuple):
     prelim_options: PrelimOptions
     selvars_options: SelvarsOptions
     general_options: GeneralOptions
+    algo_labels: list[str]
 
 
 class PrelimPredictInput(NamedTuple):
@@ -384,6 +387,7 @@ class PrelimOutput(NamedTuple):
     instlabels: pd.Series | None  # type: ignore[type-arg]
     data_dense: DataDense | None
     s: pd.Series | None  # type: ignore[type-arg]
+    algo_labels: list[str]
 
 
 @dataclass(frozen=True)
@@ -520,7 +524,44 @@ class PrelimStage(
     # stage
     @staticmethod
     def _run(inputs: PrelimInput) -> PrelimOutput:
-        """See file docstring."""
+        """Fit preprocessing on the portfolio with observed good instances."""
+        if len(inputs.algo_labels) != inputs.y.shape[1]:
+            raise ValueError("Algorithm labels must match PRELIM performance columns.")
+        performance = compute_binary_performance(
+            inputs.y,
+            PerformanceOptions(
+                max_perf=inputs.prelim_options.max_perf,
+                abs_perf=inputs.prelim_options.abs_perf,
+                epsilon=inputs.prelim_options.epsilon,
+                beta_threshold=inputs.prelim_options.beta_threshold,
+            ),
+            inputs.general_options,
+            log_prefix="PRELIM",
+        )
+        keep = np.any(performance.y_bin, axis=0)
+        if not np.any(keep):
+            raise ValueError("There are no good algorithms. Check performance options.")
+        if not np.all(keep):
+            logger.warning(
+                "[PRELIM] Removing algorithms with no good training instances: "
+                + ", ".join(
+                    label
+                    for label, retained in zip(inputs.algo_labels, keep)
+                    if not retained
+                ),
+            )
+            # Refit from raw data, including winners/ties, beta and Box-Cox.
+            # Slicing the old arrays would retain the discarded portfolio's fit.
+            inputs = inputs._replace(
+                x=inputs.x_raw.copy(),
+                y=inputs.y_raw[:, keep].copy(),
+                y_raw=inputs.y_raw[:, keep].copy(),
+                algo_labels=[
+                    label
+                    for label, retained in zip(inputs.algo_labels, keep)
+                    if retained
+                ],
+            )
         (
             x,
             y,
@@ -619,6 +660,7 @@ class PrelimStage(
             inst_labels,
             data_dense,
             s,
+            inputs.algo_labels,
         )
 
     # prelim matlab file implementation, will return only prelim output
