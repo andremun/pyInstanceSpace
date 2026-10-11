@@ -32,14 +32,12 @@ csv_path_y_bin_input = script_dir / "test_data/pythia/input/ybin.csv"
 
 csv_path_znorm_input = script_dir / "test_data/pythia/output/znorm.csv"
 csv_path_mu_input = script_dir / "test_data/pythia/output/mu.csv"
-csv_path_sig_input = script_dir / "test_data/pythia/output/sigma.csv"
 
 z = np.genfromtxt(csv_path_z_input, delimiter=",")
 y = np.genfromtxt(csv_path_y_input, delimiter=",")
 algo = pd.read_csv(csv_path_algo_input, header=None).squeeze().tolist()
 y_best = np.genfromtxt(csv_path_y_best_input, delimiter=",")
 y_bin = np.genfromtxt(csv_path_y_bin_input, delimiter=",")
-default_opts = PythiaOptions.default()
 opt = PythiaOptions(
     cv_folds=5,
     is_poly_krnl=False,

@@ -1839,3 +1839,19 @@ link targets in the curated pages and 11 Markdown link targets in changed docume
 resolve, changed-file Ruff and Black formatting checks pass, and `git diff --check`
 is clean. An AST comparison confirms the four Python-file edits change docstrings
 only. No runtime test run or fixture regeneration is needed for this additive pass.
+
+## Dead-code audit, step 2 (11 October 2026)
+
+**Compatibility: Additive — test-support cleanup only; no production behaviour
+changes.** Removed the unconsumed `small_pythia_dataset` and
+`deterministic_general_options` shared fixtures, their dedicated
+`SmallPythiaDataset` type and imports, and the unused `csv_path_prelim_input_p`,
+`csv_path_sig_input` and `default_opts` test constants. Repository reference checks
+confirm no consumers. The active `_small_pythia_dataset()` helper and both remaining
+shared fixtures are preserved; no data files or test cases were removed.
+
+Validation: all 1,128 tests collect; the PRELIM/PYTHIA suites pass 84 tests, options
+validation passes 154 tests, and the authenticated MATLAB-bundle check passes
+(239 tests total). Changed-file Ruff, Black formatting and whitespace checks pass.
+An AST comparison confirms all test/helper bodies in the two edited test modules
+are unchanged. Direct dependency review remains the separate next step.

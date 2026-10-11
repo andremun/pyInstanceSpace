@@ -97,8 +97,6 @@ csv_path_prelim_input_y_raw = (
     script_dir / "test_data/prelim/fractional/before/Yraw_split.txt"
 )
 
-csv_path_prelim_input_p = script_dir / "test_data/prelim/fractional/before/P_split.txt"
-
 csv_path_prelim_inst_labels = (
     script_dir / "test_data/prelim/fractional/before/instlabels_split.txt"
 )
