@@ -10,8 +10,10 @@ algorithm performs several key steps:
    based on their correlation with performance metrics.
 2. Cluster features to group similar ones, further reducing dimensionality
    and improving selection efficiency.
-3. Optimize feature combinations using genetic algorithms (GA) or brute-force
-   search, aiming to maximize a model's performance.
+3. Select feature combinations with a genetic algorithm, projecting candidates
+   through PILOT in the configured dimensionality and maximizing the worst
+   per-algorithm KNN cross-validation accuracy. A per-search cache avoids
+   recomputing candidate subsets.
 4. Filter instances using a filtering method if the corresponding flag is raised
 
 The SIFTED stage is encapsulated in the `SiftedStage` class, which manages

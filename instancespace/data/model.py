@@ -94,7 +94,12 @@ class Data:
 
 @dataclass(frozen=True)
 class DataDense:
-    """TODO: This."""
+    """Retain full instance data before density-based subsampling.
+
+    Stores processed and raw features/performance, derived good/bad labels,
+    winners, and instance metadata so SIFTED can re-filter instances using its
+    selected features.
+    """
 
     inst_labels: pd.Series  # type: ignore[type-arg]
     x: NDArray[np.double]

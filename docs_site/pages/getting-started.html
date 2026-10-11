@@ -56,11 +56,17 @@ instance_space.model.save_to_csv("output/")
 instance_space.model.save_graphs("output/")</code></pre>
 <p>See <a href="options-reference.html">Options Reference</a> for the <code>options.json</code> fields you are most likely to set. <code>integration_demo.py</code>, in the repository root, is a complete, runnable version of this example, with the full stage list spelled out.</p>
 
+<h2>Check the retained training portfolio</h2>
+<p>Pipeline PRELIM removes algorithms with no good training instances under the configured performance threshold. It recomputes winners, ties, beta and normalization from the retained raw portfolio. Check <code>instance_space.model.data.algo_labels</code> for the resulting algorithm order; algorithm-indexed outputs may have fewer columns than the input metadata. Fixed PYTHIA parameter rows must match that retained order. If no algorithms remain, the build raises <code>ValueError</code>: <code>There are no good algorithms. Check performance options.</code></p>
+<p>This pruning belongs to the pipeline stage. The low-level <code>PrelimStage.prelim()</code> numerical API does not prune automatically.</p>
+
 <h2>Apply a trained model to new data</h2>
 <p><code>explore()</code> applies a trained model to instances it has not seen. It bounds and scales the new metadata with PRELIM's stored parameters, reduces it to SIFTED's selected features, projects it with PILOT's trained matrix, and evaluates it with the trained PYTHIA selectors and TRACE footprints. No stage trains again.</p>
 <pre><code>space = InstanceSpace(train_metadata, options)
 space.build()
 result = space.explore(test_metadata)</code></pre>
+<p>PREPROCESSING stores its retained feature names and order in <code>model.preprocessing_features</code>. Exploration aligns incoming columns to that fitted order before applying PRELIM and SIFTED. You may reorder columns and omit features excluded during training, but every retained feature is required; extra features are ignored with a warning. Older saved models without this record use their original metadata feature names, so rebuild those models if training removed columns.</p>
+<p>An algorithm removed from the training portfolio that appears in test metadata is treated as test-only and cannot be recommended by the trained selector.</p>
 <p><code>explore()</code> returns the full result in one call. <code>explore_stage_iter()</code> runs the same stages but yields each stage's output in turn, for inspecting the pipeline one stage at a time.</p>
 
 <h2>Next steps</h2>
