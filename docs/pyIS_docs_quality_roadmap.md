@@ -1877,3 +1877,24 @@ No fixtures, runtime source or test cases changed.
 The three actionable audit steps are complete. Preserve public schemas, plugin
 inputs, historical evidence and legacy persistence support; further removal needs
 its own compatibility review.
+
+## Compatibility review and PR consolidation (11 October 2026)
+
+**Compatibility: Additive — typing/development tooling and the preceding audit
+cleanup.** Step 4 preserves public configuration, plugin input fields, exploration
+wrappers and legacy persistence. No further production deletion is justified.
+PR #336 (mypy 2.3.1) is incorporated with its original commits as merge ancestry.
+Per the user's selection, NumPy PR #335 remains separate: NumPy stays at 1.26.4.
+The lock keeps the Click runtime removal and current-main dependency versions;
+only mypy changes version, adding ast-serialize/librt as development dependencies.
+PYTHIA output annotations accept both current arrays and legacy lists, and the
+provenance reader drops a redundant cast. Numerical execution bodies are unchanged.
+
+Combined validation: strict mypy passes 93 files; repository-wide Ruff passes;
+Black leaves 97 files unchanged; docs, wheel/sdist builds, lock validation and
+`pip check` pass. Approved fixture verification and the 771-file inventory pass.
+Strict pytest with coverage reports 1,127 passes and one skipped source-comparison
+test, with 92.22% coverage. Supplying the pinned MATLAB source (`2e2cf756`) and
+rerunning that one test gives a pass: all 1,128 tests have now been exercised.
+Public options, runner input contracts, fixture contents and numerical tolerances
+are unchanged relative to main.
