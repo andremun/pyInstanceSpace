@@ -1,11 +1,10 @@
 # pyInstanceSpace — Implementation Pathways
 
-> **Historical planning record.** Status labels and “not implemented” statements below
-> describe the dated planning baseline, not the current branch. In particular, PILOT
-> 3D/viewpoints/SIMPLS, TRACE3 3D, and 3D output are now implemented and verified against
-> the installed 423-file MATLAB R2026a Update 4 v2 oracle. Use
-> `docs/architecture.md`, `docs/implemented_fixes.md`, and
-> `docs/pending_issue_backlog.md` for current decisions.
+> **Historical planning record.** Status labels and “not implemented” statements
+> below describe the dated planning baseline, not current `main`. For implemented
+> behaviour, use `architecture.md`, `../RELEASE_NOTES.md`, and
+> `wider-parity-audit-2026-10-10.md`. The installed fixture manifest records current
+> oracle provenance; `pending_issue_backlog.md` is an August status snapshot.
 
 **Companion to:** `pyIS_docs_quality_roadmap.md` (v1.15)
 **Purpose:** every task in that roadmap, expanded to implementation-ready detail — files to

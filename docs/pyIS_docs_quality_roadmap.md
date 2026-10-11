@@ -7,15 +7,14 @@
 
 ---
 
-> **Historical roadmap; current-status banner (2026-09-04).** Status rows and
-> “not started” claims below are preserved as dated history. Current parity uses the
-> installed 423-file, `matlab-verified` R2026a Update 4 v2 oracle from MATLAB v0.9.1
-> at `98a01ac` (86 provenance tests; 41 current readers). Issue #316 is implemented
-> through the typed stage-owned
-> inference contract; its older F18 rows below remain dated history. Predating numerical
-> files are `legacy-unknown`, even where this roadmap called them MATLAB golden/reference
-> data; they are not MATLAB oracles. See `docs/architecture.md`,
-> `docs/implemented_fixes.md`, and `docs/pending_issue_backlog.md` for current status.
+> **Historical roadmap; current-status banner (11 October 2026).** Older status
+> rows, branch names and “not started” claims below remain dated history. `main`
+> includes PR #348's approved fixture promotion and PR #349's wider parity audit
+> fixes. The stage-owned inference contract (#316) is implemented. For current
+> behaviour and compatibility, use `architecture.md`, `../RELEASE_NOTES.md`, and
+> `wider-parity-audit-2026-10-10.md`; for exact fixture provenance, use the installed
+> `../tests/fixtures/matlab/current/manifest.json`. The August issue backlog and
+> earlier consolidation notes are historical snapshots, not live status feeds.
 
 ## 1. Purpose and scope
 
@@ -1821,3 +1820,81 @@ algorithm-mean weighting. The full approved fixture bundle remains unchanged;
 PR #346’s proposed replacement and the three raw export branches remain evidence
 for a future numerical review. See `matlab-parity-review-2026-10-05.md` and
 `branch-consolidation-2026-10-09.md` for current implementation and branch status.
+
+## Documentation audit, step 1 (11 October 2026)
+
+**Compatibility: Additive — documentation only.** Correct the public SIFTED
+algorithm description, feature-only configurable bounding, caller-owned output
+preferences, merged-work status, pruning/feature replay contracts, contributor
+summary and placeholder API descriptions. Preserve options schemas, runtime code,
+fixtures and append-only historical evidence.
+
+Verification: compare descriptions with current implementation; build the complete
+pdoc/curated documentation site; check changed Python docstrings with Ruff/Black,
+local links and whitespace. Later audit steps separately cover unused test support
+and direct dependencies.
+
+Validation completed: the pdoc/curated site builds from this branch, all 22 local
+link targets in the curated pages and 11 Markdown link targets in changed documents
+resolve, changed-file Ruff and Black formatting checks pass, and `git diff --check`
+is clean. An AST comparison confirms the four Python-file edits change docstrings
+only. No runtime test run or fixture regeneration is needed for this additive pass.
+
+## Dead-code audit, step 2 (11 October 2026)
+
+**Compatibility: Additive — test-support cleanup only; no production behaviour
+changes.** Removed the unconsumed `small_pythia_dataset` and
+`deterministic_general_options` shared fixtures, their dedicated
+`SmallPythiaDataset` type and imports, and the unused `csv_path_prelim_input_p`,
+`csv_path_sig_input` and `default_opts` test constants. Repository reference checks
+confirm no consumers. The active `_small_pythia_dataset()` helper and both remaining
+shared fixtures are preserved; no data files or test cases were removed.
+
+Validation: all 1,128 tests collect; the PRELIM/PYTHIA suites pass 84 tests, options
+validation passes 154 tests, and the authenticated MATLAB-bundle check passes
+(239 tests total). Changed-file Ruff, Black formatting and whitespace checks pass.
+An AST comparison confirms all test/helper bodies in the two edited test modules
+are unchanged. Direct dependency review remains the separate next step.
+
+## Dead-code audit, step 3 (11 October 2026)
+
+**Compatibility: Additive — dependency housekeeping; no package API or numerical
+behaviour changes.** Source import and entry-point review confirms `click` is the
+only unused direct runtime dependency. Removed its direct declaration; Black still
+requires it in the development group. All other direct runtime dependencies have
+package imports and are retained. The CLI design notes remain historical; no CLI
+entry point exists. Consumers using Click independently must declare it themselves.
+
+Poetry regenerated the lock without changing any package version. Click is now
+dev-only; Colorama's Windows markers are separated by main/dev group accordingly.
+`poetry check --lock` passes (existing metadata deprecation warnings only), and
+both wheel and sdist build. Wheel metadata has no Click requirement or CLI entry
+point. A fresh runtime-only environment passes `pip check` with Click absent.
+The installed wheel imports all 29 discoverable submodules and completes a
+32-instance build/explore, persistence round trip and CSV export without Click.
+No fixtures, runtime source or test cases changed.
+
+The three actionable audit steps are complete. Preserve public schemas, plugin
+inputs, historical evidence and legacy persistence support; further removal needs
+its own compatibility review.
+
+## Compatibility review and PR consolidation (11 October 2026)
+
+**Compatibility: Additive — typing/development tooling and the preceding audit
+cleanup.** Step 4 preserves public configuration, plugin input fields, exploration
+wrappers and legacy persistence. No further production deletion is justified.
+PR #336 (mypy 2.3.1) is incorporated with its original commits as merge ancestry.
+Per the user's selection, NumPy PR #335 remains separate: NumPy stays at 1.26.4.
+The lock keeps the Click runtime removal and current-main dependency versions;
+only mypy changes version, adding ast-serialize/librt as development dependencies.
+PYTHIA output annotations accept both current arrays and legacy lists, and the
+provenance reader drops a redundant cast. Numerical execution bodies are unchanged.
+
+Combined validation: strict mypy passes 93 files; repository-wide Ruff passes;
+Black leaves 97 files unchanged; docs, wheel/sdist builds, lock validation and
+`pip check` pass. Approved fixture verification and the 771-file inventory pass.
+Strict pytest with coverage reports 1,127 passes and one skipped source-comparison
+test, with 92.22% coverage. Supplying the pinned MATLAB source (`2e2cf756`) and
+rerunning that one test gives a pass: all 1,128 tests have now been exercised.
+Public options, runner input contracts, fixture contents and numerical tolerances
+are unchanged relative to main.

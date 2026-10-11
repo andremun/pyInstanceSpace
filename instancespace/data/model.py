@@ -94,7 +94,12 @@ class Data:
 
 @dataclass(frozen=True)
 class DataDense:
-    """TODO: This."""
+    """Retain full instance data before density-based subsampling.
+
+    Stores processed and raw features/performance, derived good/bad labels,
+    winners, and instance metadata so SIFTED can re-filter instances using its
+    selected features.
+    """
 
     inst_labels: pd.Series  # type: ignore[type-arg]
     x: NDArray[np.double]
@@ -311,8 +316,9 @@ class CloisterOut:
 class PythiaOut:
     """Results of the Pythia process in the data analysis pipeline."""
 
-    mu: list[float]
-    sigma: list[float]
+    # Training produces arrays; legacy callers and saved models may use lists.
+    mu: NDArray[np.double] | list[float]
+    sigma: NDArray[np.double] | list[float]
     cp: Any  # Change it to proper type
     svm: Any  # Change it to proper type
     cvcmat: NDArray[np.double]
