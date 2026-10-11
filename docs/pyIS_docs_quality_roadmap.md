@@ -1855,3 +1855,25 @@ validation passes 154 tests, and the authenticated MATLAB-bundle check passes
 (239 tests total). Changed-file Ruff, Black formatting and whitespace checks pass.
 An AST comparison confirms all test/helper bodies in the two edited test modules
 are unchanged. Direct dependency review remains the separate next step.
+
+## Dead-code audit, step 3 (11 October 2026)
+
+**Compatibility: Additive — dependency housekeeping; no package API or numerical
+behaviour changes.** Source import and entry-point review confirms `click` is the
+only unused direct runtime dependency. Removed its direct declaration; Black still
+requires it in the development group. All other direct runtime dependencies have
+package imports and are retained. The CLI design notes remain historical; no CLI
+entry point exists. Consumers using Click independently must declare it themselves.
+
+Poetry regenerated the lock without changing any package version. Click is now
+dev-only; Colorama's Windows markers are separated by main/dev group accordingly.
+`poetry check --lock` passes (existing metadata deprecation warnings only), and
+both wheel and sdist build. Wheel metadata has no Click requirement or CLI entry
+point. A fresh runtime-only environment passes `pip check` with Click absent.
+The installed wheel imports all 29 discoverable submodules and completes a
+32-instance build/explore, persistence round trip and CSV export without Click.
+No fixtures, runtime source or test cases changed.
+
+The three actionable audit steps are complete. Preserve public schemas, plugin
+inputs, historical evidence and legacy persistence support; further removal needs
+its own compatibility review.

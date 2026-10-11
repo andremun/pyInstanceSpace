@@ -4,6 +4,15 @@ Mirrors MATLAB `InstanceSpace`'s release-notes convention: entries are grouped i
 *New functionality*, *Better engineering*, *Bug fixes*, and *Licence*. Every PR that
 changes behaviour gets an entry here before merge.
 
+## Unreleased — dependency cleanup
+
+### Better engineering
+
+- Removed `click` as a direct runtime dependency: the package has no Click imports
+  or CLI entry point. It remains a locked development dependency through Black.
+  All locked package versions are unchanged. Applications that independently use
+  Click should declare it as their own dependency.
+
 ## Unreleased — wider parity audit
 
 ### Bug fixes
