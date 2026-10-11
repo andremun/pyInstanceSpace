@@ -194,10 +194,10 @@ class PythiaOutput(NamedTuple):
 
     Attributes
     ----------
-    mu : list[float]
-        The mean values of the normalized features.
-    sigma : list[float]
-        The standard deviations of the normalized features.
+    mu : NDArray[np.double] | list[float]
+        The mean values of the raw feature coordinates.
+    sigma : NDArray[np.double] | list[float]
+        The standard deviations used to normalize raw feature coordinates.
     w : NDArray[np.double]
         The weight matrix used for cost-sensitive classification.
     cp : list[StratifiedKFold | None]
@@ -241,8 +241,8 @@ class PythiaOutput(NamedTuple):
         A summary table for performance statistics of all algorithms.
     """
 
-    mu: list[float]
-    sigma: list[float]
+    mu: NDArray[np.double] | list[float]
+    sigma: NDArray[np.double] | list[float]
     w: NDArray[np.double]
     cp: list[StratifiedKFold | None]
     svm: list[ClassifierMixin | None]
@@ -333,8 +333,8 @@ class PythiaStage(
     _display_overall_perf(precision: list[float], accuracy: list[float]) -> None
         Output overall performance metrics.
 
-    _compute_znorm(z: NDArray[np.double]) -> tuple[list[float], list[float],
-                NDArray[np.double]]
+    _compute_znorm(z: NDArray[np.double])
+        -> tuple[NDArray[np.double], NDArray[np.double], NDArray[np.double]]
         Compute normalized feature matrix.
 
     _check_precalcparams(params: NDArray[np.double] | None, nalgos: int) ->
@@ -702,8 +702,8 @@ class PythiaStage(
         parallel_options: ParallelOptions,
         general_options: GeneralOptions,
         classifier_spec: ClassifierSpec,
-        mu: list[float],
-        sigma: list[float],
+        mu: NDArray[np.double] | list[float],
+        sigma: NDArray[np.double] | list[float],
         ninst: int,
         nalgos: int,
         y_sub: NDArray[np.bool_],
@@ -975,8 +975,8 @@ class PythiaStage(
         y: NDArray[np.double],
         y_bin: NDArray[np.bool_],
         y_best: NDArray[np.double],
-        mu: list[float],
-        sigma: list[float],
+        mu: NDArray[np.double] | list[float],
+        sigma: NDArray[np.double] | list[float],
     ) -> PythiaOutput:
         """Build a "nothing trained" `PythiaOutput` for `opts.skip=True`.
 
@@ -1644,8 +1644,8 @@ class PythiaStage(
     @staticmethod
     def _compute_znorm(
         z: NDArray[np.double],
-    ) -> tuple[list[float], list[float], NDArray[np.double]]:
-        """Compute mormalized z, standard deviations and mean.
+    ) -> tuple[NDArray[np.double], NDArray[np.double], NDArray[np.double]]:
+        """Compute normalized z, standard deviations and mean.
 
         Parameters
         ----------
@@ -1654,7 +1654,7 @@ class PythiaStage(
 
         Returns
         -------
-        tuple[list[float], list[float], NDArray[np.double]]
+        tuple[NDArray[np.double], NDArray[np.double], NDArray[np.double]]
         The mean, standard deviation and normalized feature coordinates.
         """
         # mu/sigma must describe the *raw* z (matching MATLAB's zscore, which
