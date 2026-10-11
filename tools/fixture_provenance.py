@@ -2045,7 +2045,7 @@ def _read_trace3d_mesh(output_root: Path, prefix: str) -> _Trace3DMesh:
             math.isfinite(value) for value in point
         ):
             raise ProvenanceError(f"TRACE3 vertex is not finite 3D data: {vertex_path}")
-        vertices.append(cast(tuple[float, float, float], point))
+        vertices.append(point)
     if len(set(vertices)) != len(vertices):
         raise ProvenanceError(f"TRACE3 vertices contain duplicates: {vertex_path}")
 
