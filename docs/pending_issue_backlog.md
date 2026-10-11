@@ -1,7 +1,9 @@
 # Pending issue backlog
 
 Reviewed against the branch's tracked GitHub issues on 2026-08-21. This records local
-results; no issue was closed or edited remotely in this pass.
+results; no issue was closed or edited remotely in this pass. This is a historical
+snapshot, not a live issue-status feed. See `../RELEASE_NOTES.md` and
+`wider-parity-audit-2026-10-10.md` for subsequent changes.
 
 ## Ready for maintainer review
 

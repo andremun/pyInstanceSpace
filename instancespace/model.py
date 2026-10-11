@@ -292,7 +292,7 @@ class Model:
         )
 
     def save_graphs(self, output_directory: Path | str) -> None:
-        """Save csv outputs used for the web frontend to a directory."""
+        """Save instance-space plots as PNG files in the output directory."""
         print(
             "=========================================================================",
         )

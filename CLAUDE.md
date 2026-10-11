@@ -6,7 +6,7 @@ anything. Full detail lives in `docs/` (see below) — this file is a map, not t
 ## What this is
 
 Python port of the MATLAB Instance Space Analysis (ISA) toolkit (`andremun/InstanceSpace`,
-currently v0.9.0). **Not** a 1:1 port and not required to become one — the stage architecture
+with its own release cycle). **Not** a 1:1 port and not required to become one — the stage architecture
 (`preprocessing → prelim → sifted → pilot → pythia → cloister → trace`, an `InstanceSpace`
 class, `build()`/`explore()`/`explore_stage_iter()`) is independently engineered. Forked from MATLAB
 v0.3.3 (Feb 2023) — MATLAB has since moved through a ten-phase refactor this repo doesn't have.
@@ -25,18 +25,42 @@ description, as one of:
 If a task's roadmap entry doesn't have a compatibility tag yet, don't guess — flag it and ask
 rather than assuming "probably additive."
 
-## Source of truth, in order
+## Current implementation status (11 October 2026)
 
-1. **`docs/pyIS_docs_quality_roadmap.md`** — the living plan: phases, decisions already made
-   (read the "Document history" table at the end first, it's append-only and tells you what's
-   changed and why), open questions, backward-compatibility tags.
-2. **`docs/python_implementation_pathways.md`** — implementation-level detail for every roadmap
-   item: files to touch, concrete steps, resolved and open design decisions.
-3. This file — process/context only, not technical detail. If something here conflicts with
-   the roadmap, the roadmap wins; update this file to match, don't silently follow the stale
-   version.
+`main` includes PR #348's consolidated scoring/documentation fixes and approved
+MATLAB fixture promotion, and PR #349's wider parity audit fixes. These are source
+status statements, not claims of a PyPI release. See `RELEASE_NOTES.md` and
+`docs/wider-parity-audit-2026-10-10.md` for scope and compatibility details.
 
-## Current phase — do not skip ahead
+- PRELIM, SIFTED, PILOT, PYTHIA and TRACE own typed `predict()` methods. The
+  `InstanceSpace._explore_*` methods are thin compatibility wrappers; #316's
+  stage-owned inference contract is implemented. Preserve those wrappers unless
+  an API change is deliberately scoped.
+- Pipeline PRELIM removes algorithms with no good training instances and refits
+  from retained raw data. Low-level `PrelimStage.prelim()` does not prune.
+- `Model.preprocessing_features` records the fitted feature order for exploration.
+- SIFTED uses PILOT/KNN genetic-search fitness. `sifted.n_trees` remains a parsed,
+  validated compatibility field. Output flags likewise remain caller preferences;
+  explicit model save methods control built-in exports.
+
+## Source of truth
+
+Check current source, tests, `docs/architecture.md`, and `RELEASE_NOTES.md` for
+implemented behaviour. Dated audit reports record the evidence and limitations of
+individual changes. Read the roadmap's latest dated updates for task decisions and
+compatibility tags, but do not interpret old “not started” rows as current status.
+
+`docs/pyIS_docs_quality_roadmap.md` and `docs/python_implementation_pathways.md`
+preserve planning history. `docs/pending_issue_backlog.md` is an August snapshot,
+not a live issue-status feed. This file supplies contributor context; correct it
+when it contradicts the implementation or newer verified records.
+
+## Historical phase notes (July–August 2026)
+
+The notes below record earlier sequencing and findings. Their “next”, “open” and
+“not implemented” wording is historical and does not override the current summary
+above or an explicitly requested task. The original fork-merge prerequisite has
+been superseded by the subsequent work already present on `main`.
 
 **Phase -1 (merge the fork into upstream) must land before anything else.** If you're reading
 this from a session working directly in `andremun/pyInstanceSpace`, confirm the fork merge
@@ -103,10 +127,10 @@ validation, and SIFTED density re-filtering applied consistently across early-ex
 and `docs/pending_issue_backlog.md` for the itemised breakdown rather than re-deriving it from the
 code; this file only tracks that the pass happened and landed.
 
-**F18** (#316) was also filed, as a future architectural proposal: unify build/explore into
-single-body stage methods for every stage (a `predict()` alongside each stage's `build()`,
-replacing `InstanceSpace`'s parallel `_explore_*` method family), generalizing PYTHIA/TRACE's own
-MATLAB precedent — not implemented, filed for later prioritisation only. PILOT also gained a `method`
+**F18** (#316) originally proposed stage-owned inference. It is now implemented
+through typed `predict()` methods on PRELIM, SIFTED, PILOT, PYTHIA and TRACE;
+`InstanceSpace._explore_*` remains as compatibility wrappers. This supersedes the
+earlier “not implemented” status. PILOT also gained a `method`
 option (`"standard"`/`"pls"`, roadmap v1.65) as part of F2's non-3D-blocked scope. **PRELIM's own
 build/explore duplication is now simplified too (roadmap v1.67)** — shared `apply_bound_clip()`/
 `apply_boxcox_zscore()` functions, used by both `PrelimStage._bound()`/`_normalise()` and

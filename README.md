@@ -48,17 +48,20 @@ below. See [integration_demo.py](integration_demo.py) for a runnable example and
 
 ## Development status
 
-[PR #348](https://github.com/andremun/pyInstanceSpace/pull/348) consolidates the
-documentation and scoring fixes from the now-closed PRs #343 and #346. It includes
-observed-only PYTHIA evaluation and summaries, per-instance regret weights,
-candidate-fixture validation, and controlled MATLAB geometry references. These
-changes remain under review; they are not yet a release on `main` or PyPI.
+As of 11 October 2026, `main` includes the consolidated documentation and scoring
+fixes from [PR #348](https://github.com/andremun/pyInstanceSpace/pull/348), the approved
+MATLAB fixture promotion, and the wider training/exploration audit fixes from
+[PR #349](https://github.com/andremun/pyInstanceSpace/pull/349). These include
+observed-only PYTHIA evaluation, per-instance regret weights, automatic removal
+of algorithms that are never good in training, and replay of fitted feature order
+during exploration. A merge into `main` does not imply a PyPI release; see
+[Release Notes](RELEASE_NOTES.md) for unreleased changes.
 
-The next work is a wider current-master audit of training/exploration behavior,
-followed by repeated full MATLAB exports and numerical review before fixture
-promotion. The three raw export branches remain separate comparison evidence.
-See the [parity review and seven-step plan](docs/matlab-parity-review-2026-10-05.md)
-and [branch consolidation record](docs/branch-consolidation-2026-10-09.md).
+The [wider parity audit](docs/wider-parity-audit-2026-10-10.md) records its scope,
+validation and limits. The earlier
+[parity review and seven-step plan](docs/matlab-parity-review-2026-10-05.md) and
+[branch consolidation record](docs/branch-consolidation-2026-10-09.md) are dated
+history, including the raw MATLAB export comparisons.
 
 ## Documentation Instructions
 
@@ -271,8 +274,29 @@ legacy TRACE is 2D-only. Build metrics and `explore()` rescoring use boundary-in
 The toolkit implements simple routines to bound outliers and scale the data. **These routines are by no means perfect, and users should pre-process their data independently if preferred**. However, the automatic bounding and scaling routines should give some idea of the kind of results that may be achieved. In general, we recommend transforming the data to be **close to normally distributed** due to the linear nature of PILOT's optimal projection algorithm.
 
 - ```opts.auto.preproc``` turns on (set as ```TRUE```) the automatic pre-processing.
-- ```opts.bound.flag``` turns on (set as ```TRUE```) data bounding. This sub-routine calculates the median and the interquartile range ([IQR](https://en.wikipedia.org/wiki/Interquartile_range)) of each feature and performance measure, and bounds the data to the median plus or minus five times the IQR.
+- `opts.bound.flag` enables feature bounding when `opts.auto.preproc` is enabled. Each feature is clipped to its median plus or minus `opts.prelim.iqr_multiplier` times its [interquartile range (IQR)](https://en.wikipedia.org/wiki/Interquartile_range), with a default multiplier of five. Bounding does not clip algorithm performance values; performance normalization is a separate operation.
 - ```opts.norm.flag``` turns on (set as ```TRUE```) scaling. This sub-routine scales each feature and performance measure into a positive range. Then it calculates a [box-cox transformation](https://en.wikipedia.org/wiki/Power_transform#Box%E2%80%93Cox_transformation) to stabilise the variance, and a [Z-transformation](https://en.wikipedia.org/wiki/Standard_score) to standardise the data. The results are features and performance measures that are close to normally distributed.
+
+### Training portfolio and exploration features
+
+Pipeline PRELIM removes algorithms with no good training instances under the
+configured performance threshold, then recomputes winners, ties, beta and
+normalization from the retained raw portfolio. Consequently,
+`model.data.algo_labels` and algorithm-indexed outputs may contain fewer algorithms
+than the input metadata. If none remain, the build raises `ValueError` with
+"There are no good algorithms. Check performance options." Fixed PYTHIA parameter
+rows must match the retained portfolio and its order. The low-level
+`PrelimStage.prelim()` numerical API does not perform this automatic pruning.
+
+PREPROCESSING persists the retained feature names and order in
+`model.preprocessing_features`. Exploration aligns incoming columns to that order
+before applying fitted PRELIM transforms and SIFTED selection. Columns removed
+during training may be omitted, required retained columns must be present, and
+extra columns are ignored with a warning. Older saved models without this record
+use their original metadata feature names; rebuild them to benefit from this
+contract if training removed features. An algorithm pruned during training that
+reappears in exploration is treated as test-only and cannot be recommended by the
+trained selector.
 
 ### Automatic feature selection
 
@@ -293,8 +317,11 @@ The toolkit implements SIFTED, a routine to select features, given their cross-c
 ### Output settings
 
 Use `model.save_to_csv()`, `model.save_graphs()`, `model.save_for_web()` or
-`model.save_to_mat()` to write results. The output flags below describe the desired
-outputs; calling `build()` alone does not write these files.
+`model.save_to_mat()` to write results; each method takes an output directory.
+The output flags below are preferences available to callers and orchestration
+code. The built-in pipeline does not use them to trigger exports, and the save
+methods write their outputs regardless of these flags. Calling `build()` alone
+does not write these files.
 
 Two-dimensional saves retain the existing polygon CSV and plot formats. Three-dimensional
 saves write `z_1`/`z_2`/`z_3` coordinates plus `footprint_meshes.json` and one-based
@@ -311,9 +338,9 @@ the corresponding bounds CSV, unlike the one-based TRACE mesh indices above.
 Two-dimensional exports remove stale CLOISTER mesh files. This change does not
 add a new CLOISTER plot view.
 
-- ```opts.outputs.csv``` This flag produces the output CSV files for post-processing and analysis. It is recommended to leave this setting as ```TRUE```.
-- ```opts.outputs.png``` This flag produces the output figure files for post-processing and analysis. It is recommended to leave this setting as ```TRUE```.
-- ```opts.outputs.web``` This flag produces the output files employed to draw the figures in MATILDA's web tools (click [here](https://matilda.unimelb.edu.au/matilda/newuser) to open an account). It is recommended to leave this setting as ```FALSE```.
+- `opts.outputs.csv`: CSV output preference (default `True`). Use `model.save_to_csv(output_directory)` to export.
+- `opts.outputs.png`: figure output preference (default `True`). Use `model.save_graphs(output_directory)` to export.
+- `opts.outputs.web`: MATILDA web-data output preference (default `False`). Use `model.save_for_web(output_directory)` to export.
 
 ## Contact
 

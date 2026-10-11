@@ -106,7 +106,8 @@
 <thead><tr><th>Option</th><th>Purpose</th></tr></thead>
 <tbody>
 <tr><td><code>auto.preproc</code></td><td>Set <code>true</code> to turn on the automatic pre-processing below.</td></tr>
-<tr><td><code>bound.flag</code></td><td>Set <code>true</code> to bound the data. This computes each feature's and performance measure's median and <a href="https://en.wikipedia.org/wiki/Interquartile_range">interquartile range (IQR)</a>, and bounds the data to the median plus or minus five IQRs.</td></tr>
+<tr><td><code>bound.flag</code></td><td>Set <code>true</code>, with <code>auto.preproc</code> enabled, to clip each feature to its median plus or minus <code>prelim.iqr_multiplier</code> times its <a href="https://en.wikipedia.org/wiki/Interquartile_range">interquartile range (IQR)</a>. This does not clip algorithm performance values.</td></tr>
+<tr><td><code>prelim.iqr_multiplier</code></td><td>The IQR multiplier for feature bounding; default 5.</td></tr>
 <tr><td><code>norm.flag</code></td><td>Set <code>true</code> to scale the data. This scales each feature and performance measure into a positive range, applies a <a href="https://en.wikipedia.org/wiki/Power_transform#Box%E2%80%93Cox_transformation">Box-Cox transform</a> to stabilize the variance, and a <a href="https://en.wikipedia.org/wiki/Standard_score">Z-transform</a> to standardize the result, so the data becomes close to normally distributed.</td></tr>
 </tbody>
 </table>
@@ -119,21 +120,21 @@
 <tr><td><code>sifted.flag</code></td><td>Set <code>true</code> to turn on the automatic feature selection described below.</td></tr>
 <tr><td><code>sifted.rho</code></td><td>The lowest absolute <a href="https://en.wikipedia.org/wiki/Pearson_correlation_coefficient">Pearson correlation</a> between a feature and performance for the feature to pass the first filter. A value between 0 and 1.</td></tr>
 <tr><td><code>sifted.k</code></td><td>The number of clusters, and so the final number of selected features. The routine uses at least 3 clusters, and no more than the number of features; keep it at 10 or below.</td></tr>
-<tr><td><code>sifted.n_trees</code></td><td>The number of trees in the Random Forest models. This rarely needs adjustment.</td></tr>
+<tr><td><code>sifted.n_trees</code></td><td>Compatibility-only field: parsed and validated, but not used by the current PILOT/KNN fitness calculation.</td></tr>
 <tr><td><code>sifted.max_iter</code></td><td>The number of iterations for the k-means algorithm to converge. This rarely needs adjustment.</td></tr>
 <tr><td><code>sifted.replicates</code></td><td>The number of times to repeat the k-means algorithm. This rarely needs adjustment.</td></tr>
 </tbody>
 </table>
-<p>SIFTED first ranks features by the absolute Pearson correlation between each feature and performance, keeps those above <code>sifted.rho</code>, and keeps at least 3. It then clusters the survivors by their pairwise correlation with k-means, and picks one feature per cluster: it projects the candidates to 2D with PCA, trains Random Forests to predict whether an instance is easy for each algorithm, and keeps the subset that predicts best. This last step is expensive. It tries every combination when there are fewer than 1000, and a genetic algorithm with a lookup table otherwise.</p>
+<p>SIFTED first ranks features by the absolute Pearson correlation between each feature and performance, keeps those above <code>sifted.rho</code>, and keeps at least 3. When further selection is needed, it uses k-means to cluster the surviving feature profiles and a genetic algorithm to choose one representative per cluster. Each candidate subset is projected through PILOT using the configured dimensionality, then scored by cross-validated k-nearest-neighbor classification of good/bad performance. Fitness maximizes the worst per-algorithm accuracy. A cache avoids recomputing subsets within a search; there is no exhaustive-search branch.</p>
 
 <h2>Output settings</h2>
-<p>These settings control how much the toolkit writes to files or prints to the console. A 2D instance space keeps the existing polygon CSV and plot formats. A 3D instance space also writes <code>z_1</code>, <code>z_2</code>, and <code>z_3</code> coordinates, plus a <code>footprint_meshes.json</code> file and one-based vertex, tetrahedron, and boundary-face CSV files, under the <code>pyinstancespace.trace-mesh/v1</code> schema. Its plots use native matplotlib 3D axes, mesh surfaces, and the stored viewpoint.</p>
+<p>These flags are output preferences for callers and orchestration code; the built-in pipeline does not use them to trigger exports. Call <code>model.save_to_csv(output_directory)</code>, <code>model.save_graphs(output_directory)</code> or <code>model.save_for_web(output_directory)</code> explicitly. These methods write their outputs regardless of the flags; <code>build()</code> alone does not export files. A 2D instance space keeps the existing polygon CSV and plot formats. A 3D instance space also writes <code>z_1</code>, <code>z_2</code>, and <code>z_3</code> coordinates, plus a <code>footprint_meshes.json</code> file and one-based vertex, tetrahedron, and boundary-face CSV files, under the <code>pyinstancespace.trace-mesh/v1</code> schema. Its plots use native matplotlib 3D axes, mesh surfaces, and the stored viewpoint.</p>
 <table>
 <thead><tr><th>Option</th><th>Purpose</th></tr></thead>
 <tbody>
-<tr><td><code>outputs.csv</code></td><td>Set <code>true</code> (recommended) to write the output CSV files, for further analysis.</td></tr>
-<tr><td><code>outputs.png</code></td><td>Set <code>true</code> (recommended) to write the output figure files.</td></tr>
-<tr><td><code>outputs.web</code></td><td>Set <code>true</code> to write the files that MATILDA's web tools use to draw their figures. The recommended, and default, setting is <code>false</code>.</td></tr>
+<tr><td><code>outputs.csv</code></td><td>CSV output preference; default <code>true</code>. Export with <code>model.save_to_csv(output_directory)</code>.</td></tr>
+<tr><td><code>outputs.png</code></td><td>Figure output preference; default <code>true</code>. Export with <code>model.save_graphs(output_directory)</code>.</td></tr>
+<tr><td><code>outputs.web</code></td><td>MATILDA web-data output preference; default <code>false</code>. Export with <code>model.save_for_web(output_directory)</code>.</td></tr>
 </tbody>
 </table>
 </main>
