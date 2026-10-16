@@ -25,12 +25,18 @@ description, as one of:
 If a task's roadmap entry doesn't have a compatibility tag yet, don't guess — flag it and ask
 rather than assuming "probably additive."
 
-## Current implementation status (11 October 2026)
+## Current implementation status (16 October 2026)
 
 `main` includes PR #348's consolidated scoring/documentation fixes and approved
 MATLAB fixture promotion, and PR #349's wider parity audit fixes. These are source
 status statements, not claims of a PyPI release. See `RELEASE_NOTES.md` and
 `docs/wider-parity-audit-2026-10-10.md` for scope and compatibility details.
+
+Release 0.4.0 preparation includes PR #352's docs/dead-code/mypy audit, the
+validated development-tool updates, and the history restart. See
+`docs/release-0.4.0.md` and `docs/history-restart-2026-10-15.md`. NumPy 2 and newer
+scikit-learn releases are deferred in #358; pandas 3 stubs are deferred in #359.
+The installed fixture manifest retains its original source IDs.
 
 - PRELIM, SIFTED, PILOT, PYTHIA and TRACE own typed `predict()` methods. The
   `InstanceSpace._explore_*` methods are thin compatibility wrappers; #316's

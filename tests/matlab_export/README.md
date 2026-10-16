@@ -1,5 +1,9 @@
 # MATLAB fixture export
 
+> History note (16 October 2026): Python commit IDs in dated evidence predate the
+> repository restart. See the [source mapping and provenance policy](../../docs/history-restart-2026-10-15.md).
+> Original fixture identities remain unchanged.
+
 This directory provides the reproducible MATLAB reference-data workflow for issues
 [#278](https://github.com/andremun/pyInstanceSpace/issues/278) and
 [#310](https://github.com/andremun/pyInstanceSpace/issues/310), extended with PILOT

@@ -48,7 +48,8 @@ below. See [integration_demo.py](integration_demo.py) for a runnable example and
 
 ## Development status
 
-As of 11 October 2026, `main` includes the consolidated documentation and scoring
+Release 0.4.0 is being prepared from `main`; publication to PyPI remains a separate
+release action. As of 16 October 2026, `main` includes the consolidated documentation and scoring
 fixes from [PR #348](https://github.com/andremun/pyInstanceSpace/pull/348), the approved
 MATLAB fixture promotion, and the wider training/exploration audit fixes from
 [PR #349](https://github.com/andremun/pyInstanceSpace/pull/349). These include
@@ -62,6 +63,13 @@ validation and limits. The earlier
 [parity review and seven-step plan](docs/matlab-parity-review-2026-10-05.md) and
 [branch consolidation record](docs/branch-consolidation-2026-10-09.md) are dated
 history, including the raw MATLAB export comparisons.
+
+The documentation/dead-code audit and mypy update from
+[PR #352](https://github.com/andremun/pyInstanceSpace/pull/352) are also integrated.
+See the [0.4.0 release guide](docs/release-0.4.0.md) for upgrade requirements,
+validation and deferred dependency migrations. The
+[history restart record](docs/history-restart-2026-10-15.md) explains old commit IDs
+and the preserved MATLAB fixture provenance.
 
 ## Documentation Instructions
 
