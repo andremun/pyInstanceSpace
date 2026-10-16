@@ -1921,3 +1921,22 @@ model outside the source import path. All 80 locked packages pass the security
 audit after Tornado 6.5.10. The 280-entry history map and original/re-written
 exporter tree/hash equality are verified. No fixture, numerical runtime source
 or test-tolerance change is included.
+
+
+## Final release dependency sweep (16 October 2026)
+
+**Compatibility: Additive — development typing, logging patch and release policy.**
+The configuration refresh opened mypy #361, pandas-stubs #362, pandas #363,
+PyGAD #364 and Loguru #365. Include mypy 2.4.0 and Loguru 0.7.3. Correct two
+Series return tuples in PRELIM/PREPROCESSING without changing any function body;
+verify with AST comparison, strict mypy and the complete regression gate.
+Defer the new numerical/pandas/stub migrations under #358/#359 and retain tested
+pandas 2.2/PyGAD 3.7 patch-series requirements. Temporarily set both Dependabot
+version-PR limits to zero; restore 5 after publication. Security PR limits stay
+unchanged. Final validation is recorded in `release-0.4.0.md`.
+
+Final-batch validation: all 1,128 strict tests pass with no skips in 236.29
+seconds and 92.22% coverage. Mypy 2.4.0 checks 93 files; Ruff/Black, docs,
+lock/pip, wheel/sdist and installed-wheel build/explore/reload pass. The final
+80-package lock audit remains free of known vulnerabilities. The numerical
+function bodies are unchanged; only explicit return annotations changed.

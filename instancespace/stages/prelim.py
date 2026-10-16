@@ -13,7 +13,7 @@ guided by the options specified in the `InstanceSpaceOptions` object.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -1042,7 +1042,7 @@ class PrelimStage(
         beta: NDArray[np.bool_],
         s: pd.Series | None,  # type: ignore[type-arg]
         selvars_opts: SelvarsOptions,
-    ) -> tuple[  # type: ignore[type-arg]
+    ) -> tuple[
         NDArray[np.bool_],  # subset_index
         NDArray[np.double],  # x
         NDArray[np.double],  # y
@@ -1053,8 +1053,8 @@ class PrelimStage(
         NDArray[np.double],  # num_good_algos
         NDArray[np.double],  # y_best
         NDArray[np.int_],  # p
-        pd.Series,  # inst_labels
-        pd.Series | None,  # s
+        "pd.Series[Any]",  # inst_labels
+        "pd.Series[Any] | None",  # s
         DataDense | None,  # data_dense
     ]:
         data_dense = None

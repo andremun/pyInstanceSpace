@@ -29,7 +29,8 @@ See [the release guide](docs/release-0.4.0.md) for validation and upgrade steps.
   audit in #352. Remove unused test data definitions and the direct runtime Click
   dependency; preserve public schemas, options and compatibility wrappers.
 - Update checkout to v7, pytest to 9.1.1 and Black to 26.10.1; retain the merged
-  mypy 2.3.1, pdoc 16, PyGAD 3.7 and joblib 1.6 updates. Patch the notebook-only
+  pdoc 16, PyGAD 3.7 and joblib 1.6 updates. Adopt mypy 2.4 with explicit Series
+  return annotations and Loguru 0.7.3. Patch the notebook-only
   Tornado dependency to 6.5.10 to resolve three reported advisories.
 - Restart Python history at 15 November 2024 and publish the old-to-new revision
   map. Preserve original fixture identities and all retained file contents.
@@ -44,7 +45,10 @@ See [the release guide](docs/release-0.4.0.md) for validation and upgrade steps.
 - Python 3.12 remains required. Keep NumPy 1.26.4 and scikit-learn 1.5.2 in the
   validated lock. Limit the scikit-learn requirement to the 1.5 patch series so
   a fresh pip install cannot silently adopt the deferred 1.9 update.
-- Defer NumPy 2/scikit-learn migration (#358) and pandas 3 stubs (#359). Bayesian
+- Defer NumPy 2/scikit-learn/PyGAD 3.8 migration (#358) and newer pandas/stubs
+  (#359). Retain pandas 2.2 and PyGAD 3.7 patch-series requirements. Temporarily
+  pause new version-update PRs until 0.4.0 is published; restore the limit to 5
+  afterward. Bayesian
   comparison (#304) and TRACE default/legacy trimming policy remain separate.
 
 The sections below preserve detailed implementation history. Their original

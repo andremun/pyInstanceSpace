@@ -40,16 +40,25 @@ existing Bayesian implementation. Neither policy is changed for this release.
 | pytest | 9.1.1, merged #354 |
 | Black | 26.10.1, repaired lockfile and merged #355 |
 | Tornado | Notebook-development dependency patched from 6.5.8 to 6.5.10 |
-| mypy / pdoc / PyGAD / joblib | Retain validated 2.3.1 / 16.0.0 / 3.7.0 / 1.6.0 |
+| mypy | 2.4.0 from #361; correct two Series return annotations without changing function bodies |
+| Loguru | 0.7.3 patch from #365 |
+| pdoc / PyGAD / joblib | Retain validated 16.0.0 / 3.7.0 / 1.6.0; defer PyGAD 3.8.1 #364 in #358 |
 | NumPy | Retain 1.26.4; close #335 as deferred under #358 |
 | scikit-learn | Retain 1.5.2; restrict fresh installs to >=1.5.2,<1.6; close #357 under #358 |
-| pandas / pandas-stubs | Retain the checked pandas 2.2.3 / stubs 2.2.3.241009 pair; defer #356 under #359 |
+| pandas / pandas-stubs | Retain the checked 2.2.3 / 2.2.3.241009 pair; defer #356, #362 and #363 under #359 |
 
 The lockfile pins the tested environment. Wheel requirements express supported
 ranges; a fresh pip installation is not an exact copy of the Poetry lock.
-Dependabot ignores defer NumPy major updates, scikit-learn >=1.6 and pandas-stubs
-major updates. Remove the corresponding ignore when each migration is approved.
-Patch updates within the retained numerical series remain eligible for review.
+Dependabot ignores defer NumPy and pandas major updates, scikit-learn >=1.6,
+PyGAD >=3.8 and pandas-stubs >=2.3. Runtime requirements retain the pandas 2.2 and
+PyGAD 3.7 patch series; development stubs are pinned to the checked pandas 2.2 pair.
+Remove the corresponding restriction when each migration is approved.
+
+Both ecosystems temporarily set `open-pull-requests-limit: 0` while this release
+is prepared. This stops the configuration refresh from continually opening new
+version-update PRs during final validation; it does not change Dependabot's
+separate security-update PR limit. Restore 5 after publishing 0.4.0, retaining
+the explicit deferred-version ignores. This freeze is not a permanent update policy.
 
 The initial locked-dependency audit identified three advisories in Tornado 6.5.8:
 [GHSA-chx6-46f5-w4vp](https://github.com/tornadoweb/tornado/security/advisories/GHSA-chx6-46f5-w4vp),
@@ -81,7 +90,7 @@ Validated locally on 16 October 2026 with Python 3.12.14 on Linux, Poetry
 
 | Gate | Result |
 | --- | --- |
-| Strict pytest, warnings as errors | 1,128 passed, no skips; 241.49 seconds |
+| Strict pytest, warnings as errors | 1,128 passed, no skips; 236.29 seconds |
 | Coverage | 92.22%, above the configured 85% gate |
 | Strict mypy | 93 files pass |
 | Ruff / Black | Pass; 97 files unchanged by Black |
@@ -95,7 +104,9 @@ Validated locally on 16 October 2026 with Python 3.12.14 on Linux, Poetry
 The three accepted dependency PRs also passed their GitHub release gates before
 merge. The release-preparation PR must pass CI on its exact head before merge;
 check main's gate again before publishing a release. No fixture content, verifier
-pin, runtime numerical implementation or test tolerance changes in this pass.
+pin, numerical function body or test tolerance changes in this pass. The final
+mypy update changes return annotations in PRELIM and PREPROCESSING; an AST
+comparison confirms their function bodies are unchanged.
 Poetry reports existing metadata-deprecation warnings; lock consistency succeeds.
 
 ## Publication procedure
@@ -115,6 +126,9 @@ Poetry reports existing metadata-deprecation warnings; lock consistency succeeds
 6. In a fresh Python 3.12 environment, install `instancespace==0.4.0` and run the
    documented build/explore example. Keep the validated release commit and wheel
    hashes with the release record.
+7. Restore `open-pull-requests-limit: 5` for both ecosystems in
+   `.github/dependabot.yml`. Retain the version ignores for #358/#359 until each
+   numerical/runtime/stub migration is reviewed.
 
 Do not run the publish workflow manually as a pre-release validation step:
 `workflow_dispatch` also performs a real PyPI upload. No GitHub Release or PyPI

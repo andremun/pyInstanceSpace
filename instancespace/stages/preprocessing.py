@@ -20,7 +20,7 @@ PreprocessingStage : Stage
 
 """
 
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -381,12 +381,12 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
         feat_labels: list[str],
         inst_labels: pd.Series,  # type: ignore[type-arg]
         nan_threshold: float = DEFAULT_PRELIM_NAN_THRESHOLD,
-    ) -> tuple[  # type: ignore[type-arg]
+    ) -> tuple[
         NDArray[np.double],
         NDArray[np.double],
-        pd.Series,
+        "pd.Series[Any]",
         list[str],
-        pd.Series | None,
+        "pd.Series[Any] | None",
     ]:
         """Remove instances and features with excessive missing values.
 

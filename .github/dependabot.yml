@@ -8,11 +8,19 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "scikit-learn"
         versions: [">=1.6"]
-      - dependency-name: "pandas-stubs"
+      - dependency-name: "pandas"
         update-types: ["version-update:semver-major"]
+      - dependency-name: "pandas-stubs"
+        versions: [">=2.3"]
+      - dependency-name: "pygad"
+        versions: [">=3.8"]
+    # Temporary release freeze: restore 5 after publishing 0.4.0. Security PRs remain enabled.
+    open-pull-requests-limit: 0
     schedule:
       interval: "weekly"
   - package-ecosystem: "github-actions"
     directory: "/"
+    # Temporary release freeze: restore 5 after publishing 0.4.0. Security PRs remain enabled.
+    open-pull-requests-limit: 0
     schedule:
       interval: "weekly"

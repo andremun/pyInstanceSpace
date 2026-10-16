@@ -35,7 +35,9 @@ status statements, not claims of a PyPI release. See `RELEASE_NOTES.md` and
 Release 0.4.0 preparation includes PR #352's docs/dead-code/mypy audit, the
 validated development-tool updates, and the history restart. See
 `docs/release-0.4.0.md` and `docs/history-restart-2026-10-15.md`. NumPy 2 and newer
-scikit-learn releases are deferred in #358; pandas 3 stubs are deferred in #359.
+scikit-learn and PyGAD 3.8 releases are deferred in #358; pandas/stub updates are
+deferred in #359. The temporary Dependabot version-PR freeze ends after 0.4.0
+publication; restore both PR limits to 5 as recorded in the release guide.
 The installed fixture manifest retains its original source IDs.
 
 - PRELIM, SIFTED, PILOT, PYTHIA and TRACE own typed `predict()` methods. The
