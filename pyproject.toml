@@ -33,7 +33,7 @@ joblib = "^1.6.0"
 pytest = "^9.1.1"
 poethepoet = "^0.25.0"
 ruff = "^0.5.1"
-mypy = "^2.3.1"
+mypy = "^2.4.0"
 pandas-stubs = "^2.2.1.240316"
 black = { version = "^26.10.0", extras = ["jupyter"] }
 pdoc = "^16.0.0"
