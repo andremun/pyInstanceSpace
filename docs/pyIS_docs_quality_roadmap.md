@@ -1898,3 +1898,26 @@ test, with 92.22% coverage. Supplying the pinned MATLAB source (`2e2cf756`) and
 rerunning that one test gives a pass: all 1,128 tests have now been exercised.
 Public options, runner input contracts, fixture contents and numerical tolerances
 are unchanged relative to main.
+
+
+## Release preparation (16 October 2026)
+
+**Compatibility: Additive — release metadata, documentation, provenance mapping,
+CI/development tooling and dependency policy.** The scikit-learn requirement is
+narrowed to its tested 1.5 patch series; existing locked numerical behavior is
+unchanged. Verify all 1,128 regressions, strict typing, format/lint, docs, package
+build/install, provenance/inventory and the locked dependency security audit.
+
+NumPy 2/scikit-learn upgrades are deferred in #358; pandas 3 stubs are deferred in
+#359. Bayesian comparison #304 and TRACE policy changes are outside this release
+preparation. Publish the history mapping without changing approved fixture IDs.
+Final execution results are recorded in `release-0.4.0.md`.
+
+Final local validation: all 1,128 tests pass with warnings treated as errors and
+no skips (241.49 seconds), with 92.22% coverage. Strict mypy passes 93 files;
+Ruff/Black, docs, wheel/sdist, lock/pip checks, approved 423-file verification and
+771-entry inventory pass. The installed wheel builds, explores and reloads a
+model outside the source import path. All 80 locked packages pass the security
+audit after Tornado 6.5.10. The 280-entry history map and original/re-written
+exporter tree/hash equality are verified. No fixture, numerical runtime source
+or test-tolerance change is included.

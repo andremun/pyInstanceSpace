@@ -1,5 +1,11 @@
 # MATLAB parity next-wave plan
 
+> History note (16 October 2026): Python commit IDs in dated evidence predate the
+> repository restart. See the [source mapping and provenance policy](history-restart-2026-10-15.md).
+> This plan is historical. The current approved bundle is recorded in
+> [the October promotion review](fixture-promotion-2026-10-09.md); its original
+> fixture identities remain unchanged.
+
 ## Status and scope
 
 This implementation pass runs on `codex/matlab-parity-next-wave`, not `main`. It starts

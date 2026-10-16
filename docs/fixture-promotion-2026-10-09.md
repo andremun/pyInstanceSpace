@@ -1,5 +1,9 @@
 # Approved Linux fixture promotion (9 October 2026)
 
+> History note (16 October 2026): Python commit IDs in dated evidence predate the
+> repository restart. See the [source mapping and provenance policy](history-restart-2026-10-15.md).
+> Original fixture identities remain unchanged.
+
 This promotion replaces the complete 423-artifact reference bundle and its three
 verifier pins together. The user authorised promotion after the TRACE boundary
 review. It is a reproducible reference for the reviewed changes, not a claim that

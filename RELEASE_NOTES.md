@@ -4,6 +4,53 @@ Mirrors MATLAB `InstanceSpace`'s release-notes convention: entries are grouped i
 *New functionality*, *Better engineering*, *Bug fixes*, and *Licence*. Every PR that
 changes behaviour gets an entry here before merge.
 
+## 0.4.0 — prepared for release
+
+This release consolidates the October MATLAB parity fixes and the documentation,
+dead-code and dependency audits. Publication is a separate GitHub Release action.
+See [the release guide](docs/release-0.4.0.md) for validation and upgrade steps.
+
+### Bug fixes
+
+- Score each algorithm only on observed outcomes; use observed-only Oracle and
+  selector rates, disjoint selector recall, and per-instance regret weights.
+- Match MATLAB's automatic training-portfolio pruning and recompute fitted
+  preprocessing from the retained raw portfolio. Replay retained feature order.
+- Persist fitted PLS centering, constant-coordinate scales and stage options.
+- Use the same explicit TRACE boundary distance contract in MATLAB and Python,
+  with default zero; retain closed-boundary inclusion and full-precision exports.
+- Cover coplanar 3D CLOISTER meshes, TRACE holes/components and export round trips.
+
+### Better engineering
+
+- Separate fixture candidates, approved verification and reviewed promotion.
+  Retain the approved 423-artifact Linux MATLAB R2026a Update 5 bundle unchanged.
+- Integrate PR #343's documentation through #348 and complete the docs/dead-code
+  audit in #352. Remove unused test data definitions and the direct runtime Click
+  dependency; preserve public schemas, options and compatibility wrappers.
+- Update checkout to v7, pytest to 9.1.1 and Black to 26.10.1; retain the merged
+  mypy 2.3.1, pdoc 16, PyGAD 3.7 and joblib 1.6 updates. Patch the notebook-only
+  Tornado dependency to 6.5.10 to resolve three reported advisories.
+- Restart Python history at 15 November 2024 and publish the old-to-new revision
+  map. Preserve original fixture identities and all retained file contents.
+
+### Compatibility
+
+- Retrain cost-sensitive models to obtain regret weighting. Rebuild models whose
+  training removed features to gain the fitted-feature replay record. Older
+  persisted models retain documented compatibility fallbacks.
+- Direct `PythiaEvaluateInput` callers must supply `observed`; `PrelimInput` now
+  requires `algo_labels`, and `PrelimOutput` returns retained algorithm labels.
+- Python 3.12 remains required. Keep NumPy 1.26.4 and scikit-learn 1.5.2 in the
+  validated lock. Limit the scikit-learn requirement to the 1.5 patch series so
+  a fresh pip install cannot silently adopt the deferred 1.9 update.
+- Defer NumPy 2/scikit-learn migration (#358) and pandas 3 stubs (#359). Bayesian
+  comparison (#304) and TRACE default/legacy trimming policy remain separate.
+
+The sections below preserve detailed implementation history. Their original
+“Unreleased” headings do not indicate extra work pending for 0.4.0; the summary
+and release guide above define the current scope.
+
 ## Unreleased — dependency cleanup
 
 ### Better engineering
