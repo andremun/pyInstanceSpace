@@ -19,7 +19,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = ">=3.12,<3.13"
 numpy = "^1.26.4"
-pandas = "^2.2.1"
+pandas = "^3.0.6"
 scipy = "^1.13.0"
 pygad = "^3.7.0"
 shapely = "^2.0.5"
