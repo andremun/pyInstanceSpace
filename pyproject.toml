@@ -34,7 +34,7 @@ pytest = "^9.1.1"
 poethepoet = "^0.25.0"
 ruff = "^0.5.1"
 mypy = "^2.3.1"
-pandas-stubs = "^2.2.1.240316"
+pandas-stubs = "^2.3.3.260113"
 black = { version = "^26.10.0", extras = ["jupyter"] }
 pdoc = "^16.0.0"
 ipykernel = "^6.29.5"
