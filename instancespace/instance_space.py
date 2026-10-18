@@ -183,7 +183,7 @@ class AnnotatedExploreOutput(NamedTuple):
 
 
 class _EvaluationResult(NamedTuple):
-    """PYTHIA-vs-ground-truth evaluation fields (F9).
+    """PYTHIA-vs-ground-truth evaluation fields.
 
     Yielded for `ExploreStage.EVALUATION`. All per-algorithm fields are
     width `n_trained_algorithms + n_new_algos` (full MATLAB parity) - see
@@ -203,24 +203,24 @@ class _EvaluationResult(NamedTuple):
 
 
 class InstanceSpace:
-    """The main instance space class.
+    """Build an instance-space pipeline and apply its fitted model to new data.
 
-    ## Basic Example:
-    ```python
+    Construct with validated ``Metadata`` and ``InstanceSpaceOptions`` objects.
+    ``build()`` returns a fitted ``Model``; ``explore()`` returns predictions,
+    selections and optional evaluation metrics without refitting. Staged runs
+    expose intermediate outputs. ``save()`` and ``load()`` preserve a complete
+    checkpoint, including the runner needed for exploration.
 
-        from instancespace import *
+    Examples
+    --------
+    With metadata and options prepared as in the Getting Started guide:
 
-        metadata = metadata.from_csv_file('./metadata.csv')
-        options = InstanceSpaceOptions.default()
-        # options = options.from_json_file('./options.json')
+    >>> space = InstanceSpace(metadata, options)
+    >>> model = space.build()
 
-        instance_space = InstanceSpace(metadata, options)
-
-        model = instance_space.build()
-
-        model.save_to_csv('./output/')
-        model.save_graphs('./output/')
-    ```
+    Create an output directory before calling explicit export methods. Only
+    load checkpoints from trusted producers. Call ``close()`` when the reusable
+    execution pool is no longer needed.
     """
 
     _runner: StageRunner
@@ -833,14 +833,14 @@ class InstanceSpace:
         one runs. In order: ``ExploreStage.PRELIM``/``SIFTED``/``PILOT`` yield the
         transformed feature or coordinate array, ``PYTHIA`` yields ``(y_hat, pr0_hat,
         selection0)``, ``TRACE`` yields ``(in_good, in_best)``, and - only when
-        ``test_metadata`` carries algorithm performance columns (F9) -
+        ``test_metadata`` carries algorithm performance columns -
         ``EVALUATION`` yields the ground-truth-vs-prediction evaluation fields
         as an ``_EvaluationResult``. ``EVALUATION`` is omitted entirely (not
         yielded at all) when the test set has no ground truth, matching
         ``explore()``'s own conditional field population.
 
         When the test set introduces algorithms absent from training (full
-        MATLAB parity, F9), ``PYTHIA``'s and ``TRACE``'s yielded arrays are
+        MATLAB alignment), ``PYTHIA``'s and ``TRACE``'s yielded arrays are
         widened to include a column per new algorithm (``False``/``0``
         placeholders - no trained classifier or footprint exists for them),
         matching MATLAB's own ``evaluateTestSet`` reconciliation happening

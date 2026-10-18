@@ -147,7 +147,7 @@ def compute_uniformity(x: NDArray[np.double], subset_index: NDArray[np.bool_]) -
     and mean of the nearest-neighbor distances and returns a uniformity score as
     1 minus this ratio.
 
-    Uniformity is undefined (F12) when fewer than 2 instances are retained, or
+    Uniformity is undefined when fewer than 2 instances are retained, or
     when every retained instance coincides in feature space (mean
     nearest-neighbour distance of 0, which would otherwise divide-by-zero into
     inf/NaN) - matches MATLAB's `ISA:FILTER:degenerateUniformity` guard

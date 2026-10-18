@@ -4,6 +4,35 @@ Mirrors MATLAB `InstanceSpace`'s release-notes convention: entries are grouped i
 *New functionality*, *Better engineering*, *Bug fixes*, and *Licence*. Every PR that
 changes behaviour gets an entry here before merge.
 
+## 0.4.1 — prepared for release
+
+### Better engineering
+
+- Replace the pdoc landing pages with a curated MATLAB-style reference website:
+  getting started, metadata, workflows, classes, all stages, tuning, outputs and
+  compatibility. Generated signatures remain available in the same layout.
+- Document all 74 options in source files and the website. Check names, defaults
+  and aliases against the live schema; execute examples and check local links
+  and anchors during validation. Preserve API URLs and public member anchors.
+- Keep README and published reference pages focused on current behavior. Place
+  dated plans, migration records and numerical research evidence outside the site.
+- Record equal-budget Python/MATLAB Bayesian SVM traces with shared folds and
+  initial points, plus cross-scored winners and an independent parameter grid.
+  Differences include classifier objectives and acquisition behavior; the study
+  does not establish a uniform Python convergence deficit. Retain the default
+  budget of 20 and the existing four-start, plain-EI Python optimizer.
+- Build documentation previews on PRs and deploy Pages only from main.
+
+### Compatibility
+
+- No numerical defaults, approved fixtures, serialization schemas or public
+  calling signatures change. Python 3.12 remains required. Runtime dependency
+  versions remain unchanged; markdown2 is now an explicit pinned docs dependency.
+- Existing fitting/exploration workflows and trusted native model loading remain
+  supported. Website examples create export directories before writing files.
+- See [the release preparation record](docs/release-0.4.1.md) for validation and
+  publication instructions. A PR or tag alone does not publish to PyPI.
+
 ## 0.4.0 — prepared for release
 
 This release consolidates the October MATLAB parity fixes and the documentation,

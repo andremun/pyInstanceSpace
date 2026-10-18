@@ -51,3 +51,12 @@ per-algorithm seed boundary does not make MATLAB and sklearn fold partitions ide
 
 Completion may correct unsupported claims and test coverage without claiming that plain EI is
 numerically identical to MATLAB EI-plus.
+
+## Controlled comparison completed for v0.4.1
+
+The equal-budget study, frozen shared inputs/folds/initial points, full traces,
+independent fixed-grid cross-scoring and limitations are recorded in
+[the comparison report](research/bayes-304/report.md). The evidence supports
+retaining the present Python defaults and accepting a documented backend gap;
+it does not support a uniform convergence-deficit claim or a budget increase.
+The raw artifacts are research evidence, not replacement reference fixtures.

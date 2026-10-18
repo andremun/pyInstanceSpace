@@ -1,0 +1,104 @@
+{
+  "general": {
+    "verbose": "Print detailed stage progress when true. Stage-level messages remain available when false.",
+    "seed": "Nonnegative random seed, or None for consumers that support nondeterministic execution. PILOT and SIFTED inherit it when their seed is None. Equal seeds do not guarantee identical results across numerical libraries."
+  },
+  "parallel": {
+    "flag": "Enable supported threaded or joblib parallel work. False runs those tasks serially; this does not disable numerical-library internal threads.",
+    "n_cores": "Positive worker count used when parallel.flag is true. Existing caller-supplied execution behavior is controlled by the pipeline."
+  },
+  "perf": {
+    "max_perf": "True when larger raw algorithm performance is better; false for a cost such as error or run time.",
+    "abs_perf": "True compares raw performance to an absolute epsilon threshold. False uses relative regret from the best algorithm on each instance.",
+    "epsilon": "Finite absolute threshold when abs_perf is true, otherwise a relative tolerance in [0, 1]. The threshold is inclusive in both directions. Raw observed performance must be nonnegative.",
+    "beta_threshold": "Fraction in [0, 1]. An instance is beta-easy when strictly more than this fraction of the retained algorithms are good."
+  },
+  "auto": {
+    "preproc": "Apply automatic feature bounding and Box-Cox/Z-score preprocessing. When false, bound.flag and norm.flag do not trigger those transforms."
+  },
+  "bound": {
+    "flag": "Clip feature outliers when auto.preproc is true, using prelim.iqr_multiplier. This does not clip raw algorithm performance."
+  },
+  "norm": {
+    "flag": "Apply fitted Box-Cox and Z-score transforms when auto.preproc is true. Exploration applies saved training parameters rather than refitting."
+  },
+  "prelim": {
+    "iqr_multiplier": "Strictly positive multiplier for feature clipping at median plus or minus this value times the interquartile range.",
+    "nan_threshold": "Missing-feature fraction in [0, 1] used during ingestion filtering. Columns at the threshold are removed. Training must be complete after filtering; exploration may omit algorithm outcomes."
+  },
+  "selvars": {
+    "small_scale_flag": "Select a random fraction of training instances before feature selection. Use one subsetting mode at a time; fraction selection takes precedence over index-file and density modes.",
+    "small_scale": "Fraction in [0, 1] for small_scale_flag. Supply a float strictly between 0 and 1 for a viable random subset; the chosen rows must still permit the configured folds and projection.",
+    "file_idx_flag": "Use file_idx for an explicit row subset when fractional selection is disabled. The file must exist and contain valid one-based row indices.",
+    "file_idx": "CSV path containing one-based row indices, one per row. Relevant when file_idx_flag is true.",
+    "feats": "Feature names to retain, or None for all. Names may include the feature_ prefix. An empty list selects all. If some names match, unknown names warn and are ignored; no matches raise an error.",
+    "algos": "Algorithm names to retain, or None for all. Names may include the algo_ prefix. An empty list selects all. If some names match, unknown names warn and are ignored; no matches raise an error. Algorithms never good in training are pruned afterward.",
+    "selvars_type": "Density-filter rule: Ftr, Ftr&AP, Ftr&Good or Ftr&AP&Good. These combine feature proximity with raw algorithm performance and/or good-performance labels.",
+    "min_distance": "Strictly positive feature-space distance for density filtering. Relevant when density_flag is true; supply a float.",
+    "density_flag": "Enable greedy density filtering when fractional and index-file subsetting are disabled. SIFTED reapplies the density rule after selecting features."
+  },
+  "sifted": {
+    "flag": "Enable correlation screening, correlation clustering and genetic feature search. False retains the preprocessed feature columns.",
+    "rho": "Absolute feature/performance correlation threshold in [0, 1] for screening.",
+    "k": "Positive number of feature clusters. The stage can reduce it when fewer candidate features are available.",
+    "n_trees": "Positive compatibility setting retained in configuration. Current PILOT/KNN fitness does not read it; it does not control a Random Forest.",
+    "max_iter": "Positive maximum iterations for correlation-distance k-means.",
+    "replicates": "Positive number of k-means restarts.",
+    "num_generations": "Positive maximum number of PyGAD generations.",
+    "num_parents_mating": "Positive number of mating parents, no greater than sol_per_pop.",
+    "sol_per_pop": "Positive genetic-search population size. Must accommodate the mating, tournament and elitism settings.",
+    "parent_selection_type": "PyGAD parent selection: sss, rws, sus, random, tournament, tournament_nsga2, nsga2 or rank. Names are case-insensitive.",
+    "k_tournament": "Positive tournament size, no greater than sol_per_pop. Used by tournament parent selection.",
+    "keep_elitism": "Number of elite solutions retained per generation, from 0 through sol_per_pop.",
+    "crossover_type": "PyGAD crossover: single_point, two_points, uniform or scattered.",
+    "cross_over_probability": "Crossover probability in [0, 1]. The Python field includes an underscore between cross and over.",
+    "mutation_type": "PyGAD mutation: random, swap, scramble, inversion or adaptive.",
+    "mutation_probability": "Mutation probability in [0, 1]. Adaptive mutation requires two probabilities, as a list or tuple.",
+    "stop_criteria": "Stopping rule saturate_N with positive integer N, or reach_VALUE with a finite numeric target.",
+    "pval": "Correlation-screening significance threshold in [0, 1].",
+    "dims": "Projection dimensions, 2 or 3, for direct SIFTED calls. The full pipeline uses pilot.dims for candidate projections.",
+    "seed": "Nonnegative stage seed, or None to inherit general.seed. Controls clustering and genetic search."
+  },
+  "pilot": {
+    "x0": "Optional finite matrix of numerical starting vectors. It has d*(2*p+q) rows and one column per restart, for projection dimension d, retained feature count p and algorithm count q. Its columns determine the restart count.",
+    "precalc_alpha": "Optional finite numerical solution column with d*(2*p+q) rows. It bypasses numerical search and takes precedence over x0 in the numerical branch. It does not override PLS or a viable analytic projection.",
+    "analytic": "For method standard, request the analytic projection. A rank-deficient feature matrix falls back to numerical optimization. Ignored by method pls.",
+    "n_tries": "Positive number of numerical restarts when neither x0 nor precalc_alpha supplies the solution.",
+    "adjust_rotation": "Apply a rigid canonical rotation in 2D so poorly solved instances face the target direction. Must be false for a 3D projection.",
+    "cost_weight": "Strictly positive weight on the performance-reconstruction block of the standard projection objective. Not used by the PLS branch.",
+    "method": "Projection method standard or pls. Standard uses analytic or multi-start numerical projection; pls uses SIMPLS with a persisted fitted feature mean.",
+    "dims": "Projection dimensions, exactly 2 or 3. Also controls the full pipeline SIFTED candidate projection.",
+    "view_groups": "Groups of zero-based retained-algorithm indices for optimized 3D viewpoints. An empty sequence requests one global viewpoint. Relevant only in 3D.",
+    "seed": "Nonnegative stage seed, or None to inherit general.seed. Controls numerical starts and viewpoint searches."
+  },
+  "cloister": {
+    "p_val": "Correlation significance threshold in [0, 1] for excluding contradictory corners.",
+    "c_thres": "Absolute correlation cutoff in [0, 1] for the corner-contradiction test.",
+    "max_features": "Positive upper feature-count bound for the corner-enumeration path. Above it the stage falls back to the observed-data hull.",
+    "hull_dims": "all uses all projected coordinates; an integer of at least 2 selects a leading-coordinate hull. The dimensionality must be viable for the supplied projection."
+  },
+  "pythia": {
+    "cv_folds": "Number of stratified classifier folds, an integer of at least 2. Each class must have enough training examples for the requested validation.",
+    "is_poly_krnl": "Use a degree-three polynomial kernel for classifier svm when true, otherwise Gaussian/RBF. Ignored by the other classifier types.",
+    "use_weights": "Use abs(y - y_best) from the supplied preprocessed performance arrays as sample weights where supported. Zero weights become the smallest finite nonzero weight; nonfinite weights become the largest. All-zero weights fall back to uniform. Unsupported classifiers warn and fit without weights.",
+    "params": "Optional finite hyperparameter matrix in reporting/MATLAB units, one row per retained algorithm and one column per tuned parameter. It bypasses search even when tuning is sobol or bayes. Required for tuning none.",
+    "classifier": "Binary learner svm, knn, tree, nb, linear or ensemble. See the classifier/tuning guide for the estimator and parameter ranges.",
+    "tuning": "Search strategy sobol, bayes or none. Sobol is the default. Bayesian search uses four initial points and plain expected improvement; its trajectory is not MATLAB EI-plus.",
+    "n_tuning_iter": "Positive total candidate-evaluation budget for Sobol or Bayesian search, including Bayesian initial points. Ignored when params bypasses tuning.",
+    "skip": "Skip classifier fitting. TRACE3 can use observed labels; legacy trace.use_sim must be false when this is true."
+  },
+  "trace": {
+    "use_sim": "For legacy TRACE, use PYTHIA-predicted good labels when true and observed good labels when false. Must be false with legacy TRACE when pythia.skip is true. TRACE3 has its own prediction/skip dispatch.",
+    "purity": "Target footprint purity in [0, 1]. The omitted default is 0.55 for legacy and 0.60 for trace3. A TRACE3 candidate can terminate without reaching this target; inspect the footprint results.",
+    "method": "legacy uses the 2D DBSCAN/polygon algorithm; trace3 uses 2D/3D alpha-shape footprints. A 3D projection with legacy selected warns and uses TRACE3.",
+    "contra": "For legacy TRACE, remove contradictions between best-algorithm footprints. The sequential trimming can be sensitive to small coordinate changes. Not used by TRACE3.",
+    "min_instances": "Positive TRACE3 support threshold. A footprint requires more than this number of distinct supporting points, together with full-dimensional geometry.",
+    "min_area_frac": "TRACE3 minimum measure as a fraction of the training-space area or volume, in [0, 1]. Smaller candidate footprints are discarded.",
+    "boundary_tolerance": "Finite nonnegative Euclidean distance in projected-coordinate units. Zero includes exact boundaries; a positive value also includes points within that distance of edges/faces, including hole boundaries. Saved with the fitted model and reused for exploration; geometry area/volume is unchanged."
+  },
+  "outputs": {
+    "csv": "Caller output preference. Built-in file creation requires Model.save_to_csv; build does not automatically export files from this flag.",
+    "web": "Caller output preference. Built-in web export requires Model.save_for_web; this flag alone does not write files.",
+    "png": "Caller output preference. Built-in plot export requires Model.save_graphs; this flag alone does not write files."
+  }
+}

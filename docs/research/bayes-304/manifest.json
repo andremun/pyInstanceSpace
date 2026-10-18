@@ -1,0 +1,49 @@
+{
+  "schema": "pyinstancespace.bayes-evidence/v1",
+  "python_commit": "0159ed32538f7e33a0d8afc0b0200451bdef096a",
+  "matlab_commit": "5f8cb25682202a8243bd2a2481ab8feb40c8c4ce",
+  "initial_max_relative_error": 3.909343171720447e-16,
+  "improved_at_40_of_6": {
+    "python": 3,
+    "matlab": 1
+  },
+  "same_global_error_of_78": 29,
+  "max_global_error_difference": 0.06132075471698112,
+  "mean_global_error_difference": 0.011127237542331879,
+  "max_python_aggregation_difference": 0.0006529597358908568,
+  "files": {
+    "cross-results.json": "f350f430233403b7c10593d6132807834620455760b30782a04fc854965c076f",
+    "inputs.json": "f1a09c6a0ca8bd47b41633638c6bc050d9cd66e6ee7a542cfe1778c120dc7ffb",
+    "matlab/a6-s101-b20.json": "3918ef5b6c9144b51454c56ce0f9ebf8b89d8cf2957c704b11db4db84eb07d49",
+    "matlab/a6-s101-b40.json": "6ec1817c9328dded4ce60d419ee2f204bd73539769c3fbe6bce072a80b0d045c",
+    "matlab/a6-s42-b20.json": "2bee46a613a588acf296302edc696e0d2f80c43221ad07f7c8104e4f2a6b8337",
+    "matlab/a6-s42-b40.json": "866dfc4983bdcd28844a0a5c392c3f6bcff04bdb4125e3d7308b9f2833c28907",
+    "matlab/a6-s7-b20.json": "84a4d2890fa4accc0a35bef09885d3311bba93ba02baf2dbb8b911a773d5f410",
+    "matlab/a6-s7-b40.json": "6468612f8e383b37d12c40957676cb986d9a3a0c1f0513db0eef0f9a0a604e04",
+    "matlab/a9-s101-b20.json": "9a6d5ced3aa590cc6e10fab0fa4d14e581284f171eadae1624958d3ffd348498",
+    "matlab/a9-s101-b40.json": "5a7c064cf470c54f03e54a386d9aef7025f203b8d6947d73bc47947db9ca1c2c",
+    "matlab/a9-s42-b20.json": "7a2babd4aac4097ccf187c29c8f29d082af3d140b465c684cf6b41400509b7e5",
+    "matlab/a9-s42-b40.json": "0e0a0bdccbace27c70fe28aeba7a8d3b65785f3811af83a51ff0773097f92975",
+    "matlab/a9-s7-b20.json": "826e049b5dd76c5a97dfd8266104a72ab170e01cc6384a5e14573a7293efd783",
+    "matlab/a9-s7-b40.json": "8700c0dd4fd8026d17dc4cdcd6e3b21a1dd504d982cf1932184cf026de76495d",
+    "native-search-output.txt": "2a9d3df982a84716a1eac6f71f70a392513e1115926d72a200fa0c26a7fb46d0",
+    "python/a6-s101-b20.json": "15cb769f9d4cdeec45f8812e41f5563f0d90900f6a7006cb33f7b231592d0635",
+    "python/a6-s101-b40.json": "ebc9f4429c591f3c771e311c0ee3a8417621ab326358f074d4f2386363c4c653",
+    "python/a6-s42-b20.json": "5017b0dccdcbc79030080766afeabca3bff171dc22ac4b0a985e561f1ab92d58",
+    "python/a6-s42-b40.json": "7f208d83b1b9ca43a72501e94f584732d1bebf5ee1fdff04c90991d9ad57db0d",
+    "python/a6-s7-b20.json": "50dae6a567352cc38a651fe26ab773f92cf21998d41a4b777779ece2cc40a29e",
+    "python/a6-s7-b40.json": "003824ab5e7de55aef473e39aeac6ed479bd20652663c1b9d89f12c07e703e2c",
+    "python/a9-s101-b20.json": "7d8b46d914b66cd972dea32d83b8517e5b8e41620a72629e0c2820242836f2a8",
+    "python/a9-s101-b40.json": "572421a462521306a70721adda9b262c4a0a624d829b4dc1eff0c0a420ae4dee",
+    "python/a9-s42-b20.json": "6af304d2863c185c5620971be2f8ce034d8901efe70234956c108248b9682c76",
+    "python/a9-s42-b40.json": "1e0529815c8570aa1c101b069e29e5a56b717c9db519e1e49c1e20af3a0eaa4a",
+    "python/a9-s7-b20.json": "a1da9f1e678930e63724314cca0e094d4831aa9ff789e2998f6dab945cb997e4",
+    "python/a9-s7-b40.json": "2ad4ddcb8535ddef8cd7cdb496686e677631cb5402604dff555837f56dc2a1f5",
+    "summary.csv": "b038621a02d2adc008cf5a4f3232b87d7ed6f6a697e705ea0843ea17f8263294"
+  },
+  "reproduction_tools": {
+    "tools/compare_bayes.py": "f9633609ba68c973b04551606a48407fd7d95d8ce0138549d229dfbaf2727f4d",
+    "tools/matlab_bayes_comparison.m": "446f37cea852e6baa4ad0ecf0236c53eed7221977c51d752c258cf8ce494ab52"
+  },
+  "native_search_original_console_sha256": "cca010cff6b0fbec415b9779106c728df2892fa48559e643406da471ec455458"
+}

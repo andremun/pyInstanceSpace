@@ -1940,3 +1940,17 @@ seconds and 92.22% coverage. Mypy 2.4.0 checks 93 files; Ruff/Black, docs,
 lock/pip, wheel/sdist and installed-wheel build/explore/reload pass. The final
 80-package lock audit remains free of known vulnerabilities. The numerical
 function bodies are unchanged; only explicit return annotations changed.
+
+## 18 October 2026 — 0.4.1 documentation and Bayesian comparison
+
+**Additive:** #367 replaces the public documentation entry point with a curated,
+MATLAB-style reference site while preserving API URLs and signatures. All option
+fields and accepted JSON aliases must be checked against the live schema; public
+pages and README describe current behavior rather than development history.
+Verification: schema coverage, defaults, aliases, links, runnable examples, rendered
+desktop/mobile pages, API signatures and the complete release gate.
+
+**Additive:** #304 gains a pinned equal-budget SVM comparison with explicit folds,
+initial candidates, seeds, candidate traces and cross-evaluated objective values.
+The production budget and acquisition settings remain unchanged unless a separate
+confirmed defect justifies a behavior-changing entry and regression test.

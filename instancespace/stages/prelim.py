@@ -13,7 +13,7 @@ guided by the options specified in the `InstanceSpaceOptions` object.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -21,6 +21,11 @@ from loguru import logger
 from numpy.typing import NDArray
 from scipy import optimize, stats
 from sklearn.model_selection import train_test_split
+
+if TYPE_CHECKING:
+    type _Series = pd.Series[Any]
+else:
+    _Series = pd.Series
 
 from instancespace.data.model import DataDense, PrelimOut
 from instancespace.data.options import (
@@ -46,7 +51,7 @@ def _log_many_zero_best_warning(y_best: NDArray[np.double], log_prefix: str) -> 
     substituted with `eps` below, the relative-performance matrix becomes
     uninformative (close to 1 everywhere) for those instances. Shared by
     `PrelimStage._warn_many_zero_best()` (training) and
-    `compute_binary_performance()` (F9's explore()-time evaluation path).
+    `compute_binary_performance()` (the explore-time evaluation path).
     """
     frac_zero_best = np.mean(y_best == 0)
     if frac_zero_best > _MANY_ZERO_BEST_THRESHOLD:
@@ -103,7 +108,7 @@ def compute_binary_performance(
     seeded twister stream and ``randi`` selection rule.
 
     Shared by `PrelimStage._prelim()` (training, ground truth for the
-    training set) and `InstanceSpace.explore()`'s evaluation path (F9, ground
+    training set) and `InstanceSpace.explore()`'s evaluation path (ground
     truth for a test set using the *trained* `PerformanceOptions`) - one
     implementation, not a second one written to match it by hand.
     """
@@ -297,7 +302,6 @@ class PrelimPredictInput(NamedTuple):
     norm_enabled: bool
 
 
-# needs to be changes to output including prelim output, and data changed by stage
 class PrelimOutput(NamedTuple):
     """Outputs for the Prelim stage.
 
@@ -349,18 +353,17 @@ class PrelimOutput(NamedTuple):
         Index of the best-performing algorithm for each instance (1-based,
           matching MATLAB).
     num_good_algos : NDArray[np.double]
-        Number of algorithms per feature that meet a certain performance threshold.
+        Number of good algorithms per instance.
     beta : NDArray[np.bool_]
-        Binary array indicating selected features based on certain criteria
-          (True if selected).
+        Per-instance beta-easy indicator: good count strictly exceeds the configured
+        fraction of retained algorithms.
     instlabels : pd.Series | None
         Labels for each instance in the dataset, if provided.
     data_dense : DataDense | None
         Dense data representation, if available, containing compressed or alternative
           feature representations.
     s : pd.Series | None
-        Optional series used for additional selection or processing criteria,
-          if available.
+        Optional source labels aligned with the retained instance rows.
     """
 
     med_val: NDArray[np.double]
@@ -1053,8 +1056,8 @@ class PrelimStage(
         NDArray[np.double],  # num_good_algos
         NDArray[np.double],  # y_best
         NDArray[np.int_],  # p
-        "pd.Series[Any]",  # inst_labels
-        "pd.Series[Any] | None",  # s
+        _Series,  # inst_labels
+        _Series | None,  # s
         DataDense | None,  # data_dense
     ]:
         data_dense = None

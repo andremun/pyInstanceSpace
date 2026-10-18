@@ -1,41 +1,12 @@
 # SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
 # Copyright (c) 2024-2026 Mario Andrés Muñoz
-"""PYTHIA: Automated Algorithm Selection.
+"""Train and evaluate algorithm selectors from 2D or 3D instance coordinates.
 
-By training Support Vector Machines (SVMs) to predict the best-performing
-algorithm for a given problem instance, using the coordinates of that
-instance in a two-dimensional instance space. PYTHIA uses the trained models
-generate overall summary of each algorithm performance and
-recommend the best algorithm for a new problem instance.
-
-Key steps for PYTHIA:
-1. Normalize the instance space.
-2. Train SVM models for each algorithm.
-3. Evaluate the performance of the SVM models.
-4. Generate a summary of the results.
-
-This module is structured around the `PythiaStage` class
-
-Dependencies:
-- numpy
-- pandas
-- scipy
-- sklearn
-- skopt
-
-Classes
--------
-- PythiaStage: The main class for the Pythia stage.
-
-Functions
----------
-- pythia: The main function for the Pythia stage.
-- _fit_classifier: Train the configured classifier (see PythiaOptions.classifier).
-- _display_overall_perf: Output overall performance metrics.
-- _compute_znorm: Compute normalized instance space.
-- _check_precalcparams: Check pre-calculated hyper-parameters.
-- _determine_selections: Determine the selections based on the precision metrics.
-- _generate_summary: Generate a summary of the results.
+PYTHIA standardizes coordinates, fits one binary learner per retained algorithm,
+and combines predictions with a saved training selection policy. The registry
+supports SVM, KNN, tree, kernel Naive Bayes, linear and ensemble learners.
+Hyperparameters use Sobol search, Bayesian search or supplied values. Evaluation
+applies fitted classifiers without refitting and scores only observed outcomes.
 """
 
 import warnings
@@ -223,21 +194,22 @@ class PythiaOutput(NamedTuple):
         The predicted probabilities of class 0 ("bad") on the full data,
         matching MATLAB's `Pr0hat` convention.
     box_consnt : list[float]
-        Regularization parameters `C`.
+        First hyperparameter in reporting units; BoxConstraint for SVM.
     k_scale : list[float]
-        MATLAB-facing KernelScale values. SVC stores the equivalent
-        estimator coefficient as `gamma = 1 / KernelScale**2`.
+        Second hyperparameter in reporting units, or NaN for one-parameter
+        learners. For SVM this is KernelScale, with estimator coefficient
+        `gamma = 1 / KernelScale**2`.
     accuracy : list[float]
-        Accuracy scores of each SVM model.
+        Held-out accuracy for each algorithm classifier.
     precision : list[float]
-        Precision scores for each SVM model.
+        Held-out precision for each algorithm classifier.
     recall : list[float]
         Recall scores for each algorithm
     selection0 : NDArray[np.int_]
         The selected algorithm indices for each instance.
     selection1 : NDArray[np.int_]
         The backup selected algorithm indices for each instance.
-    summary : pd.DataFrame
+    pythia_summary : pd.DataFrame
         A summary table for performance statistics of all algorithms.
     """
 
@@ -285,7 +257,7 @@ class PythiaEvaluateInput(NamedTuple):
     """Per-instance, per-trained-algorithm mask: shape (n_instances,
     n_trained_algorithms). True where the test set has real ground truth for
     that (instance, algorithm) pair, mirroring MATLAB's
-    ``observed = ~isnan(Y(:,ii))`` (#58)."""
+    ``observed = ~isnan(Y(:,ii))``."""
 
 
 class PythiaEvaluateOutput(NamedTuple):

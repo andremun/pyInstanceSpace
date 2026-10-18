@@ -11,9 +11,8 @@ since MATLAB tunes it via kernel-density estimation (``fitcnb(...,
 ``GaussianNB`` has no equivalent for - it only fits a per-feature Gaussian,
 with no bandwidth to tune.
 
-Ranges are ported for parity of *search space*, not claimed to reproduce
-MATLAB's exact tuned values bit-for-bit: no MATLAB reference output exists
-for these five classifiers to verify against (only `'svm'` does).
+Matching search ranges does not imply identical fitted models or optimizer
+trajectories across MATLAB and scikit-learn backends.
 """
 
 from collections.abc import Callable

@@ -23,7 +23,6 @@ MATRIX_DIMENSIONS = 2
 
 @dataclass(frozen=True)
 class Metadata:
-    # TODO: Ask someone for a better description of what metadata is
     """Metadata for problem instances."""
 
     feature_names: list[str]

@@ -1,0 +1,192 @@
+[Warning: Iteration limit reached.]
+[> In glmfit (line 323)
+In fitSVMPosterior (line 105)
+In pyis_bayes_comparison>fitOneClassifier (line 235)
+In pyis_bayes_comparison>evalFoldClassifier (line 177)
+In pyis_bayes_comparison>crossValPredict (line 158)
+In pyis_bayes_comparison>bayesObjective (line 93)
+In pyis_bayes_comparison>@(tbl)bayesObjective('svm',X,y,W,cp,tbl,true,opts,item.seed) (line 24)
+In BayesianOptimization/callObjNormally (line 13)
+In BayesianOptimization/callObjFcn (line 11)
+In BayesianOptimization/runSerial (line 24)
+In BayesianOptimization/run (line 9)
+In BayesianOptimization (line 64)
+In bayesopt (line 12)
+In pyis_bayes_comparison (line 26)]
+MATLAB a9-s7-b20: best error 0.396226
+[Warning: Iteration limit reached.]
+[> In glmfit (line 323)
+In fitSVMPosterior (line 105)
+In pyis_bayes_comparison>fitOneClassifier (line 235)
+In pyis_bayes_comparison>evalFoldClassifier (line 177)
+In pyis_bayes_comparison>crossValPredict (line 158)
+In pyis_bayes_comparison>bayesObjective (line 93)
+In pyis_bayes_comparison>@(tbl)bayesObjective('svm',X,y,W,cp,tbl,true,opts,item.seed) (line 24)
+In BayesianOptimization/callObjNormally (line 13)
+In BayesianOptimization/callObjFcn (line 11)
+In BayesianOptimization/runSerial (line 24)
+In BayesianOptimization/run (line 9)
+In BayesianOptimization (line 64)
+In bayesopt (line 12)
+In pyis_bayes_comparison (line 26)]
+[Warning: Iteration limit reached.]
+[> In glmfit (line 323)
+In fitSVMPosterior (line 105)
+In pyis_bayes_comparison>fitOneClassifier (line 235)
+In pyis_bayes_comparison>evalFoldClassifier (line 177)
+In pyis_bayes_comparison>crossValPredict (line 158)
+In pyis_bayes_comparison>bayesObjective (line 93)
+In pyis_bayes_comparison>@(tbl)bayesObjective('svm',X,y,W,cp,tbl,true,opts,item.seed) (line 24)
+In BayesianOptimization/callObjNormally (line 13)
+In BayesianOptimization/callObjFcn (line 11)
+In BayesianOptimization/runSerial (line 24)
+In BayesianOptimization/run (line 9)
+In BayesianOptimization (line 64)
+In bayesopt (line 12)
+In pyis_bayes_comparison (line 26)]
+MATLAB a9-s7-b40: best error 0.349057
+[Warning: Iteration limit reached.]
+[> In glmfit (line 323)
+In fitSVMPosterior (line 105)
+In pyis_bayes_comparison>fitOneClassifier (line 235)
+In pyis_bayes_comparison>evalFoldClassifier (line 177)
+In pyis_bayes_comparison>crossValPredict (line 158)
+In pyis_bayes_comparison>bayesObjective (line 93)
+In pyis_bayes_comparison>@(tbl)bayesObjective('svm',X,y,W,cp,tbl,true,opts,item.seed) (line 24)
+In BayesianOptimization/callObjNormally (line 13)
+In BayesianOptimization/callObjFcn (line 11)
+In BayesianOptimization/runSerial (line 24)
+In BayesianOptimization/run (line 9)
+In BayesianOptimization (line 64)
+In bayesopt (line 12)
+In pyis_bayes_comparison (line 26)]
+[Warning: Iteration limit reached.]
+[> In glmfit (line 323)
+In fitSVMPosterior (line 105)
+In pyis_bayes_comparison>fitOneClassifier (line 235)
+In pyis_bayes_comparison>evalFoldClassifier (line 177)
+In pyis_bayes_comparison>crossValPredict (line 158)
+In pyis_bayes_comparison>bayesObjective (line 93)
+In pyis_bayes_comparison>@(tbl)bayesObjective('svm',X,y,W,cp,tbl,true,opts,item.seed) (line 24)
+In BayesianOptimization/callObjNormally (line 13)
+In BayesianOptimization/callObjFcn (line 11)
+In BayesianOptimization/runSerial (line 24)
+In BayesianOptimization/run (line 9)
+In BayesianOptimization (line 64)
+In bayesopt (line 12)
+In pyis_bayes_comparison (line 26)]
+MATLAB a9-s42-b20: best error 0.349057
+[Warning: Iteration limit reached.]
+[> In glmfit (line 323)
+In fitSVMPosterior (line 105)
+In pyis_bayes_comparison>fitOneClassifier (line 235)
+In pyis_bayes_comparison>evalFoldClassifier (line 177)
+In pyis_bayes_comparison>crossValPredict (line 158)
+In pyis_bayes_comparison>bayesObjective (line 93)
+In pyis_bayes_comparison>@(tbl)bayesObjective('svm',X,y,W,cp,tbl,true,opts,item.seed) (line 24)
+In BayesianOptimization/callObjNormally (line 13)
+In BayesianOptimization/callObjFcn (line 11)
+In BayesianOptimization/runSerial (line 24)
+In BayesianOptimization/run (line 9)
+In BayesianOptimization (line 64)
+In bayesopt (line 12)
+In pyis_bayes_comparison (line 26)]
+[Warning: Iteration limit reached.]
+[> In glmfit (line 323)
+In fitSVMPosterior (line 105)
+In pyis_bayes_comparison>fitOneClassifier (line 235)
+In pyis_bayes_comparison>evalFoldClassifier (line 177)
+In pyis_bayes_comparison>crossValPredict (line 158)
+In pyis_bayes_comparison>bayesObjective (line 93)
+In pyis_bayes_comparison>@(tbl)bayesObjective('svm',X,y,W,cp,tbl,true,opts,item.seed) (line 24)
+In BayesianOptimization/callObjNormally (line 13)
+In BayesianOptimization/callObjFcn (line 11)
+In BayesianOptimization/runSerial (line 24)
+In BayesianOptimization/run (line 9)
+In BayesianOptimization (line 64)
+In bayesopt (line 12)
+In pyis_bayes_comparison (line 26)]
+[Warning: Iteration limit reached.]
+[> In glmfit (line 323)
+In fitSVMPosterior (line 105)
+In pyis_bayes_comparison>fitOneClassifier (line 235)
+In pyis_bayes_comparison>evalFoldClassifier (line 177)
+In pyis_bayes_comparison>crossValPredict (line 158)
+In pyis_bayes_comparison>bayesObjective (line 93)
+In pyis_bayes_comparison>@(tbl)bayesObjective('svm',X,y,W,cp,tbl,true,opts,item.seed) (line 24)
+In BayesianOptimization/callObjNormally (line 13)
+In BayesianOptimization/callObjFcn (line 11)
+In BayesianOptimization/runSerial (line 24)
+In BayesianOptimization/run (line 9)
+In BayesianOptimization (line 64)
+In bayesopt (line 12)
+In pyis_bayes_comparison (line 26)]
+MATLAB a9-s42-b40: best error 0.349057
+[Warning: Iteration limit reached.]
+[> In glmfit (line 323)
+In fitSVMPosterior (line 105)
+In pyis_bayes_comparison>fitOneClassifier (line 235)
+In pyis_bayes_comparison>evalFoldClassifier (line 177)
+In pyis_bayes_comparison>crossValPredict (line 158)
+In pyis_bayes_comparison>bayesObjective (line 93)
+In pyis_bayes_comparison>@(tbl)bayesObjective('svm',X,y,W,cp,tbl,true,opts,item.seed) (line 24)
+In BayesianOptimization/callObjNormally (line 13)
+In BayesianOptimization/callObjFcn (line 11)
+In BayesianOptimization/runSerial (line 24)
+In BayesianOptimization/run (line 9)
+In BayesianOptimization (line 64)
+In bayesopt (line 12)
+In pyis_bayes_comparison (line 26)]
+[Warning: Classes are perfectly separated. The optimal score-to-posterior
+transformation is a step function.]
+[> In fitSVMPosterior (line 98)
+In pyis_bayes_comparison>fitOneClassifier (line 235)
+In pyis_bayes_comparison>evalFoldClassifier (line 177)
+In pyis_bayes_comparison>crossValPredict (line 158)
+In pyis_bayes_comparison>bayesObjective (line 93)
+In pyis_bayes_comparison>@(tbl)bayesObjective('svm',X,y,W,cp,tbl,true,opts,item.seed) (line 24)
+In BayesianOptimization/callObjNormally (line 13)
+In BayesianOptimization/callObjFcn (line 11)
+In BayesianOptimization/runSerial (line 24)
+In BayesianOptimization/run (line 9)
+In BayesianOptimization (line 64)
+In bayesopt (line 12)
+In pyis_bayes_comparison (line 26)]
+MATLAB a9-s101-b20: best error 0.334906
+[Warning: Iteration limit reached.]
+[> In glmfit (line 323)
+In fitSVMPosterior (line 105)
+In pyis_bayes_comparison>fitOneClassifier (line 235)
+In pyis_bayes_comparison>evalFoldClassifier (line 177)
+In pyis_bayes_comparison>crossValPredict (line 158)
+In pyis_bayes_comparison>bayesObjective (line 93)
+In pyis_bayes_comparison>@(tbl)bayesObjective('svm',X,y,W,cp,tbl,true,opts,item.seed) (line 24)
+In BayesianOptimization/callObjNormally (line 13)
+In BayesianOptimization/callObjFcn (line 11)
+In BayesianOptimization/runSerial (line 24)
+In BayesianOptimization/run (line 9)
+In BayesianOptimization (line 64)
+In bayesopt (line 12)
+In pyis_bayes_comparison (line 26)]
+[Warning: Classes are perfectly separated. The optimal score-to-posterior
+transformation is a step function.]
+[> In fitSVMPosterior (line 98)
+In pyis_bayes_comparison>fitOneClassifier (line 235)
+In pyis_bayes_comparison>evalFoldClassifier (line 177)
+In pyis_bayes_comparison>crossValPredict (line 158)
+In pyis_bayes_comparison>bayesObjective (line 93)
+In pyis_bayes_comparison>@(tbl)bayesObjective('svm',X,y,W,cp,tbl,true,opts,item.seed) (line 24)
+In BayesianOptimization/callObjNormally (line 13)
+In BayesianOptimization/callObjFcn (line 11)
+In BayesianOptimization/runSerial (line 24)
+In BayesianOptimization/run (line 9)
+In BayesianOptimization (line 64)
+In bayesopt (line 12)
+In pyis_bayes_comparison (line 26)]
+MATLAB a9-s101-b40: best error 0.334906
+MATLAB a6-s7-b20: best error 0.235849
+MATLAB a6-s7-b40: best error 0.235849
+MATLAB a6-s42-b20: best error 0.235849
+MATLAB a6-s42-b40: best error 0.235849
+MATLAB a6-s101-b20: best error 0.245283
+MATLAB a6-s101-b40: best error 0.245283

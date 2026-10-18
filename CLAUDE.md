@@ -32,6 +32,12 @@ MATLAB fixture promotion, and PR #349's wider parity audit fixes. These are sour
 status statements, not claims of a PyPI release. See `RELEASE_NOTES.md` and
 `docs/wider-parity-audit-2026-10-10.md` for scope and compatibility details.
 
+Release 0.4.1 preparation uses a curated MATLAB-style reference site
+(`docs_site/src`, `docs_site/options.json`, `python -m docs_site.build`) and the
+controlled Bayesian comparison in `docs/research/bayes-304/report.md`. The site
+must exclude historical project records. Defaults and numerical algorithms are
+unchanged; options coverage and executable examples are release checks.
+
 Release 0.4.0 preparation includes PR #352's docs/dead-code/mypy audit, the
 validated development-tool updates, and the history restart. See
 `docs/release-0.4.0.md` and `docs/history-restart-2026-10-15.md`. NumPy 2 and newer

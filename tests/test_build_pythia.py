@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 from numpy.typing import NDArray
 from scipy import stats
-from sklearn.exceptions import UndefinedMetricWarning  # type: ignore[import-untyped]
+from sklearn.exceptions import UndefinedMetricWarning
 from sklearn.model_selection import StratifiedKFold
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC

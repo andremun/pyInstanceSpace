@@ -1,13 +1,37 @@
-{# Adds a "Docs Home" link back to the curated site (../index.html relative
-   to the api/ output root) above pdoc's own module/parent-package link, so
-   the two halves of the site (docs_site/pages/ and the generated API
-   reference) stay reachable from each other. #}
 {% extends "default/module.html.jinja2" %}
-{% block module_list_link %}
-    <a class="pdoc-button module-list-button" href="{{ '../' * (module.modulename.count('.') + 1) }}index.html">
-        {% include "resources/box-arrow-in-left.svg" %}
-        &nbsp;
-        Docs Home
-    </a>
-    {{ super() }}
+{% set root = '../' * (module.modulename.count('.') + 1) %}
+{% block title %}{{ module.modulename }} — InstanceSpace Python{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ root }}assets/style.css">
+<script src="{{ root }}assets/search-index.js" defer></script>
+<script src="{{ root }}assets/site.js" defer></script>
 {% endblock %}
+{% block style %}
+<style>{% include "content.css" %}{% include "syntax-highlighting.css" %}</style>
+{% endblock %}
+{% block body %}
+<script>document.documentElement.dataset.root = {{ root|tojson }};</script>
+{{ isa_header(root)|safe }}
+<div class="layout">
+{{ isa_nav(root, 'api-reference')|safe }}
+<main class="content" id="content" tabindex="-1">
+<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="{{ root }}index.html">Instance Space Analysis</a> › <a href="{{ root }}api-reference.html">API Reference</a> › <span>{{ module.modulename }}</span></nav>
+<div class="api-reference pdoc">
+{{ self.module_info() }}
+{{ self.module_contents() }}
+</div>
+{{ isa_footer()|safe }}
+</main>
+<aside class="onpage" aria-label="On this page"><h2>On this page</h2><ul>
+{% for item in module.own_members if is_public(item)|trim %}
+<li><a href="#{{ item.qualname }}">{{ item.name }}</a></li>
+{% endfor %}
+</ul></aside>
+</div>
+{% endblock %}
+
+{% macro docstring(var) %}
+{% if var.docstring %}
+<div class="docstring">{{ var.docstring | replace("@public", "") | to_markdown | to_html | linkify(namespace=var.qualname, shorten=False) | isa_namespace(var.qualname) | safe }}</div>
+{% endif %}
+{% endmacro %}

@@ -75,12 +75,8 @@ DEFAULT_PILOT_METHOD = "standard"
 DEFAULT_CLOISTER_P_VAL = 0.05
 DEFAULT_CLOISTER_C_THRES = 0.7
 DEFAULT_CLOISTER_MAX_FEATURES = 20
-# "all" uses every projected dimension for the convex hull (this port's own
-# default; scipy.spatial.ConvexHull handles n-D natively). MATLAB always
-# builds a 2D hull on the first two projected columns regardless of how
-# many columns A has (core/CLOISTER.m) - set to 2 for that behaviour.
-# #299 audit finding, issue 5. With a 3D PILOT projection, "all" retains the
-# full hull while 2 deliberately selects MATLAB's legacy planar behaviour.
+# "all" uses every projected coordinate. An integer restricts the hull
+# to that number of leading coordinates; 2 selects a planar hull in 3D.
 DEFAULT_CLOISTER_HULL_DIMS: Literal["all"] = "all"
 
 DEFAULT_PYTHIA_CV_FOLDS = 5
