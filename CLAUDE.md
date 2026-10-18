@@ -39,7 +39,8 @@ to verify later.
 ## Documentation and release boundaries
 
 Keep README, `docs_site/src/`, API docstrings and this file focused on current
-behavior. Update option descriptions in both `docs_site/options.json` and the
+behavior. Preserve working README badges, including Codecov, during documentation
+redesigns. Update option descriptions in both `docs_site/options.json` and the
 source dataclasses. Preserve API URLs and member anchors. Do not add completed
 work logs, branch inventories or duplicated local backlogs.
 

@@ -1,10 +1,13 @@
 # Instance Space Analysis for Python
 
 [![Tests](https://github.com/andremun/pyInstanceSpace/actions/workflows/validation-tests.yml/badge.svg)](https://github.com/andremun/pyInstanceSpace/actions/workflows/validation-tests.yml)
-[![Documentation](https://img.shields.io/badge/docs-reference-blue)](https://andremun.github.io/pyInstanceSpace/)
+[![codecov](https://codecov.io/gh/andremun/pyInstanceSpace/graph/badge.svg)](https://codecov.io/gh/andremun/pyInstanceSpace)
+[![Documentation](https://github.com/andremun/pyInstanceSpace/actions/workflows/docs-pages.yml/badge.svg)](https://andremun.github.io/pyInstanceSpace/)
 [![PyPI](https://img.shields.io/pypi/v/instancespace.svg)](https://pypi.org/project/instancespace/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/instancespace.svg)](https://pypi.org/project/instancespace/)
 [![Python](https://img.shields.io/pypi/pyversions/instancespace.svg)](https://pypi.org/project/instancespace/)
 [![DOI](https://zenodo.org/badge/770130753.svg)](https://doi.org/10.5281/zenodo.15562567)
+[![Citations](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.semanticscholar.org%2Fgraph%2Fv1%2Fpaper%2FDOI%3A10.1145%2F3572895%3Ffields%3DcitationCount&query=%24.citationCount&label=citations&color=blue)](https://doi.org/10.1145/3572895)
 
 InstanceSpace relates the structural features of problem instances to the performance of a portfolio of algorithms. It creates a 2D or 3D instance space, trains algorithm selectors, and constructs footprints showing where each algorithm performs well.
 
