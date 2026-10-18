@@ -1,96 +1,60 @@
-# Test Suite
+# Test suite
 
-Tests live flat under `tests/` (no per-stage subdirectories), disambiguated by filename
-prefix rather than directory: `test_build_<stage>.py` for a stage's training-time
-behaviour, `test_explore_<stage>.py` for its `explore()`-time inference counterpart.
-See the roadmap's T7 section (`docs/pyIS_docs_quality_roadmap.md`) for the full decision
-and file-by-file mapping.
+Tests live flat under `tests/`. Training-stage tests use
+`test_build_<stage>.py`; fitted inference uses `test_explore_<stage>.py`.
+Cross-stage, infrastructure, persistence and plotting tests use descriptive names.
+PREPROCESSING and CLOISTER have no explore-time predictive stage.
 
-## Current MATLAB oracle
+## Reference trust
 
-`tests/fixtures/matlab/current/` is the canonical `matlab-verified` oracle: 423 files
-under `reference-export/v2`, generated with MATLAB R2026a Update 5 from gold source
-`2e2cf7565aee8e60190e788c959405d44c4317f3` and Python
-generator `ab72f6bc5c602e0cb03a65041a4677037282e92c`. Its exporter SHA-256 is
-`ebd7917169ca110fd26856ac8cbad43e3c3477b1ce96473e4f5bc9445ff869d6`.
-The approved Linux export uses the explicit TRACE boundary policy with tolerance
-zero. Two independent MATLAB processes produced identical hashes for all 423
-artifacts. See [the promotion review](../docs/fixture-promotion-2026-10-09.md) for validation and remaining limits.
-Frozen v1 bundles remain readable; diagnostic snapshots are not oracles.
+| Data | Purpose |
+|---|---|
+| `fixtures/matlab/current/` | Approved 423-file `reference-export/v2` MATLAB oracle, authenticated before parity readers use it. |
+| `fixtures/matlab/geometry/` | Independently hashed stage-level CLOISTER/TRACE geometry cases. |
+| `matlab_reference/`, older `pilot_pythia/` data | Unknown-provenance regression snapshots; they cannot establish current MATLAB parity. |
+| Synthetic/regression fixtures | Controlled Python behavior and edge cases; classifications are in `fixture_inventory.json`. |
 
-## Naming Convention
+See [fixture provenance](../docs/fixture-provenance.md) for approved source
+identities and scientific limits, and [the exporter](matlab_export/README.md) for
+generation, candidate review and promotion. Preserve fixture data and pins during
+ordinary documentation or dependency work.
 
-| Prefix | Covers | Example |
-|---|---|---|
-| `test_build_<stage>.py` | `build()`-time stage behaviour (training) | `test_build_pilot.py` |
-| `test_explore_<stage>.py` | `explore()`-time inference for that stage, unit + MATLAB validation merged into one file | `test_explore_pilot.py` |
+## Run checks
 
-Stages without an `explore()`-time counterpart (CLOISTER, preprocessing — neither appears
-in `ExploreStage`) only have a `test_build_*` file. Files spanning more than one stage
-(e.g. `test_build_pilot_pythia.py`, a PILOT+PYTHIA build-time integration test) keep a
-`test_build_`/`test_explore_` prefix but aren't folded into either stage's own file.
-Everything else (cross-cutting infrastructure: executor pooling, model save/load, option
-validation, plotting, etc.) has no single-stage distinction to make and keeps its
-existing name.
+Run from the repository root in the locked Python 3.12 development environment:
 
-## Test Types Within `test_explore_<stage>.py`
-
-### Validation tests
-
-Historical stage tests feed stored training artifacts and previous-stage outputs into
-each Python stage. Data under `tests/matlab_reference/` is `legacy-unknown`: useful for
-regression detection, but not a verified MATLAB oracle. Current parity tests use the
-manifest-verified v2 bundle under `tests/fixtures/matlab/current/`. Run with `-s` to see
-comparison diagnostics. No legacy fixture can establish MATLAB parity.
-
-### Unit tests
-
-Edge cases and behavioural guarantees for each stage method, with synthetic inputs and
-no reference data: output shapes, single-instance and NaN inputs, bounding behaviour,
-input preservation, determinism, and stage-specific arithmetic (kernel evaluation,
-selection rules, polygon membership).
-
-## Running Tests
-
-Run from the repository root — the tests locate reference data through paths relative
-to it.
-
-```bash
-# Full suite
-poetry run pytest -v
-
-# One stage's explore()-time tests, with validation statistics printed
-poetry run pytest tests/test_explore_trace.py -v -s
-
-# Strict provenance and all current-gold scientific readers
-poetry run pytest tests/test_fixture_provenance.py -q
-poetry run pytest tests/test_current_matlab_*.py -q
+```sh
+poetry run pytest --strict-config --strict-markers -ra -W error \
+  --cov=instancespace --cov-report=term-missing --cov-report=xml
+poetry run python tools/fixture_provenance.py verify tests/fixtures/matlab/current
+poetry run python tools/fixture_provenance.py inventory . tests/fixture_inventory.json
 ```
 
-## Validation criteria
+The configured coverage gate is 85%, including branches. `poetry run poe test`
+also runs Ruff, strict mypy, Black and the documentation build.
 
-Current-gold readers validate the manifest and use exact comparisons or narrowly scoped
-numeric tolerances documented beside each assertion. They include standard and SIMPLS
-PILOT in 2D/3D, viewpoints, TRACE/TRACE3 geometry, topology, membership, and rescoring.
+For focused checks:
 
-The table below records the older `legacy-unknown` regression thresholds. Passing these
-tests detects drift but is not a current MATLAB parity claim.
+```sh
+poetry run pytest tests/test_explore_trace.py -v -s -W error
+poetry run pytest tests/test_fixture_provenance.py tests/test_current_matlab_*.py -W error
+poetry run pytest tests/test_documentation.py tests/test_bayes_comparison_evidence.py -W error
+```
 
-Every threshold is documented, with its rationale, in the docstring of the test that
-asserts it:
+## Scientific assertions
 
-| Stage  | Criterion | Rationale |
-|--------|-----------|-----------|
-| PRELIM | max relative error < 1% | deterministic bounding → Box-Cox → z-score with stored parameters; expected to match to floating-point precision |
-| SIFTED | exact match | pure column indexing |
-| PILOT  | max relative error < 1% | single matrix product with the stored projection matrix |
-| PYTHIA | exact binary outputs; probabilities within `1e-13` absolute error | direct replay of the stored historical SVM artifacts; correlation is not used because it accepts inverted or shifted probabilities |
-| TRACE  | per-column boolean agreement ≥ 99% | boundary-inclusive membership matching MATLAB `polyshape.isinterior`; the 1% budget covers floating-point boundary edge cases after the CSV round-trip |
+Current MATLAB readers check the manifest and scientific contracts: standard and
+SIMPLS projection, viewpoints, geometry/topology, boundary membership, metrics and
+rescoring. Assertions state their exact comparisons or local numerical tolerance
+and rationale. Keep the rationale with the assertion rather than duplicating a
+threshold table that can drift from the tests.
 
-## Controlled geometry references
+Unknown-provenance snapshots can detect regressions but do not authenticate a
+MATLAB result. Diagnostic exports require the explicit opt-in described in the
+exporter guide. Never relax a tolerance solely to hide a changed boundary,
+rounded summary or optimizer trajectory.
 
-`fixtures/matlab/geometry/` contains six stage-level cases from current MATLAB
-master `929acfd`, generated locally with R2026a Update 5 on Linux. They verify
-CLOISTER 3D boundaries and TRACE holes/components, including export round trips.
-Their separate hashed manifest does not promote or replace the approved full
-bundle above; see `fixtures/matlab/geometry/README.md` for reproduction details.
+The Bayesian evidence tests validate recorded traces and cross-scores without
+rerunning costly stochastic optimization or requiring MATLAB in CI. Documentation
+tests execute published examples and check all options, loader aliases, API
+anchors and local site links.

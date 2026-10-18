@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for considering a contribution to `pyInstanceSpace`.
+Contributor workflow for `pyInstanceSpace`.
 
 ## Getting set up
 
@@ -10,20 +10,20 @@ to install the locked runtime and development dependencies. See the
 
 ## Before opening a PR
 
-- Run `poetry run pytest` and make sure it passes.
-- Run `poe test` (ruff, mypy `--strict`, black format checks, and pytest with coverage — all already
-  configured for this project).
-- Code style: ruff for linting, mypy `--strict` for type checking, black for
-  formatting — no additional setup needed, just run the commands above.
-- Use conventional-commit-style messages (`fix:`, `feat:`, `chore:`, ...), matching
-  the existing commit history.
-- If your change alters existing behaviour, add an entry to `RELEASE_NOTES.md`.
+- Classify the change as **Additive** or **Behavior-changing**. Explain affected
+  callers and scientific before/after validation for behavior changes; include
+  the compatibility impact in `RELEASE_NOTES.md`.
+- Run checks appropriate to the change. `poetry run poe test` runs Ruff, strict
+  mypy, Black, the checked documentation build and pytest with coverage. The
+  [test guide](tests/README.md) gives the strict release-gate commands.
+- Use conventional commit messages (`fix:`, `feat:`, `docs:`, `chore:`).
 
 ## Editing the documentation site
 
 Curated pages live in `docs_site/src/*.md`. Keep these guides and the README
 focused on current behavior. Place dated investigations and migration records
-under `docs/`, outside the published website.
+under `docs/` only when they remain necessary reproducibility evidence. Use
+GitHub Issues for active tasks and Git for completed development history.
 
 `docs_site/options.json` contains option descriptions. Update the corresponding
 source dataclass docstrings as well. Names, defaults and JSON aliases are read
@@ -42,8 +42,13 @@ preview artifact for pull requests and deploys only from `main`.
 ## Before publishing a release
 
 - Confirm `[tool.poetry].version` in `pyproject.toml` matches the release tag
-  (for example, `0.3.0` for tag `v0.3.0`).
+  (`0.4.1` corresponds to tag `v0.4.1`).
 - Publish from a GitHub Release (`published`) or use manual `workflow_dispatch` for a retry (run it on the release tag/commit).
+
+Current contributor references are indexed in [docs/README.md](docs/README.md).
+Follow [the release procedure](docs/release-0.4.1.md) for the release under review.
+Record compatibility impacts and validation in the PR rather than adding a
+completed-task log or a duplicate local backlog.
 
 ## Reporting bugs or requesting features
 

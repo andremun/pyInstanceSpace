@@ -1,398 +1,43 @@
-# Release Notes
+# Release notes
 
-Mirrors MATLAB `InstanceSpace`'s release-notes convention: entries are grouped into
-*New functionality*, *Better engineering*, *Bug fixes*, and *Licence*. Every PR that
-changes behaviour gets an entry here before merge.
+## 0.4.1 — release preparation
 
-## 0.4.1 — prepared for release
+- Curated MATLAB-style reference pages cover metadata, workflows, stages,
+  classifiers, tuning, exports, persistence and compatibility. Generated API
+  signatures retain their URLs and member anchors within the shared layout.
+- Every configuration field has source and website documentation. The builder
+  checks schema coverage, defaults, JSON aliases and local links; tests execute
+  the published workflows. PRs build documentation previews; main deploys Pages.
+- A repository ISA skill supports Python analysis and interpretation. Maintainer
+  guidance describes current contracts; superseded plans, audit logs and stale
+  notebooks are removed. Fixture provenance and reproducible numerical evidence
+  remain available.
+- The controlled Bayesian SVM comparison uses shared folds and initial points,
+  matched budgets and cross-scored parameters. Results include classifier and
+  objective differences; retain 20 evaluations, four starts and plain EI.
+- Numerical defaults, approved fixtures, runtime function bodies, calling
+  arguments and serialization schemas remain unchanged. Python 3.12 is required.
+  Runtime dependencies are unchanged; markdown2 is an explicit documentation
+  dependency at its existing locked version.
 
-### Better engineering
+See [release preparation](docs/release-0.4.1.md) for validation, upgrade guidance
+and the publication procedure. A PR, merge or tag alone does not upload to PyPI.
 
-- Replace the pdoc landing pages with a curated MATLAB-style reference website:
-  getting started, metadata, workflows, classes, all stages, tuning, outputs and
-  compatibility. Generated signatures remain available in the same layout.
-- Document all 74 options in source files and the website. Check names, defaults
-  and aliases against the live schema; execute examples and check local links
-  and anchors during validation. Preserve API URLs and public member anchors.
-- Keep README and published reference pages focused on current behavior. Place
-  dated plans, migration records and numerical research evidence outside the site.
-- Record equal-budget Python/MATLAB Bayesian SVM traces with shared folds and
-  initial points, plus cross-scored winners and an independent parameter grid.
-  Differences include classifier objectives and acquisition behavior; the study
-  does not establish a uniform Python convergence deficit. Retain the default
-  budget of 20 and the existing four-start, plain-EI Python optimizer.
-- Build documentation previews on PRs and deploy Pages only from main.
+## 0.4.0 — upgrade compatibility
 
-### Compatibility
-
-- No numerical defaults, approved fixtures, serialization schemas or public
-  calling signatures change. Python 3.12 remains required. Runtime dependency
-  versions remain unchanged; markdown2 is now an explicit pinned docs dependency.
-- Existing fitting/exploration workflows and trusted native model loading remain
-  supported. Website examples create export directories before writing files.
-- See [the release preparation record](docs/release-0.4.1.md) for validation and
-  publication instructions. A PR or tag alone does not publish to PyPI.
-
-## 0.4.0 — prepared for release
-
-This release consolidates the October MATLAB parity fixes and the documentation,
-dead-code and dependency audits. Publication is a separate GitHub Release action.
-See [the release guide](docs/release-0.4.0.md) for validation and upgrade steps.
-
-### Bug fixes
-
-- Score each algorithm only on observed outcomes; use observed-only Oracle and
-  selector rates, disjoint selector recall, and per-instance regret weights.
-- Match MATLAB's automatic training-portfolio pruning and recompute fitted
-  preprocessing from the retained raw portfolio. Replay retained feature order.
-- Persist fitted PLS centering, constant-coordinate scales and stage options.
-- Use the same explicit TRACE boundary distance contract in MATLAB and Python,
-  with default zero; retain closed-boundary inclusion and full-precision exports.
-- Cover coplanar 3D CLOISTER meshes, TRACE holes/components and export round trips.
-
-### Better engineering
-
-- Separate fixture candidates, approved verification and reviewed promotion.
-  Retain the approved 423-artifact Linux MATLAB R2026a Update 5 bundle unchanged.
-- Integrate PR #343's documentation through #348 and complete the docs/dead-code
-  audit in #352. Remove unused test data definitions and the direct runtime Click
-  dependency; preserve public schemas, options and compatibility wrappers.
-- Update checkout to v7, pytest to 9.1.1 and Black to 26.10.1; retain the merged
-  pdoc 16, PyGAD 3.7 and joblib 1.6 updates. Adopt mypy 2.4 with explicit Series
-  return annotations and Loguru 0.7.3. Patch the notebook-only
-  Tornado dependency to 6.5.10 to resolve three reported advisories.
-- Restart Python history at 15 November 2024 and publish the old-to-new revision
-  map. Preserve original fixture identities and all retained file contents.
-
-### Compatibility
-
-- Retrain cost-sensitive models to obtain regret weighting. Rebuild models whose
-  training removed features to gain the fitted-feature replay record. Older
-  persisted models retain documented compatibility fallbacks.
-- Direct `PythiaEvaluateInput` callers must supply `observed`; `PrelimInput` now
-  requires `algo_labels`, and `PrelimOutput` returns retained algorithm labels.
-- Python 3.12 remains required. Keep NumPy 1.26.4 and scikit-learn 1.5.2 in the
-  validated lock. Limit the scikit-learn requirement to the 1.5 patch series so
-  a fresh pip install cannot silently adopt the deferred 1.9 update.
-- Defer NumPy 2/scikit-learn/PyGAD 3.8 migration (#358) and newer pandas/stubs
-  (#359). Retain pandas 2.2 and PyGAD 3.7 patch-series requirements. Temporarily
-  pause new version-update PRs until 0.4.0 is published; restore the limit to 5
-  afterward. Bayesian
-  comparison (#304) and TRACE default/legacy trimming policy remain separate.
-
-The sections below preserve detailed implementation history. Their original
-“Unreleased” headings do not indicate extra work pending for 0.4.0; the summary
-and release guide above define the current scope.
-
-## Unreleased — dependency cleanup
-
-### Better engineering
-
-- Removed `click` as a direct runtime dependency: the package has no Click imports
-  or CLI entry point. It remains a locked development dependency through Black.
-  All locked package versions are unchanged. Applications that independently use
-  Click should declare it as their own dependency.
-
-## Unreleased — wider parity audit
-
-### Bug fixes
-
-- Exploration replays the feature order actually retained by PREPROCESSING, before
-  SIFTED selection. Manually excluded or data-washed columns are no longer required
-  at inference. This order is persisted as `Model.preprocessing_features`; older
-  models without the record retain their metadata-based fallback and should be
-  rebuilt to benefit from the fix if training removed columns.
-- Pipeline PRELIM now removes algorithms with no good training instances, matching
-  current MATLAB. Winners, ties, beta and normalization are recomputed from the
-  retained raw portfolio. An empty retained portfolio raises a clear error. A
-  discarded algorithm appearing during exploration is treated as test-only and is
-  never recommended by the fitted model.
-
-### Compatibility
-
-- Direct `PrelimInput` construction now requires `algo_labels`, and `PrelimOutput`
-  includes the retained `algo_labels` as its final field. Pipeline callers supply
-  these automatically. The lower-level `PrelimStage.prelim()` numerical API keeps
-  its existing return contract and does not prune, like MATLAB's core `PRELIM`.
-- Fixed PYTHIA parameter rows must match the retained algorithm portfolio and its
-  order, as required by the existing stage-level parameter contract.
-
-## 0.2.1 (baseline)
-
-Seeded as the starting point for this convention — describes the current state of the
-toolkit rather than a single change.
-
-### New functionality
-
-- Stage architecture (`preprocessing → prelim → sifted → pilot → pythia → cloister →
-  trace`) with an `InstanceSpace` class exposing `build()`, `explore()`, and
-  `explore_stage_iter()`.
-- `explore()`/`explore_stage_iter()` apply a previously trained model to unseen instances,
-  mirroring MATLAB's `exploreIS.m`, by calling the `build()`-trained scikit-learn
-  objects (e.g. `SVC.predict`/`predict_proba`) directly. (This originally went through
-  `build_explore_adapter.py`, converting the trained model into the flattened form
-  MATLAB-exported models use; that module has since been deleted — see the *Better
-  engineering* entry below.)
-
-### Better engineering
-
-- The legacy PYTHIA probability regression allows `1e-12` absolute roundoff
-  across CPU/BLAS implementations (#341), while retaining zero relative tolerance
-  and exact binary predictions. Runtime code and reference fixtures are unchanged.
-
-- Frozen dataclasses for options and metadata give real immutability MATLAB structs
-  don't have.
-- `stage_runner.py` executes a hardcoded, explicit 7-stage order (see the *Better
-  engineering* entry below); `build_stage_runner()` attaches any extra/plugin stage to
-  it via an explicit `RunBefore`/`RunAfter` declaration.
-- `tests/matlab_reference/` provides historical cross-implementation regression data.
-  Its generator provenance is unknown, so it is not treated as a MATLAB oracle; the
-  verified replacement is recorded under *Unreleased* below.
-
-### Bug fixes
-
-(None catalogued retroactively — the list starts from here forward.)
-
-### Licence
-
-PolyForm Noncommercial 1.0.0, matching the MATLAB `InstanceSpace` toolkit.
-
----
-
-## Unreleased
-
-### Current-master parity audit
-
-- PLS saves its fitted feature mean and reuses it during exploration and CLOISTER
-  boundary construction. Earlier models without that field retain uncentred
-  inference. `PilotOutput` gains an optional trailing `pilot_x_mean` field;
-  `PilotOut.x_mean` is preserved by model persistence.
-- PYTHIA assigns unit scale to constant projection coordinates and handles zero
-  scales in earlier fitted models. Selector summaries now use held-out predictions;
-  the public fitted-model predictions and recommendations remain unchanged.
-
-
-### New functionality
-
-- PR #343’s curated documentation site and build are integrated, with weighting
-  documentation aligned to per-instance regret.
-- 3D CLOISTER boundaries expose derived triangle faces and CSV mesh metadata
-  without changing the existing two-array result API. Planar 3D boundaries now
-  triangulate correctly; collinear 3D boundaries report a clear error. Controlled
-  local MATLAB references cover CLOISTER and TRACE topology/export behavior.
-
-- `explore()` now logs a warning when more than 5% of test instances have a feature
-  outside the training PRELIM bounds and get clipped to them, matching MATLAB's
-  equivalent out-of-distribution check (#250).
-- Added `InstanceSpace.plot_sources()`/`plot_portfolio()`/`plot_good()`/
-  `plot_footprint()` convenience methods (`instancespace/plotting.py`), thin
-  matplotlib wrappers mirroring MATLAB's `InstanceSpace.plot()` (#255).
-- `PrelimStage` now warns when more than 5% of instances have a best-algorithm
-  performance of exactly zero, matching MATLAB's `ISA:PRELIM:manyZeroBest` diagnostic —
-  the relative-performance matrix becomes uninformative (close to 1 everywhere) for
-  those instances once the existing `eps`-substitution kicks in (F14, #291).
-- Added `PilotOptions.adjust_rotation` (default `False`), ported from PyISpace's
-  `adjust_rotation()` (`gitlab.com/ita-ml/pyispace`): rotates PILOT's trained 2D
-  projection so instances poorly solved by every algorithm face a consistent direction
-  (135°, upper-left), making similar datasets easier to visually compare across runs.
-  Rotation is a rigid transform — pairwise distances, error, R², and footprint areas are
-  unchanged either way (R1).
-- PILOT now supports `dims=2` and `dims=3` for the standard analytic/numerical solvers
-  and MATLAB R2026a-compatible SIMPLS (`method='pls'`). Three-dimensional builds also
-  optimize and persist a global or grouped 2D camera viewpoint. `cost_weight`, `x0`,
-  `precalc_alpha`, restart selection, and public explore projection follow the MATLAB
-  option and dispatch contracts (#262).
-- **Behavior-changing:** the default numerical PILOT restart count changed from the
-  former Python value of 5 to MATLAB R2026a's `opts.pilot.ntries = 10`. This doubles the
-  default multi-start budget and can select a different fitted projection. Callers that
-  need the earlier Python behavior can set `PilotOptions.default(n_tries=5)` explicitly.
-  The new default is pinned against `ISAdefaults.m`, the verified R2026a fixtures, and
-  the release validation suite (#262).
-- **Behavior-changing:** MATLAB InstanceSpace v0.9.1 added stage-local
-  `sifted.seed` and `pilot.seed` options. Python now exposes matching fields, inherits
-  `GeneralOptions.seed` when they are omitted, and uses the selected PILOT seed for
-  numerical and viewpoint restarts.
-- `TraceOptions.method='trace3'` now implements MATLAB's current alpha-shape TRACE3
-  algorithm with 2D polygons and native 3D tetrahedral meshes. Python keeps
-  `method='legacy'` as its compatibility default; a 3D projection configured with that
-  default warns and dispatches to TRACE3 because legacy TRACE is 2D-only.
-  `TraceOptions.contra` continues to gate legacy contradiction removal (#313).
-- CSV and plotting output now support 3D projections. Mesh output uses the versioned
-  `pyinstancespace.trace-mesh/v1` manifest with one-based vertices, tetrahedra, and
-  outward boundary faces; plotting uses native matplotlib 3D axes, mesh surfaces, and
-  stored global/per-algorithm viewpoints (#265).
-- **Behavior-changing:** `PythiaOptions.tuning` (`'sobol'`/`'bayes'`/`'none'`, default
-  `'sobol'`) selects PYTHIA's SVM hyperparameter search strategy, matching MATLAB's own
-  default. `'sobol'` evaluates `PythiaOptions.n_tuning_iter` (default 20) scrambled Sobol
-  quasi-random candidates via cross-validation and keeps the best — a direct, lighter-weight
-  port of MATLAB's `sobolSearch`, replacing the previous Bayes-only search as PYTHIA's
-  default behaviour. Set `tuning='bayes'` to keep the exact prior behaviour. `'none'` skips
-  tuning and requires `PythiaOptions.params` (F10).
-- **Breaking:** `PythiaOptions.use_grid_search` has been removed — Sobol tuning (above)
-  supersedes the `RandomizedSearchCV` "grid search" it used to select, matching MATLAB
-  (which has no grid-search tuning mode at all). Callers setting this field, or JSON option
-  files with a `usegridsearch`/`use_grid_search` key, need to switch to `tuning`. The
-  legacy `uselibsvm` JSON key (previously silently aliased onto `use_grid_search`) is now
-  genuinely ignored, matching its actual deprecated status (F10).
-
-### Bug fixes
-
-- **[Behavior-changing] PYTHIA evaluation excludes missing outcomes.** Each
-  algorithm is scored only on its observed test outcomes, including partially
-  observed columns. Accuracy uses that observed count. Algorithms with no
-  observations or no fitted classifier (including test-only algorithms) return
-  `NaN` confusion counts and rates, matching current MATLAB master. Direct
-  callers of `PythiaEvaluateInput` must now supply an `observed` boolean mask
-  with shape `(n_instances, n_trained_algorithms)` derived from raw outcomes;
-  `explore()` supplies it automatically. Historical MATLAB fixtures are unchanged.
-
-- **[Behavior-changing] PYTHIA summaries use observed outcomes.** Algorithm
-  probabilities exclude missing values, Oracle probability is the fraction of
-  observed rows with any good algorithm, and selector probability uses rows with
-  an observed fallback-selected outcome. Undefined rates remain `NaN`. Selector
-  recall counts successful choices and missed opportunities on disjoint rows,
-  so selecting a good algorithm is not also a miss when another algorithm is good.
-- **[Behavior-changing] Cost-sensitive PYTHIA uses per-instance regret.** Weights
-  are `abs(y - y_best[:, None])`, rather than distance from a global performance
-  mean. Zero weights use the smallest positive regret, and wholly zero or missing
-  regrets use uniform weights, matching current MATLAB master. Weighted models
-  must be retrained to obtain the corrected behavior.
-
-
-- PRELIM now reproduces MATLAB's seeded random selection among exactly tied best
-  algorithms, including zero-valued ties, instead of always selecting the first tied
-  algorithm. The refreshed v0.9.1 oracle checks the choices exactly.
-- JSON option validation and loading now share one Unicode `casefold()` key
-  canonicalizer, so accepted spellings load consistently and equivalent duplicates are
-  rejected (#321). The unused legacy polygon-region filter reported in #320 was removed;
-  active TRACE3 simplex filtering is unchanged.
-- PYTHIA now derives cross-validation, classifier, and search randomness from MATLAB's
-  per-algorithm `seed + i` boundary. KNN retains the requested 1--25 parameter for
-  reporting while capping its effective neighbour count independently for each fold or
-  final fit. Bayesian tuning remains skopt EI, the closest available base analogue to
-  MATLAB's EI-plus; no convergence or default change was inferred from legacy data
-  (#304).
-- Graph labels, exported CSV headers, and filenames no longer leak the metadata.csv
-  `feature_`/`algo_` column-naming prefix (e.g. `algo_CART` is now `CART`), and the
-  `z_1`/`z_2` axis labels on generated plots now actually render as subscripts instead
-  of literal text `z_{1}`/`z_{2}` (#222).
-- `PythiaStage` no longer mutates the caller's `y_raw` array in place while generating
-  its summary table; it now copies before mutating, matching the pattern already used
-  for the same array's other derived copies (#229).
-- `SiftedStage` no longer returns a stale, un-narrowed `idx` (computed once from the
-  pre-selection feature count) alongside the correctly-narrowed `selvars`. Previously
-  this caused `Model.save_to_csv`/`save_instance_space_for_web` to crash or misalign
-  columns whenever SIFTED reduced the feature set; the redundant `idx` field has since
-  been removed from `SiftedOutput`/`SiftedOut` entirely (`FeatSel.idx` is unaffected and
-  now reads `selvars` directly).
-- `build_explore_adapter._svc_to_artifact` no longer raises `NotImplementedError` for
-  polynomial-kernel PYTHIA SVMs — `explore()` after a `build()` trained with
-  `opts.pythia.is_poly_krnl = True` now works. The support vectors are pre-scaled by the
-  trained `gamma` so `_explore_pythia`'s existing polynomial-kernel formula (which
-  assumes `gamma=1`, matching its hardcoded `coef0=1`) reproduces the actual trained
-  decision function. (`build_explore_adapter.py` itself has since been deleted — see the
-  *Better engineering* entry below; `explore()` now calls `SVC.predict_proba` directly
-  for every kernel type, so this specific formula no longer exists either.)
-- `StageRunner.run_stage()` no longer crashes with `TypeError: cannot pickle
-  '_queue.SimpleQueue' object` when a stage's inputs carry a live `ThreadPoolExecutor`
-  (introduced by the Q6 pool-reuse change below, caught by the new end-to-end build test
-  before ever shipping) — its unconditional `deepcopy(inputs)` now exempts live
-  `ThreadPoolExecutor` references, passing them through by reference instead of
-  attempting to copy them, which both isn't deepcopy-safe and would have silently
-  defeated Q6's pool-reuse purpose even if it somehow succeeded.
-- TRACE3 build membership and `explore()` rescoring now use MATLAB's inclusive boundary
-  semantics in both dimensions. Three-dimensional points near a tetrahedron face use an
-  exact orientation fallback, removing floating-point tolerance shells that could admit
-  exterior instances and change purity or selection results (#313).
-
-### Better engineering
-
-- **MATLAB fixture candidates are separate from approved oracles.** The provenance
-  tool now validates fresh exports against requested source/exporter identities
-  and prepares atomic review packages without changing approved pins. Existing
-  verification and installation retain their approval checks. Release CI checks
-  the approved MATLAB SHA; a separate non-blocking job reports changes on master.
-
-
-- Removed the unused `_validate_explore_trace_dimensions()` compatibility hook. TRACE
-  dimension validation remains stage-owned in `TraceStage.predict()` and runs exactly
-  when a lazy `explore_stage_iter()` advances to TRACE; PYTHIA remains inspectable first.
-  This cleanup changes neither outputs nor stage order (#316).
-- Dependency security bumps: `pillow` (12.2.0 → 12.3.0), `tornado` (6.5.5 → 6.5.7),
-  `click` (8.1.7 → 8.4.2), `jupyter-core` (5.7.2 → 5.9.1) — resolves all known CVEs in
-  the locked dependency set at the time of writing.
-- Added `.github/dependabot.yml` (weekly, pip ecosystem) so future dependency drift is
-  caught automatically.
-- Added a non-blocking `pip-audit` CI step to `validation-tests.yml`.
-- Added `CITATION.cff` and resolved the README's citation placeholder.
-- Replaced inferred 3D parity claims with a verified 423-file `reference-export/v2`
-  oracle generated from clean MATLAB R2026a Update 4 and the pinned MATLAB source.
-  The manifest records resolved options, inputs, solver evidence, 2D/3D geometry,
-  alpha spectra, topology, metrics, membership, rescoring, and file hashes; independent
-  verification recomputes the scientific contracts before installation (#262, #265).
-- README: Contact section now points at this repository's own issue tracker rather than
-  the MATLAB repository's; PYTHIA options section rewritten to describe the actual
-  scikit-learn-backed implementation instead of MATLAB's Statistics and Machine Learning
-  Toolbox/LIBSVM; added *Repository layout* and *Working with the code* sections.
-- `instance_space_from_files`' options listing now recurses into nested option
-  dataclasses (`instancespace/utils/print_options.py`), printing one line per leaf
-  field instead of one line per top-level group with a raw nested-dataclass repr (#252).
-- Documented and added a regression test for the already-decided permissive
-  feature-order behaviour in `explore()`: test metadata's feature columns are matched
-  by name, not position (#253).
-- Added `SECURITY.md` and `CONTRIBUTING.md` (#258).
-- `explore()` now calls the `build()`-trained scikit-learn objects (`SVC.predict`/
-  `predict_proba`) directly instead of converting them into a flattened, MATLAB-artifact
-  shaped representation first. `instance_space.py`'s model-shape detection branch (which
-  handled only that flattened shape as a second, never-actually-reachable case) has been
-  removed along with it (S1, #282). `build_explore_adapter.py` and its test file, which
-  existed solely to produce that flattened shape, have been deleted in full — nothing
-  called them once S1 landed (S3, #284).
-- Removed a dead, commented-out CI lint/format-check step from `validation-tests.yml`
-  rather than leaving it neither enabled nor deleted (#259).
-- Replaced `stage_builder.py`'s type-matching DAG auto-resolution (ambiguous-ordering
-  detection, mutating-stage special-casing, iterative wave computation) with a hardcoded
-  explicit order for the built-in 7 stages, verified to resolve to the identical schedule
-  the auto-resolver produced before the change. Any extra/plugin stage now attaches via
-  an explicit `RunBefore[X]`/`RunAfter[X]` declaration instead of relying on its
-  input/output types being matched against the rest of the pipeline — `example_plugin.py`
-  updated accordingly. The remaining attachment logic was subsequently folded directly
-  into `stage_runner.py` as `build_stage_runner()`, and `stage_builder.py` deleted
-  entirely, since it had shrunk to a single call site with no further reason to be a
-  separate module (S2).
-- Added a `classifier` option to `PythiaOptions` (default `'svm'`, matching prior
-  behaviour exactly) and a registry (`instancespace/utils/get_classifier_fcn.py`)
-  dispatching PYTHIA's training to one of six scikit-learn classifiers (`svm`, `knn`,
-  `tree`, `nb`, `linear`, `ensemble`), mirroring MATLAB's `ISAgetClassifierFcn.m`
-  structurally. Only `svm` is tuned via PYTHIA's existing `C`/`gamma` search; the other
-  five are fit with scikit-learn's own default hyperparameters — registering a classifier
-  here is not a claim of MATLAB-verified tuning parity for it (F1).
-- `InstanceSpace` now reuses a single `ThreadPoolExecutor` across staged calls instead of
-  creating and tearing one down on every `TraceStage` run, mirroring MATLAB's
-  `ensurePool()`. The pool is created lazily, recreated only if the requested worker
-  count changes, and released via a new explicit `InstanceSpace.close()` method (Q6).
-- Added `Model.save()`/`Model.load()` (`instancespace/model.py`): a signed
-  `joblib`-based persistence round-trip, matching MATLAB's model save/load. Signing via
-  an HMAC-SHA256 `secret_key` is optional — omitted for local/desktop use (identical
-  trust caveat to any other unsigned `pickle`/`joblib` file), required and verified
-  *before* deserialising for the production/server path. A signed file can never be
-  loaded unverified by omitting the key (the downgrade-attack case is refused, not
-  silently allowed) (F7).
-- Added `tests/test_build_integration.py`, the repo's first genuine end-to-end
-  `.build()` test — real metadata/options through all 7 stages, asserting every
-  stage's output actually lands on the resulting `Model` (T2). Also verified, against
-  that same real build, that rerunning `CloisterStage` neither wrongly invalidates
-  `PythiaStage`'s already-computed output nor blocks a subsequent `TraceStage` run — a
-  negative result for a previously-flagged concern about `_rollback_to_schedule_index()`
-  over-invalidating by schedule-wave position rather than real dependency, scoped to the
-  current built-in 7-stage order (Q8).
-- Renamed `InstanceSpace.explore_iter()` to `explore_stage_iter()` and gave it a proper
-  `AnnotatedExploreOutput` (`stage: ExploreStage, output: Any`) return type in place of a
-  bare `(str, Any)` tuple, so it mirrors `run_iter()`'s `AnnotatedStageOutput` shape —
-  build's and explore's incremental-iteration APIs now use the same vocabulary. Naming
-  only: no computation changed. (Real code-sharing between build- and explore-time stage
-  execution is separately tracked as F8, not done here.)
-- Added `pytest-cov`; CI and `poe test` now run with `--cov=instancespace
-  --cov-report=term-missing`, gated by a `fail_under = 75` threshold in `pyproject.toml`'s
-  `[tool.coverage.report]` — set a few points below a measured real baseline (79%, full
-  suite) rather than guessed (T1).
+- Observed-only evaluation, Oracle/selector statistics and regret weighting
+  apply to algorithm-selection results. Retrain older cost-sensitive models to
+  obtain the current weighting behavior.
+- Training prunes never-good algorithms and refits preprocessing from retained
+  raw data. Rebuild models whose training removed features to obtain the fitted
+  retained-feature replay record; older persisted models retain compatibility
+  fallbacks.
+- Persisted PLS centering, constant-coordinate scales and stage options support
+  fitted inference. TRACE uses closed-boundary membership and an explicit saved
+  distance tolerance, default zero. Native 3D geometry and exports include holes,
+  disconnected regions and coplanar CLOISTER boundaries.
+- Direct `PythiaEvaluateInput` callers supply `observed`. `PrelimInput` requires
+  `algo_labels`; `PrelimOutput` includes the retained algorithm labels.
+- The validated dependency series remain NumPy 1.26, scikit-learn 1.5, pandas 2.2
+  and PyGAD 3.7. Check `pyproject.toml` and the lockfile for exact requirements;
+  broader migrations are tracked in GitHub Issues.

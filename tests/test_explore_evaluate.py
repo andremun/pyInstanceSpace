@@ -119,7 +119,7 @@ def test_build_test_algo_matrix_reindexes_case_insensitively() -> None:
 def test_build_test_algo_matrix_nans_algorithm_absent_from_test_set() -> None:
     """An algorithm in training but absent from the test set is "not evaluated".
 
-    Per the roadmap F9 pathway: it becomes an all-NaN column rather than
+    It becomes an all-NaN column rather than
     aborting evaluation for the other, present algorithms.
     """
     space = _make_space(["Alg1", "Alg2"])

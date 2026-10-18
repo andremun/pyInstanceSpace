@@ -1,123 +1,103 @@
-# ISA architecture and parity contract
+# Architecture and scientific contracts
 
-## Purpose
+## Pipeline ownership
 
-Instance Space Analysis explains where algorithms perform well and why.
-It relates instance features to algorithm performance in a low-dimensional space.
-The result supports benchmarking, algorithm selection, and benchmark coverage analysis.
+`InstanceSpace` coordinates metadata, immutable options, execution, model state
+and exploration. `StageRunner` schedules the built-in stages in this order:
 
-The MATLAB repository is the behavioral authority.
-Its current source and verified R2026a execution take priority over issue descriptions,
-reviews, papers, old option names, and archived plans. A Python divergence is accepted
-only when it is explicit, tested, and documented below.
+PREPROCESSING → PRELIM → SIFTED → PILOT → (PYTHIA, CLOISTER) → TRACE.
 
-## Pipeline
+PYTHIA and CLOISTER share a scheduling wave. TRACE depends on PYTHIA, not on
+CLOISTER. A custom stage attaches through explicit `RunBefore`/`RunAfter` markers;
+matching field types alone do not define its position. Runtime NamedTuple input
+annotations must be concrete types, not unresolved strings.
 
-| Stage | Responsibility | Main trained output |
-|---|---|---|
-| PREPROCESSING | Load, clean, and optionally subset metadata | Dense and selected input data |
-| PRELIM | Define good performance, clip outliers, transform, and scale | Labels, bounds, and transform parameters |
-| SIFTED | Select predictive and non-redundant features | Selected feature indices |
-| PILOT | Project selected features into a 2D or 3D instance space | Projection, reconstruction, and optional viewpoints |
-| CLOISTER | Estimate feasible projected bounds | Empirical and correlation-aware hulls |
-| PYTHIA | Train one good-performance classifier per algorithm | Classifiers, predictions, metrics, and selections |
-| TRACE | Build good, best, hard, and full-space footprints | 2D polygons or 3D tetrahedral meshes and metrics |
+| Stage | Responsibility |
+|---|---|
+| PREPROCESSING | Select metadata columns, wash missing input data, record retained feature order. |
+| PRELIM | Define good performance and difficulty, prune never-good training algorithms, refit preprocessing from the retained raw portfolio. |
+| SIFTED | Correlation screening/clustering and PILOT/KNN genetic feature selection. |
+| PILOT | Standard analytic/numerical or SIMPLS projection in 2D/3D, plus optional viewpoints. |
+| PYTHIA | Fit per-algorithm good-performance classifiers and a training selection policy. |
+| CLOISTER | Project feature-range corners constrained by correlations, or use an observed-data hull above the feature cap. |
+| TRACE | Build and score good, best and hard footprints with dimension-aware geometry. |
 
-Python runs PYTHIA and CLOISTER after PILOT.
-TRACE depends on PYTHIA but not on CLOISTER.
-The built-in order is fixed in `instancespace/instance_space.py`.
+Low-level `PrelimStage.prelim()` computes numerical preprocessing without pipeline
+portfolio pruning. `sifted.n_trees` is a compatibility setting with no effect on
+current PILOT/KNN fitness. Output flags are preferences for callers; explicit
+`Model` export methods write files.
 
-## Build and explore
+## Fitted inference
 
-`InstanceSpace.build()` fits all selected stages through `StageRunner`.
-The final `Model` stores processed data, stage outputs, options, classifiers, footprint
-geometry, and any optimized PILOT viewpoints.
+Build-only plugins implement `Stage[Input, Output]`. PRELIM, SIFTED, PILOT, PYTHIA
+and TRACE additionally implement `PredictiveStage[Input, Fitted, Output]`.
+Their `predict()` methods consume persisted artifacts without fitting or mutating
+them. Preprocessing and CLOISTER have no explore-time predictive stage.
 
-`InstanceSpace.explore()` applies the trained model to new metadata.
-It must not refit feature selection, projection, classifiers, or footprints.
-It applies the stored PRELIM parameters, selected features, PILOT matrix, PYTHIA models,
-and TRACE polygons or meshes. TRACE membership is rescored against the new instances;
-the trained geometry is not rebuilt.
+`InstanceSpace.explore()` reconciles metadata and algorithms, then applies PRELIM,
+SIFTED, PILOT, PYTHIA and TRACE. It conditionally evaluates observed test outcomes
+and rescores TRACE evidence against fixed trained geometry. The `_explore_*`
+wrappers remain compatibility entry points.
 
-Known algorithms align by name without case sensitivity.
-New test algorithms receive placeholder prediction and footprint columns.
-Ground-truth performance enables evaluation metrics but does not retrain the model.
+- Replay fitted retained-feature order and preprocessing parameters.
+- Standard PILOT inference is `X @ A.T`. PLS inference is
+  `(X - x_mean) @ A.T`, using the persisted training mean.
+- Reuse trained classifier normalization and the saved selection policy.
+- Outcomes score predictions; changing or omitting test labels must not change
+  coordinates, recommendations, predictions or trained-footprint membership.
+- New test algorithms receive prediction/membership placeholders and cannot be
+  recommended without a trained classifier. Unobserved outcomes are excluded
+  from metrics; wholly undefined rates are `NaN`.
+- `TraceStage.rescore()` updates evidence metrics without changing geometry or
+  its area/volume. It uses the training-space normalization.
 
-## Reliability invariants
+## Indices, geometry and persistence
 
-- PRELIM `p` keeps MATLAB's one-based algorithm indices.
-- PYTHIA `selection0` uses zero-based algorithm indices.
-- `-1` means that PYTHIA made no selection.
-- A single-algorithm portfolio can only select index `0`.
-- PILOT supports 2D and 3D standard analytic/numerical projection and R2026a SIMPLS.
-- A 3D PILOT result stores one global viewpoint or the configured algorithm-group views.
-- Public PLS explore projection remains uncentred (`Z = X @ A.T`), matching MATLAB's
-  observable `exploreIS` behavior even though the trained SIMPLS coordinates are centred.
-- Empty TRACE footprints use `polygon=None`, retain their dimension, and have zero metrics.
-- TRACE membership is boundary-inclusive during build and explore, matching MATLAB
-  `polyshape.isinterior` and `alphaShape.inShape`.
-- Ambiguous 3D face cases use an exact tetrahedral orientation predicate; tolerances
-  select the fallback path and never create an inclusion shell.
-- TRACE3 geometry and summaries are dimension-aware: area in 2D, volume in 3D.
-- A 3D footprint is a tetrahedral mesh with outward boundary faces; serialized indices
-  are one-based while Python's in-memory indices remain zero-based.
-- Summary columns must match their named raw metrics.
-- Build and explore must use the same fitted transformations and selection rules.
-- Disabled preprocessing, feature-selection, and parallel flags must be no-ops.
-- Stage rollback must restore an isolated snapshot and invalidate derived models.
-- Stage output shapes and dtypes must remain stable across serializing and loading.
+PRELIM winner `p` is one-based. PYTHIA selectors and Python viewpoint groups are
+zero-based; `selection0=-1` means abstention. Make conversions only at explicit
+interfaces. Mesh export conventions differ: interpret each manifest instead of
+assuming a single index base.
 
-## MATLAB parity boundaries
+TRACE boundaries are closed. `boundary_tolerance=0.0` uses exact membership;
+a positive Euclidean distance in projection units admits nearby edge/face points,
+including hole boundaries. Persist and reuse that value independently of the
+query batch. It changes membership, not geometry or area/volume. Sequential
+legacy contradiction trimming can amplify small coordinate changes.
 
-Python keeps its public API and typed stage architecture.
-It does not need a line-by-line MATLAB translation.
-Parity means matching observable contracts, formulas, edge cases, and trained-model behavior.
+TRACE3 supports holes, disconnected regions and native 3D tetrahedral geometry.
+A search can terminate below the requested purity; inspect the returned metrics.
+Python does not currently persist MATLAB's acceptance/termination fields.
 
-Current supported parity includes:
+`Model.save/load` preserves fitted results. `InstanceSpace.save/load` preserves
+runner state for checkpoints and exploration. Native persistence is runtime
+specific and trusted-producer-only; MAT export is not a MATLAB classifier-loading
+format. Stage rollback restores isolated state and invalidates derived models.
 
-- PILOT standard analytic/numerical and SIMPLS projection in 2D and 3D;
-- global and grouped 3D viewpoint optimization;
-- TRACE3 2D polygons and 3D tetrahedral meshes, including build metrics, membership,
-  alpha selection, and explore rescoring; and
-- native 3D plotting and versioned mesh serialization.
+## MATLAB comparison boundaries
 
-The deliberate compatibility choices are:
+Use current MATLAB source and verified execution for behavioral comparisons.
+The approved oracle is a separately pinned snapshot; see
+[fixture provenance](fixture-provenance.md). Never turn an unknown-provenance
+snapshot or a Python-generated result into a claimed MATLAB oracle.
 
-- MATLAB defaults to TRACE3; Python retains legacy TRACE as the 2D default. An explicit
-  `method="trace3"` selects TRACE3, and 3D always warns and dispatches to it.
-- Python option indices, including PILOT viewpoint groups, are zero-based. MATLAB fixture
-  indices are translated at the boundary.
-- Python's `cloister.hull_dims="all"` default preserves the complete projected hull;
-  `hull_dims=2` selects MATLAB's first-two-coordinate behavior.
-- Explore features are matched by name rather than requiring MATLAB's input column order.
-- `adjust_rotation` is an optional Python 2D visualization aid and is not a MATLAB parity
-  requirement.
+Python retains its typed architecture and public interfaces. Defaults differ in
+performance mode/epsilon, seed, classifier and TRACE method; choose these
+explicitly before comparing results. See the
+[maintained compatibility reference](../docs_site/src/matlab-compatibility.md).
 
-Build logic remains in stage classes. PRELIM, SIFTED, PILOT, PYTHIA, and TRACE also own
-their fitted inference through the typed `PredictiveStage.predict()` contract implemented
-for #316. `InstanceSpace` retains explore orchestration and compatibility wrappers; see
-`docs/stage_inference_architecture.md`.
-
-## Verified MATLAB oracle
-
-`tests/fixtures/matlab/current/` contains the installed 423-file
-`reference-export/v2` oracle from clean MATLAB R2026a Update 4 and pinned clean source
-commits. Its manifest binds resolved options, canonical inputs, exporter identity, file
-hashes, numeric shapes, and explicit empty artifacts.
-
-The verifier independently recomputes PILOT solver selection and reconstruction plus
-TRACE geometry, topology, spectra, metrics, exact membership, and rescoring before a
-bundle can be installed. Historical data in `tests/matlab_reference/` remains
-unverified and cannot establish parity.
+Python provides optional canonical 2D PILOT rotation; MATLAB does not currently
+implement it. Independent solvers, classifiers, calibration and search algorithms
+can differ under matched nominal settings. The
+[controlled Bayesian comparison](research/bayes-304/report.md) supports retaining
+20 evaluations, four initial points and plain EI, without asserting trajectory
+identity with MATLAB EI-plus.
 
 ## Source map
 
-- MATLAB orchestration: `InstanceSpace.m`
-- MATLAB stages: `core/PRELIM.m` through `core/TRACE.m`, including `core/PILOT.m`
-  and `core/PILOTviewpoint.m`
-- Python orchestration: `instancespace/instance_space.py`
-- Python execution: `instancespace/stage_runner.py`
-- Python stages: `instancespace/stages/`
-- Python model contracts: `instancespace/data/model.py` and `instancespace/model.py`
-- Verified MATLAB parity fixtures: `tests/fixtures/matlab/current/`
-- Historical unverified snapshots: `tests/matlab_reference/`
+- Orchestration: `instancespace/instance_space.py`.
+- Scheduling and plugins: `instancespace/stage_runner.py`, `instancespace/stages/stage.py`.
+- Scientific implementations and fitted inference: `instancespace/stages/`.
+- Results and geometry: `instancespace/data/model.py`.
+- Persistence and exports: `instancespace/model.py`, `instancespace/_serialisers.py`.
+- Configuration: `instancespace/data/options.py`, `instancespace/data/default_options.py`.
+- Classifiers: `instancespace/utils/get_classifier_fcn.py`.

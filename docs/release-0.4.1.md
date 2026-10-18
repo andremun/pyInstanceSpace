@@ -2,8 +2,8 @@
 
 Scope: a unified MATLAB-style Python reference website (#367), complete checked
 option documentation, and a controlled equal-budget Bayesian tuning comparison
-(#304). User guides describe current behavior; dated evidence and project history
-remain in contributor/research records, outside the published site.
+(#304). User guides describe current behavior. Maintainer records retain current
+contracts, release preparation and reproducible scientific evidence.
 
 Compatibility classification: **Additive**. The documentation, comparison tooling
 and evidence do not change numerical defaults or the existing runtime API. Any
@@ -20,17 +20,18 @@ Validated on Linux with Python 3.12.14 and Poetry 2.3.3:
 | Examples | README and guides execute real builds, staged runs, exports, checkpoints, model reload and exploration |
 | Visual review | MATLAB comparison, desktop/mobile, keyboard search, drawer dismissal, copy buttons and nested API links checked; [screenshots](reviews/documentation-0.4.1/README.md) |
 | Strict typing | Mypy passes 98 source files |
-| Formatting and lint | Black checks 102 files; Ruff passes |
+| Formatting and lint | Black checks 99 files; Ruff passes |
 | Approved fixtures | All 423 files authenticate; 771 inventory entries classify; no approved data changes |
 | Dependencies | All 80 locked package records unchanged; no known vulnerabilities in the lock audit |
 | Distributions | Wheel and sdist build; Twine, lock consistency and installed requirements checks pass |
 | Installed wheel | Real build, export, checkpoint reload and exploration pass outside the checkout |
 | Runtime source | AST comparison confirms 272 function bodies and calling arguments unchanged in 13 edited runtime modules |
 
-The final strict gate passes all **1,137 tests**, without skips, in three
-bounded batches (310 + 110 + 717). Combined branch coverage is **92.84%**,
-above the 85% requirement. The complete suite also passed in a single run;
-the final batched run avoids a terminal-session interruption.
+The numerical baseline passes all **1,137 tests**, without skips, with
+**92.84% branch coverage**, above the 85% requirement. The documentation-only
+cleanup additionally passes 36 focused example/evidence/compatibility checks,
+skill validation, and a local Markdown-link audit. Runtime and test function
+bodies remain unchanged. The release gate must pass on the final PR head.
 Poetry's existing metadata-deprecation notices remain; lock consistency succeeds.
 The preparation changes do not modify MATLAB source or replace its approved
 fixture bundle. Separate research artifacts pin the comparison source and inputs.
@@ -44,8 +45,9 @@ runtime dependency versions are unchanged. The two Series return annotations
 are made introspectable while retaining static pandas typing.
 
 The website has a curated entry point; generated API paths and member anchors
-remain available. User pages describe current behavior. Maintainer release,
-migration and research records remain outside the published site.
+remain available. The repository ISA skill supports Python analysis and
+interpretation. Superseded plans and stale notebooks are removed; current
+architecture, fixture provenance and research evidence remain outside the site.
 
 The default Bayesian budget remains 20 with four initial points and plain EI.
 The [controlled comparison](research/bayes-304/report.md) documents the accepted
@@ -67,5 +69,7 @@ MATLAB trajectories or classifiers are numerically identical.
 5. Check the publication workflow and install `instancespace==0.4.1` in a fresh
    Python 3.12 environment. Run the Getting Started build/explore example and
    retain the commit and distribution hashes with the release record.
+6. Review the version-update freeze in `.github/dependabot.yml` and the
+   separately tracked numerical dependency migrations before resuming update PRs.
 
 No release or PyPI upload is performed by this preparation PR.
