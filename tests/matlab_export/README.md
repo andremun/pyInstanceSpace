@@ -1,14 +1,8 @@
 # MATLAB fixture export
 
-> History note (16 October 2026): Python commit IDs in dated evidence predate the
-> repository restart. See the [source mapping and provenance policy](../../docs/history-restart-2026-10-15.md).
-> Original fixture identities remain unchanged.
-
-This directory provides the reproducible MATLAB reference-data workflow for issues
-[#278](https://github.com/andremun/pyInstanceSpace/issues/278) and
-[#310](https://github.com/andremun/pyInstanceSpace/issues/310), extended with PILOT
-evidence for [#262](https://github.com/andremun/pyInstanceSpace/issues/262) and native
-3D TRACE evidence for [#265](https://github.com/andremun/pyInstanceSpace/issues/265).
+Generate candidate MATLAB references, validate their scientific contracts, and
+prepare a reviewed promotion. See [fixture provenance](../../docs/fixture-provenance.md)
+for the installed source identities and equivalent generator source in a fresh clone.
 
 ## Trust contract
 
@@ -197,21 +191,7 @@ python -m tools.fixture_provenance install \
   /new/path/reference-bundle tests/fixtures/matlab/current
 ```
 
-## Current execution status
-
-The canonical oracle at `tests/fixtures/matlab/current/` is a reviewed, installed
-`reference-export/v2` bundle with 423 files and `matlab-verified` trust. It was generated
-under MATLAB R2026a Update 5 from clean MATLAB
-`2e2cf7565aee8e60190e788c959405d44c4317f3` and clean
-Python generator `ab72f6bc5c602e0cb03a65041a4677037282e92c`. The exporter identity is pinned to
-`ebd7917169ca110fd26856ac8cbad43e3c3477b1ce96473e4f5bc9445ff869d6`.
-
-The approved Linux export uses the explicit TRACE boundary policy with tolerance
-zero. Two independent MATLAB processes produced identical hashes for all 423
-artifacts. See [the promotion review](../../docs/fixture-promotion-2026-10-09.md) for validation and remaining limits.
-Frozen v1 bundles remain readable; diagnostic snapshots are not oracles.
-
-### Explicit TRACE boundary tolerance
+## Explicit TRACE boundary tolerance
 
 Current MATLAB exports use `trace.boundaryTolerance` (default zero) for both
 TRACE metrics and exported membership. Python's corresponding option is

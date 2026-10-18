@@ -99,20 +99,17 @@ PILOT_3D_DIMS = 3
 
 @dataclass(frozen=True)
 class GeneralOptions:
-    """General options not specific to any one stage.
-
-    Mirrors MATLAB's ``opts.general.*`` namespace.
+    """Configure logging and shared random seeds.
 
     Attributes
     ----------
     verbose : bool
-        Whether stages log per-trial/per-iteration detail (e.g. PYTHIA's
-        per-classifier tuning progress), or only their top-level `[STAGE] message`
-        lines.
+        Print detailed stage progress when true. Stage-level messages remain
+        available when false.
     seed : int | None
-        Seed threaded through general random-number generation. SIFTED and PILOT
-        inherit this value unless their own ``seed`` option is set explicitly.
-        ``None`` requests non-deterministic behavior from consumers that support it.
+        Nonnegative random seed, or None for consumers that support nondeterministic
+        execution. PILOT and SIFTED inherit it when their seed is None. Equal seeds
+        do not guarantee identical results across numerical libraries.
     """
 
     verbose: bool
@@ -136,7 +133,17 @@ class GeneralOptions:
 
 @dataclass(frozen=True)
 class ParallelOptions:
-    """Configuration options for parallel computing."""
+    """Configure supported parallel execution.
+
+    Attributes
+    ----------
+    flag : bool
+        Enable supported threaded or joblib parallel work. False runs those tasks
+        serially; this does not disable numerical-library internal threads.
+    n_cores : int
+        Positive worker count used when parallel.flag is true. Existing caller-
+        supplied execution behavior is controlled by the pipeline.
+    """
 
     flag: bool
     n_cores: int
@@ -159,7 +166,24 @@ class ParallelOptions:
 
 @dataclass(frozen=True)
 class PerformanceOptions:
-    """Options related to performance thresholds and criteria for model evaluation."""
+    """Define good algorithm performance and instance difficulty.
+
+    Attributes
+    ----------
+    max_perf : bool
+        True when larger raw algorithm performance is better; false for a cost such
+        as error or run time.
+    abs_perf : bool
+        True compares raw performance to an absolute epsilon threshold. False uses
+        relative regret from the best algorithm on each instance.
+    epsilon : float
+        Finite absolute threshold when abs_perf is true, otherwise a relative
+        tolerance in [0, 1]. The threshold is inclusive in both directions. Raw
+        observed performance must be nonnegative.
+    beta_threshold : float
+        Fraction in [0, 1]. An instance is beta-easy when strictly more than this
+        fraction of the retained algorithms are good.
+    """
 
     max_perf: bool
     abs_perf: bool
@@ -188,7 +212,14 @@ class PerformanceOptions:
 
 @dataclass(frozen=True)
 class AutoOptions:
-    """Options for automatic processing steps in the model pipeline."""
+    """Control automatic preprocessing.
+
+    Attributes
+    ----------
+    preproc : bool
+        Apply automatic feature bounding and Box-Cox/Z-score preprocessing. When
+        false, bound.flag and norm.flag do not trigger those transforms.
+    """
 
     preproc: bool
 
@@ -208,7 +239,14 @@ class AutoOptions:
 
 @dataclass(frozen=True)
 class BoundOptions:
-    """Options for applying bounds in the model calculations or evaluations."""
+    """Control feature outlier clipping.
+
+    Attributes
+    ----------
+    flag : bool
+        Clip feature outliers when auto.preproc is true, using
+        prelim.iqr_multiplier. This does not clip raw algorithm performance.
+    """
 
     flag: bool
 
@@ -228,7 +266,14 @@ class BoundOptions:
 
 @dataclass(frozen=True)
 class NormOptions:
-    """Options to control normalization processes within the model."""
+    """Control fitted normalization.
+
+    Attributes
+    ----------
+    flag : bool
+        Apply fitted Box-Cox and Z-score transforms when auto.preproc is true.
+        Exploration applies saved training parameters rather than refitting.
+    """
 
     flag: bool
 
@@ -248,7 +293,44 @@ class NormOptions:
 
 @dataclass(frozen=True)
 class SelvarsOptions:
-    """Options for selecting variables, including criteria and file indices."""
+    """Select input columns and training-instance subsets.
+
+    Attributes
+    ----------
+    small_scale_flag : bool
+        Select a random fraction of training instances before feature selection. Use
+        one subsetting mode at a time; fraction selection takes precedence over
+        index-file and density modes.
+    small_scale : float
+        Fraction in [0, 1] for small_scale_flag. Supply a float strictly between 0
+        and 1 for a viable random subset; the chosen rows must still permit the
+        configured folds and projection.
+    file_idx_flag : bool
+        Use file_idx for an explicit row subset when fractional selection is
+        disabled. The file must exist and contain valid one-based row indices.
+    file_idx : str
+        CSV path containing one-based row indices, one per row. Relevant when
+        file_idx_flag is true.
+    feats : list[str] | None
+        Feature names to retain, or None for all. Names may include the feature_
+        prefix. An empty list selects all. If some names match, unknown names warn
+        and are ignored; no matches raise an error.
+    algos : list[str] | None
+        Algorithm names to retain, or None for all. Names may include the algo_
+        prefix. An empty list selects all. If some names match, unknown names warn
+        and are ignored; no matches raise an error. Algorithms never good in
+        training are pruned afterward.
+    selvars_type : str
+        Density-filter rule: Ftr, Ftr&AP, Ftr&Good or Ftr&AP&Good. These combine
+        feature proximity with raw algorithm performance and/or good-performance
+        labels.
+    min_distance : float
+        Strictly positive feature-space distance for density filtering. Relevant
+        when density_flag is true; supply a float.
+    density_flag : bool
+        Enable greedy density filtering when fractional and index-file subsetting
+        are disabled. SIFTED reapplies the density rule after selecting features.
+    """
 
     small_scale_flag: bool
     small_scale: float
@@ -292,7 +374,63 @@ class SelvarsOptions:
 
 @dataclass(frozen=True)
 class SiftedOptions:
-    """Options specific to the sifting process in data analysis."""
+    """Configure correlation screening and genetic feature selection.
+
+    Attributes
+    ----------
+    flag : bool
+        Enable correlation screening, correlation clustering and genetic feature
+        search. False retains the preprocessed feature columns.
+    rho : float
+        Absolute feature/performance correlation threshold in [0, 1] for screening.
+    k : int
+        Positive number of feature clusters. The stage can reduce it when fewer
+        candidate features are available.
+    n_trees : int
+        Positive compatibility setting retained in configuration. Current PILOT/KNN
+        fitness does not read it; it does not control a Random Forest.
+    max_iter : int
+        Positive maximum iterations for correlation-distance k-means.
+    replicates : int
+        Positive number of k-means restarts.
+    num_generations : int
+        Positive maximum number of PyGAD generations.
+    num_parents_mating : int
+        Positive number of mating parents, no greater than sol_per_pop.
+    sol_per_pop : int
+        Positive genetic-search population size. Must accommodate the mating,
+        tournament and elitism settings.
+    parent_selection_type : str
+        PyGAD parent selection: sss, rws, sus, random, tournament, tournament_nsga2,
+        nsga2 or rank. Names are case-insensitive.
+    k_tournament : int
+        Positive tournament size, no greater than sol_per_pop. Used by tournament
+        parent selection.
+    keep_elitism : int
+        Number of elite solutions retained per generation, from 0 through
+        sol_per_pop.
+    crossover_type : str
+        PyGAD crossover: single_point, two_points, uniform or scattered.
+    cross_over_probability : float
+        Crossover probability in [0, 1]. The Python field includes an underscore
+        between cross and over.
+    mutation_type : str
+        PyGAD mutation: random, swap, scramble, inversion or adaptive.
+    mutation_probability : float | list[float] | tuple[float, float]
+        Mutation probability in [0, 1]. Adaptive mutation requires two
+        probabilities, as a list or tuple.
+    stop_criteria : str
+        Stopping rule saturate_N with positive integer N, or reach_VALUE with a
+        finite numeric target.
+    pval : float
+        Correlation-screening significance threshold in [0, 1].
+    dims : int
+        Projection dimensions, 2 or 3, for direct SIFTED calls. The full pipeline
+        uses pilot.dims for candidate projections.
+    seed : int | None
+        Nonnegative stage seed, or None to inherit general.seed. Controls clustering
+        and genetic search.
+    """
 
     flag: bool
     rho: float
@@ -377,7 +515,43 @@ class SiftedOptions:
 
 @dataclass(frozen=True)
 class PilotOptions:
-    """Options for pilot studies or preliminary analysis phases."""
+    """Configure 2D or 3D projection and viewpoints.
+
+    Attributes
+    ----------
+    x0 : NDArray[np.double] | None
+        Optional finite matrix of numerical starting vectors. It has d*(2*p+q) rows
+        and one column per restart, for projection dimension d, retained feature
+        count p and algorithm count q. Its columns determine the restart count.
+    precalc_alpha : NDArray[np.double] | None
+        Optional finite numerical solution column with d*(2*p+q) rows. It bypasses
+        numerical search and takes precedence over x0 in the numerical branch. It
+        does not override PLS or a viable analytic projection.
+    analytic : bool
+        For method standard, request the analytic projection. A rank-deficient
+        feature matrix falls back to numerical optimization. Ignored by method pls.
+    n_tries : int
+        Positive number of numerical restarts when neither x0 nor precalc_alpha
+        supplies the solution.
+    adjust_rotation : bool
+        Apply a rigid canonical rotation in 2D so poorly solved instances face the
+        target direction. Must be false for a 3D projection.
+    cost_weight : float
+        Strictly positive weight on the performance-reconstruction block of the
+        standard projection objective. Not used by the PLS branch.
+    method : str
+        Projection method standard or pls. Standard uses analytic or multi-start
+        numerical projection; pls uses SIMPLS with a persisted fitted feature mean.
+    dims : int
+        Projection dimensions, exactly 2 or 3. Also controls the full pipeline
+        SIFTED candidate projection.
+    view_groups : tuple[tuple[int, ...], ...]
+        Groups of zero-based retained-algorithm indices for optimized 3D viewpoints.
+        An empty sequence requests one global viewpoint. Relevant only in 3D.
+    seed : int | None
+        Nonnegative stage seed, or None to inherit general.seed. Controls numerical
+        starts and viewpoint searches.
+    """
 
     x0: NDArray[np.double] | None
     # Optional precomputed optimisation solution vector, shape (2*m + 2*n,)
@@ -452,7 +626,23 @@ class PilotOptions:
 
 @dataclass(frozen=True)
 class CloisterOptions:
-    """Options for cloistering in the model."""
+    """Configure empirical instance-space boundaries.
+
+    Attributes
+    ----------
+    p_val : float
+        Correlation significance threshold in [0, 1] for excluding contradictory
+        corners.
+    c_thres : float
+        Absolute correlation cutoff in [0, 1] for the corner-contradiction test.
+    max_features : int
+        Positive upper feature-count bound for the corner-enumeration path. Above it
+        the stage falls back to the observed-data hull.
+    hull_dims : int | Literal['all']
+        all uses all projected coordinates; an integer of at least 2 selects a
+        leading-coordinate hull. The dimensionality must be viable for the supplied
+        projection.
+    """
 
     p_val: float
     c_thres: float
@@ -489,7 +679,39 @@ class CloisterOptions:
 
 @dataclass(frozen=True)
 class PythiaOptions:
-    """Configuration for the Pythia component of the model."""
+    """Configure classifier training and hyperparameter search.
+
+    Attributes
+    ----------
+    cv_folds : int
+        Number of stratified classifier folds, an integer of at least 2. Each class
+        must have enough training examples for the requested validation.
+    is_poly_krnl : bool
+        Use a degree-three polynomial kernel for classifier svm when true, otherwise
+        Gaussian/RBF. Ignored by the other classifier types.
+    use_weights : bool
+        Use abs(y - y_best) from the supplied preprocessed performance arrays as
+        sample weights where supported. Zero weights become the smallest finite
+        nonzero weight; nonfinite weights become the largest. All-zero weights fall
+        back to uniform. Unsupported classifiers warn and fit without weights.
+    params : NDArray[np.double] | None
+        Optional finite hyperparameter matrix in reporting/MATLAB units, one row per
+        retained algorithm and one column per tuned parameter. It bypasses search
+        even when tuning is sobol or bayes. Required for tuning none.
+    classifier : str
+        Binary learner svm, knn, tree, nb, linear or ensemble. See the
+        classifier/tuning guide for the estimator and parameter ranges.
+    tuning : str
+        Search strategy sobol, bayes or none. Sobol is the default. Bayesian search
+        uses four initial points and plain expected improvement; its trajectory is
+        not MATLAB EI-plus.
+    n_tuning_iter : int
+        Positive total candidate-evaluation budget for Sobol or Bayesian search,
+        including Bayesian initial points. Ignored when params bypasses tuning.
+    skip : bool
+        Skip classifier fitting. TRACE3 can use observed labels; legacy
+        trace.use_sim must be false when this is true.
+    """
 
     cv_folds: int
     is_poly_krnl: bool
@@ -537,7 +759,38 @@ class PythiaOptions:
 
 @dataclass(frozen=True, init=False)
 class TraceOptions:
-    """Options for trace analysis in the model."""
+    """Configure footprint construction and boundary membership.
+
+    Attributes
+    ----------
+    use_sim : bool
+        For legacy TRACE, use PYTHIA-predicted good labels when true and observed
+        good labels when false. Must be false with legacy TRACE when pythia.skip is
+        true. TRACE3 has its own prediction/skip dispatch.
+    purity : float
+        Target footprint purity in [0, 1]. The omitted default is 0.55 for legacy
+        and 0.60 for trace3. A TRACE3 candidate can terminate without reaching this
+        target; inspect the footprint results.
+    method : str
+        legacy uses the 2D DBSCAN/polygon algorithm; trace3 uses 2D/3D alpha-shape
+        footprints. A 3D projection with legacy selected warns and uses TRACE3.
+    contra : bool
+        For legacy TRACE, remove contradictions between best-algorithm footprints.
+        The sequential trimming can be sensitive to small coordinate changes. Not
+        used by TRACE3.
+    min_instances : int
+        Positive TRACE3 support threshold. A footprint requires more than this
+        number of distinct supporting points, together with full-dimensional
+        geometry.
+    min_area_frac : float
+        TRACE3 minimum measure as a fraction of the training-space area or volume,
+        in [0, 1]. Smaller candidate footprints are discarded.
+    boundary_tolerance : float
+        Finite nonnegative Euclidean distance in projected-coordinate units. Zero
+        includes exact boundaries; a positive value also includes points within that
+        distance of edges/faces, including hole boundaries. Saved with the fitted
+        model and reused for exploration; geometry area/volume is unchanged.
+    """
 
     use_sim: bool
     purity: float
@@ -601,7 +854,20 @@ class TraceOptions:
 
 @dataclass(frozen=True)
 class OutputOptions:
-    """Options for controlling the output format."""
+    """Supply output preferences to callers and orchestrators.
+
+    Attributes
+    ----------
+    csv : bool
+        Caller output preference. Built-in file creation requires Model.save_to_csv;
+        build does not automatically export files from this flag.
+    web : bool
+        Caller output preference. Built-in web export requires Model.save_for_web;
+        this flag alone does not write files.
+    png : bool
+        Caller output preference. Built-in plot export requires Model.save_graphs;
+        this flag alone does not write files.
+    """
 
     csv: bool
     web: bool
@@ -1120,7 +1386,18 @@ def _validate_trace_options(options: TraceOptions) -> None:
 
 @dataclass(frozen=True)
 class PrelimConfigOptions:
-    """Build-level PRELIM configuration matching MATLAB's ``opts.prelim``."""
+    """Configure feature bounds and missing-feature filtering.
+
+    Attributes
+    ----------
+    iqr_multiplier : float
+        Strictly positive multiplier for feature clipping at median plus or minus
+        this value times the interquartile range.
+    nan_threshold : float
+        Missing-feature fraction in [0, 1] used during ingestion filtering. Columns
+        at the threshold are removed. Training must be complete after filtering;
+        exploration may omit algorithm outcomes.
+    """
 
     iqr_multiplier: float = DEFAULT_PRELIM_IQR_MULTIPLIER
     nan_threshold: float = DEFAULT_PRELIM_NAN_THRESHOLD
@@ -1143,7 +1420,39 @@ class PrelimConfigOptions:
 
 @dataclass(frozen=True)
 class InstanceSpaceOptions:
-    """Aggregates all options into a single configuration object for the model."""
+    """Configure the full pipeline with validated, immutable option groups.
+
+    Attributes
+    ----------
+    parallel : ParallelOptions
+        Configure supported parallel execution.
+    perf : PerformanceOptions
+        Define good algorithm performance and instance difficulty.
+    auto : AutoOptions
+        Control automatic preprocessing.
+    bound : BoundOptions
+        Control feature outlier clipping.
+    norm : NormOptions
+        Control fitted normalization.
+    selvars : SelvarsOptions
+        Select input columns and training-instance subsets.
+    sifted : SiftedOptions
+        Configure correlation screening and genetic feature selection.
+    pilot : PilotOptions
+        Configure 2D or 3D projection and viewpoints.
+    cloister : CloisterOptions
+        Configure empirical instance-space boundaries.
+    pythia : PythiaOptions
+        Configure classifier training and hyperparameter search.
+    trace : TraceOptions
+        Configure footprint construction and boundary membership.
+    outputs : OutputOptions
+        Supply output preferences to callers and orchestrators.
+    general : GeneralOptions
+        Configure logging and shared random seeds.
+    prelim : PrelimConfigOptions
+        Configure feature bounds and missing-feature filtering.
+    """
 
     parallel: ParallelOptions
     perf: PerformanceOptions
@@ -1582,7 +1891,40 @@ def _validate_prelim_options(options: PrelimOptions) -> None:
 
 @dataclass(frozen=True)
 class PrelimOptions:
-    """Options for running PRELIM."""
+    """Compose options for direct PRELIM calls from pipeline configuration.
+
+    Attributes
+    ----------
+    max_perf : bool
+        True when larger raw algorithm performance is better; false for a cost such
+        as error or run time.
+    abs_perf : bool
+        True compares raw performance to an absolute epsilon threshold. False uses
+        relative regret from the best algorithm on each instance.
+    epsilon : float
+        Finite absolute threshold when abs_perf is true, otherwise a relative
+        tolerance in [0, 1]. The threshold is inclusive in both directions. Raw
+        observed performance must be nonnegative.
+    beta_threshold : float
+        Fraction in [0, 1]. An instance is beta-easy when strictly more than this
+        fraction of the retained algorithms are good.
+    bound : bool
+        Clip feature outliers when auto.preproc is true, using
+        prelim.iqr_multiplier. This does not clip raw algorithm performance.
+    norm : bool
+        Apply fitted Box-Cox and Z-score transforms when auto.preproc is true.
+        Exploration applies saved training parameters rather than refitting.
+    iqr_multiplier : float
+        Strictly positive multiplier for feature clipping at median plus or minus
+        this value times the interquartile range.
+    preproc : bool
+        Apply automatic feature bounding and Box-Cox/Z-score preprocessing. When
+        false, bound.flag and norm.flag do not trigger those transforms.
+    nan_threshold : float
+        Missing-feature fraction in [0, 1] used during ingestion filtering. Columns
+        at the threshold are removed. Training must be complete after filtering;
+        exploration may omit algorithm outcomes.
+    """
 
     max_perf: bool
     abs_perf: bool

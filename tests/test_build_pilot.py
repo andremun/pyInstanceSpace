@@ -1231,9 +1231,8 @@ def test_pilot_numerical_three_dimensional_bfgs_smoke() -> None:
 def test_numerical_solve_parallel_matches_sequential() -> None:
     """Parallelising the `ntries` restart loop must not change the result.
 
-    Regression test for F2's ntries-parallelism work (roadmap #301 issues
-    overlap, docs/python_implementation_pathways.md F2): each restart is
-    independent (different starting point, same cost function), so which
+    Each numerical restart is independent (different starting point, same
+    cost function), so which
     one "wins" (highest `perf`) must be identical whether the restarts run
     sequentially or across a process pool.
     """
@@ -1292,7 +1291,7 @@ def test_numerical_solve_skips_pool_when_already_in_worker_process() -> None:
     If PILOT's own `ntries` pool ever opened while already running inside
     another process pool's worker (e.g. SIFTED's GA fitness function calling
     `pilot()` from inside `pygad`'s own `ProcessPoolExecutor` workers), it
-    would reintroduce that bug (roadmap F2 pathway, #301). This never
+    would create nested process pools. This never
     triggers in practice today - SIFTED always calls `pilot()` with
     `analytic=True`, which bypasses this numerical branch entirely - but
     `multiprocessing.parent_process()` is checked as a cheap circuit

@@ -101,13 +101,13 @@ class SiftedInput(NamedTuple):
     y_raw : NDArray[np.double]
         Unprocessed performance matrix (instances x algorithms).
     beta : NDArray[np.bool_]
-        Binary array indicating selected good features (features x 1).
+        Per-instance beta-easy labels (instances x 1).
     num_good_algos : NDArray[np.double]
-        Array indicating the number of good algorithms for each feature.
+        Number of good algorithms for each instance.
     y_best : NDArray[np.double]
         Best observed algorithm performance per instance.
     p : NDArray[np.int_]
-        Correlation p-values associated with features (features x 1).
+        One-based best-algorithm index for each instance (instances x 1).
     inst_labels : pd.Series
         Labels identifying instances in the dataset.
     feat_labels : list[str]
@@ -169,17 +169,17 @@ class SiftedOutput(NamedTuple):
     y_raw : NDArray[np.double]
         Unprocessed performance matrix (instances x algorithms).
     beta : NDArray[np.bool_]
-        Binary array indicating selected good features.
+        Per-instance beta-easy labels.
     num_good_algos : NDArray[np.double]
-        Number of good algorithms per feature after processing.
+        Number of good algorithms per retained instance.
     y_best : NDArray[np.double]
         Best observed algorithm performance per instance after processing.
     p : NDArray[np.int_]
-        Correlation p-values associated with features.
+        One-based best-algorithm index for each instance.
     inst_labels : pd.Series
         Labels for each instance in the dataset.
     s : pd.Series, optional
-        Selection series used during processing, if available.
+        Optional source labels aligned with the retained instances.
     feat_labels : list[str]
         List of feature labels.
     selvars : NDArray[np.intc]
@@ -336,13 +336,13 @@ class SiftedStage(
         y_raw : NDArray[np.double]
             Raw performance matrix.
         beta : NDArray[np.bool_]
-            Binary selection for good features.
+            Per-instance beta-easy labels.
         num_good_algos : NDArray[np.double]
-            Number of good algorithms for each feature.
+            Number of good algorithms for each instance.
         y_best : NDArray[np.double]
             Best algorithm performance for each instance.
         p : NDArray[np.int_]
-            Correlation p-values for features.
+            One-based best-algorithm index for each instance.
         inst_labels : pd.Series
             Instance labels for the dataset.
         s : pd.Series | None
@@ -480,9 +480,9 @@ class SiftedStage(
         y_raw : NDArray[np.double]
             Unprocessed performance matrix.
         beta : NDArray[np.bool_]
-            Binary array for selecting good features.
+            Per-instance beta-easy labels.
         num_good_algos : NDArray[np.double]
-            Number of good algorithms per feature.
+            Number of good algorithms per instance.
         y_best : NDArray[np.double]
             Best algorithm performance for each instance.
         p : NDArray[np.int_]
@@ -820,7 +820,7 @@ class SiftedStage(
         MATLAB's `kmeans(Xaux', opts.K, 'Distance', 'correlation', ...)`
         (core/SIFTED.m) clusters features using correlation distance, not
         Euclidean - sklearn's `KMeans` has no metric parameter to match this
-        directly (#300 issue 7). For two vectors `u`, `v` of length `n`
+        directly. For two vectors `u`, `v` of length `n`
         z-scored with population (ddof=0) statistics, squared Euclidean
         distance `||u - v||^2 = 2n * (1 - corr(u, v))` - a positive
         monotonic transform of Pearson correlation distance. Clustering
@@ -910,9 +910,7 @@ class SiftedStage(
             `fitcknn`/`kfoldLoss`-based `costfcn` (core/SIFTED.m), which
             `ga()` *minimizes* as `max_i(loss_i)` - `-max_i(1 - acc_i) =
             min_i(acc_i) - 1`, the same optimum up to an additive constant
-            - without needing a loss concept or a sign flip (#300 issue 5;
-            #312, the sign-convention finding this formulation sidesteps
-            rather than needing to resolve).
+            without changing the optimal feature set.
         """
         idx = np.zeros(instance.selfx.shape[1], dtype=bool)
 

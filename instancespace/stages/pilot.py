@@ -645,8 +645,7 @@ class PilotStage(
         cost_weight : float
             Scalar performance-reconstruction weight (MATLAB's costWeight).
             Scales the performance block relative to the feature block
-            before the eigendecomposition; 1.0 weights both equally and
-            reproduces the pre-cost_weight behaviour exactly.
+            before the eigendecomposition; 1.0 weights both blocks equally.
         dims : int
             Output projection dimensionality, either 2 or 3.
 
@@ -754,7 +753,7 @@ class PilotStage(
     ]:
         """Solve the projection problem via Partial Least Squares.
 
-        MATLAB's `method='pls'` alternative (core/PILOT.m, F2/#262) to the
+        MATLAB's `method='pls'` alternative to the
         analytic/numeric eigen-decomposition solvers above - a genuinely
         different algorithm, not a variant of either. `dims` matches
         MATLAB's own `plsregress(X, Y, d)` call.
@@ -1135,7 +1134,7 @@ class PilotStage(
         cost_weight : float
             Scalar weight applied to the performance columns' squared error
             (MATLAB's `pilotErrorFcn` costWeight). 1.0 weights every column
-            equally, reproducing the pre-cost_weight behaviour exactly.
+            equally.
         d : int
             Output projection dimensionality, either 2 or 3.
 

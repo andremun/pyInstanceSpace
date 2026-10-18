@@ -1,364 +1,120 @@
-# Instance Space Analysis: A toolkit for the assessment of algorithmic power
+# Instance Space Analysis for Python
 
-![Tests](https://github.com/andremun/pyInstanceSpace/actions/workflows/validation-tests.yml/badge.svg)
+[![Tests](https://github.com/andremun/pyInstanceSpace/actions/workflows/validation-tests.yml/badge.svg)](https://github.com/andremun/pyInstanceSpace/actions/workflows/validation-tests.yml)
 [![codecov](https://codecov.io/gh/andremun/pyInstanceSpace/graph/badge.svg)](https://codecov.io/gh/andremun/pyInstanceSpace)
-[![Docs](https://github.com/andremun/pyInstanceSpace/actions/workflows/docs-pages.yml/badge.svg)](https://andremun.github.io/pyInstanceSpace/)
-[![DOI](https://zenodo.org/badge/770130753.svg)](https://doi.org/10.5281/zenodo.15562567)
-[![PyPI version](https://img.shields.io/pypi/v/instancespace.svg)](https://pypi.org/project/instancespace/)
+[![Documentation](https://github.com/andremun/pyInstanceSpace/actions/workflows/docs-pages.yml/badge.svg)](https://andremun.github.io/pyInstanceSpace/)
+[![PyPI](https://img.shields.io/pypi/v/instancespace.svg)](https://pypi.org/project/instancespace/)
 [![PyPI downloads](https://img.shields.io/pypi/dm/instancespace.svg)](https://pypi.org/project/instancespace/)
-[![Python versions](https://img.shields.io/pypi/pyversions/instancespace.svg)](https://pypi.org/project/instancespace/)
+[![Python](https://img.shields.io/pypi/pyversions/instancespace.svg)](https://pypi.org/project/instancespace/)
+[![DOI](https://zenodo.org/badge/770130753.svg)](https://doi.org/10.5281/zenodo.15562567)
 [![Citations](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.semanticscholar.org%2Fgraph%2Fv1%2Fpaper%2FDOI%3A10.1145%2F3572895%3Ffields%3DcitationCount&query=%24.citationCount&label=citations&color=blue)](https://doi.org/10.1145/3572895)
 
-Instance Space Analysis is a methodology for assessing the strengths and weaknesses of an algorithm and for objectively comparing algorithmic power without bias introduced by a restricted choice of test instances. At its core, it models the relationship between an instance's structural properties and the performance of a group of algorithms. Instance Space Analysis allows the construction of **footprints** for each algorithm, defined as regions in the instance space where we statistically infer good performance. Other insights that can be gathered from Instance Space Analysis include:
+InstanceSpace relates the structural features of problem instances to the performance of a portfolio of algorithms. It creates a 2D or 3D instance space, trains algorithm selectors, and constructs footprints showing where each algorithm performs well.
 
--	Objective metrics of each algorithm’s footprint across the instance space as a measure of algorithmic power;
--	Explanation through visualisation of how instance features correlate with algorithm performance in various regions of the instance space;
--	Visualisation of the distribution and diversity of existing benchmark and real-world instances;
--	Assessment of the adequacy of the features used to characterise an instance;
--	Partitioning of the instance space into recommended regions for automated algorithm selection;
--	Distinguishing areas of the instance space where it may be useful to generate additional instances to gain further insights.
+Use it to compare algorithm strengths, inspect benchmark diversity, find difficult regions and recommend algorithms for new instances.
 
-The unique advantage of visualising algorithm performance in the instance space, rather than as a small set of summary statistics averaged across a selected collection of instances, is the nuanced analysis that becomes possible, enabling explanation of strengths and weaknesses and examination of interesting variations in performance that tables of summary statistics may hide.
+## Documentation
 
-This repository provides a set of Python tools for conducting a comprehensive Instance Space Analysis within an automated pipeline. We expect it to become the computational engine that powers the Melbourne Algorithm Test Instance Library with Data Analytics ([MATILDA](http://matilda.unimelb.edu.au/matilda/)) web tools for online analysis. If you would like more information on the Instance Space Analysis methodology, you can refer to [here](http://matilda.unimelb.edu.au/matilda/our-methodology).
+The [reference website](https://andremun.github.io/pyInstanceSpace/) provides:
 
-If you follow the Instance Space Analysis methodology, please cite as follows:
+- [Getting Started](https://andremun.github.io/pyInstanceSpace/getting-started.html): a self-contained runnable analysis.
+- [Metadata Format](https://andremun.github.io/pyInstanceSpace/metadata-format.html): features, performance and missing values.
+- [Build and Explore](https://andremun.github.io/pyInstanceSpace/workflows.html): training, stages, checkpoints and inference.
+- [Options Reference](https://andremun.github.io/pyInstanceSpace/options-reference.html): every configuration field, default and accepted JSON alias.
+- [Classifiers and Tuning](https://andremun.github.io/pyInstanceSpace/tuning.html): learners, parameter units, Sobol and Bayesian search.
+- [Outputs and Plotting](https://andremun.github.io/pyInstanceSpace/outputs.html): explicit CSV, image, web and model exports.
+- [MATLAB Compatibility](https://andremun.github.io/pyInstanceSpace/matlab-compatibility.html): shared contracts and implementation differences.
+- [API Reference](https://andremun.github.io/pyInstanceSpace/api-reference.html): exact signatures, parameters and result fields.
 
-> K. Smith-Miles and M.A. Muñoz. *Instance Space Analysis for Algorithm Testing: Methodology and Software Tools*. ACM Comput. Surv. 55(12:255),1-31 [DOI:10.1145/3572895](https://doi.org/10.1145/3572895), 2023.
+## Install
 
-Also, if you specifically use this code, please cite as follows:
+Use Python 3.12:
 
-> M.A. Muñoz and K. Smith-Miles. *Instance Space Analysis: A Python toolkit for the assessment of algorithmic power*. andremun/pyInstanceSpace on GitHub. Zenodo, [DOI:10.5281/zenodo.15562567](https://doi.org/10.5281/zenodo.15562567), 2025.
-
-> Y.B. Güzel, K. Khare, N. Harvey, K. Dsouza, D.H. Jang, J. Chen, C.Z. Lam, and M.A. Muñoz. *instancespace: A Python package for insightful algorithm testing through Instance Space Analysis*. SoftwareX, 31:102246, [DOI:10.1016/j.softx.2025.102246](https://doi.org/10.1016/j.softx.2025.102246), 2025.
-
-**DISCLAIMER: This repository contains research code. On occasion, new features will be added, or changes made that may result in crashes. Although we have made every effort to minimise bugs, this code comes with NO GUARANTEES. If you encounter any issues, please let us know as soon as possible through the contact methods outlined at the end of this document.**
-
-## Installation Instructions
-
-The package currently requires **Python 3.12** (`>=3.12,<3.13`). Install the published release with:
-
-```bash
+```sh
+python3.12 -m venv .venv
+source .venv/bin/activate
 python -m pip install instancespace
 ```
 
-For development changes that have not been released to PyPI, use the source setup
-below. See [integration_demo.py](integration_demo.py) for a runnable example and
-[example_plugin.py](example_plugin.py) for a custom pipeline stage.
+## Prepare Input Files
 
-## Development status
+`metadata.csv` contains one instance per row: an `instances` identifier, at least three numeric `feature_` columns and one or more numeric `algo_` columns. An optional `source` column identifies collections.
 
-Release 0.4.0 is being prepared from `main`; publication to PyPI remains a separate
-release action. As of 16 October 2026, `main` includes the consolidated documentation and scoring
-fixes from [PR #348](https://github.com/andremun/pyInstanceSpace/pull/348), the approved
-MATLAB fixture promotion, and the wider training/exploration audit fixes from
-[PR #349](https://github.com/andremun/pyInstanceSpace/pull/349). These include
-observed-only PYTHIA evaluation, per-instance regret weights, automatic removal
-of algorithms that are never good in training, and replay of fitted feature order
-during exploration. A merge into `main` does not imply a PyPI release; see
-[Release Notes](RELEASE_NOTES.md) for unreleased changes.
+Training outcomes must be nonnegative and complete after ingestion filtering. Zero is allowed. Exploration can omit algorithm outcomes; unobserved values are excluded from metrics. Supply enough examples of each good/bad class for the requested folds.
 
-The [wider parity audit](docs/wider-parity-audit-2026-10-10.md) records its scope,
-validation and limits. The earlier
-[parity review and seven-step plan](docs/matlab-parity-review-2026-10-05.md) and
-[branch consolidation record](docs/branch-consolidation-2026-10-09.md) are dated
-history, including the raw MATLAB export comparisons.
+Create `options.json` for your performance measure. This example uses a lower-is-better cost, with values at or below 0.20 considered good:
 
-The documentation/dead-code audit and mypy update from
-[PR #352](https://github.com/andremun/pyInstanceSpace/pull/352) are also integrated.
-See the [0.4.0 release guide](docs/release-0.4.0.md) for upgrade requirements,
-validation and deferred dependency migrations. The
-[history restart record](docs/history-restart-2026-10-15.md) explains old commit IDs
-and the preserved MATLAB fixture provenance.
-
-## Documentation Instructions
-
-[Hosted documentation](https://andremun.github.io/pyInstanceSpace/) is deployed by
-[docs-pages.yml](.github/workflows/docs-pages.yml) on pushes to `main` or
-`v0.9.0/development-branch-QSF`, or by a manual workflow run. A PR branch does not
-automatically update the hosted site; build locally to preview its documentation.
-The documentation in this branch provides a
-[Getting Started guide](https://andremun.github.io/pyInstanceSpace/getting-started.html) and an
-[Options Reference](https://andremun.github.io/pyInstanceSpace/options-reference.html), plus the
-full [API reference](https://andremun.github.io/pyInstanceSpace/api/instancespace.html).
-
-To build the docs on your computer, run `poetry run poe docs`. The HTML files go to `site/`:
-`site/api/` is pdoc's generated API reference, and the rest of `site/` is the hand-written pages
-under `docs_site/`. The API reference build uses the numpy docstring format of pdoc. Write all
-docstrings in numpy style. If pdoc cannot parse a docstring, the build fails. A docstring can
-parse but still render incorrectly, so also look at the HTML output.
-
-## Repository layout
-
-- `instancespace/` — the package itself: `instance_space.py` (the `InstanceSpace` class — `build()`/`explore()`/`explore_stage_iter()` — hardcodes the built-in 7-stage execution order), `stage_runner.py` (`StageRunner`, the execution/rollback engine, plus `build_stage_runner()` for attaching extra/plugin stages to that order via `RunBefore`/`RunAfter`), `stages/` (one module per pipeline stage — `preprocessing`, `prelim`, `sifted`, `pilot`, `pythia`, `cloister`, `trace`), `data/` (option and metadata dataclasses), `_serialisers.py` (2D/3D CSV, mesh, plot, and MAT helpers), and `model.py` (the trained `Model` and its save methods).
-- `tests/` — the flat test suite. `tests/fixtures/matlab/current/` holds the manifest-verified approved MATLAB snapshot; `tests/fixtures/matlab/geometry/` holds separately verified controlled geometry cases; `tests/matlab_reference/` contains unverified historical regression snapshots. `test_build_<stage>.py` covers training and `test_explore_<stage>.py` covers inference. See `tests/README.md`.
-- `examples/data/` — real, multi-dataset example data (BBO, JSS, KP, MFP, and more) used by `integration_demo.py`/`example_plugin.py` - not a test fixture.
-- `integration_demo.py` — the minimal runnable example: load metadata + options from `examples/data/`, construct an `InstanceSpace` with the full stage list, and `build()` it.
-- `example_plugin.py` — demonstrates writing a custom `Stage` and slotting it into the pipeline alongside the built-in stages.
-- `liveDemoIS.ipynb` — the operation manual: a stage-by-stage walkthrough of `build()` and `explore()`/`explore_stage_iter()`, meant to be read as a usage guide.
-- `docs/` — `explore_validation.ipynb` (how the MATLAB-reference validation numbers were obtained) and the project roadmap/implementation-pathway documents used to plan ongoing work.
-- `CLIDocs.txt` — notes on the (not yet built) command-line interface.
-
-## Working with the code
-
-The basic flow is: construct an `InstanceSpace` from metadata and options, `build()` it, then save the results.
-
-```python
-from instancespace import InstanceSpace
-from instancespace.data import metadata, options
-
-metadata_object = metadata.from_csv_file("metadata.csv")
-options_object = options.from_json_file("options.json")
-
-instance_space = InstanceSpace(metadata_object, options_object)
-instance_space.build()
-
-instance_space.model.save_to_csv("output/")
-instance_space.model.save_graphs("output/")
+```json
+{
+  "perf": {"max_perf": false, "abs_perf": true, "epsilon": 0.20},
+  "sifted": {"flag": false},
+  "pilot": {"analytic": true},
+  "pythia": {"classifier": "knn", "cv_folds": 3, "n_tuning_iter": 4},
+  "trace": {"method": "trace3"}
+}
 ```
 
-See `integration_demo.py` for a complete, runnable version of this (including the explicit stage list), and `example_plugin.py` for how to add a custom `Stage` to the pipeline.
+These are compact example settings, not the package defaults. Configure the scientific threshold and search budgets for your own data.
 
-### Applying a trained model to new data: `explore()`
-
-`InstanceSpace.explore()` applies a previously trained model to unseen instances, mirroring the MATLAB toolkit's `exploreIS.m`: the test metadata is bounded and scaled with the stored PRELIM parameters, reduced to the selected SIFTED features, projected with the trained PILOT matrix, and evaluated by the trained PYTHIA selectors and TRACE footprints. PLS subtracts the stored training feature mean before projection; older saved models without that field retain their original uncentred behavior. No stage is re-fitted.
-
-`explore()` works directly on the model `build()` produced: the trained PYTHIA classifiers are fitted scikit-learn estimators (`SVC` by default), and `explore()` calls each one's own prediction methods — there is no intermediate flattened representation or conversion step. PRELIM, SIFTED, PILOT and TRACE pass their stored parameters through unchanged. The normal flow is therefore direct:
+## Build, Inspect and Save
 
 ```python
-space = InstanceSpace(train_metadata, options)
-space.build()
-result = space.explore(test_metadata)
+from pathlib import Path
+from instancespace.instance_space import instance_space_from_files
+
+space = instance_space_from_files(Path("metadata.csv"), Path("options.json"))
+if space is None:
+    raise ValueError("Could not load metadata or options")
+model = space.build()
+print(model.pythia.summary)
+print(model.trace.summary)
+Path("output").mkdir(exist_ok=True)
+model.save_to_csv("output")
+space.save("analysis.checkpoint")
 ```
 
-`explore()` returns the full result in one call; `explore_stage_iter()` runs the same stages but yields each one's output in turn (`prelim`, `sifted`, `pilot`, `pythia`, `trace`), for inspecting the pipeline one stage at a time. The operation manual `liveDemoIS.ipynb` — the Python counterpart of the MATLAB live demo (`liveDemoIS.m`) — walks through both `build()` and `explore()`/`explore_stage_iter()` stage by stage and is meant to be read as a usage guide; run it from the repository root.
+Exports are explicit calls. `outputs.csv`, `outputs.png` and `outputs.web` are caller preferences and do not automatically write files during `build()`.
 
-PYTHIA evaluation scores only observed `(instance, algorithm)` outcomes. Missing
-algorithm columns and individual missing outcomes do not count as failures.
-Algorithms with no observed outcomes or no fitted classifier have `NaN` evaluation
-rates and confusion counts. Direct `PythiaStage.evaluate()` callers must supply
-`PythiaEvaluateInput.observed`, a Boolean mask with shape
-`(n_instances, n_trained_algorithms)`; `explore()` supplies it automatically.
+Training removes algorithms that are never good and recomputes results from the retained portfolio. Exploration applies saved feature order, preprocessing, projection, classifiers and footprints without refitting. Test outcomes score predictions; they do not determine recommendations.
 
-### MATLAB references and validation
+## Configure Python Objects
 
-Current MATLAB `master` defines the behavior being audited. The approved full
-fixture bundle is a reproducible snapshot, not a claim to match the latest master:
+Use immutable dataclasses to configure an in-memory workflow:
 
-- `tests/fixtures/matlab/current/`: 423 files in `reference-export/v2`, generated
-  on Linux with MATLAB R2026a Update 5 at `2e2cf75`, using generator `ab72f6b`.
-  Two independent runs produced identical artifact hashes. See the
-  [promotion review](docs/fixture-promotion-2026-10-09.md).
-- `tests/fixtures/matlab/geometry/`: six controlled cases generated locally on
-  Linux with MATLAB R2026a Update 5 at master revision `929acfd`. They cover
-  CLOISTER 3D boundaries and TRACE holes/components, with a separate hashed manifest.
-- `tests/matlab_reference/`: historical regression snapshots with unverified provenance.
+```python
+from instancespace.data.options import InstanceSpaceOptions, PilotOptions
 
-Release validation checks the approved source revision. A separate CI job reports
-whether MATLAB master has advanced. Candidate validation and promotion preparation
-do not automatically approve or install a new bundle. See the
-[fixture workflow](tests/matlab_export/README.md),
-[geometry reproduction notes](tests/fixtures/matlab/geometry/README.md), and
-[test conventions](tests/README.md).
+options = InstanceSpaceOptions.default(pilot=PilotOptions.default(dims=3))
+```
 
-## Development environment
+Use `dataclasses.replace` to create an updated configuration. The complete options reference is checked against the source schema when the website builds.
 
-From the repository root, with Python 3.12 available, install the Poetry version
-used by the release-validation workflow and the locked dependencies:
+## Develop
 
-```bash
-python3.12 -m pip install poetry==2.3.3
-poetry env use python3.12
+Install the locked development environment with Poetry, then run:
+
+```sh
 poetry install
-```
-
-Run commands through Poetry; a separate `poetry shell` plugin is not required:
-
-```bash
-poetry run pytest
-poetry run ruff check --no-fix
-poetry run mypy --strict .
-poetry run black . --check
 poetry run poe docs
+poetry run pytest
 ```
 
-## The metadata file
+The documentation build writes `site/`. It checks option coverage and local files/anchors, and gives curated guides and generated API pages one shared layout. Serve the directory locally to preview it. See [CONTRIBUTING.md](CONTRIBUTING.md) for development checks and reporting guidance.
 
-The ```metadata.csv``` file should contain a table where each row corresponds to a problem instance, and each column must strictly follow the naming convention mentioned below:
+## Cite
 
--	**instances** instance identifier - We expect the instance identifier to be of type "String". This column is mandatory.
--	**source** instance source - This column is optional
--	**feature_name** The keyword "feature_" concatenated with feature name. For instance, if the feature name is "density", the header name should be mentioned as "feature_density". If the name consists of more than one word, each word should be separated by "_" (spaces are not allowed). There must be more than two features for the software to work. We expect the features to be of the type "Double".
--	**algo_name** The keyword "algo_" concatenated with algorithm name. For instance, if the algorithm name is "Greedy", the column header should be "algo_greedy". If the name consists of more than one word, each word should be separated by "_" (spaces are not allowed). You can add the performance of more than one algorithm in the same ```.csv```. We expect the algorithm performance to be of the type "Double".
+For the methodology:
 
-Moreover, empty cells, NaN or null values are allowed but **not recommended**. We'd like you to handle missing values in your data before processing. You may use [this file](https://matilda.unimelb.edu.au/matilda/matildadata/graph_coloring_problem/metadata/metadata.csv) as a reference.
+> K. Smith-Miles and M. A. Muñoz. *Instance Space Analysis for Algorithm Testing: Methodology and Software Tools*. ACM Computing Surveys, 55(12), Article 255, 2023. [DOI](https://doi.org/10.1145/3572895).
 
-## Options
+For the Python software:
 
-The ```options.json``` contains a structure that contains all the settings used by the code. Broadly, there are settings required for the analysis itself, settings for data pre-processing, and output settings. These are divided into general, dimensionality reduction, bound estimation, algorithm selection and footprint construction settings. Additionally, the toolkit includes routines for bounding outliers, scaling the data, and selecting features.
+> Y. B. Güzel, K. Khare, N. Harvey, K. Dsouza, D. H. Jang, J. Chen, C. Z. Lam and M. A. Muñoz. *instancespace: A Python package for insightful algorithm testing through Instance Space Analysis*. SoftwareX, 31:102246, 2025. [DOI](https://doi.org/10.1016/j.softx.2025.102246).
 
-Option names below are given as the Python attribute path (e.g. ```options.perf.max_perf```); the
-same names, case-insensitively, are the keys expected in ```options.json```. A handful of legacy
-MATLAB-style key spellings (e.g. ```ncores```, ```cvfolds```) are still accepted for backward
-compatibility with option files written for the MATLAB toolkit.
+> M. A. Muñoz and K. Smith-Miles. *Instance Space Analysis: A Python toolkit for the assessment of algorithmic power*. [Zenodo](https://doi.org/10.5281/zenodo.15562567).
 
-### General settings
+For 3D Instance Space Analysis, also cite Simpson et al. (2025), *ISA3: A 3-dimensional expansion of Instance Space Analysis*, Machine Learning, 114, 240. [DOI](https://doi.org/10.1007/s10994-025-06871-5).
 
--	```opts.perf.max_perf``` determines whether the algorithm performance values provided are **efficiency** measures that should be maximised (set as ```TRUE```), or **cost** measures that should be minimised (set as ```FALSE```).
--	```opts.perf.abs_perf``` determines whether good performance is defined absolutely, e.g., misclassification error is lower than a 20%, (set as ```TRUE```), or if it is defined relatively to the best performing algorithm, e.g., misclassification error is within at least 5% of the best algorithm, (set as ```FALSE```).
--	```opts.perf.epsilon``` corresponds to the threshold used to calculate good performance. It must be of the type "Double".
--	```opts.perf.beta_threshold``` corresponds to the fraction of algorithms in the portfolio that must have good performance in the instance, for it to be considered an **easy** instance. It must be a value between 0 and 1.
-- ```opts.parallel.flag``` determines whether parallel processing will be available (set as ```TRUE```), or not (set as ```FALSE```). The toolkit uses Python's ```multiprocessing``` (in TRACE) and scikit-learn's ```n_jobs``` (in PYTHIA) to distribute work across local cores.
-- ```opts.parallel.n_cores``` number of available cores for parallel processing.
--	```opts.selvars.small_scale_flag```: By setting this flag as ```TRUE```, you can carry out a small-scale experiment using a randomly selected fraction of the original data. This is useful if you have a large dataset with more than 1000 instances and want to explore the model's parameters.
--	```opts.selvars.small_scale``` fraction taken from the original data on the small-scale experiment.
--	```opts.selvars.file_idx_flag``` by setting this flag as ```TRUE```, you can carry out a small scale experiment. This time, you must provide a ```.csv``` file that contains, in a single column, the indices of the instances to be taken. This may be useful if you want to make a more controlled experiment than just randomly selecting instances.
--	```opts.selvars.file_idx``` name of the file containing the indices of the instances.
+## License and Support
 
-### Dimensionality reduction settings
-
-PILOT produces either two or three coordinates. `method="standard"` uses the
-analytic solution or a multi-start [BFGS](https://en.wikipedia.org/wiki/Broyden-Fletcher-Goldfarb-Shanno_algorithm)
-solve; `method="pls"` uses the SIMPLS algorithm used by MATLAB R2026a's
-`plsregress`. Technical details about PILOT are available [here](https://doi.org/10.1007/s10994-017-5629-5).
-
-- `opts.pilot.method` selects `"standard"` (default) or `"pls"`. SIMPLS ignores
-  `opts.pilot.analytic`, matching MATLAB.
-- `opts.pilot.dims` selects a 2D (default) or 3D projection and is also passed to
-  SIFTED's candidate projections.
-- `opts.pilot.analytic` selects the analytic (`TRUE`) or numerical (`FALSE`)
-  standard solver. The numerical solver is safer for poorly conditioned inputs.
-- `opts.pilot.n_tries` sets the numerical restart count. `opts.pilot.x0` supplies
-  starting columns; `opts.pilot.precalc_alpha` replays a compatible solved column.
-- `opts.pilot.cost_weight` weights performance reconstruction relative to feature
-  reconstruction in the standard solver.
-- `opts.pilot.view_groups` supplies zero-based algorithm-index groups for 3D camera
-  optimization. An empty value creates one global viewpoint. The trained model stores
-  each 2-by-3 view and its azimuth/elevation for plotting.
-- `opts.pilot.adjust_rotation` (default `FALSE`) rotates a 2D projection so instances
-  poorly solved by every algorithm face 135°. It preserves pairwise distances,
-  reconstruction metrics, and footprint areas. This Python option is not used for 3D.
-
-### Empirical bound estimation settings.
-
-The toolkit uses CLOISTER, a correlation-based algorithm, to detect the empirical bounds of the Instance Space.
-
-- ```opts.cloister.c_thres``` Determines the maximum [Pearson correlation coefficient](https://en.wikipedia.org/wiki/Pearson_correlation_coefficient) that would indicate non-correlated variables. The lower this value is, the more stringent is the algorithm; hence, it would be less likely to produce a good bound.
-- ```opts.cloister.p_val``` Determines the p-value of the Pearson correlation coefficient that indicates no correlation.
-
-###  Algorithm selection settings
-
-PYTHIA trains one classifier per algorithm and uses its predictions and precision
-to recommend algorithms. `opts.pythia.classifier` selects `"svm"` (the default),
-`"knn"`, `"tree"`, `"nb"`, `"linear"`, or `"ensemble"`. Set `opts.pythia.skip=True`
-to bypass classifier training. Kernel settings below apply to SVMs.
-
-- ```opts.pythia.cv_folds``` number of folds of the stratified cross-validation (CV) experiment used during hyperparameter tuning.
-- ```opts.pythia.is_poly_krnl``` determines whether to use a polynomial (set as ```TRUE```) or Gaussian/RBF (set as ```FALSE```, the default) kernel. The RBF kernel is usually significantly faster to compute and more accurate; however, it also has the disadvantage of producing discontinuous regions of good performance that may appear overfit. We tend to recommend a polynomial kernel if the dataset is higher than 1000 instances.
-- ```opts.pythia.tuning``` selects the hyperparameter tuning strategy for the selected classifier (box constraint and kernel scale for SVMs): ```'sobol'``` (the default, matching the MATLAB toolkit) evaluates ```opts.pythia.n_tuning_iter``` scrambled Sobol quasi-random candidates via stratified CV and keeps the best; ```'bayes'``` uses Bayesian optimisation via [scikit-optimize](https://scikit-optimize.github.io/)'s `BayesSearchCV` instead; ```'none'``` skips tuning entirely and requires ```opts.pythia.params``` to already hold valid per-algorithm hyperparameters.
-- ```opts.pythia.n_tuning_iter``` number of Sobol candidates evaluated when ```opts.pythia.tuning``` is ```'sobol'``` (default 20).
-- ```opts.pythia.use_weights``` determines whether weighted (set as ```TRUE```) or unweighted (set as ```FALSE```, the default) classification is performed. Weights use per-instance regret, `abs(y[i, j] - y_best[i])`, in the training performance scale. Zero weights are replaced by the smallest positive finite weight; if none exists, training uses uniform weights. Classifiers that do not support sample weights emit a warning and train without them.
-- ```opts.pythia.uselibsvm``` **(legacy)** accepted for backward compatibility with option files from the MATLAB toolkit, and genuinely ignored - does not select LIBSVM, which this implementation does not use.
-
-### Footprint construction settings
-
-TRACE builds good, best, hard, and full-space footprints. `method="legacy"` retains
-the historical 2D DBSCAN/Shapely path and remains Python's compatibility default.
-`method="trace3"` implements MATLAB's current alpha-shape algorithm with 2D polygons
-or native 3D tetrahedral meshes. A 3D projection always dispatches to TRACE3 because
-legacy TRACE is 2D-only. Build metrics and `explore()` rescoring use boundary-inclusive membership; controlled MATLAB references test boundary points, holes, and disconnected components.
-
-- `opts.trace.method` selects `"legacy"` (default) or `"trace3"`.
-- `opts.trace.use_sim` uses PYTHIA predictions (`TRUE`) or observed good-performance
-  labels (`FALSE`). TRACE3 falls back to observed labels when PYTHIA is skipped.
-- `opts.trace.purity` sets the minimum footprint purity. Its default is method-aware:
-  0.55 for legacy and 0.60 for TRACE3.
-- `opts.trace.contra` controls legacy contradiction removal.
-- `opts.trace.min_instances` and `opts.trace.min_area_frac` control TRACE3's minimum
-  support and retained area/volume.
-
-### Automatic data bounding and scaling
-
-The toolkit implements simple routines to bound outliers and scale the data. **These routines are by no means perfect, and users should pre-process their data independently if preferred**. However, the automatic bounding and scaling routines should give some idea of the kind of results that may be achieved. In general, we recommend transforming the data to be **close to normally distributed** due to the linear nature of PILOT's optimal projection algorithm.
-
-- ```opts.auto.preproc``` turns on (set as ```TRUE```) the automatic pre-processing.
-- `opts.bound.flag` enables feature bounding when `opts.auto.preproc` is enabled. Each feature is clipped to its median plus or minus `opts.prelim.iqr_multiplier` times its [interquartile range (IQR)](https://en.wikipedia.org/wiki/Interquartile_range), with a default multiplier of five. Bounding does not clip algorithm performance values; performance normalization is a separate operation.
-- ```opts.norm.flag``` turns on (set as ```TRUE```) scaling. This sub-routine scales each feature and performance measure into a positive range. Then it calculates a [box-cox transformation](https://en.wikipedia.org/wiki/Power_transform#Box%E2%80%93Cox_transformation) to stabilise the variance, and a [Z-transformation](https://en.wikipedia.org/wiki/Standard_score) to standardise the data. The results are features and performance measures that are close to normally distributed.
-
-### Training portfolio and exploration features
-
-Pipeline PRELIM removes algorithms with no good training instances under the
-configured performance threshold, then recomputes winners, ties, beta and
-normalization from the retained raw portfolio. Consequently,
-`model.data.algo_labels` and algorithm-indexed outputs may contain fewer algorithms
-than the input metadata. If none remain, the build raises `ValueError` with
-"There are no good algorithms. Check performance options." Fixed PYTHIA parameter
-rows must match the retained portfolio and its order. The low-level
-`PrelimStage.prelim()` numerical API does not perform this automatic pruning.
-
-PREPROCESSING persists the retained feature names and order in
-`model.preprocessing_features`. Exploration aligns incoming columns to that order
-before applying fitted PRELIM transforms and SIFTED selection. Columns removed
-during training may be omitted, required retained columns must be present, and
-extra columns are ignored with a warning. Older saved models without this record
-use their original metadata feature names; rebuild them to benefit from this
-contract if training removed features. An algorithm pruned during training that
-reappears in exploration is treated as test-only and cannot be recommended by the
-trained selector.
-
-### Automatic feature selection
-
-The toolkit implements SIFTED, a routine to select features, given their cross-correlation and correlation to performance. Ideally, we want the fewest orthogonal and predictive features. **This routine is by no means perfect, and users should pre-process their data independently if preferred**.  In general, we recommend **using no more than 10 features** as input to PILOT's optimal projection algorithm, given the numerical nature of its solution and the difficulty of identifying meaningful linear trends.
-
-- `opts.sifted.flag` enables feature selection. SIFTED filters features by their
-  absolute correlation with algorithm performance and clusters correlated features.
-  Its genetic search chooses representatives, projects candidates through PILOT
-  using the selected dimensionality, and evaluates k-nearest-neighbor classifiers
-  by cross-validation. Fitness maximizes the worst per-algorithm accuracy; a cache
-  avoids recomputing candidate subsets within the search.
-- ```opts.sifted.rho``` correlation threshold indicating the lowest acceptable absolute correlation between a feature and performance. It should be a value between 0 and 1.
-- ```opts.sifted.k``` number of clusters which corresponds to the final number of features returned. The routine assumes at least 3 clusters and no more than the number of features. Ideally, it **should not** exceed 10.
-- `opts.sifted.n_trees` is retained for compatibility; the current candidate fitness uses k-nearest-neighbor classifiers rather than random forests.
-- ```opts.sifted.max_iter``` number of iterations used to converge the k-means algorithm. Typically, this setting does not require adjustment.
-- ```opts.sifted.replicates``` number of repeats carried out of the k-means algorithm. Typically, this setting does not require adjustment.
-
-### Output settings
-
-Use `model.save_to_csv()`, `model.save_graphs()`, `model.save_for_web()` or
-`model.save_to_mat()` to write results; each method takes an output directory.
-The output flags below are preferences available to callers and orchestration
-code. The built-in pipeline does not use them to trigger exports, and the save
-methods write their outputs regardless of these flags. Calling `build()` alone
-does not write these files.
-
-Two-dimensional saves retain the existing polygon CSV and plot formats. Three-dimensional
-saves write `z_1`/`z_2`/`z_3` coordinates plus `footprint_meshes.json` and one-based
-vertex, tetrahedron, and outward-boundary-face CSV files under the
-`pyinstancespace.trace-mesh/v1` schema. Plots use native matplotlib 3D axes, mesh
-surfaces, and the stored global or per-algorithm PILOT viewpoint.
-
-CLOISTER retains its two vertex arrays and adds derived `z_edge_faces` and
-`z_ecorr_faces` for 3D boundaries, including planar boundaries embedded in 3D.
-Collinear 3D input raises an error. CSV output includes `bounds_faces.csv`,
-`bounds_prunned_faces.csv`, and `bounds_mesh_manifest.json` under
-`pyinstancespace.cloister-mesh/v1`. These face indices are **zero-based** rows into
-the corresponding bounds CSV, unlike the one-based TRACE mesh indices above.
-Two-dimensional exports remove stale CLOISTER mesh files. This change does not
-add a new CLOISTER plot view.
-
-- `opts.outputs.csv`: CSV output preference (default `True`). Use `model.save_to_csv(output_directory)` to export.
-- `opts.outputs.png`: figure output preference (default `True`). Use `model.save_graphs(output_directory)` to export.
-- `opts.outputs.web`: MATILDA web-data output preference (default `False`). Use `model.save_for_web(output_directory)` to export.
-
-## Contact
-
-If you have any suggestions or ideas (e.g. for new features), or if you encounter any problems while running the code, please use this repository's own [issue tracker](https://github.com/andremun/pyInstanceSpace/issues) or contact us through MATILDA's [Queries and Feedback](http://matilda.unimelb.edu.au/matilda/contact-us) page.
-
-## Acknowledgements
-
-Funding for the development of this code was provided by:
-
-- The Australian Research Council, through the ARC Industrial Transformation Training Centre in Optimisation Technologies, Integrated Methodologies, and Applications (OPTIMA; grant No. IC200100009).
-- The University of Melbourne, through grant 2025DYA013.
-
-This code was partly developed as part of the subject SWEN90017-18 by students Junheng Chen, Yusuf Berdan Guzel, Kushagra Khare, Dong Hyeog Jang, Kian Dsouza, Nathan Harvey, Tao Yu, Xin Xiang, Jiaying Yi, and Cheng Ze Lam. Ben Golding mentored the team, and Mansooreh Zahedi coordinated the subject. Sean Xiao developed the ```explore()``` pipeline.
+[PolyForm Noncommercial License 1.0.0](LICENSE). See [SECURITY.md](SECURITY.md) for security reporting and [GitHub Issues](https://github.com/andremun/pyInstanceSpace/issues) for support and defects.

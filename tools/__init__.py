@@ -1,1 +1,2 @@
-"""Repository maintenance tools that are not part of the public package."""
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+"""Maintainer analysis and release tools."""

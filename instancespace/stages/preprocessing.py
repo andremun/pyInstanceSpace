@@ -20,12 +20,17 @@ PreprocessingStage : Stage
 
 """
 
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import numpy as np
 import pandas as pd
 from loguru import logger
 from numpy._typing import NDArray
+
+if TYPE_CHECKING:
+    type _Series = pd.Series[Any]
+else:
+    _Series = pd.Series
 
 from instancespace.data.default_options import DEFAULT_PRELIM_NAN_THRESHOLD
 from instancespace.data.options import (
@@ -384,9 +389,9 @@ class PreprocessingStage(Stage[PreprocessingInput, PreprocessingOutput]):
     ) -> tuple[
         NDArray[np.double],
         NDArray[np.double],
-        "pd.Series[Any]",
+        _Series,
         list[str],
-        "pd.Series[Any] | None",
+        _Series | None,
     ]:
         """Remove instances and features with excessive missing values.
 

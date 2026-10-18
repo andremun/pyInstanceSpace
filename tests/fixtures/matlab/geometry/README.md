@@ -1,7 +1,7 @@
 # Controlled MATLAB geometry references
 
-Generated locally on Linux using MATLAB R2026a Update 5 and a clean checkout of
-InstanceSpace master `929acfd889e7a17c7ee40c4004ad1bc18639b0e6` (9 October 2026).
+Generated locally on Linux using MATLAB R2026a Update 5 and a clean pinned checkout of
+InstanceSpace `929acfd889e7a17c7ee40c4004ad1bc18639b0e6` (9 October 2026).
 The manifest records the runtime, installed toolboxes, source commit, exporter
 SHA-256 and each case file hash. `tests/test_matlab_geometry_cases.py` pins the
 manifest hash and verifies those file and exporter hashes before comparisons.

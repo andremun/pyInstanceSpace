@@ -541,14 +541,13 @@ class ExploreResult:
     z : NDArray[np.double]
         Projected coordinates from PILOT. Shape:
         (n_instances, n_projection_dimensions), where the projection has two
-        or three coordinates. Full 3D explore results remain gated by TRACE's
-        pending native 3D geometry engine.
+        or three coordinates. TRACE3 supports full 3D exploration.
     y_hat : NDArray[np.bool_] | None
         Binary algorithm predictions from PYTHIA SVMs.
         Shape: (n_instances, n_algorithms). None if PYTHIA not applied.
         `n_algorithms` includes a trailing column (always `False`) per
         test-set-only algorithm absent from training when ground truth is
-        present (F9, full MATLAB parity) - see `algo_labels`.
+        present - see `algo_labels`.
     pr0_hat : NDArray[np.double] | None
         Probability predictions from PYTHIA SVMs.
         Shape: (n_instances, n_algorithms). None if PYTHIA not applied.
@@ -570,7 +569,7 @@ class ExploreResult:
     inst_labels : pd.Series
         Instance labels/identifiers from the test metadata.
     y_actual : NDArray[np.bool_] | None
-        Ground-truth binary good/bad label per algorithm (F9), derived from
+        Ground-truth binary good/bad label per algorithm, derived from
         `test_metadata`'s own `algo_*` performance columns using the
         *trained* `PerformanceOptions`. Shape: (n_instances, n_algorithms).
         `None` when the test set carries no algorithm performance columns at
@@ -607,7 +606,7 @@ class ExploreResult:
         The full algorithm order (trained algorithms, then any test-set-only
         algorithm absent from training, in first-encountered order) that
         `y_hat`/`pr0_hat`/`in_good`/`in_best`/`accuracy_actual`/etc.'s
-        per-algorithm columns index into (F9, full MATLAB parity) - needed
+        per-algorithm columns index into (including new test-set algorithms) - needed
         to interpret those columns once new algorithms widen them beyond
         `Model.data.algo_labels`' own length. `None` under the same
         condition as `y_actual` (when there's no ground truth, column order

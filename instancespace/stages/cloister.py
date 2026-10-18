@@ -367,7 +367,7 @@ class CloisterStage(Stage[CloisterInput, CloisterOutput]):
             `points` (an explicit compatibility option for older 2D hulls). `None`
             (this port's own default) uses every column, letting
             `scipy.spatial.ConvexHull` build the hull in its native
-            dimensionality. #299 audit finding, issue 5. Either way, the
+            dimensionality. Either way, the
             returned vertices keep every column of `points` - only the hull
             geometry itself is computed on the restricted view.
 

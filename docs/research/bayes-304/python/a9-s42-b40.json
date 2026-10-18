@@ -1,0 +1,294 @@
+{
+  "case": "a9-s42-b40",
+  "backend": "Python BayesSearchCV, plain EI",
+  "objective": "unweighted mean of fold classification error",
+  "trace": [
+    {
+      "iteration": 1,
+      "box_constraint": 0.03699724523563796,
+      "kernel_scale": 9.917663591292447,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.41506090808416385
+    },
+    {
+      "iteration": 2,
+      "box_constraint": 1.187489852646135,
+      "kernel_scale": 0.32561042112722904,
+      "cv_error": 0.44352159468438546,
+      "running_best": 0.41506090808416385
+    },
+    {
+      "iteration": 3,
+      "box_constraint": 0.0044384170992747395,
+      "kernel_scale": 0.004437378351753601,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.41506090808416385
+    },
+    {
+      "iteration": 4,
+      "box_constraint": 0.0017158873662677379,
+      "kernel_scale": 4.36646580126651,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.41506090808416385
+    },
+    {
+      "iteration": 5,
+      "box_constraint": 15.999999999999993,
+      "kernel_scale": 12.572575113154864,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.41506090808416385
+    },
+    {
+      "iteration": 6,
+      "box_constraint": 7.228525114522546,
+      "kernel_scale": 0.0009765625000000007,
+      "cv_error": 0.40564784053156144,
+      "running_best": 0.40564784053156144
+    },
+    {
+      "iteration": 7,
+      "box_constraint": 4.020671133381173,
+      "kernel_scale": 0.024648826943346202,
+      "cv_error": 0.3725359911406423,
+      "running_best": 0.3725359911406423
+    },
+    {
+      "iteration": 8,
+      "box_constraint": 0.002691345496987316,
+      "kernel_scale": 0.04452291960537353,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.3725359911406423
+    },
+    {
+      "iteration": 9,
+      "box_constraint": 12.481593984285027,
+      "kernel_scale": 0.019455377430848533,
+      "cv_error": 0.3868217054263565,
+      "running_best": 0.3725359911406423
+    },
+    {
+      "iteration": 10,
+      "box_constraint": 0.001849488585099521,
+      "kernel_scale": 0.029447287781207945,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.3725359911406423
+    },
+    {
+      "iteration": 11,
+      "box_constraint": 1.4189626315427102,
+      "kernel_scale": 0.016654637369454894,
+      "cv_error": 0.3868217054263565,
+      "running_best": 0.3725359911406423
+    },
+    {
+      "iteration": 12,
+      "box_constraint": 3.7825569361808262,
+      "kernel_scale": 0.04294934100737671,
+      "cv_error": 0.34429678848283496,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 13,
+      "box_constraint": 15.999999999999993,
+      "kernel_scale": 0.057068323744738005,
+      "cv_error": 0.3679955703211517,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 14,
+      "box_constraint": 0.924788000064612,
+      "kernel_scale": 0.04956914431302493,
+      "cv_error": 0.3584717607973422,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 15,
+      "box_constraint": 0.0009765625,
+      "kernel_scale": 0.0009765625000000007,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 16,
+      "box_constraint": 14.911787104172161,
+      "kernel_scale": 0.0042885602739897305,
+      "cv_error": 0.39623477297895904,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 17,
+      "box_constraint": 0.000989562926742924,
+      "kernel_scale": 0.7744872379874915,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 18,
+      "box_constraint": 15.930701146393814,
+      "kernel_scale": 2.0737615902141986,
+      "cv_error": 0.3957918050941307,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 19,
+      "box_constraint": 1.1827595100360264,
+      "kernel_scale": 0.0353783547855576,
+      "cv_error": 0.3489479512735326,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 20,
+      "box_constraint": 15.999999999999993,
+      "kernel_scale": 0.0367996351200466,
+      "cv_error": 0.3489479512735326,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 21,
+      "box_constraint": 0.001077275776633335,
+      "kernel_scale": 0.14509265748852887,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 22,
+      "box_constraint": 0.0010467837538966382,
+      "kernel_scale": 0.011198557573287872,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 23,
+      "box_constraint": 15.546512143703033,
+      "kernel_scale": 4.367038923860141,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 24,
+      "box_constraint": 14.264013157267089,
+      "kernel_scale": 0.9695191799418079,
+      "cv_error": 0.3766334440753045,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 25,
+      "box_constraint": 0.07742763569610256,
+      "kernel_scale": 1.5298401968812398,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 26,
+      "box_constraint": 0.0011326858635678516,
+      "kernel_scale": 15.999956587045347,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 27,
+      "box_constraint": 14.691602058803754,
+      "kernel_scale": 0.008754494559541475,
+      "cv_error": 0.3868217054263565,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 28,
+      "box_constraint": 0.4253169986309783,
+      "kernel_scale": 0.0020760915467818836,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 29,
+      "box_constraint": 14.653252856200044,
+      "kernel_scale": 0.12518038741074441,
+      "cv_error": 0.42458471760797334,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 30,
+      "box_constraint": 0.24188795176293426,
+      "kernel_scale": 0.007794386872845603,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 31,
+      "box_constraint": 0.0010959261048140107,
+      "kernel_scale": 0.32051609735752784,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 32,
+      "box_constraint": 0.00105317395767398,
+      "kernel_scale": 0.0019911406333005008,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 33,
+      "box_constraint": 0.0009810230382601758,
+      "kernel_scale": 2.1572376883755284,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 34,
+      "box_constraint": 14.897462756015049,
+      "kernel_scale": 0.6057361053493929,
+      "cv_error": 0.43388704318936866,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 35,
+      "box_constraint": 14.622885707282073,
+      "kernel_scale": 1.353800418752292,
+      "cv_error": 0.41428571428571426,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 36,
+      "box_constraint": 14.985939352774322,
+      "kernel_scale": 0.04489929477629015,
+      "cv_error": 0.34429678848283496,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 37,
+      "box_constraint": 0.0010760004040850394,
+      "kernel_scale": 0.08274589754065866,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 38,
+      "box_constraint": 14.151610762111227,
+      "kernel_scale": 0.012057719186685713,
+      "cv_error": 0.3868217054263565,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 39,
+      "box_constraint": 0.001000121691017593,
+      "kernel_scale": 0.017819496173007317,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    },
+    {
+      "iteration": 40,
+      "box_constraint": 15.582953019676522,
+      "kernel_scale": 7.235628599938833,
+      "cv_error": 0.41506090808416385,
+      "running_best": 0.34429678848283496
+    }
+  ],
+  "versions": {
+    "python": "3.12.14",
+    "numpy": "1.26.4",
+    "scipy": "1.14.1",
+    "sklearn": "1.5.2",
+    "skopt": "0.10.2"
+  }
+}
