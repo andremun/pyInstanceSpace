@@ -2,7 +2,21 @@
 
 Build an instance space, inspect its fitted results and evaluate new instances
 
-Use Python 3.12 and install `instancespace`. This example is self-contained. Its two algorithms have lower-is-better costs, and a cost at or below 0.20 is good. Replace the generated table with your own [metadata](metadata-format.html) for a real analysis.
+This example creates its own metadata and runs a complete analysis. Its two algorithms have lower-is-better costs. A cost at or below 0.20 is good. Replace the generated table with your own [metadata](metadata-format.html) for a real analysis.
+
+## Install
+
+Use Python 3.12 in a virtual environment:
+
+```sh
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install instancespace
+```
+
+On Windows, activate the environment with `.\.venv\Scripts\Activate.ps1` in PowerShell. On a machine without a graphical display, set `MPLBACKEND=Agg` before running Python. Save figures with `model.save_graphs("output")` after creating the output directory.
+
+Run the following Python blocks in order in one script or session.
 
 ## Prepare Metadata
 
@@ -80,6 +94,14 @@ print(result.selection0)
 ```
 
 Exploration applies saved preprocessing, feature selection, projection, classifiers and geometry. It does not refit them. Missing outcomes are excluded from evaluation metrics.
+
+## Interpret the Results
+
+`model.pythia.summary` reports classifier and algorithm-selection results. `model.trace.summary` reports footprint support, purity, and area or volume. Inspect these summaries together with the plots. A large footprint alone does not establish high predictive accuracy or adequate benchmark coverage.
+
+The example uses training data to fit preprocessing, projection, and classifiers. It keeps all three features. Its classifier CV summaries are conditional on those fitted steps. Use independent evaluation data to assess generalization. The feature-only exploration above produces recommendations without an observed-outcome accuracy score.
+
+Call `space.close()` after the final operation to release its executor.
 
 ## See Also
 

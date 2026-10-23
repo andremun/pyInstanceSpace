@@ -2,7 +2,9 @@
 
 Understand algorithm performance across the instance space of a problem
 
-InstanceSpace relates instance features to a portfolio's algorithm performance. It creates a 2D or 3D projection, fits algorithm selectors, and constructs footprints showing where algorithms perform well. The package implements the Instance Space Analysis methodology with Python's numerical and machine-learning libraries.
+Instance Space Analysis (ISA) relates the structural features of problem instances to the performance of a portfolio of algorithms. This Python package projects instances into a 2D or 3D space, fits algorithm selectors, and constructs algorithm footprints. A footprint describes a region where an algorithm is expected to perform well under a chosen performance threshold.
+
+Use ISA to compare algorithm strengths, examine feature and performance relationships, inspect benchmark diversity, and recommend algorithms for new instances. Gaps in the observed space can help identify where additional instances would improve coverage. The conclusions depend on the features, performance measure, and collected instances. Footprints do not guarantee good performance for every new instance within their boundaries.
 
 <div class="figure">
 <svg class="pipeline-diagram" viewBox="0 0 760 145" role="group" aria-label="Pipeline stages: PREPROCESSING, PRELIM, SIFTED, PILOT, then CLOISTER and PYTHIA, followed by TRACE">
@@ -30,9 +32,23 @@ InstanceSpace relates instance features to a portfolio's algorithm performance. 
 
 ## Classes and Reference
 
-Start with [InstanceSpace](instance-space.html) for pipeline execution and [Model](model.html) for fitted results and exports. The stage pages describe each scientific step with syntax, inputs, outputs and examples. [Classifiers and Tuning](tuning.html) explains Sobol, Bayesian and fixed-parameter fitting.
+Start with [InstanceSpace](instance-space.html) to build and explore an analysis. Use [Model](model.html) to inspect fitted results, save an archive, or export files.
 
-The [API Reference](api-reference.html) supplies exact Python signatures and result fields. [MATLAB Compatibility](matlab-compatibility.html) records current differences between implementations.
+Each stage page provides syntax, a description, parameters, results, and examples:
+
+| Stage | Purpose |
+|---|---|
+| [PREPROCESSING](preprocessing.html) | Select metadata columns and filter missing inputs. |
+| [PRELIM](prelim.html) | Define good performance and fit data transformations. |
+| [SIFTED](sifted.html) | Select informative features. |
+| [PILOT](pilot.html) | Project features into a 2D or 3D instance space. |
+| [CLOISTER](cloister.html) | Estimate empirical bounds. |
+| [PYTHIA](pythia.html) | Train algorithm selectors and score observed outcomes. |
+| [TRACE](trace.html) | Construct footprints and evaluate membership. |
+
+[Classifiers and Tuning](tuning.html) explains the learners and search strategies. [Outputs and Plotting](outputs.html) describes file formats, geometry, and figures. [Custom Stages](plugins.html) explains pipeline extensions.
+
+The [API Reference](api-reference.html) supplies exact Python signatures and result fields. [MATLAB Compatibility](matlab-compatibility.html) describes shared contracts and current differences. Use [Troubleshooting](troubleshooting.html) for input, configuration, and workflow errors.
 
 ## Installation
 
@@ -44,11 +60,28 @@ source .venv/bin/activate
 python -m pip install instancespace
 ```
 
-The distribution is named `instancespace`; import it as `instancespace`.
+On Windows, activate the environment with `.\.venv\Scripts\Activate.ps1` in PowerShell. The distribution and import names are both `instancespace`. Python workflows do not require MATLAB, GNU Octave, or MATLAB toolboxes.
+
+## Reproducibility
+
+Keep the input metadata, complete options, package version, and dependency versions with each analysis. Choose performance direction, threshold mode, epsilon, projection dimensions, and footprint method explicitly. Stage seeds of `None` inherit `general.seed`, whose Python default is 0.
+
+A fixed seed does not guarantee identical optimizer paths or floating-point results across platforms or implementations. Use independent evaluation data to assess the complete analysis. PYTHIA cross-validation summaries remain conditional on the fitted preprocessing, feature selection, projection, and tuning.
+
+## AI-Assisted Analysis
+
+The repository includes a [Python ISA skill](https://github.com/andremun/pyInstanceSpace/blob/main/.claude/skills/instance-space-analysis/SKILL.md) for AI assistants. It covers data checks, option choices, stage interpretation, and evaluation limits. Its implementation guidance applies to this Python package.
 
 ## Methodology
 
 - Smith-Miles, K. and Muñoz, M. A. (2023). Instance Space Analysis for Algorithm Testing: Methodology and Software Tools. *ACM Computing Surveys*, 55(12), Article 255. [DOI](https://doi.org/10.1145/3572895).
 - Simpson, C., Muñoz, M. A., Kandanaarachchi, S. and Campello, R. J. G. B. (2025). ISA3: A 3-dimensional expansion of Instance Space Analysis. *Machine Learning*, 114, 240. [DOI](https://doi.org/10.1007/s10994-025-06871-5).
 
-The package is distributed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/).
+For the Python software, cite:
+
+- Güzel, Y. B. et al. (2025). instancespace: A Python package for insightful algorithm testing through Instance Space Analysis. *SoftwareX*, 31, 102246. [DOI](https://doi.org/10.1016/j.softx.2025.102246).
+- Muñoz, M. A. and Smith-Miles, K. Instance Space Analysis: A Python toolkit for the assessment of algorithmic power. [Zenodo](https://doi.org/10.5281/zenodo.15562567).
+
+## License and Support
+
+The package uses the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/). Report defects and request features through [GitHub Issues](https://github.com/andremun/pyInstanceSpace/issues). See [Contributing](https://github.com/andremun/pyInstanceSpace/blob/main/CONTRIBUTING.md) for development checks and [Security](https://github.com/andremun/pyInstanceSpace/blob/main/SECURITY.md) for private security reporting.
