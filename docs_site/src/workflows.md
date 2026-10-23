@@ -2,7 +2,7 @@
 
 Run the pipeline, inspect stages and apply a fitted model
 
-Use the metadata and options from [Getting Started](getting-started.html). Building fits scientific artifacts; exploration applies those artifacts to new instances.
+Use the metadata and options from [Getting Started](getting-started.html). A build fits preprocessing, projection, classifiers, and footprints. Exploration applies those fitted results to new instances.
 
 ## Build a Complete Model
 
@@ -25,7 +25,7 @@ outputs = staged.run_until_stage(PilotStage)
 print(outputs["z"])
 ```
 
-`run_stage(StageClass, **arguments)` runs a stage whose prerequisites are available. `run_until_stage` runs prerequisites as well. Input overrides are named stage inputs, not arbitrary JSON option keys. `run_stage` returns a typed stage record, while `run_until_stage` returns a dictionary. A partial pipeline has stage outputs; a complete model is available only when its required stages have finished.
+`run_stage(StageClass, **arguments)` runs a stage whose prerequisites are available. `run_until_stage` runs prerequisites as well. Input overrides are named stage inputs, not arbitrary JSON option keys. `run_stage` returns a typed stage record, while `run_until_stage` returns a dictionary. A partial pipeline has stage outputs. A complete model is available only when its required stages have finished.
 
 ## Observe Stages
 
@@ -36,7 +36,7 @@ for step in observed.run_iter():
 model = observed.model
 ```
 
-Consume the iterator completely to finalize the model. An interrupted run does not expose a completed model. Progress reporters provide another way to integrate stage notifications with an application; see the [InstanceSpace API](api/instancespace/instance_space.html#InstanceSpace).
+Consume the iterator completely to finalize the model. An interrupted run does not expose a completed model. Progress reporters provide another way to integrate stage notifications with an application. See the [InstanceSpace API](api/instancespace/instance_space.html#InstanceSpace).
 
 ## Explore New Data
 
@@ -46,7 +46,7 @@ print(result.z)
 print(result.selection0)
 ```
 
-The returned `ExploreResult` contains projected coordinates, predictions, selections, optional observed-outcome metrics and footprint membership. `selection0` is the abstaining selection and `selection1` includes the saved training fallback. Python's selector indices are zero-based; `-1` indicates no selected algorithm.
+The returned `ExploreResult` contains projected coordinates, predictions, selections, optional observed-outcome metrics and footprint membership. `selection0` is the abstaining selection and `selection1` includes the saved training fallback. Python's selector indices are zero-based. The value `-1` indicates no selected algorithm.
 
 `explore_stage_iter(new_metadata)` exposes intermediate prediction stages. New outcome labels are used for evaluation only, not to choose recommendations.
 
@@ -58,7 +58,15 @@ restored = InstanceSpace.load("analysis.checkpoint")
 result = restored.explore(new_metadata)
 ```
 
-An InstanceSpace checkpoint preserves runner state for resuming and exploration. A standalone `Model.save` stores fitted results; these are distinct persistence interfaces. Only load files from a trusted producer. Optional HMAC authentication is supported by the save/load APIs.
+An InstanceSpace checkpoint preserves runner state for resuming and exploration. A standalone `Model.save` stores fitted results. These persistence interfaces serve different purposes. Only load files from a trusted producer. Optional HMAC authentication is supported by the save/load APIs.
+
+## Repeat an Analysis
+
+Keep the metadata, complete options, package version, and dependency versions with the results. Use explicit seeds for comparisons. A fixed seed does not guarantee identical numerical results across environments or MATLAB and Python.
+
+Keep training and evaluation data separate. Do not choose thresholds or search budgets solely to improve scores on the evaluation set. For implementation comparisons, match performance rules, retained columns, projection, footprint settings, parameter units, and evaluation protocol.
+
+Call `close()` on each `InstanceSpace` after its final operation to release its executor.
 
 ## See Also
 
