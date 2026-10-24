@@ -1,5 +1,13 @@
 # Release notes
 
+## Unreleased
+
+- Require Pillow 13.0.0 or later and update the lockfile from 12.3.0 to
+  13.0.0 to address image decoding, memory safety and Ghostscript advisories.
+  This minimum also applies to fresh package installations.
+- Compatibility: Additive. ISA algorithms, numerical dependency series,
+  public interfaces and persisted schemas remain unchanged.
+
 ## 0.4.1 — release preparation
 
 - Curated MATLAB-style reference pages cover metadata, workflows, stages,
